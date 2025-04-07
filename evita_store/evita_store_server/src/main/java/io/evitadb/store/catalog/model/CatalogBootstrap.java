@@ -72,7 +72,7 @@ public record CatalogBootstrap(
 	 */
 	public static long getLastMeaningfulPosition(long fileLength) {
 		// removes non-divisible remainder as it might be incomplete record and returns last meaningful position
-		return fileLength - (fileLength % BOOTSTRAP_RECORD_SIZE) - BOOTSTRAP_RECORD_SIZE;
+		return Math.max(0, fileLength - (fileLength % BOOTSTRAP_RECORD_SIZE) - BOOTSTRAP_RECORD_SIZE);
 	}
 
 	/**

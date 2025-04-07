@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.schema.GraphQLEnumType;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLFieldDefinition.Builder;
-import graphql.schema.GraphQLInputObjectField;
 import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
@@ -75,7 +74,7 @@ import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLEnumTypeTransformer;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -116,7 +115,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nonnull private final FullResponseObjectBuilder fullResponseObjectBuilder;
 	@Nonnull private final LocalMutationAggregateObjectBuilder localMutationAggregateObjectBuilder;
 
-	public CatalogDataApiGraphQLSchemaBuilder(@Nonnull GraphQLConfig config,
+	public CatalogDataApiGraphQLSchemaBuilder(@Nonnull GraphQLOptions config,
 	                                          @Nonnull Evita evita,
 	                                          @Nonnull CatalogContract catalog) {
 		super(new CatalogGraphQLSchemaBuildingContext(config, evita, catalog));

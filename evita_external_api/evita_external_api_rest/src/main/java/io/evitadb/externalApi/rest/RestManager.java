@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,12 +29,13 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiWriter;
 import io.evitadb.externalApi.rest.api.system.SystemRestBuilder;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.RestInstanceType;
 import io.evitadb.externalApi.rest.io.RestRouter;
@@ -72,7 +73,8 @@ public class RestManager {
 	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Nonnull private final Evita evita;
-	@Nonnull private final RestConfig restConfig;
+	@Nonnull private final HeaderOptions headerOptions;
+	@Nonnull private final RestOptions restOptions;
 
 	/**
 	 * REST specific endpoint router.
@@ -86,10 +88,11 @@ public class RestManager {
 	@Nullable private SystemBuildStatistics systemBuildStatistics;
 	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
 
-	public RestManager(@Nonnull Evita evita, @Nonnull RestConfig restConfig) {
+	public RestManager(@Nonnull Evita evita, @Nonnull HeaderOptions headerOptions, @Nonnull RestOptions restOptions) {
 		this.evita = evita;
-		this.restConfig = restConfig;
-		this.restRouter = new RestRouter(objectMapper, restConfig);
+		this.headerOptions = headerOptions;
+		this.restOptions = restOptions;
+		this.restRouter = new RestRouter(this.objectMapper, headerOptions, restOptions);
 
 		final long buildingStartTime = System.currentTimeMillis();
 
@@ -111,7 +114,11 @@ public class RestManager {
 	private void registerSystemApi() {
 		final long instanceBuildStartTime = System.currentTimeMillis();
 
-		final SystemRestBuilder systemRestBuilder = new SystemRestBuilder(restConfig.getExposeOn(), restConfig, evita);
+		final SystemRestBuilder systemRestBuilder = new SystemRestBuilder(
+			this.restOptions,
+			this.headerOptions,
+			this.evita
+		);
 		final long schemaBuildStartTime = System.currentTimeMillis();
 		final Rest api = systemRestBuilder.build();
 		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
@@ -145,18 +152,18 @@ public class RestManager {
 		try {
 			final long instanceBuildStartTime = System.currentTimeMillis();
 
-			final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(restConfig.getExposeOn(), restConfig, evita, catalog);
+			final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(this.restOptions, this.headerOptions, this.evita, catalog);
 			final long schemaBuildStartTime = System.currentTimeMillis();
 			final Rest api = catalogRestBuilder.build();
 			final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
 
-			registeredCatalogs.add(catalogName);
-			restRouter.registerCatalogApi(catalogName, api);
+			this.registeredCatalogs.add(catalogName);
+			this.restRouter.registerCatalogApi(catalogName, api);
 			final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
 
 			// build metrics
 			Assert.isPremiseValid(
-				!catalogBuildStatistics.containsKey(catalogName),
+				!this.catalogBuildStatistics.containsKey(catalogName),
 				() -> new RestInternalError("There are already build statistics present for catalog `" + catalogName + "`.")
 			);
 			final CatalogBuildStatistics buildStatistics = CatalogBuildStatistics.createNew(
@@ -171,8 +178,8 @@ public class RestManager {
 			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by REST API.", ex);
 
 			// cleanup corrupted paths
-			restRouter.unregisterCatalogApi(catalogName);
-			catalogBuildStatistics.remove(catalogName);
+			this.restRouter.unregisterCatalogApi(catalogName);
+			this.catalogBuildStatistics.remove(catalogName);
 		}
 	}
 
@@ -202,17 +209,17 @@ public class RestManager {
 		final long instanceBuildStartTime = System.currentTimeMillis();
 
 		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
-		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(restConfig.getExposeOn(), restConfig, evita, catalog);
+		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(this.restOptions, this.headerOptions, this.evita, catalog);
 		final long schemaBuildStartTime = System.currentTimeMillis();
 		final Rest newApi = catalogRestBuilder.build();
 		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
 
-		restRouter.unregisterCatalogApi(catalogName);
-		restRouter.registerCatalogApi(catalogName, newApi);
+		this.restRouter.unregisterCatalogApi(catalogName);
+		this.restRouter.registerCatalogApi(catalogName, newApi);
 		final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
 
 		// build metrics
-		final CatalogBuildStatistics buildStatistics = catalogBuildStatistics.get(catalogName);
+		final CatalogBuildStatistics buildStatistics = this.catalogBuildStatistics.get(catalogName);
 		Assert.isPremiseValid(
 			buildStatistics != null,
 			() -> new RestInternalError("No build statistics found for catalog `" + catalogName + "`.")

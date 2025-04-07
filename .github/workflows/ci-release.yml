@@ -9,11 +9,17 @@ on:
       - completed
     branches:
       - "master"
+  push:
+    branches:
+      - "release_*"
+    paths: # but react only to changes in code or pipeline definition
+      - evita*/**/*.java
+      - evita*/**/pom.xml
 
 jobs:
   build:
-    # Only run if the master workflow was successful
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Run if the master workflow was successful OR if the branch is a release branch
+    if: ${{ github.event.workflow_run.conclusion == 'success' || startsWith(github.ref, 'refs/heads/release_') }}
 
     permissions:
       # write permission is required to create a github release
@@ -24,7 +30,7 @@ jobs:
 
     outputs:
       release_id: ${{ steps.create_release.outputs.id }}
-      released_version: ${{ steps.workflow_data.outputs.released_version }}
+      released_version: ${{ steps.release_version.outputs.version }}
 
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -32,32 +38,42 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # Get the release branch name from the master workflow
-    - name: Download workflow artifact
-      uses: dawidd6/action-download-artifact@20319c5641d495c8a52e688b7dc5fada6c3a9fbc # v8
-      with:
-        workflow: ci-master.yml
-        workflow_conclusion: success
-        name: workflow-data
-        path: .
 
-    - name: Read workflow data
-      id: workflow_data
+    - name: Download release branch info
+      uses: dawidd6/action-download-artifact@20319c5641d495c8a52e688b7dc5fada6c3a9fbc # v8
+      if: ${{ github.event.workflow_run.conclusion == 'success' }}
+      with:
+        workflow: ${{ github.event.workflow_run.workflow_id }}
+        run_id: ${{ github.event.workflow_run.id }}
+        name: workflow-data
+
+    - name: Read release branch name
+      id: read_branch
+      if: ${{ github.event.workflow_run.conclusion == 'success' }}
       run: |
         if [ -f "release_branch.txt" ]; then
-          echo "release_branch=$(cat release_branch.txt)" >> $GITHUB_OUTPUT
-          echo "released_version=$(cat released_version.txt)" >> $GITHUB_OUTPUT
-          echo "Release branch: $(cat release_branch.txt)"
-          echo "Released version: $(cat released_version.txt)"
+          RELEASE_BRANCH=$(cat release_branch.txt)
+          echo "branch=$RELEASE_BRANCH" >> $GITHUB_OUTPUT
+          echo "Using release branch: $RELEASE_BRANCH"
         else
-          echo "Error: Could not find workflow data files"
+          echo "release_branch.txt not found"
           exit 1
         fi
 
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2    # checkout sources
+    - name: Checkout code
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2    # checkout sources
       with:
-        ref: ${{ steps.workflow_data.outputs.release_branch }}
+        ref: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
         fetch-depth: 0
+
+    - name: Resolve new release version
+      id: release_version
+      uses: lukashornych/semantic-calendar-version@bb0a07cf0ca71a0b2b4fed52114e28092e5cac81 #v1.2.0
+      with:
+        prefix: 'v'
+        year_switch_mode: 'OnMinor'
+        minor-identifier: '/feat(?:\\([^)]+\\))?:/'
+        hotfix-branch-pattern: 'release_.*'
 
     - name: Setup Java JDK
       uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0 setup JDK 17 for building
@@ -80,7 +96,7 @@ jobs:
         mvn versions:set -DnewVersion=$NEW_VERSION
         mvn -T 1C -B -P release-sign-artifacts -Dmaven.test.skip=true deploy --file pom.xml
       env:
-        EVITA_BUILD_VERSION: ${{ steps.workflow_data.outputs.released_version }}
+        EVITA_BUILD_VERSION: ${{ steps.release_version.outputs.version }}
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
         MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
         MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
@@ -111,7 +127,7 @@ jobs:
       id: create_release
       uses: release-drafter/release-drafter@b1476f6e6eb133afa41ed8589daba6dc69b4d3f5 # v6.1.0
       with:
-        version: ${{ steps.workflow_data.outputs.released_version }}
+        version: ${{ steps.release_version.outputs.version }}
         publish: false
         latest: ${{ github.ref_name == 'master' && 'true' || 'legacy' }}
 
@@ -121,7 +137,7 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./dist.zip
-        asset_name: Dist (zip)
+        asset_name: evitaDB-${{ steps.release_version.outputs.version }}.zip
         asset_content_type: application/zip
 
     - name: Upload dist.tar.gz to release
@@ -130,7 +146,7 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./dist.tar.gz
-        asset_name: Dist (tar.gz)
+        asset_name: evitaDB-${{ steps.release_version.outputs.version }}.tar.gz
         asset_content_type: application/gzip
 
     - name: Upload evitaDB server artifact

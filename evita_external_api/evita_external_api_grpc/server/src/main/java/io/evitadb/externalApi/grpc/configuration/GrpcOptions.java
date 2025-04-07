@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,14 +25,13 @@ package io.evitadb.externalApi.grpc.configuration;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.List;
 
 import static java.util.Optional.ofNullable;
 
@@ -42,7 +41,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class GrpcConfig extends AbstractApiConfiguration {
+public class GrpcOptions extends AbstractApiOptions {
 
 	private static final String BASE_GRPC_PATH = "";
 	/**
@@ -61,27 +60,27 @@ public class GrpcConfig extends AbstractApiConfiguration {
 	 */
 	@Getter private final String prefix;
 
-	public GrpcConfig() {
+	public GrpcOptions() {
 		super(true, ":" + DEFAULT_GRPC_PORT);
 		this.exposeDocsService = false;
 		this.prefix = BASE_GRPC_PATH;
 	}
 
-	public GrpcConfig(@Nonnull String host) {
+	public GrpcOptions(@Nonnull String host) {
 		super(true, host);
 		this.exposeDocsService = false;
 		this.prefix = BASE_GRPC_PATH;
 	}
 
 	@JsonCreator
-	public GrpcConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
-	                  @Nonnull @JsonProperty("host") String host,
-	                  @Nullable @JsonProperty("exposeOn") String exposeOn,
-					  @Nullable @JsonProperty("tlsMode") String tlsMode,
-					  @Nullable @JsonProperty("keepAlive") Boolean keepAlive,
-					  @Nullable @JsonProperty("exposeDocsService") Boolean exposeDocsService,
-	                  @Nullable @JsonProperty("prefix") String prefix,
-	                  @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
+	public GrpcOptions(@Nullable @JsonProperty("enabled") Boolean enabled,
+	                   @Nonnull @JsonProperty("host") String host,
+	                   @Nullable @JsonProperty("exposeOn") String exposeOn,
+	                   @Nullable @JsonProperty("tlsMode") String tlsMode,
+	                   @Nullable @JsonProperty("keepAlive") Boolean keepAlive,
+	                   @Nullable @JsonProperty("exposeDocsService") Boolean exposeDocsService,
+	                   @Nullable @JsonProperty("prefix") String prefix,
+	                   @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
 		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
 		this.exposeDocsService = ofNullable(exposeDocsService).orElse(false);

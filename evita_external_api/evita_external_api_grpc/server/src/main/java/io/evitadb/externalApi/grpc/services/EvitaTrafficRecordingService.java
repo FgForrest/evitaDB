@@ -31,8 +31,12 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.core.traffic.TrafficRecordingSettings;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.traffic.TrafficCaptureConverter;
+import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
+import io.evitadb.externalApi.utils.ExternalApiTracingContext;
+import io.grpc.Metadata;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
@@ -61,6 +65,15 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 	 * Instance of Evita upon which will be executed service calls
 	 */
 	@Nonnull private final Evita evita;
+	/**
+	 * Tracing context for the gRPC calls.
+	 */
+	@Nonnull private final ExternalApiTracingContext<Metadata> tracingContext;
+
+	public EvitaTrafficRecordingService(@Nonnull Evita evita, @Nonnull HeaderOptions headerOptions) {
+		this.evita = evita;
+		this.tracingContext = ExternalApiTracingContextProvider.getContext(headerOptions);
+	}
 
 	/**
 	 * Method returns list of traffic recording history entries that match given criteria.
@@ -86,8 +99,9 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
 		);
 	}
 
@@ -115,8 +129,9 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
 		);
 	}
 
@@ -160,8 +175,9 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 				responseObserver.onCompleted();
 				trafficHistoryStream.close();
 			},
-			evita.getRequestExecutor(),
-			responseObserver
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
 		);
 	}
 
@@ -184,8 +200,9 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
 		);
 	}
 
@@ -209,8 +226,9 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
 		);
 	}
 
@@ -244,8 +262,9 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 				);
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
 		);
 	}
 
@@ -271,8 +290,9 @@ public class EvitaTrafficRecordingService extends GrpcEvitaTrafficRecordingServi
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
-			evita.getRequestExecutor(),
-			responseObserver
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
 		);
 	}
 

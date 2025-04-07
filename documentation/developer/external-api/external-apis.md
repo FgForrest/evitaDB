@@ -147,7 +147,7 @@ on start and stop actions of the main HTTP server (which is useful e.g. to start
 The second interface is basically factory for the provider class `io.evitadb.externalApi.http.ExternalApiProviderRegistrar`
 which is being called when the main HTTP server is being started, and it is provided with client configurations to create
 and configure the provider from it.
-Finally, the `io.evitadb.externalApi.configuration.AbstractApiConfiguration` has to be implemented to provide
+Finally, the `io.evitadb.externalApi.configuration.AbstractApiOptions` has to be implemented to provide
 API-specific client configuration options for the factory. This class is automatically parsed from
 client's YAML configuration during the evitaDB initialization.
 

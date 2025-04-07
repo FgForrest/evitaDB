@@ -28,7 +28,6 @@ import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -53,7 +52,7 @@ import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.ChainIndex;
-import io.evitadb.index.attribute.ReferenceSortedRecordsSupplier;
+import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
@@ -119,8 +118,6 @@ public class AttributeNaturalTranslator
 		final EntityIndex[] indexesForSort = orderByVisitor.getIndexesForSort();
 		final NamedSchemaContract attributeOrCompoundSchema = processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeOrCompoundName);
 		final ReferenceSchemaContract referenceSchema = processingScope.referenceSchema();
-		final EntitySchemaContract referencedEntitySchema = referenceSchema != null && referenceSchema.isReferencedEntityTypeManaged() ?
-			orderByVisitor.getSchema(referenceSchema.getReferencedEntityType()) : null;
 
 		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema && attributeSchema.isLocalized()) {
 			Assert.notNull(
@@ -165,17 +162,26 @@ public class AttributeNaturalTranslator
 		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema &&
 			(Predecessor.class.equals(attributeSchema.getPlainType()) || ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType()))) {
 			// we cannot use attribute comparator for predecessor attributes, we always need index here
-			entityComparator = new PredecessorAttributeComparator(
-				attributeOrCompoundName,
-				referenceSchema,
-				referencedEntitySchema,
-				sortedRecordsSupplier
-			);
-			Assert.isTrue(
-				mergeModeDefinition == null || mergeModeDefinition.mergeMode() == MergeMode.APPEND_ALL || mergeModeDefinition.implicit(),
-				attributeSchema.getPlainType() + " attribute `" + attributeOrCompoundName + "` " +
-					"is not comparable one with another and must use `traverseBy` approach for sorting!"
-			);
+			if (referenceSchema == null) {
+				entityComparator = new PredecessorAttributeComparator(
+					attributeOrCompoundName,
+					sortedRecordsSupplier
+				);
+			} else {
+				entityComparator = new TraverseReferencePredecessorAttributeComparator(
+					attributeOrCompoundName,
+					attributeSchema.getPlainType(),
+					referenceSchema,
+					locale,
+					orderDirection,
+					sortedRecordsSupplier
+				);
+				Assert.isTrue(
+					mergeModeDefinition == null || mergeModeDefinition.mergeMode() == MergeMode.APPEND_ALL || mergeModeDefinition.implicit(),
+					attributeSchema.getPlainType() + " attribute `" + attributeOrCompoundName + "` " +
+						"is not comparable one with another and must use `traverseBy` approach for sorting!"
+				);
+			}
 			mergeMode = MergeMode.APPEND_ALL;
 			valueComparator = null;
 		} else if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchemaContract) {
@@ -215,8 +221,7 @@ public class AttributeNaturalTranslator
 					referenceSchema,
 					locale,
 					attributeName -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
-					orderDirection,
-					() -> createReferenceSortedRecordsProviderPositionIndex(sortedRecordsSupplier)
+					orderDirection
 				);
 			}
 		} else if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
@@ -251,8 +256,7 @@ public class AttributeNaturalTranslator
 					attributeSchema.getPlainType(),
 					referenceSchema,
 					locale,
-					orderDirection,
-					() -> createReferenceSortedRecordsProviderPositionIndex(sortedRecordsSupplier)
+					orderDirection
 				);
 			}
 		} else {
@@ -279,12 +283,12 @@ public class AttributeNaturalTranslator
 	 * Creates a mapping between the primary keys of reference-sorted records and their indices
 	 * in the order they are sorted. This method processes the sorted records provided by the
 	 * {@link SortedRecordsProvider} suppliers, filtering out those that are implementations of
-	 * {@link ReferenceSortedRecordsSupplier}. For each instance, the primary key of its reference key
+	 * {@link ReferenceSortedRecordsProvider}. For each instance, the primary key of its reference key
 	 * is associated with its zero-based position in the sorted array. The mapping is returned as an
 	 * {@link IntIntHashMap}.
 	 *
 	 * @param sortedRecordsSupplier a supplier that provides an array of {@link SortedRecordsProvider}
-	 *                               instances, which may include {@link ReferenceSortedRecordsSupplier}
+	 *                               instances, which may include {@link ReferenceSortedRecordsProvider}
 	 *                               implementations containing reference-based sorting information.
 	 * @return an {@link IntIntHashMap} that maps each reference primary key to its position in the
 	 *         sorted array.
@@ -294,8 +298,8 @@ public class AttributeNaturalTranslator
 		@Nonnull Supplier<SortedRecordsProvider[]> sortedRecordsSupplier
 	) {
 		final int[] sortedReferencePks = Arrays.stream(sortedRecordsSupplier.get())
-			.filter(ReferenceSortedRecordsSupplier.class::isInstance)
-			.map(ReferenceSortedRecordsSupplier.class::cast)
+			.filter(ReferenceSortedRecordsProvider.class::isInstance)
+			.map(ReferenceSortedRecordsProvider.class::cast)
 			.mapToInt(it -> it.getReferenceKey().primaryKey())
 			.toArray();
 		final IntIntHashMap result = new IntIntHashMap();

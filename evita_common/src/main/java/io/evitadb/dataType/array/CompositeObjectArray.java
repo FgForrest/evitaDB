@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.IntFunction;
@@ -388,19 +389,43 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 	}
 
 	/**
+	 * Returns iterator over the composite array from specified index.
+	 */
+	@Nonnull
+	public Iterator<T> iterator(int startIndex) {
+		return new CompositeArrayIterator<>(startIndex, this.chunks::listIterator);
+	}
+
+	/**
+	 * Returns iterator over the composite array starting at the specified index.
+	 */
+	@Nonnull
+	public Iterator<T> reverseIterator() {
+		return new CompositeArrayReverseIterator<>(this.chunks::listIterator);
+	}
+
+	/**
+	 * Returns iterator over the composite array starting at the specified index.
+	 */
+	@Nonnull
+	public Iterator<T> reverseIterator(int startIndex) {
+		return new CompositeArrayReverseIterator<>(startIndex, this.chunks::listIterator);
+	}
+
+	/**
 	 * Iterator implementation.
 	 */
 	private class CompositeArrayIterator<S> implements Iterator<S> {
-		private final Iterator<S[]> chunkIterator;
+		private final ListIterator<S[]> chunkIterator;
 		private int chunkIndex;
 		private int index;
 		@Nullable private S[] currentChunk;
 
-		CompositeArrayIterator(@Nonnull IntFunction<Iterator<S[]>> chunkIteratorFactory) {
+		CompositeArrayIterator(@Nonnull IntFunction<ListIterator<S[]>> chunkIteratorFactory) {
 			this(0, chunkIteratorFactory);
 		}
 
-		CompositeArrayIterator(int index, @Nonnull IntFunction<Iterator<S[]>> chunkIteratorFactory) {
+		CompositeArrayIterator(int index, @Nonnull IntFunction<ListIterator<S[]>> chunkIteratorFactory) {
 			this.index = index - 1;
 			this.chunkIndex = Math.max(-1, index % CHUNK_SIZE - 1);
 			this.chunkIterator = chunkIteratorFactory.apply(index / CHUNK_SIZE);
@@ -426,6 +451,48 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 		@Override
 		public boolean hasNext() {
 			return CompositeObjectArray.this.getSize() > this.index + 1;
+		}
+	}
+
+	/**
+	 * Reverse iterator implementation.
+	 */
+	private class CompositeArrayReverseIterator<S> implements Iterator<S> {
+		private final ListIterator<S[]> chunkIterator;
+		private int chunkIndex;
+		private int index;
+		@Nullable private S[] currentChunk;
+
+		CompositeArrayReverseIterator(@Nonnull IntFunction<ListIterator<S[]>> chunkIteratorFactory) {
+			this(getSize(), chunkIteratorFactory);
+		}
+
+		CompositeArrayReverseIterator(int index, @Nonnull IntFunction<ListIterator<S[]>> chunkIteratorFactory) {
+			this.index = index;
+			this.chunkIndex = Math.max(-1, index % CHUNK_SIZE - 1) + 1;
+			this.chunkIterator = chunkIteratorFactory.apply(index / CHUNK_SIZE + (index % CHUNK_SIZE > 0 ? 1 : 0));
+			this.currentChunk = null;
+		}
+
+		@Override
+		public S next() {
+			final boolean endOfChunk = this.chunkIndex == 0;
+			if (endOfChunk || this.currentChunk == null) {
+				if (endOfChunk) {
+					this.chunkIndex = CHUNK_SIZE;
+				}
+				this.currentChunk = this.chunkIterator.hasPrevious() ? this.chunkIterator.previous() : null;
+			}
+			if (this.currentChunk == null) {
+				throw new NoSuchElementException("Beginning of the array reached - max number of elements is " + getSize());
+			}
+			this.index--;
+			return this.currentChunk[--this.chunkIndex];
+		}
+
+		@Override
+		public boolean hasNext() {
+			return this.index > 0;
 		}
 	}
 }

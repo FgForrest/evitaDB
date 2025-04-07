@@ -26,8 +26,8 @@ package io.evitadb.core.query.sort;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.SharedBufferPool;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
+import io.evitadb.core.query.sort.Sorter.SortingContext;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.core.query.sort.utils.MockSortedRecordsSupplier;
@@ -41,6 +41,7 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
@@ -99,12 +100,20 @@ class PreSortedRecordsSorterTest {
 	}
 
 	@Nonnull
-	private static ConstantFormula makeFormula(int... recordIds) {
-		return new ConstantFormula(new BaseBitmap(recordIds));
+	private static BaseBitmap makeBitmap(int... recordIds) {
+		return new BaseBitmap(recordIds);
 	}
 
 	private static void assertPageIsConsistent(int[] sortedRecordIds, PreSortedRecordsSorter sorter, QueryExecutionContext queryContext, int[] recIds, int startIndex, int endIndex) {
-		final int[] sortedSlice = SortUtilsTest.asResult(theArray -> sorter.sortAndSlice(queryContext, makeFormula(recIds), startIndex, endIndex, theArray, 0));
+		final int[] sortedSlice = SortUtilsTest.asResult(
+			theArray -> sorter.sortAndSlice(
+				new SortingContext(
+					queryContext, makeBitmap(recIds), startIndex, endIndex, 0, 0
+				),
+				theArray,
+				null
+			)
+		);
 		assertEquals(endIndex - startIndex, sortedSlice.length);
 		int lastPosition = -1;
 		for (int recId : sortedSlice) {
@@ -137,22 +146,56 @@ class PreSortedRecordsSorterTest {
 		final QueryExecutionContext executionContext = bitmapSorter.context().createExecutionContext();
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3},
-			SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(executionContext, makeFormula(1, 2, 3, 4), 0, 100, theArray, 0))
+			SortUtilsTest.asResult(
+				theArray -> bitmapSorter.sorter().sortAndSlice(
+					new SortingContext(
+						executionContext,
+						makeBitmap(1, 2, 3, 4),
+						0, 100,
+						0, 0
+					),
+					theArray,
+					null
+				)
+			)
 		);
 		assertArrayEquals(
 			new int[]{1, 3},
-			SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(executionContext, makeFormula(1, 2, 3, 4, 5, 6, 7, 8, 9), 3, 5, theArray, 0))
+			SortUtilsTest.asResult(
+				theArray -> bitmapSorter.sorter().sortAndSlice(
+					new SortingContext(
+						executionContext,
+						makeBitmap(1, 2, 3, 4, 5, 6, 7, 8, 9), 3, 5,
+						0, 0
+					),
+					theArray,
+					null
+				)
+			)
 		);
 		assertArrayEquals(
 			new int[]{7, 8, 9},
-			SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(executionContext, makeFormula(7, 8, 9), 0, 3, theArray, 0))
+			SortUtilsTest.asResult(
+				theArray -> bitmapSorter.sorter().sortAndSlice(
+					new SortingContext(
+						executionContext,
+						makeBitmap(7, 8, 9),
+						0, 3, 0, 0
+					),
+					theArray,
+					null
+				)
+			)
 		);
 	}
 
 	@Test
 	void shouldReturnSortedResultEvenForMissingData() {
-		final QueryExecutionContext executionContext = bitmapSorter.context().createExecutionContext();
-		final int[] actual = SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(executionContext, makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0));
+		final int[] actual = new NestedContextSorter(
+			bitmapSorter.context().createExecutionContext(),
+			() -> "whatever",
+			List.of(bitmapSorter.sorter())
+		).sortAndSlice(makeBitmap(0, 1, 2, 3, 4, 12, 13));
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3, 0, 12, 13},
 			actual
@@ -161,16 +204,19 @@ class PreSortedRecordsSorterTest {
 
 	@Test
 	void shouldReturnSortedResultEvenForMissingDataWithAdditionalSorter() {
-		final Sorter updatedSorter = bitmapSorter.sorter().andThen(
-			new PreSortedRecordsSorter(
-				MergeMode.APPEND_FIRST,
-				Comparator.naturalOrder(),
-				() -> new SortedRecordsProvider[]{new MockSortedRecordsSupplier(13, 0, 12)}
+		final int[] actual = new NestedContextSorter(
+			bitmapSorter.context().createExecutionContext(),
+			() -> "whatever",
+			List.of(
+				bitmapSorter.sorter(),
+				new PreSortedRecordsSorter(
+					MergeMode.APPEND_FIRST,
+					Comparator.naturalOrder(),
+					() -> new SortedRecordsProvider[]{new MockSortedRecordsSupplier(13, 0, 12)}
+				)
 			)
-		);
+		).sortAndSlice(makeBitmap(0, 1, 2, 3, 4, 12, 13));
 
-		final QueryExecutionContext executionContext = bitmapSorter.context().createExecutionContext();
-		final int[] actual = SortUtilsTest.asResult(theArray -> updatedSorter.sortAndSlice(executionContext, makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0));
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3, 13, 0, 12},
 			actual

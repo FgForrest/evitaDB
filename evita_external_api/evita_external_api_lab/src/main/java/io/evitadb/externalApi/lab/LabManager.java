@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,10 +28,11 @@ import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.CorsService;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
-import io.evitadb.externalApi.lab.configuration.LabConfig;
+import io.evitadb.externalApi.lab.configuration.LabOptions;
 import io.evitadb.externalApi.lab.gui.resolver.GuiHandler;
 import io.evitadb.externalApi.lab.io.LabExceptionHandler;
 import io.evitadb.externalApi.utils.UriPath;
@@ -59,7 +60,8 @@ public class LabManager {
 	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Nonnull private final Evita evita;
-	@Nonnull private final LabConfig labConfig;
+	@Nonnull private final HeaderOptions headerOptions;
+	@Nonnull private final LabOptions labConfig;
 
 	/**
 	 * evitaLab specific endpoint router.
@@ -67,21 +69,22 @@ public class LabManager {
 	@Nonnull private final RoutingHandlerService labRouter = new RoutingHandlerService();
 	@Nonnull private final Map<UriPath, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 
-	public LabManager(@Nonnull Evita evita, @Nonnull LabConfig labConfig) {
+	public LabManager(@Nonnull Evita evita, @Nonnull HeaderOptions headerOptions, @Nonnull LabOptions labConfig) {
 		this.evita = evita;
+		this.headerOptions = headerOptions;
 		this.labConfig = labConfig;
 
 		final long buildingStartTime = System.currentTimeMillis();
 
 		registerLabGui();
-		corsEndpoints.forEach((path, endpoint) -> labRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toHandler()));
+		this.corsEndpoints.forEach((path, endpoint) -> this.labRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toHandler()));
 
 		log.info("Built Lab in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
 	}
 
 	@Nonnull
 	public HttpService getLabRouter() {
-		return new PathNormalizingHandler(labRouter);
+		return new PathNormalizingHandler(this.labRouter);
 	}
 
 	/**
@@ -90,16 +93,16 @@ public class LabManager {
 	private void registerLabGui() {
 		final UriPath endpointPath = UriPath.of("/", "*");
 
-		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpointPath, p -> new CorsEndpoint());
+		final CorsEndpoint corsEndpoint = this.corsEndpoints.computeIfAbsent(endpointPath, p -> new CorsEndpoint(this.headerOptions));
 		corsEndpoint.addMetadata(Set.of(HttpMethod.GET), true, true);
 
-		final EvitaConfiguration configuration = evita.getConfiguration();
-		labRouter.add(
+		final EvitaConfiguration configuration = this.evita.getConfiguration();
+		this.labRouter.add(
 			HttpMethod.GET,
 			endpointPath.toString(),
 			CorsService.standaloneFilter(
-				GuiHandler.create(labConfig, configuration.name(), objectMapper)
-					.decorate(service -> new LabExceptionHandler(objectMapper, service))
+				GuiHandler.create(this.labConfig, configuration.name(), this.objectMapper)
+					.decorate(service -> new LabExceptionHandler(this.objectMapper, service))
 			)
 		);
 	}

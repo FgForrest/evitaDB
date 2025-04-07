@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,12 +24,12 @@
 package io.evitadb.externalApi.http;
 
 
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 
 /**
  * Specialization of {@link ExternalApiProvider} that proxies access to all other endpoints via its host and port.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface ProxyingEndpointProvider<T extends AbstractApiConfiguration> extends ExternalApiProvider<T> {
+public interface ProxyingEndpointProvider<T extends AbstractApiOptions> extends ExternalApiProvider<T> {
 }

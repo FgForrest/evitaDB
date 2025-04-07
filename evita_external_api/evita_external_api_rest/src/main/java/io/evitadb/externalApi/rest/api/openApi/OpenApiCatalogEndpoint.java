@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.EndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
@@ -63,21 +64,6 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 
 	@Nonnull protected final CatalogSchemaContract catalogSchema;
 
-	private OpenApiCatalogEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
-	                               @Nonnull PathItem.HttpMethod method,
-	                               @Nonnull UriPath path,
-								   boolean localized,
-								   @Nonnull String operationId,
-	                               @Nonnull String description,
-	                               @Nullable String deprecationNotice,
-	                               @Nonnull List<OpenApiEndpointParameter> parameters,
-	                               @Nullable OpenApiSimpleType requestBody,
-	                               @Nonnull OpenApiSimpleType successResponse,
-	                               @Nonnull Function<CatalogRestHandlingContext, RestEndpointHandler<CatalogRestHandlingContext>> handlerBuilder) {
-		super(method, path, localized, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
-		this.catalogSchema = catalogSchema;
-	}
-
 	/**
 	 * Creates builder for new catalog endpoint.
 	 */
@@ -86,37 +72,54 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 		return new Builder(catalogSchema);
 	}
 
+	private OpenApiCatalogEndpoint(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull PathItem.HttpMethod method,
+		@Nonnull UriPath path,
+		boolean localized,
+		@Nonnull String operationId,
+		@Nonnull String description,
+		@Nullable String deprecationNotice,
+		@Nonnull List<OpenApiEndpointParameter> parameters,
+		@Nullable OpenApiSimpleType requestBody,
+		@Nonnull OpenApiSimpleType successResponse,
+		@Nonnull Function<CatalogRestHandlingContext, RestEndpointHandler<CatalogRestHandlingContext>> handlerBuilder
+	) {
+		super(method, path, localized, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
+		this.catalogSchema = catalogSchema;
+	}
+
 	@Nonnull
 	@Override
-	public RestEndpointHandler<CatalogRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
-	                                                                 @Nonnull Evita evita,
-	                                                                 @Nonnull OpenAPI openApi,
-	                                                                 @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
+	public RestEndpointHandler<CatalogRestHandlingContext> toHandler(
+		@Nonnull ObjectMapper objectMapper,
+		@Nonnull Evita evita,
+		@Nonnull HeaderOptions headers,
+		@Nonnull OpenAPI openApi,
+		@Nonnull Map<String, Class<? extends Enum<?>>> enumMapping
+	) {
 		final CatalogRestHandlingContext context = new CatalogRestHandlingContext(
 			objectMapper,
 			evita,
-			catalogSchema,
+			headers,
+			this.catalogSchema,
 			openApi,
 			enumMapping,
 			toOperation(),
-			localized
+			this.localized
 		);
 		return handlerBuilder.apply(context);
 	}
 
 	public static class Builder {
-
 		@Nonnull private final CatalogSchemaContract catalogSchema;
-
+		@Nonnull private final List<OpenApiEndpointParameter> parameters;
 		@Nullable private PathItem.HttpMethod method;
 		@Nullable private UriPath path;
 		private boolean localized;
-
 		@Nullable private String operationId;
 		@Nullable private String description;
 		@Nullable private String deprecationNotice;
-		@Nonnull private final List<OpenApiEndpointParameter> parameters;
-
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 

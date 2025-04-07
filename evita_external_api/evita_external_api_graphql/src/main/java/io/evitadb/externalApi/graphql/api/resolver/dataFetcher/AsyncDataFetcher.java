@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextReference;
 import io.evitadb.core.Evita;
 import io.evitadb.core.async.ObservableExecutorService;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import lombok.extern.slf4j.Slf4j;
 
@@ -61,7 +61,7 @@ public class AsyncDataFetcher implements DataFetcher<Object> {
 	@Nonnull private final String tracingBlockDescription;
 
 	public AsyncDataFetcher(@Nonnull DataFetcher<?> delegate,
-	                        @Nonnull GraphQLConfig config,
+	                        @Nonnull GraphQLOptions config,
 	                        @Nonnull TracingContext tracingContext,
 	                        @Nullable Evita evita) {
 		this.enabled = config.isParallelize();

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,12 +29,12 @@ import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.configuration.CertificateOptions;
 import io.evitadb.externalApi.configuration.TlsMode;
 import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
-import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
+import io.evitadb.externalApi.grpc.configuration.GrpcOptions;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.utils.Assert;
@@ -63,16 +63,16 @@ public class TestGrpcClientBuilderCreator {
 	public static GrpcClientBuilder getBuilder(@Nonnull ClientSessionInterceptor interceptor, @Nonnull ExternalApiServer externalApiServer) {
 		final ApiOptions apiOptions = externalApiServer.getApiOptions();
 		final int grpcPort = apiOptions.getEndpointConfiguration(GrpcProvider.CODE).getHost()[0].port();
-		final CertificateSettings certificate = apiOptions.certificate();
+		final CertificateOptions certificate = apiOptions.certificate();
 		final ClientCertificateManager.Builder builder = new ClientCertificateManager.Builder()
 			.certificateClientFolderPath(Path.of(externalApiServer.getApiOptions().certificate().folderPath()));
 		if (certificate.generateAndUseSelfSigned()) {
-			final AbstractApiConfiguration systemEndpoint = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
+			final AbstractApiOptions systemEndpoint = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
 			Assert.notNull(systemEndpoint, "System endpoint is not enabled!");
 			builder.useGeneratedCertificate(true, systemEndpoint.getHost()[0].hostAddress(), systemEndpoint.getHost()[0].port());
 		}
 
-		final GrpcConfig grpcConfig = apiOptions.getEndpointConfiguration(GrpcProvider.CODE);
+		final GrpcOptions grpcConfig = apiOptions.getEndpointConfiguration(GrpcProvider.CODE);
 
 		ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
 			.useHttp1Pipelining(true)

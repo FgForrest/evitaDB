@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.externalApi.rest.api.openApi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.rest.api.system.resolver.endpoint.SystemRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
@@ -56,18 +57,6 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 
 	public static final String URL_PREFIX = "system";
 
-	private OpenApiSystemEndpoint(@Nonnull PathItem.HttpMethod method,
-	                              @Nonnull UriPath path,
-								  @Nonnull String operationId,
-	                              @Nonnull String description,
-	                              @Nullable String deprecationNotice,
-	                              @Nonnull List<OpenApiEndpointParameter> parameters,
-	                              @Nullable OpenApiSimpleType requestBody,
-	                              @Nonnull OpenApiSimpleType successResponse,
-	                              @Nonnull Function<SystemRestHandlingContext, RestEndpointHandler<SystemRestHandlingContext>> handlerBuilder) {
-		super(method, path, false, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
-	}
-
 	/**
 	 * Creates builder for new system endpoint.
 	 */
@@ -76,33 +65,49 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 		return new Builder();
 	}
 
+	private OpenApiSystemEndpoint(
+		@Nonnull PathItem.HttpMethod method,
+		@Nonnull UriPath path,
+		@Nonnull String operationId,
+		@Nonnull String description,
+		@Nullable String deprecationNotice,
+		@Nonnull List<OpenApiEndpointParameter> parameters,
+		@Nullable OpenApiSimpleType requestBody,
+		@Nonnull OpenApiSimpleType successResponse,
+		@Nonnull Function<SystemRestHandlingContext, RestEndpointHandler<SystemRestHandlingContext>> handlerBuilder
+	) {
+		super(method, path, false, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
+	}
+
 	@Nonnull
 	@Override
-	public RestEndpointHandler<SystemRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
-	                                                                   @Nonnull Evita evita,
-	                                                                   @Nonnull OpenAPI openApi,
-	                                                                   @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
+	public RestEndpointHandler<SystemRestHandlingContext> toHandler(
+		@Nonnull ObjectMapper objectMapper,
+		@Nonnull Evita evita,
+		@Nonnull HeaderOptions headerOptions,
+		@Nonnull OpenAPI openApi,
+		@Nonnull Map<String, Class<? extends Enum<?>>> enumMapping
+	) {
 		final SystemRestHandlingContext context = new SystemRestHandlingContext(
 			objectMapper,
 			evita,
+			headerOptions,
 			openApi,
 			enumMapping,
 			toOperation(),
-			localized
+			this.localized
 		);
-		return handlerBuilder.apply(context);
+		return this.handlerBuilder.apply(context);
 	}
 
 	public static class Builder {
 
+		@Nonnull private final List<OpenApiEndpointParameter> parameters;
 		@Nullable private PathItem.HttpMethod method;
 		@Nullable private UriPath path;
-
 		@Nullable private String operationId;
 		@Nullable private String description;
 		@Nullable private String deprecationNotice;
-		@Nonnull private final List<OpenApiEndpointParameter> parameters;
-
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 

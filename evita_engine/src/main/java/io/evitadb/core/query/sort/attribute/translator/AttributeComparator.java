@@ -72,7 +72,7 @@ public class AttributeComparator implements EntityComparator {
 	/**
 	 * Internal storage for entities that could not be fully sorted due to missing attributes.
 	 */
-	private CompositeObjectArray<EntityContract> nonSortedEntities;
+	@Nullable private CompositeObjectArray<EntityContract> nonSortedEntities;
 	/**
 	 * Cache for storing attribute values of entities to avoid redundant calculations.
 	 */

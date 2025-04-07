@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
@@ -46,14 +46,14 @@ import static io.evitadb.externalApi.graphql.io.GraphQLRouter.SYSTEM_PREFIX;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
+public class GraphQLProvider implements ExternalApiProvider<GraphQLOptions> {
 
     public static final String CODE = "graphQL";
 
 
 	@Nonnull
     @Getter
-    private final GraphQLConfig configuration;
+    private final GraphQLOptions configuration;
 
 	@Nonnull
     private final GraphQLManager graphQLManager;
@@ -70,7 +70,7 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
     private String reachableUrl;
 
 	public GraphQLProvider(
-		@Nonnull GraphQLConfig configuration,
+		@Nonnull GraphQLOptions configuration,
 		@Nonnull GraphQLManager graphQLManager,
 		long requestTimeoutInMillis
 	) {

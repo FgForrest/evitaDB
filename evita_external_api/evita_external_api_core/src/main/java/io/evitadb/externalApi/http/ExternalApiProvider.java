@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.http;
 
 import com.linecorp.armeria.server.HttpService;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.utils.path.PathHandlingService;
 
 import javax.annotation.Nonnull;
@@ -40,7 +40,7 @@ import java.util.Map;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
+public interface ExternalApiProvider<T extends AbstractApiOptions> {
 
 	/**
 	 * @return system-wide unique camelCase code of API to be able to select which APIs to register

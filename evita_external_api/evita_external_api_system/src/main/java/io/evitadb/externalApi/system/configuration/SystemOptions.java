@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ package io.evitadb.externalApi.system.configuration;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.configuration.TlsMode;
@@ -40,7 +40,7 @@ import java.util.Optional;
  *
  * @author Tomáš Pozler, 2023
  */
-public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix {
+public class SystemOptions extends AbstractApiOptions implements ApiWithSpecificPrefix {
 	/**
 	 * Port on which will server be run and on which will channel be opened.
 	 */
@@ -53,24 +53,24 @@ public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpe
 	 */
 	@Getter private final String prefix;
 
-	public SystemConfig() {
+	public SystemOptions() {
 		super(true, "0.0.0.0:" + DEFAULT_SYSTEM_PORT, null, TlsMode.FORCE_NO_TLS.name(), null, null);
 		this.prefix = BASE_SYSTEM_PATH;
 	}
 
-	public SystemConfig(@Nonnull String host) {
+	public SystemOptions(@Nonnull String host) {
 		super(true, host, null, TlsMode.FORCE_NO_TLS.name(), null, null);
 		this.prefix = BASE_SYSTEM_PATH;
 	}
 
 	@JsonCreator
-	public SystemConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
-						@Nonnull @JsonProperty("host") String host,
-						@Nullable @JsonProperty("exposeOn") String exposeOn,
-						@Nullable @JsonProperty("tlsMode") String tlsMode,
-						@Nullable @JsonProperty("keepAlive") Boolean keepAlive,
-						@Nullable @JsonProperty("prefix") String prefix,
-						@Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
+	public SystemOptions(@Nullable @JsonProperty("enabled") Boolean enabled,
+	                     @Nonnull @JsonProperty("host") String host,
+	                     @Nullable @JsonProperty("exposeOn") String exposeOn,
+	                     @Nullable @JsonProperty("tlsMode") String tlsMode,
+	                     @Nullable @JsonProperty("keepAlive") Boolean keepAlive,
+	                     @Nullable @JsonProperty("prefix") String prefix,
+	                     @Nullable @JsonProperty("mTLS") MtlsConfiguration mtlsConfiguration
 	) {
 		super(enabled, host, exposeOn, tlsMode, keepAlive, mtlsConfiguration);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_SYSTEM_PATH);

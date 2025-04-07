@@ -39,6 +39,7 @@ import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.stream.Stream;
@@ -58,7 +59,7 @@ public class SegmentsTranslator implements OrderingConstraintTranslator<Segments
 			.map(segment -> {
 				// first, crete sorter by the ordering constraint contents
 				final OrderBy orderBy = segment.getOrderBy();
-				final Sorter delegate = orderByVisitor.collectIsolatedSorter(
+				final List<Sorter> embeddedSorters = orderByVisitor.collectIsolatedSorters(
 					() -> Arrays.stream(orderBy.getChildren()).forEach(it -> it.accept(orderByVisitor))
 				);
 				// optionally, create a filtering formula for the segment by the filtering constraint contents
@@ -81,7 +82,7 @@ public class SegmentsTranslator implements OrderingConstraintTranslator<Segments
 				// segment sorter will delegate sorting to internal sorter, but will limit the number of sorted records
 				// and also exclude records that were already sorted by previous segments
 				return new SegmentSorter(
-					delegate,
+					embeddedSorters,
 					filteringFormula.orElse(null),
 					limit.orElse(Integer.MAX_VALUE)
 				);

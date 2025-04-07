@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,12 +31,13 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.graphql.api.catalog.CatalogGraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.CatalogDataApiGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.CatalogSchemaApiGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.system.SystemGraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.system.builder.SystemGraphQLSchemaBuilder;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
+import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.io.GraphQLInstanceType;
 import io.evitadb.externalApi.graphql.io.GraphQLRouter;
@@ -77,7 +78,7 @@ public class GraphQLManager {
 	 */
 	@Nonnull private final Evita evita;
 
-	@Nonnull private final GraphQLConfig graphQLConfig;
+	@Nonnull private final GraphQLOptions graphQLConfig;
 
 	/**
 	 * GraphQL specific endpoint router.
@@ -91,11 +92,11 @@ public class GraphQLManager {
 	@Nullable private SystemBuildStatistics systemBuildStatistics;
 	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
 
-	public GraphQLManager(@Nonnull Evita evita, @Nonnull GraphQLConfig graphQLConfig) {
+	public GraphQLManager(@Nonnull Evita evita, @Nonnull HeaderOptions headers, @Nonnull GraphQLOptions graphQLConfig) {
 		this.evita = evita;
 		this.graphQLConfig = graphQLConfig;
 
-		this.graphQLRouter = new GraphQLRouter(objectMapper, evita);
+		this.graphQLRouter = new GraphQLRouter(this.objectMapper, evita, headers);
 
 		final long buildingStartTime = System.currentTimeMillis();
 
@@ -118,10 +119,10 @@ public class GraphQLManager {
 		final long instanceBuildStartTime = System.currentTimeMillis();
 
 		final long schemaBuildStartTime = System.currentTimeMillis();
-		final GraphQLSchema schema = new SystemGraphQLSchemaBuilder(graphQLConfig, evita).build();
+		final GraphQLSchema schema = new SystemGraphQLSchemaBuilder(this.graphQLConfig, this.evita).build();
 		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
 
-		this.graphQLRouter.registerSystemApi(new SystemGraphQLBuilder(evita, schema).build(graphQLConfig));
+		this.graphQLRouter.registerSystemApi(new SystemGraphQLBuilder(this.evita, schema).build(this.graphQLConfig));
 		final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
 
 		// build metrics

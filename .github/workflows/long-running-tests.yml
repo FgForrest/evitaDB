@@ -5,9 +5,6 @@ on:
   workflow_dispatch: # allows manual triggering
   schedule:
     - cron: '0 0 * * 1' # runs on Monday morning
-  push:
-    branches:
-      - dev
 
 permissions:
   contents: read      # Required for actions/checkout to fetch the repository code.

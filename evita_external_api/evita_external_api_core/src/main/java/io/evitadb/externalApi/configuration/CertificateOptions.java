@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ import java.nio.file.Path;
  * @param custom                   DTO containing paths to the certificate and private keys used to secure the connection
  * @author Tomáš Pozler, 2023
  */
-public record CertificateSettings(
+public record CertificateOptions(
 	boolean generateAndUseSelfSigned,
 	@Nullable String folderPath,
 	@Nullable CertificatePath custom
@@ -47,11 +47,11 @@ public record CertificateSettings(
 	/**
 	 * Builder for the certificate options. Recommended to use to avoid binary compatibility problems in the future.
 	 */
-	public static CertificateSettings.Builder builder() {
-		return new CertificateSettings.Builder();
+	public static CertificateOptions.Builder builder() {
+		return new CertificateOptions.Builder();
 	}
 
-	public CertificateSettings() {
+	public CertificateOptions() {
 		this(true, null, null);
 	}
 
@@ -81,8 +81,8 @@ public record CertificateSettings(
 			return this;
 		}
 
-		public CertificateSettings build() {
-			return new CertificateSettings(generateAndUseSelfSigned, folderPath, custom);
+		public CertificateOptions build() {
+			return new CertificateOptions(generateAndUseSelfSigned, folderPath, custom);
 		}
 	}
 }

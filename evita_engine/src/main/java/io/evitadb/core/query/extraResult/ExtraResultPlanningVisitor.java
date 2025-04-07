@@ -157,7 +157,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * Contains prepared sorter implementation that takes output of the {@link #filteringFormula} and sorts the entity
 	 * primary keys according to {@link OrderConstraint} in {@link EvitaRequest}.
 	 */
-	@Getter private final Sorter sorter;
+	@Getter private final Collection<Sorter> sorters;
 	/**
 	 * Contains the list of producers that react to passed requirements.
 	 */
@@ -196,13 +196,13 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		@Nonnull TargetIndexes<?> indexSetToUse,
 		@Nonnull Formula filteringFormula,
 		@Nonnull FilterByVisitor filterByVisitor,
-		@Nullable Sorter sorter
+		@Nullable Collection<Sorter> sorters
 	) {
 		this.queryContext = queryContext;
 		this.indexSetToUse = indexSetToUse;
 		this.filteringFormula = filteringFormula;
 		this.filterByVisitor = filterByVisitor;
-		this.sorter = sorter;
+		this.sorters = sorters;
 		this.attributeSchemaAccessor = new AttributeSchemaAccessor(queryContext);
 		final LinkedList<Set<Scope>> requestedScopes = new LinkedList<>();
 		requestedScopes.add(queryContext.getScopes());
@@ -340,18 +340,16 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Method finds sorter of specified type in the current {@link #sorter} or sorters that are chained in it as secondary
+	 * Method finds sorter of specified type in the current {@link #sorters} or sorters that are chained in it as secondary
 	 * or tertiary sorters.
 	 */
 	@Nullable
 	public <T extends Sorter> T findSorter(@Nonnull Class<T> sorterType) {
-		Sorter theSorter = this.sorter;
-		while (theSorter != null) {
-			if (sorterType.isInstance(theSorter)) {
+		for (Sorter sorter : this.sorters) {
+			if (sorterType.isInstance(sorter)) {
 				//noinspection unchecked
-				return (T) theSorter;
+				return (T) sorter;
 			}
-			theSorter = theSorter.getNextSorter();
 		}
 		return null;
 	}
