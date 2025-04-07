@@ -11,21 +11,21 @@ author: 'Ing. Jan Novotný'
 evitaDB stores data in files on disk in a data directory specified in the configuration. The top level of this directory contains subdirectories for individual catalogs. Each catalog directory holds all the files required for working with that catalog (no external information outside of its directory is needed). The directory always contains:
 
 1. **[Bootstrap file](#bootstrap-file)** – a file corresponding to the catalog name with the `.boot` extension containing critical pointers to the other files
-2. **[Write-ahead log (WAL)](#write-ahead-log-wal)** – a file corresponding to the catalog name with the suffix `_&lbrace;index&rbrace;.wal`, where `index` is an ascending number starting from zero; the file contains a sequence of catalog changes over time
-3. **[Catalog data file](#data-files)** – a file corresponding to the catalog name with the suffix `_&lbrace;index&rbrace;.catalog`, where `index` is an ascending number starting from zero; the file contains data tied to the catalog, such as the catalog schema and global indexes
-4. **[Entity collection data files](#data-files)** – files corresponding to an entity name with the suffix `_&lbrace;index&rbrace;.colection`, where `index` is an ascending number starting from zero; these files contain all data associated with the given entity collection—its schema, indexes, and entity data
+2. **[Write-ahead log (WAL)](#write-ahead-log-wal)** – a file corresponding to the catalog name with the suffix `{index}.wal`, where `index` is an ascending number starting from zero; the file contains a sequence of catalog changes over time
+3. **[Catalog data file](#data-files)** – a file corresponding to the catalog name with the suffix `{index}.catalog`, where `index` is an ascending number starting from zero; the file contains data tied to the catalog, such as the catalog schema and global indexes
+4. **[Entity collection data files](#data-files)** – files corresponding to an entity name with the suffix `{index}.colection`, where `index` is an ascending number starting from zero; these files contain all data associated with the given entity collection—its schema, indexes, and entity data
 
 The files contain mutual references in the form of pointers to key positions within the file. The bootstrap file includes a pointer to the WAL file as well as to the location of the [offset index](#offset-index) in the catalog file. The catalog data file contains a catalog header, which then includes pointers to key positions in the individual entity collection data files. The pointer mechanism is depicted in the diagram below:
 
 ```mermaid
 flowchart TD
-A["Bootstrap File\n(catalog.boot)"] -->|"Pointer to WAL"| B["WAL file\n(catalog_&lbrace;index&rbrace;.wal)"]
-A -->|"Pointer to offset index\nin the catalog"| C["Catalog data file\n(catalog_&lbrace;index&rbrace;.catalog)"]
+A["Bootstrap File\n(catalog.boot)"] -->|"Pointer to WAL"| B["WAL file\n(catalog{index}.wal)"]
+A -->|"Pointer to offset index\nin the catalog"| C["Catalog data file\n(catalog{index}.catalog)"]
 
     subgraph S["Entity collection data files"]
-        D1["Entity collection data file\n(entity1_&lbrace;index&rbrace;.colection)"]
-        D2["Entity collection data file\n(entity2_&lbrace;index&rbrace;.colection)"]
-        Dn["Entity collection data file\n(entityN_&lbrace;index&rbrace;.colection)"]
+        D1["Entity collection data file\n(entity1{index}.colection)"]
+        D2["Entity collection data file\n(entity2{index}.colection)"]
+        Dn["Entity collection data file\n(entityN{index}.colection)"]
     end
 
     C -->|"Catalog header\n(contains pointer to offset index)"| D1
@@ -97,7 +97,7 @@ Below is an explanation of the individual items:
     <dt>Catalog version</dt>
     <dd>The catalog version is incremented upon completion of each committed transaction that pushes the catalog to the next version. There isn’t necessarily one bootstrap record per transaction. If the system manages to process multiple transactions within a time frame, the jumps between consecutive catalog versions in the bootstrap file can be greater than 1.<br/>If the catalog is in *warm-up* mode, each of the bootstrap records may have a catalog version set to `0`.</dd>
     <dt>Catalog file index</dt>
-    <dd>Contains the index of the catalog data file. Using this information, you can construct the file name corresponding to the catalog’s data file in the format `catalogName_&lbrace;index&rbrace;.catalog`. Multiple data files for the same catalog can coexist in the directory with different indexes, indicating the availability of the <a href="#time-travel">time travel</a> feature.</dd>
+    <dd>Contains the index of the catalog data file. Using this information, you can construct the file name corresponding to the catalog’s data file in the format *catalogName_&lbrace;index&rbrace;.catalog*. Multiple data files for the same catalog can coexist in the directory with different indexes, indicating the availability of the <a href="#time-travel">time travel</a> feature.</dd>
     <dt>Timestamp</dt>
     <dd>A timestamp set to the time the bootstrap record was created, measured in milliseconds from `1970-01-01 00:00:00 UTC`. This is used to locate the correct bootstrap record when performing <a href="#time-travel">time travel</a>.</dd>
     <dt>Offset index pointer: start position</dt>
