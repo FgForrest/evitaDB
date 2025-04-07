@@ -53,13 +53,33 @@ Below is an explanation of the individual items:
     <dt>Record length in Bytes</dt>
     <dd>The length of the record in bytes. This is compared against the value of <em>Record pointer: length</em> and must match; otherwise, data integrity has been compromised.</dd>
     <dt>Control Byte</dt>
-    <dd>This byte contains flags with key information about the nature of the record. The flags represent individual bits in this byte:<br/>
-| Byte no. | Meaning                                                                              |
-|----------|--------------------------------------------------------------------------------------|
-| #1       | the last record in a series of records                                               |
-| #2       | a continuous record, with the payload continuing in the immediately following record |
-| #3       | a computed checksum is available for the record                                      |
-| #4       | the record is compressed                                                             |
+    <dd>This byte contains flags with key information about the nature of the record. The flags represent individual bits in this byte:
+      <Table>
+        <Thead>
+          <Tr>
+            <Th>Byte no.</Th>
+            <Th>Meaning</Th>
+          </Tr>
+        </Thead>
+        <Tbody>
+          <Tr>
+            <Td>#1</Td>
+            <Td>the last record in a series of records</Td>
+          </Tr>
+          <Tr>
+            <Td>#2</Td>
+            <Td>a continuous record, with the payload continuing in the immediately following record</Td>
+          </Tr>
+          <Tr>
+            <Td>#3</Td>
+            <Td>a computed checksum is available for the record</Td>
+          </Tr>
+          <Tr>
+            <Td>#4</Td>
+            <Td>the record is compressed</Td>
+          </Tr>
+        </Tbody>
+      </Table>
     </dd>
     <dt>Generation Id</dt>
     <dd>A generation number assigned to each record. This number is not actively used but can be utilized for possible data reconstruction. It typically matches the version of the <a href="#offset-index">offset index</a> that points to this record.</dd>
