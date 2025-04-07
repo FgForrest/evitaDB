@@ -53,7 +53,7 @@ Below is an explanation of the individual items:
     <dt>Record length in Bytes</dt>
     <dd>The length of the record in bytes. This is compared against the value of <em>Record pointer: length</em> and must match; otherwise, data integrity has been compromised.</dd>
     <dt>Control Byte</dt>
-    <dd>This byte contains flags with key information about the nature of the record. The flags represent individual bits in this byte:<br/>
+    <dd>This byte contains flags with key information about the nature of the record. The flags represent individual bits in this byte:<br>
         <ol>
             <li>the last record in a series of records</li>
             <li>a continuous record, with the payload continuing in the immediately following record</li>
@@ -100,11 +100,11 @@ Below is an explanation of the individual items:
 
 <dl>
     <dt>Storage protocol version</dt>
-    <dd>The version of the data format in which the catalog data is stored. This version changes only if there have been significant modifications in naming or structure of data files, or changes to the general structure of the records in the storage. This information allows us to detect when a running evitaDB instance expects data in a newer format than what is actually on disk. If such a situation arises, evitaDB contains a conversion mechanism to migrate data from the old format to the current one.<br/>
+    <dd>The version of the data format in which the catalog data is stored. This version changes only if there have been significant modifications in naming or structure of data files, or changes to the general structure of the records in the storage. This information allows us to detect when a running evitaDB instance expects data in a newer format than what is actually on disk. If such a situation arises, evitaDB contains a conversion mechanism to migrate data from the old format to the current one.<br>
      Currently, the data format version is <code>3</code>.
     </dd>
     <dt>Catalog version</dt>
-    <dd>The catalog version is incremented upon completion of each committed transaction that pushes the catalog to the next version. There isn’t necessarily one bootstrap record per transaction. If the system manages to process multiple transactions within a time frame, the jumps between consecutive catalog versions in the bootstrap file can be greater than 1.<br/>
+    <dd>The catalog version is incremented upon completion of each committed transaction that pushes the catalog to the next version. There isn’t necessarily one bootstrap record per transaction. If the system manages to process multiple transactions within a time frame, the jumps between consecutive catalog versions in the bootstrap file can be greater than 1.<br>
      If the catalog is in <em>warm-up</em> mode, each of the bootstrap records may have a catalog version set to <code>0</code>.
     </dd>
     <dt>Catalog file index</dt>
