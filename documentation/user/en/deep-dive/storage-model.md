@@ -93,14 +93,11 @@ Below is an explanation of the individual items:
 
 <dl>
     <dt>Storage protocol version</dt>
-    <dd>The version of the data format in which the catalog data is stored. This version changes only if there have been significant modifications in naming or structure of data files, or changes to the general structure of the records in the storage. This information allows us to detect when a running evitaDB instance expects data in a newer format than what is actually on disk. If such a situation arises, evitaDB contains a conversion mechanism to migrate data from the old format to the current one.<br/>Currently, the data format version is `3`.
-    </dd>
+    <dd>The version of the data format in which the catalog data is stored. This version changes only if there have been significant modifications in naming or structure of data files, or changes to the general structure of the records in the storage. This information allows us to detect when a running evitaDB instance expects data in a newer format than what is actually on disk. If such a situation arises, evitaDB contains a conversion mechanism to migrate data from the old format to the current one.<br/>Currently, the data format version is `3`.</dd>
     <dt>Catalog version</dt>
-    <dd>The catalog version is incremented upon completion of each committed transaction that pushes the catalog to the next version. There isn’t necessarily one bootstrap record per transaction. If the system manages to process multiple transactions within a time frame, the jumps between consecutive catalog versions in the bootstrap file can be greater than 1.<br/>If the catalog is in *warm-up* mode, each of the bootstrap records may have a catalog version set to `0`.
-    </dd>
+    <dd>The catalog version is incremented upon completion of each committed transaction that pushes the catalog to the next version. There isn’t necessarily one bootstrap record per transaction. If the system manages to process multiple transactions within a time frame, the jumps between consecutive catalog versions in the bootstrap file can be greater than 1.<br/>If the catalog is in *warm-up* mode, each of the bootstrap records may have a catalog version set to `0`.</dd>
     <dt>Catalog file index</dt>
-    <dd>Contains the index of the catalog data file. Using this information, you can construct the file name corresponding to the catalog’s data file in the format `catalogName_&lbrace;index&rbrace;.catalog`. Multiple data files for the same catalog can coexist in the directory with different indexes, indicating the availability of the <a href="#time-travel">time travel</a> feature.
-    </dd>
+    <dd>Contains the index of the catalog data file. Using this information, you can construct the file name corresponding to the catalog’s data file in the format `catalogName_&lbrace;index&rbrace;.catalog`. Multiple data files for the same catalog can coexist in the directory with different indexes, indicating the availability of the <a href="#time-travel">time travel</a> feature.</dd>
     <dt>Timestamp</dt>
     <dd>A timestamp set to the time the bootstrap record was created, measured in milliseconds from `1970-01-01 00:00:00 UTC`. This is used to locate the correct bootstrap record when performing <a href="#time-travel">time travel</a>.</dd>
     <dt>Offset index pointer: start position</dt>
