@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Scope;
@@ -329,9 +330,9 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	IsolatedWalPersistenceService createIsolatedWalPersistenceService(@Nonnull UUID transactionId);
 
 	/**
-	 * Method deletes entire catalog persistent storage.
+	 * Method deletes entire catalog persistent storage and closes the persistence factory.
 	 */
-	void delete();
+	void closeAndDelete();
 
 	/**
 	 * Appends the given transaction mutation to the write-ahead log (WAL) and appends its mutation chain taken from
@@ -527,7 +528,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * via. {@link #getOrCreateEntityCollectionPersistenceService(long, String, int)}.
 	 *
 	 * You need to call {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}
-	 * or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)} before this method is called, or you will lose your
+	 * or {@link #flushTrappedUpdates(long, DataStoreChanges)} before this method is called, or you will lose your
 	 * data in memory buffers.
 	 */
 	@Override

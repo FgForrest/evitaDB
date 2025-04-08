@@ -106,6 +106,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
+import java.lang.ref.WeakReference;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -224,6 +225,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * should still be operative until the termination callback is finished.
 	 */
 	private boolean beingClosed;
+	/**
+	 * Contains a number of streams that were returned by the {@link #getMutationsHistory(ChangeCatalogCaptureRequest)},
+	 * {@link #getRecordings(TrafficRecordingCaptureRequest)}, {@link #getRecordingsReversed(TrafficRecordingCaptureRequest)}
+	 * to check whether they have been closed at the end of the session.
+	 */
+	private Set<WeakReference<Stream<?>>> returnedStreams;
 
 	/**
 	 * Method creates implicit filtering constraint that contains price filtering constraints for price in case
@@ -294,19 +301,17 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		@Nonnull EntityContentRequire... require
 	) {
 		return Arrays.stream(require).anyMatch(DataInLocales.class::isInstance) ?
-			(locales, requestedClass) -> {
-				return new EvitaRequest(
-					Query.query(
-						collection(entityType),
-						require(
-							entityFetch(require)
-						)
-					),
-					OffsetDateTime.now(),
-					requestedClass,
-					entityType
-				);
-			} :
+			(locales, requestedClass) -> new EvitaRequest(
+				Query.query(
+					collection(entityType),
+					require(
+						entityFetch(require)
+					)
+				),
+				OffsetDateTime.now(),
+				requestedClass,
+				entityType
+			) :
 			(originalLocales, requestedClass) -> new EvitaRequest(
 				Query.query(
 					collection(entityType),
@@ -389,7 +394,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Override
 	public boolean isActive() {
-		return closedFuture == null || beingClosed;
+		return this.closedFuture == null || this.beingClosed;
 	}
 
 	@Traced
@@ -408,6 +413,17 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public CompletableFuture<Long> closeNow(@Nonnull CommitBehavior commitBehaviour) {
 		if (this.closedFuture == null) {
+			// forcefully close all opened stateful streams
+			if (this.returnedStreams != null) {
+				// rewrap collection so that we don't get concurrent modification exception
+				new ArrayList<>(this.returnedStreams)
+					.forEach(weakReference -> {
+						final Stream<?> stream = weakReference.get();
+						if (stream != null) {
+							stream.close();
+						}
+					});
+			}
 			// flush changes if we're not in transactional mode
 			final Catalog theCatalog = this.catalog.get();
 			if (theCatalog.getCatalogState() == CatalogState.WARMING_UP) {
@@ -1315,9 +1331,28 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public Stream<ChangeCatalogCapture> getMutationsHistory(@Nonnull ChangeCatalogCaptureRequest criteria) {
 		final MutationPredicate mutationPredicate = MutationPredicateFactory.createReversedChangeCatalogCapturePredicate(criteria);
-		return getCatalog()
-			.getReversedCommittedMutationStream(criteria.sinceVersion())
-			.flatMap(it -> it.toChangeCatalogCapture(mutationPredicate, criteria.content()));
+		return registerStreamAndReturnCloseableStream(
+			getCatalog()
+				.getReversedCommittedMutationStream(criteria.sinceVersion())
+				.flatMap(it -> it.toChangeCatalogCapture(mutationPredicate, criteria.content()))
+		);
+	}
+
+	/**
+	 * Registers a stream and ensures its closure is tracked. When the stream is closed,
+	 * it automatically unregisters itself from the tracked streams.
+	 *
+	 * @param stream the stream to be registered and tracked; must not be null
+	 * @return the same stream passed as input with an added close behavior; never null
+	 */
+	@Nonnull
+	private <T> Stream<T> registerStreamAndReturnCloseableStream(@Nonnull Stream<T> stream) {
+		if (this.returnedStreams == null) {
+			this.returnedStreams = new HashSet<>(32);
+		}
+		final WeakReference<Stream<?>> theStream = new WeakReference<>(stream);
+		this.returnedStreams.add(theStream);
+		return stream.onClose(() -> this.returnedStreams.remove(theStream));
 	}
 
 	@Interruptible
@@ -1334,8 +1369,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
 		return theCatalog.backup(
 			pastMoment, includingWAL,
-			cv -> ccControl.registerConsumerOfCatalogInVersion(cv),
-			cv -> ccControl.unregisterConsumerOfCatalogInVersion(cv)
+			ccControl::registerConsumerOfCatalogInVersion,
+			ccControl::unregisterConsumerOfCatalogInVersion
 		);
 	}
 
@@ -1391,7 +1426,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		assertActive();
 		final CatalogContract currentCatalog = getCatalog();
 		if (currentCatalog instanceof Catalog theCatalog) {
-			return theCatalog.getTrafficRecordingEngine().getRecordings(request);
+			return registerStreamAndReturnCloseableStream(
+				theCatalog.getTrafficRecordingEngine().getRecordings(request)
+			);
 		} else {
 			throw new CatalogCorruptedException((CorruptedCatalog) currentCatalog);
 		}
@@ -1403,7 +1440,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		assertActive();
 		final CatalogContract currentCatalog = getCatalog();
 		if (currentCatalog instanceof Catalog theCatalog) {
-			return theCatalog.getTrafficRecordingEngine().getRecordingsReversed(request);
+			return registerStreamAndReturnCloseableStream(
+				theCatalog.getTrafficRecordingEngine().getRecordingsReversed(request)
+			);
 		} else {
 			throw new CatalogCorruptedException((CorruptedCatalog) currentCatalog);
 		}

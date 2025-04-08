@@ -53,6 +53,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -308,32 +309,38 @@ public class OffsetIndex {
 		this.writeKryo = fileOffsetDescriptor.getWriteKryo();
 		this.writeHandle = writeHandle;
 		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
-		final Optional<CollectingOffsetIndexBuilder> fileOffsetIndexBuilder;
-		if (this.lastSyncedPosition == 0) {
-			fileOffsetIndexBuilder = Optional.empty();
-		} else {
-			fileOffsetIndexBuilder = of(
-				readFileOffsetIndex(fileOffsetDescriptor.fileLocation())
-			);
-		}
-		this.keyCatalogVersion = catalogVersion;
-		this.keyToLocations = fileOffsetIndexBuilder
-			.map(CollectingOffsetIndexBuilder::getBuiltIndex)
-			.orElseGet(() -> CollectionUtils.createConcurrentHashMap(KEY_HASH_MAP_INITIAL_SIZE));
-		this.histogram = fileOffsetIndexBuilder
-			.map(CollectingOffsetIndexBuilder::getHistogram)
-			.orElseGet(() -> CollectionUtils.createConcurrentHashMap(HISTOGRAM_INITIAL_CAPACITY));
-		fileOffsetIndexBuilder
-			.ifPresent(it -> {
-				this.totalSizeBytes.set(it.getTotalSizeBytes());
-				this.maxRecordSizeBytes.set(it.getMaxSizeBytes());
-			});
-		this.decompressionPool = new Pool<>(true, false, DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY) {
-			@Override
-			protected byte[] create() {
-				return new byte[storageOptions.outputBufferSize()];
+		try {
+			final Optional<CollectingOffsetIndexBuilder> fileOffsetIndexBuilder;
+			if (this.lastSyncedPosition == 0) {
+				fileOffsetIndexBuilder = Optional.empty();
+			} else {
+				fileOffsetIndexBuilder = of(
+					readFileOffsetIndex(fileOffsetDescriptor.fileLocation())
+				);
 			}
-		};
+			this.keyCatalogVersion = catalogVersion;
+			this.keyToLocations = fileOffsetIndexBuilder
+				.map(CollectingOffsetIndexBuilder::getBuiltIndex)
+				.orElseGet(() -> CollectionUtils.createConcurrentHashMap(KEY_HASH_MAP_INITIAL_SIZE));
+			this.histogram = fileOffsetIndexBuilder
+				.map(CollectingOffsetIndexBuilder::getHistogram)
+				.orElseGet(() -> CollectionUtils.createConcurrentHashMap(HISTOGRAM_INITIAL_CAPACITY));
+			fileOffsetIndexBuilder
+				.ifPresent(it -> {
+					this.totalSizeBytes.set(it.getTotalSizeBytes());
+					this.maxRecordSizeBytes.set(it.getMaxSizeBytes());
+				});
+			this.decompressionPool = new Pool<>(true, false, DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY) {
+				@Override
+				protected byte[] create() {
+					return new byte[storageOptions.outputBufferSize()];
+				}
+			};
+		} catch (RuntimeException ex) {
+			clearReadOnlyOpenedHandles();
+			// clean resources before rethrowing the exception
+			throw ex;
+		}
 	}
 
 	public OffsetIndex(
@@ -854,32 +861,11 @@ public class OffsetIndex {
 	public FileLocation close() {
 		assertOperative();
 		// this will forbid new read handles to be created
-		operative = false;
+		this.operative = false;
 		try {
-			if (!shutdownDownProcedureActive.compareAndExchange(false, true)) {
+			if (!this.shutdownDownProcedureActive.compareAndExchange(false, true)) {
 				// spinning lock to close all opened handles once they occur free in pool
-				long start = System.currentTimeMillis();
-				while (!readOnlyOpenedHandles.isEmpty() && System.currentTimeMillis() - start > storageOptions.waitOnCloseSeconds() * 1000) {
-					if (readOnlyHandlePool.getFree() > 0) {
-						final ReadOnlyHandle handleToClose = readOnlyHandlePool.obtain();
-						try {
-							handleToClose.execute(
-								exclusiveReadAccess -> {
-									exclusiveReadAccess.close();
-									return null;
-								});
-							readOnlyOpenedHandles.remove(handleToClose);
-						} catch (Exception ex) {
-							log.error("Read handle cannot be closed!", ex);
-							// ignore this - we need to close other files
-						}
-					}
-				}
-				// these handles were not released by the clients within the timeout
-				for (ReadOnlyHandle readOnlyOpenedHandle : readOnlyOpenedHandles) {
-					readOnlyOpenedHandle.close();
-				}
-				this.readOnlyOpenedHandles.clear();
+				clearReadOnlyOpenedHandles();
 				// at last flush OffsetIndex and close write handle
 				this.fileOffsetDescriptor = doFlush(
 					// if there are any non-flushed values, use their version as the last version
@@ -888,13 +874,45 @@ public class OffsetIndex {
 					this.fileOffsetDescriptor,
 					true
 				);
-				return fileOffsetDescriptor.fileLocation();
+				return this.fileOffsetDescriptor.fileLocation();
 			} else {
 				throw new GenericEvitaInternalError("OffsetIndex is already being closed!");
 			}
 		} finally {
-			shutdownDownProcedureActive.compareAndExchange(true, false);
+			this.shutdownDownProcedureActive.compareAndExchange(true, false);
 		}
+	}
+
+	/**
+	 * Clears read-only file handles that have been opened but not properly released.
+	 *
+	 * This method attempts to close all handles in the `readOnlyOpenedHandles` collection that were unable to be
+	 * released within a specific timeout defined by `storageOptions.waitOnCloseSeconds()`. It performs a cleanup
+	 * of file handles to ensure that resources are released and avoid resource leakage.
+	 */
+	private void clearReadOnlyOpenedHandles() {
+		long start = System.currentTimeMillis();
+		while (!this.readOnlyOpenedHandles.isEmpty() && System.currentTimeMillis() - start > this.storageOptions.waitOnCloseSeconds() * 1000) {
+			if (this.readOnlyHandlePool.getFree() > 0) {
+				final ReadOnlyHandle handleToClose = this.readOnlyHandlePool.obtain();
+				try {
+					handleToClose.execute(
+						exclusiveReadAccess -> {
+							IOUtils.closeQuietly(exclusiveReadAccess::close);
+							return null;
+						});
+					this.readOnlyOpenedHandles.remove(handleToClose);
+				} catch (Exception ex) {
+					log.error("Read handle cannot be closed!", ex);
+					// ignore this - we need to close other files
+				}
+			}
+		}
+		// these handles were not released by the clients within the timeout
+		for (ReadOnlyHandle readOnlyOpenedHandle : readOnlyOpenedHandles) {
+			readOnlyOpenedHandle.close();
+		}
+		this.readOnlyOpenedHandles.clear();
 	}
 
 	/**
@@ -1169,11 +1187,13 @@ public class OffsetIndex {
 			);
 
 			if (close) {
-				writeHandle.close();
+				IOUtils.closeQuietly(this.writeHandle::close);
 			}
-
 			return newFileOffsetIndexDescriptor;
 		} else {
+			if (close) {
+				IOUtils.closeQuietly(this.writeHandle::close);
+			}
 			return fileOffsetIndexDescriptor;
 		}
 	}
@@ -1186,13 +1206,13 @@ public class OffsetIndex {
 	 */
 	private void doSoftFlush() {
 		if (this.volatileValues.hasValuesToFlush()) {
-			writeHandle.checkAndExecuteAndSync(
+			this.writeHandle.checkAndExecuteAndSync(
 				"Syncing changes to disk.",
 				this::assertOperative,
 				it -> null,
 				(output, result) -> {
 					// update last synced position, since in post action we are already after sync
-					this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
+					this.lastSyncedPosition = this.writeHandle.getLastWrittenPosition();
 					// propagate changes in KeyCompressor to the read kryo pool
 					if (fileOffsetDescriptor.resetDirty()) {
 						this.fileOffsetDescriptor = new OffsetIndexDescriptor(

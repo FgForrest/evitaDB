@@ -821,11 +821,17 @@ public final class Evita implements EvitaContract {
 		@Nonnull CatalogContract catalogToBeReplacedWith
 	) {
 		try {
+			// first terminate the catalog that is being replaced (unless it's the very same catalog)
+			if (catalogToBeReplaced != catalogToBeReplacedWith) {
+				catalogToBeReplaced.terminate();
+			}
+
 			final CatalogSchemaWithImpactOnEntitySchemas updatedSchemaWrapper = modifyCatalogSchemaName.mutate(catalogToBeReplacedWith.getSchema());
 			Assert.isPremiseValid(
 				updatedSchemaWrapper != null,
 				"Result of modify catalog schema mutation must not be null."
 			);
+
 			final CatalogContract replacedCatalog = catalogToBeReplacedWith.replace(
 				updatedSchemaWrapper.updatedCatalogSchema(),
 				catalogToBeReplaced
@@ -874,7 +880,11 @@ public final class Evita implements EvitaContract {
 
 		} catch (RuntimeException ex) {
 			// in case of exception return the original catalog to be replaced back
-			this.catalogs.put(catalogNameToBeReplaced, catalogToBeReplaced);
+			if (catalogToBeReplaced.isTerminated()) {
+				this.serviceExecutor.submit(createLoadCatalogTask(catalogNameToBeReplaced)).join();
+			} else {
+				this.catalogs.put(catalogNameToBeReplaced, catalogToBeReplaced);
+			}
 			throw ex;
 		}
 	}
@@ -896,8 +906,7 @@ public final class Evita implements EvitaContract {
 //			);
 			/* TODO JNO - tohle je asi nový */
 			/*this.structuralChangeObservers.forEach(it -> doWithPretendingCatalogStillPresent(catalogToRemove, () -> it.onCatalogDelete(catalogName)));*/
-			catalogToRemove.terminate();
-			catalogToRemove.delete();
+			catalogToRemove.terminateAndDelete();
 			// we need to update catalog statistics
 			emitEvitaStatistics();
 			if (catalogToRemove instanceof Catalog theCatalog) {
@@ -1180,19 +1189,26 @@ public final class Evita implements EvitaContract {
 	 * Attempts to close all resources of evitaDB.
 	 */
 	private void closeInternal() {
-		// first close all sessions
-		CompletableFuture.allOf(
-			CompletableFuture.runAsync(this::closeAllSessions),
-			/* TODO JNO - revidovat, jestli se to má zavírat zde */
-			CompletableFuture.runAsync(this.changeObserver::close)
-		);
+		try {
+			// first close all sessions
+			CompletableFuture.allOf(
+				CompletableFuture.runAsync(this::closeAllSessions),
+				/* TODO JNO - revidovat, jestli se to má zavírat zde */
+				CompletableFuture.runAsync(this.changeObserver::close)
+			).join();
 
-		CompletableFuture.allOf(
-			CompletableFuture.runAsync(this.management::close),
-			CompletableFuture.runAsync(() -> shutdownScheduler("request", this.requestExecutor, 60)),
-			CompletableFuture.runAsync(() -> shutdownScheduler("transaction", this.transactionExecutor, 60)),
-			CompletableFuture.runAsync(() -> shutdownScheduler("service", this.serviceExecutor, 60))
-		);
+			CompletableFuture.allOf(
+				CompletableFuture.runAsync(this.management::close),
+				CompletableFuture.runAsync(() -> shutdownScheduler("request", this.requestExecutor, 60)),
+				CompletableFuture.runAsync(() -> shutdownScheduler("transaction", this.transactionExecutor, 60)),
+				CompletableFuture.runAsync(() -> shutdownScheduler("service", this.serviceExecutor, 60))
+			).join();
+
+			// terminate all catalogs finally (if we did this prematurely, many exceptions would occur)
+			closeCatalogs().join();
+		} catch (RuntimeException ex) {
+			log.error("Failed to close evitaDB. Some resources might not have been released properly.", ex);
+		}
 	}
 
 	/**

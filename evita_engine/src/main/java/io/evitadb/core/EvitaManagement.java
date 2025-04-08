@@ -170,7 +170,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		this.evita.assertActiveAndWritable();
 		// if the file is not a locally stored export file, store it to the export directory first
 		final UUID fileId = UUIDUtil.randomUUID();
-		final Path tempFile = exportFileService.createTempFile(fileId + ".zip");
+		final Path tempFile = this.exportFileService.createTempFile(fileId + ".zip");
 		try {
 			final long bytesCopied = Files.copy(
 				inputStream, tempFile,

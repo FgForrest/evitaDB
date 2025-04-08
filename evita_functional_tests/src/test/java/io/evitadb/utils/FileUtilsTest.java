@@ -280,7 +280,7 @@ class FileUtilsTest {
 
 			entry = zis.getNextEntry();
 			assertNotNull(entry);
-			assertEquals("subDir/file2.txt", entry.getName());
+			assertEquals("subDir" + File.separatorChar + "file2.txt", entry.getName());
 		}
 	}
 

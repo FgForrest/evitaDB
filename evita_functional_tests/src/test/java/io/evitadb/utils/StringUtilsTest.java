@@ -23,9 +23,12 @@
 
 package io.evitadb.utils;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.Locale;
 
 import static io.evitadb.utils.StringUtils.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,6 +39,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class StringUtilsTest {
+	private static final Locale SYSTEM_DEFAULT_LOCALE = Locale.getDefault();
+
+	@BeforeEach
+	void setUp() {
+		Locale.setDefault(Locale.ENGLISH);
+	}
+
+	@AfterEach
+	void tearDown() {
+		Locale.setDefault(SYSTEM_DEFAULT_LOCALE);
+	}
+
 
 	@Test
 	void shouldUncapitalizeString() {

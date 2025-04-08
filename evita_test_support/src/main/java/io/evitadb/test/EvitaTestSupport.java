@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -156,11 +156,22 @@ public interface EvitaTestSupport extends TestConstants {
 	 * Removes test directory with its contents.
 	 */
 	default void cleanTestSubDirectoryWithRethrow(String directory) {
-		try {
-			cleanTestSubDirectory(directory);
-		} catch (IOException e) {
-			throw new GenericEvitaInternalError("Cannot empty target directory!", e);
+		IOException ex = null;
+		// wait a while until files become unlocked (on Windows it sometimes takes a while)
+		for (int i = 0; i < 10; i++) {
+			try {
+				cleanTestSubDirectory(directory);
+				return;
+			} catch (IOException e) {
+				ex = e;
+			}
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
 		}
+		throw new GenericEvitaInternalError("Cannot empty target directory!", ex);
 	}
 
 	/**

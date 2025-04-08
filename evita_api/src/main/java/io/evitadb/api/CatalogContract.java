@@ -227,9 +227,9 @@ public interface CatalogContract {
 	boolean replaceCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith);
 
 	/**
-	 * Removes entire catalog storage from persistent storage.
+	 * Removes entire catalog storage from persistent storage and closes the catalog instance.
 	 */
-	void delete();
+	void terminateAndDelete();
 
 	/**
 	 * Replaces folder of the `catalogToBeReplaced` with contents of this catalog.
@@ -372,4 +372,12 @@ public interface CatalogContract {
 	 * ignored.
 	 */
 	void terminate();
+
+	/**
+	 * Indicates whether the process or operation has been terminated.
+	 *
+	 * @return true if the process or operation is terminated, false otherwise.
+	 */
+	boolean isTerminated();
+
 }

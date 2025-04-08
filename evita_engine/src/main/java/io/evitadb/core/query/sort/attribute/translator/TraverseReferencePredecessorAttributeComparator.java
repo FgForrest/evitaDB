@@ -138,13 +138,14 @@ public class TraverseReferencePredecessorAttributeComparator
 			this.sortedRecordsOffsets = createSortedRecordsOffsets(this.sortedRecordsProviders);
 			//noinspection ObjectInstantiationInEqualsHashCode
 			this.cache = new IntIntMap[this.sortedRecordsProviders.length];
-			Assert.notNull(this.sortedRecordsOffsets, "Sorted records offsets must not be null!");
 		}
 		final ReferenceAttributeValue attribute1 = this.attributeValueFetcher.apply(o1);
 		final ReferenceAttributeValue attribute2 = this.attributeValueFetcher.apply(o2);
 		if (attribute1 != null && attribute2 != null) {
 			if (attribute1.referencedKey().equals(attribute2.referencedKey())) {
-				final OffsetAndLimit offsetAndLimit = this.sortedRecordsOffsets.get(attribute1.referencedKey());
+				// if the offset is null, the sorted record provider was not found for the given reference key
+				final OffsetAndLimit offsetAndLimit = this.sortedRecordsOffsets == null ?
+					null : this.sortedRecordsOffsets.get(attribute1.referencedKey());
 				if (offsetAndLimit != null) {
 					int result = 0;
 					int o1FoundInProvider = -1;

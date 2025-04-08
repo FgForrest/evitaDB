@@ -749,38 +749,45 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		this.entityCollectionHeader = entityTypeHeader;
 		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = observableOutputKeeper;
-		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
-			catalogVersion,
+		final WriteOnlyFileHandle writeHandle = new WriteOnlyFileHandle(
 			catalogName,
-			this.entityCollectionFileReference.entityType(),
 			FileType.ENTITY_COLLECTION,
-			transactionOptions,
-			new OffsetIndex(
-				catalogVersion,
-				new OffsetIndexDescriptor(
-					entityTypeHeader,
-					this.createTypeKryoInstance(),
-					// we don't know here yet - this will be recomputed on first flush
-					entityTypeHeader.activeRecordShare(),
-					this.entityCollectionFile.toFile().length()
-				),
-				storageOptions,
-				offsetIndexRecordTypeRegistry,
-				new WriteOnlyFileHandle(
-					catalogName,
-					FileType.ENTITY_COLLECTION,
-					this.entityCollectionFileReference.entityType(),
-					storageOptions,
-					this.entityCollectionFile,
-					observableOutputKeeper
-				),
-				nonFlushedBlock -> reportNonFlushedContents(catalogName, nonFlushedBlock),
-				oldestHistoricalRecord -> reportOldestHistoricalRecord(catalogName, oldestHistoricalRecord.orElse(null))
-			),
-			offHeapMemoryManager,
-			observableOutputKeeper,
-			VERSIONED_KRYO_FACTORY
+			this.entityCollectionFileReference.entityType(),
+			storageOptions,
+			this.entityCollectionFile,
+			observableOutputKeeper
 		);
+		try {
+			this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
+				catalogVersion,
+				catalogName,
+				this.entityCollectionFileReference.entityType(),
+				FileType.ENTITY_COLLECTION,
+				transactionOptions,
+				new OffsetIndex(
+					catalogVersion,
+					new OffsetIndexDescriptor(
+						entityTypeHeader,
+						this.createTypeKryoInstance(),
+						// we don't know here yet - this will be recomputed on first flush
+						entityTypeHeader.activeRecordShare(),
+						this.entityCollectionFile.toFile().length()
+					),
+					storageOptions,
+					offsetIndexRecordTypeRegistry,
+					writeHandle,
+					nonFlushedBlock -> reportNonFlushedContents(catalogName, nonFlushedBlock),
+					oldestHistoricalRecord -> reportOldestHistoricalRecord(catalogName, oldestHistoricalRecord.orElse(null))
+				),
+				offHeapMemoryManager,
+				observableOutputKeeper,
+				VERSIONED_KRYO_FACTORY
+			);
+		} catch (RuntimeException ex) {
+			// close the handler in case of exception
+			writeHandle.close();
+			throw ex;
+		}
 	}
 
 	/**

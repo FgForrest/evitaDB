@@ -57,10 +57,10 @@ public class PortManager {
 	 */
 	@Nonnull
 	public int[] allocatePorts(@Nonnull String dataSetName, int count) {
-		synchronized (monitor) {
+		synchronized (this.monitor) {
 			Assert.isPremiseValid(!this.portAllocationTable.containsKey(dataSetName), "Ports for dataset " + dataSetName + " already allocated.");
 
-			final Iterator<Entry<String, CompletableFuture<Void>>> it = pendingReleases.entrySet().iterator();
+			final Iterator<Entry<String, CompletableFuture<Void>>> it = this.pendingReleases.entrySet().iterator();
 			while (it.hasNext()) {
 				Entry<String, CompletableFuture<Void>> entry = it.next();
 				final CompletableFuture<Void> future = entry.getValue();
@@ -94,11 +94,11 @@ public class PortManager {
 	 * Frees all ports allocated for `dataSetName`.
 	 */
 	public void releasePorts(@Nonnull String dataSetName) {
-		synchronized (monitor) {
-			ofNullable(portAllocationTable.remove(dataSetName))
+		synchronized (this.monitor) {
+			ofNullable(this.portAllocationTable.remove(dataSetName))
 				.ifPresent(ports -> {
 					for (int port : ports) {
-						allocatedPorts.remove(port);
+						this.allocatedPorts.remove(port);
 					}
 				});
 		}
@@ -110,7 +110,7 @@ public class PortManager {
 	 * @param whenCompleted future that triggers port release
 	 */
 	public void releasePortsOnCompletion(@Nonnull String dataSetName, @Nonnull CompletableFuture<Void> whenCompleted) {
-		synchronized (monitor) {
+		synchronized (this.monitor) {
 			final int random = this.random.nextInt();
 			final String randomizedDataSetName = dataSetName + "_" + random;
 			// rename port allocation table entry, so that we can avoid conflicts on reused dataSetName

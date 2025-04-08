@@ -2838,14 +2838,16 @@ class EvitaTest implements EvitaTestSupport {
 
 		assertTrue(backupPath.toFile().exists());
 
-		final CompletableFuture<Void> future = evita.management().restoreCatalog(
-			TEST_CATALOG + "_restored",
-			Files.size(backupPath),
-			new BufferedInputStream(new FileInputStream(backupPath.toFile()))
-		).getFutureResult();
+		try (final BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(backupPath.toFile()))) {
+			final CompletableFuture<Void> future = evita.management().restoreCatalog(
+				TEST_CATALOG + "_restored",
+				Files.size(backupPath),
+				inputStream
+			).getFutureResult();
 
-		// wait for the restore to finish
-		future.get();
+			// wait for the restore to finish
+			future.get();
+		}
 
 		evita.queryCatalog(TEST_CATALOG,
 			session -> {
@@ -2889,14 +2891,16 @@ class EvitaTest implements EvitaTestSupport {
 
 		assertTrue(backupPath.toFile().exists());
 
-		final CompletableFuture<Void> future = management.restoreCatalog(
-			TEST_CATALOG + "_restored",
-			Files.size(backupPath),
-			new BufferedInputStream(new FileInputStream(backupPath.toFile()))
-		).getFutureResult();
+		try (final BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(backupPath.toFile()))) {
+			final CompletableFuture<Void> future = management.restoreCatalog(
+				TEST_CATALOG + "_restored",
+				Files.size(backupPath),
+				inputStream
+			).getFutureResult();
 
-		// wait for the restore to finish
-		future.get();
+			// wait for the restore to finish
+			future.get();
+		}
 
 		evita.queryCatalog(TEST_CATALOG,
 			session -> {

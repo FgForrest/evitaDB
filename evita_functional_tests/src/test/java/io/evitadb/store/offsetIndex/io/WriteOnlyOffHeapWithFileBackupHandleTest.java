@@ -75,14 +75,15 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 				output -> output.writeString("Small data content")
 			);
 
-			final ReadOnlyHandle readOnlyHandle = writeHandle.toReadOnlyHandle();
-			assertEquals(18, readOnlyHandle.getLastWrittenPosition());
-			readOnlyHandle.execute(
-				input -> {
-					assertEquals("Small data content", input.readString());
-					return null;
-				}
-			);
+			try (final ReadOnlyHandle readOnlyHandle = writeHandle.toReadOnlyHandle()) {
+				assertEquals(18, readOnlyHandle.getLastWrittenPosition());
+				readOnlyHandle.execute(
+					input -> {
+						assertEquals("Small data content", input.readString());
+						return null;
+					}
+				);
+			}
 		}
 	}
 
@@ -104,16 +105,17 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 				);
 			}
 
-			final ReadOnlyHandle readOnlyHandle = writeHandle.toReadOnlyHandle();
-			assertEquals(35, readOnlyHandle.getLastWrittenPosition());
-			readOnlyHandle.execute(
-				input -> {
-					for (int i = 0; i < 5; i++) {
-						assertEquals("Data " + i + ".", input.readString());
+			try (final ReadOnlyHandle readOnlyHandle = writeHandle.toReadOnlyHandle()) {
+				assertEquals(35, readOnlyHandle.getLastWrittenPosition());
+				readOnlyHandle.execute(
+					input -> {
+						for (int i = 0; i < 5; i++) {
+							assertEquals("Data " + i + ".", input.readString());
+						}
+						return null;
 					}
-					return null;
-				}
-			);
+				);
+			}
 		}
 	}
 
@@ -138,16 +140,17 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 				);
 			}
 
-			final ReadOnlyHandle readOnlyHandle = writeHandle.toReadOnlyHandle();
-			assertEquals(35, readOnlyHandle.getLastWrittenPosition());
-			readOnlyHandle.execute(
-				input -> {
-					for (int i = 0; i < 5; i++) {
-						assertEquals("Data " + i + ".", input.readString());
+			try (final ReadOnlyHandle readOnlyHandle = writeHandle.toReadOnlyHandle()) {
+				assertEquals(35, readOnlyHandle.getLastWrittenPosition());
+				readOnlyHandle.execute(
+					input -> {
+						for (int i = 0; i < 5; i++) {
+							assertEquals("Data " + i + ".", input.readString());
+						}
+						return null;
 					}
-					return null;
-				}
-			);
+				);
+			}
 		}
 	}
 
@@ -184,16 +187,17 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 					);
 				}
 
-				final ReadOnlyHandle readOnlyHandle = forcedFileHandle.toReadOnlyHandle();
-				assertEquals(35, readOnlyHandle.getLastWrittenPosition());
-				readOnlyHandle.execute(
-					input -> {
-						for (int i = 0; i < 5; i++) {
-							assertEquals("Data " + i + ".", input.readString());
+				try (final ReadOnlyHandle readOnlyHandle = forcedFileHandle.toReadOnlyHandle()) {
+					assertEquals(35, readOnlyHandle.getLastWrittenPosition());
+					readOnlyHandle.execute(
+						input -> {
+							for (int i = 0; i < 5; i++) {
+								assertEquals("Data " + i + ".", input.readString());
+							}
+							return null;
 						}
-						return null;
-					}
-				);
+					);
+				}
 			}
 		}
 	}

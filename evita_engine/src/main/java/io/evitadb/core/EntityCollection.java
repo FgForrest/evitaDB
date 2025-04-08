@@ -296,77 +296,83 @@ public final class EntityCollection implements
 		this.persistenceService = entityCollectionPersistenceService;
 		this.cacheSupervisor = cacheSupervisor;
 
-		final EntityCollectionHeader entityHeader = entityCollectionPersistenceService.getEntityCollectionHeader();
-		this.pkSequence = sequenceService.getOrCreateSequence(
-			catalogName, SequenceType.ENTITY, entityType, entityHeader.lastPrimaryKey()
-		);
-		this.indexPkSequence = sequenceService.getOrCreateSequence(
-			catalogName, SequenceType.INDEX, entityType, entityHeader.lastEntityIndexPrimaryKey()
-		);
-		// we need to initialize the price sequence here, in order to initialize correctly the last internal price id
-		// from older storage format when it was stored as a part of the global index
-		this.pricePkSequence = sequenceService.getOrCreateSequence(
-			catalogName, SequenceType.PRICE, entityType,
-			// if entity header has no last internal price id, initialized and there is global index available
-			entityHeader.lastInternalPriceId() == -1 && entityHeader.globalEntityIndexId() != null ?
-				// try to initialize sequence from deprecated storage key format
-				entityCollectionPersistenceService.fetchLastAssignedInternalPriceIdFromGlobalIndex(
-					catalogVersion,
-					entityHeader.globalEntityIndexId()
-				).orElse(0) :
-				// otherwise initialize from the last internal price id - when it's initialized, othewise start from 0
-				entityHeader.lastInternalPriceId() == -1 ? 0 : entityHeader.lastInternalPriceId()
-		);
+		try {
+			final EntityCollectionHeader entityHeader = entityCollectionPersistenceService.getEntityCollectionHeader();
+			this.pkSequence = sequenceService.getOrCreateSequence(
+				catalogName, SequenceType.ENTITY, entityType, entityHeader.lastPrimaryKey()
+			);
+			this.indexPkSequence = sequenceService.getOrCreateSequence(
+				catalogName, SequenceType.INDEX, entityType, entityHeader.lastEntityIndexPrimaryKey()
+			);
+			// we need to initialize the price sequence here, in order to initialize correctly the last internal price id
+			// from older storage format when it was stored as a part of the global index
+			this.pricePkSequence = sequenceService.getOrCreateSequence(
+				catalogName, SequenceType.PRICE, entityType,
+				// if entity header has no last internal price id, initialized and there is global index available
+				entityHeader.lastInternalPriceId() == -1 && entityHeader.globalEntityIndexId() != null ?
+					// try to initialize sequence from deprecated storage key format
+					entityCollectionPersistenceService.fetchLastAssignedInternalPriceIdFromGlobalIndex(
+						catalogVersion,
+						entityHeader.globalEntityIndexId()
+					).orElse(0) :
+					// otherwise initialize from the last internal price id - when it's initialized, othewise start from 0
+					entityHeader.lastInternalPriceId() == -1 ? 0 : entityHeader.lastInternalPriceId()
+			);
 
-		// initialize container buffer
-		final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
-		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
-			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
-			new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
-		this.dataStoreReader = new DataStoreReaderBridge(
-			this.dataStoreBuffer,
-			this::getIndexByKeyIfExists,
-			this::getInternalSchema
-		);
-		// initialize schema - still in constructor
-		this.initialSchema = ofNullable(storagePartPersistenceService.getStoragePart(catalogVersion, 1, EntitySchemaStoragePart.class))
-			.map(EntitySchemaStoragePart::entitySchema)
-			.orElseGet(() -> {
-				if (this.persistenceService.isNew()) {
-					final EntitySchema newEntitySchema = EntitySchema._internalBuild(entityType);
-					this.dataStoreBuffer.update(catalogVersion, new EntitySchemaStoragePart(newEntitySchema));
-					return newEntitySchema;
-				} else {
-					throw new SchemaNotFoundException(catalog.getName(), entityHeader.entityType());
-				}
-			});
-		// init entity indexes
-		if (entityHeader.globalEntityIndexId() == null) {
-			Assert.isPremiseValid(
-				entityHeader.usedEntityIndexIds().isEmpty(),
-				"Unexpected situation - global index doesn't exist but there are " +
-					entityHeader.usedEntityIndexIds().size() + " reduced indexes!"
+			// initialize container buffer
+			final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
+			this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
+				new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
+				new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
+			this.dataStoreReader = new DataStoreReaderBridge(
+				this.dataStoreBuffer,
+				this::getIndexByKeyIfExists,
+				this::getInternalSchema
 			);
-			this.indexes = new TransactionalMap<>(
-				new HashMap<>(),
-				it -> (EntityIndex) it
+			// initialize schema - still in constructor
+			this.initialSchema = ofNullable(storagePartPersistenceService.getStoragePart(catalogVersion, 1, EntitySchemaStoragePart.class))
+				.map(EntitySchemaStoragePart::entitySchema)
+				.orElseGet(() -> {
+					if (this.persistenceService.isNew()) {
+						final EntitySchema newEntitySchema = EntitySchema._internalBuild(entityType);
+						this.dataStoreBuffer.update(catalogVersion, new EntitySchemaStoragePart(newEntitySchema));
+						return newEntitySchema;
+					} else {
+						throw new SchemaNotFoundException(catalog.getName(), entityHeader.entityType());
+					}
+				});
+			// init entity indexes
+			if (entityHeader.globalEntityIndexId() == null) {
+				Assert.isPremiseValid(
+					entityHeader.usedEntityIndexIds().isEmpty(),
+					"Unexpected situation - global index doesn't exist but there are " +
+						entityHeader.usedEntityIndexIds().size() + " reduced indexes!"
+				);
+				this.indexes = new TransactionalMap<>(
+					new HashMap<>(),
+					it -> (EntityIndex) it
+				);
+			} else {
+				this.indexes = loadIndexes(catalogVersion, entityHeader);
+			}
+
+			// sanity check whether we deserialized the file offset index we expect to
+			Assert.isTrue(
+				entityHeader.entityType().equals(this.initialSchema.getName()),
+				() -> "Deserialized schema name differs from expected entity type - expected " + entityHeader.entityType() + " got " + this.initialSchema.getName()
 			);
-		} else {
-			this.indexes = loadIndexes(catalogVersion, entityHeader);
+			this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
+			this.defaultMinimalQuery = new EvitaRequest(
+				Query.query(collection(entityType)),
+				OffsetDateTime.MIN, // we don't care about the time
+				EntityReference.class,
+				null
+			);
+		} catch (RuntimeException ex) {
+			// close persistence service in case of exception first
+			this.persistenceService.close();
+			throw ex;
 		}
-
-		// sanity check whether we deserialized the file offset index we expect to
-		Assert.isTrue(
-			entityHeader.entityType().equals(this.initialSchema.getName()),
-			() -> "Deserialized schema name differs from expected entity type - expected " + entityHeader.entityType() + " got " + this.initialSchema.getName()
-		);
-		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
-		this.defaultMinimalQuery = new EvitaRequest(
-			Query.query(collection(entityType)),
-			OffsetDateTime.MIN, // we don't care about the time
-			EntityReference.class,
-			null
-		);
 	}
 
 	private EntityCollection(
@@ -1469,11 +1475,12 @@ public final class EntityCollection implements
 		@Nonnull CatalogState catalogState,
 		@Nonnull EntityCollectionPersistenceService newPersistenceService
 	) {
+		final EntitySchema internalSchema = this.getInternalSchema();
 		final EntityCollection entityCollection = new EntityCollection(
 			catalogVersion,
 			catalogState,
 			this.entityTypePrimaryKey,
-			this.getInternalSchema(),
+			internalSchema,
 			this.pkSequence,
 			this.indexPkSequence,
 			this.pricePkSequence,
@@ -1485,7 +1492,9 @@ public final class EntityCollection implements
 		);
 		// the catalog remains the same here
 		entityCollection.catalog = this.catalog;
-		entityCollection.schema = this.schema;
+		entityCollection.schema = new TransactionalReference<>(
+			new EntitySchemaDecorator(this.catalog::getSchema, internalSchema)
+		);
 		return entityCollection;
 	}
 

@@ -168,9 +168,9 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		new OffHeapMemoryManager(TEST_CATALOG, 512, 1)
 	);
 	private final DefaultIsolatedWalService walService = new DefaultIsolatedWalService(
-		transactionId,
-		kryo,
-		writeHandle
+		this.transactionId,
+		this.kryo,
+		this.writeHandle
 	);
 
 	private static int countFiles(@Nonnull Path catalogDirectory) throws IOException {
@@ -232,8 +232,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 	@AfterEach
 	void tearDown() throws IOException {
-		walService.close();
-		observableOutputKeeper.close();
+		this.walService.close();
+		this.observableOutputKeeper.close();
 		final File file = walFile.toFile();
 		if (file.exists()) {
 			fail("File " + file + " should not exist after close!");
@@ -423,14 +423,16 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			UnexpectedCatalogContentsException.class,
 			() -> {
 				//noinspection EmptyTryBlock
-				try (var ignored = new DefaultCatalogPersistenceService(
-					Mockito.mock(CatalogContract.class),
-					RENAMED_CATALOG,
-					getStorageOptions(),
-					getTransactionOptions(),
-					Mockito.mock(Scheduler.class),
-					Mockito.mock(ExportFileService.class)
-				)) {
+				try (
+					var ignored = new DefaultCatalogPersistenceService(
+						Mockito.mock(CatalogContract.class),
+						RENAMED_CATALOG,
+						getStorageOptions(),
+						getTransactionOptions(),
+						Mockito.mock(Scheduler.class),
+						Mockito.mock(ExportFileService.class)
+					)
+				) {
 					// do nothing
 				}
 			}
@@ -442,14 +444,16 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final Path renamedCatalogPath = prepareInvalidCatalogContents();
 		renamedCatalogPath.resolve(CatalogPersistenceService.RESTORE_FLAG).toFile().createNewFile();
 
-		try (var persistenceService = new DefaultCatalogPersistenceService(
-			Mockito.mock(CatalogContract.class),
-			RENAMED_CATALOG,
-			getStorageOptions(),
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class),
-			Mockito.mock(ExportFileService.class)
-		)) {
+		try (
+			var persistenceService = new DefaultCatalogPersistenceService(
+				Mockito.mock(CatalogContract.class),
+				RENAMED_CATALOG,
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
 			final long lastCatalogVersion = persistenceService.getLastCatalogVersion();
 			final CatalogHeader catalogHeader = persistenceService.getCatalogHeader(lastCatalogVersion);
 			assertNotNull(catalogHeader);
@@ -546,7 +550,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldDeleteCatalog() throws IOException {
+	void shouldTerminateAndDeleteCatalog() throws IOException {
 		shouldSerializeAndDeserializeCatalogHeader();
 
 		final Path catalogDirectory = getStorageOptions().storageDirectory().resolve(TEST_CATALOG);
@@ -562,7 +566,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		) {
 			assertTrue(catalogDirectory.toFile().exists());
 			assertTrue(countFiles(catalogDirectory) > 0);
-			cps.delete();
+			cps.closeAndDelete();
 			assertFalse(catalogDirectory.toFile().exists());
 		}
 	}
@@ -588,8 +592,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAppendWalFromByteBufferAndReadItAgain() {
-		walService.write(1L, DATA_MUTATION_EXAMPLE);
-		walService.write(1L, SCHEMA_MUTATION_EXAMPLE);
+		this.walService.write(1L, DATA_MUTATION_EXAMPLE);
+		this.walService.write(1L, SCHEMA_MUTATION_EXAMPLE);
 
 		final OffHeapWithFileBackupReference walReference = walService.getWalReference();
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
@@ -644,22 +648,23 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			.resolve(catalogName)
 			.resolve(CatalogPersistenceService.getWalFileName(catalogName, 0));
 
-		final ReadOnlyHandle readOnlyHandle = new ReadOnlyFileHandle(walFile, StorageOptions.temporary());
-		readOnlyHandle.execute(
-			input -> {
-				final int transactionSize = input.readInt();
-				// the 2 bytes are required to record the classId
-				final int offsetDateTimeDelta = 11;
-				assertEquals(walReference.getContentLength() + CatalogWriteAheadLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeDelta + 2, transactionSize);
-				final Mutation loadedTransactionMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
-				assertEquals(writtenTransactionMutation, loadedTransactionMutation);
-				final Mutation firstMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
-				assertEquals(DATA_MUTATION_EXAMPLE, firstMutation);
-				final Mutation secondMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
-				assertEquals(SCHEMA_MUTATION_EXAMPLE, secondMutation);
-				return null;
-			}
-		);
+		try (final ReadOnlyHandle readOnlyHandle = new ReadOnlyFileHandle(walFile, StorageOptions.temporary())) {
+			readOnlyHandle.execute(
+				input -> {
+					final int transactionSize = input.readInt();
+					// the 2 bytes are required to record the classId
+					final int offsetDateTimeDelta = 11;
+					assertEquals(walReference.getContentLength() + CatalogWriteAheadLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeDelta + 2, transactionSize);
+					final Mutation loadedTransactionMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+					assertEquals(writtenTransactionMutation, loadedTransactionMutation);
+					final Mutation firstMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+					assertEquals(DATA_MUTATION_EXAMPLE, firstMutation);
+					final Mutation secondMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+					assertEquals(SCHEMA_MUTATION_EXAMPLE, secondMutation);
+					return null;
+				}
+			);
+		}
 	}
 
 	@Test
@@ -669,174 +674,182 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final OffsetDateTime startTime = Instant.ofEpochMilli(System.currentTimeMillis() - 1_000_000_000L).atZone(ZoneId.systemDefault()).toOffsetDateTime();
 		DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS = () -> startTime.toInstant().toEpochMilli();
 
-		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
-			catalogName,
-			storageOptions,
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class),
-			Mockito.mock(ExportFileService.class)
-		);
+		try (
+			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+				catalogName,
+				storageOptions,
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
 
-		for (int i = 0; i < 12; i++) {
-			final int catalogVersion = i + 1;
-			DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS = () -> startTime.plusHours(catalogVersion).toInstant().toEpochMilli();
-			ioService.recordBootstrap(catalogVersion, catalogName, 0, null);
+			for (int i = 0; i < 12; i++) {
+				final int catalogVersion = i + 1;
+				DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS = () -> startTime.plusHours(catalogVersion).toInstant().toEpochMilli();
+				ioService.recordBootstrap(catalogVersion, catalogName, 0, null);
+			}
+
+			final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 5);
+			assertEquals(5, catalogVersions.getData().size());
+			assertEquals(13, catalogVersions.getTotalRecordCount());
+			for (int i = 0; i <= 4; i++) {
+				final CatalogVersion record = catalogVersions.getData().get(i);
+				assertEquals(i, record.version());
+				assertNotNull(record.introducedAt());
+			}
+
+			final PaginatedList<CatalogVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 3, 5);
+			assertEquals(3, catalogVersionsLastPage.getData().size());
+			for (int i = 0; i < 3; i++) {
+				final CatalogVersion record = catalogVersionsLastPage.getData().get(i);
+				assertEquals(10 + i, record.version());
+				assertNotNull(record.introducedAt());
+			}
+
+			final Optional<CatalogBootstrap> first = getFirstCatalogBootstrap(catalogName, storageOptions);
+			assertTrue(first.isPresent());
+			assertEquals(0, first.get().catalogVersion());
+
+			final CatalogBootstrap last = getLastCatalogBootstrap(catalogName, storageOptions);
+			assertNotNull(last);
+			assertEquals(12, last.catalogVersion());
+
+			final CatalogBootstrap m0 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime);
+			assertNotNull(m0);
+			assertEquals(0, m0.catalogVersion());
+
+			final CatalogBootstrap m1 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(5));
+			assertNotNull(m1);
+			assertEquals(5, m1.catalogVersion());
+
+			final CatalogBootstrap m2 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(5).plusMinutes(1));
+			assertNotNull(m2);
+			assertEquals(5, m2.catalogVersion());
+
+			final CatalogBootstrap m3 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(5).minusMinutes(1));
+			assertNotNull(m3);
+			assertEquals(4, m3.catalogVersion());
+
+			final CatalogBootstrap m4 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(15));
+			assertNotNull(m4);
+			assertEquals(12, m4.catalogVersion());
 		}
-
-		final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 5);
-		assertEquals(5, catalogVersions.getData().size());
-		assertEquals(13, catalogVersions.getTotalRecordCount());
-		for (int i = 0; i <= 4; i++) {
-			final CatalogVersion record = catalogVersions.getData().get(i);
-			assertEquals(i, record.version());
-			assertNotNull(record.introducedAt());
-		}
-
-		final PaginatedList<CatalogVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 3, 5);
-		assertEquals(3, catalogVersionsLastPage.getData().size());
-		for (int i = 0; i < 3; i++) {
-			final CatalogVersion record = catalogVersionsLastPage.getData().get(i);
-			assertEquals(10 + i, record.version());
-			assertNotNull(record.introducedAt());
-		}
-
-		final Optional<CatalogBootstrap> first = getFirstCatalogBootstrap(catalogName, storageOptions);
-		assertTrue(first.isPresent());
-		assertEquals(0, first.get().catalogVersion());
-
-		final CatalogBootstrap last = getLastCatalogBootstrap(catalogName, storageOptions);
-		assertNotNull(last);
-		assertEquals(12, last.catalogVersion());
-
-		final CatalogBootstrap m0 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime);
-		assertNotNull(m0);
-		assertEquals(0, m0.catalogVersion());
-
-		final CatalogBootstrap m1 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(5));
-		assertNotNull(m1);
-		assertEquals(5, m1.catalogVersion());
-
-		final CatalogBootstrap m2 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(5).plusMinutes(1));
-		assertNotNull(m2);
-		assertEquals(5, m2.catalogVersion());
-
-		final CatalogBootstrap m3 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(5).minusMinutes(1));
-		assertNotNull(m3);
-		assertEquals(4, m3.catalogVersion());
-
-		final CatalogBootstrap m4 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(15));
-		assertNotNull(m4);
-		assertEquals(12, m4.catalogVersion());
 	}
 
 	@Test
 	void shouldTraverseBootstrapRecordsFromNewestToOldest() {
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
-		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
-			catalogName,
-			getStorageOptions(),
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class),
-			Mockito.mock(ExportFileService.class)
-		);
+		try (
+			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+				catalogName,
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
 
-		for (int i = 0; i < 12; i++) {
-			ioService.recordBootstrap(i + 1, catalogName, 0, null);
-		}
+			for (int i = 0; i < 12; i++) {
+				ioService.recordBootstrap(i + 1, catalogName, 0, null);
+			}
 
-		final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5);
-		assertEquals(5, catalogVersions.getData().size());
-		assertEquals(13, catalogVersions.getTotalRecordCount());
-		for (int i = 0; i < 5; i++) {
-			final CatalogVersion record = catalogVersions.getData().get(i);
-			assertEquals(13 - (i + 1), record.version());
-			assertNotNull(record.introducedAt());
-		}
+			final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5);
+			assertEquals(5, catalogVersions.getData().size());
+			assertEquals(13, catalogVersions.getTotalRecordCount());
+			for (int i = 0; i < 5; i++) {
+				final CatalogVersion record = catalogVersions.getData().get(i);
+				assertEquals(13 - (i + 1), record.version());
+				assertNotNull(record.introducedAt());
+			}
 
-		final PaginatedList<CatalogVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 3, 5);
-		assertEquals(3, catalogVersionsLastPage.getData().size());
-		for (int i = 0; i < 3; i++) {
-			final CatalogVersion record = catalogVersionsLastPage.getData().get(i);
-			assertEquals(3 - (i + 1), record.version());
-			assertNotNull(record.introducedAt());
+			final PaginatedList<CatalogVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 3, 5);
+			assertEquals(3, catalogVersionsLastPage.getData().size());
+			for (int i = 0; i < 3; i++) {
+				final CatalogVersion record = catalogVersionsLastPage.getData().get(i);
+				assertEquals(3 - (i + 1), record.version());
+				assertNotNull(record.introducedAt());
+			}
 		}
 	}
-
-	/*
-		PRIVATE METHODS
-	 */
 
 	@Test
 	void shouldTrimBootstrapRecords() {
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
-		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
-			catalogName,
-			getStorageOptions(),
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class),
-			Mockito.mock(ExportFileService.class)
-		);
+		try (
+			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+				catalogName,
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
 
-		final OffsetDateTime timestamp = OffsetDateTime.now();
-		for (int i = 0; i < 12; i++) {
-			ioService.recordBootstrap(
-				i + 1, catalogName, 0,
-				timestamp.plusMinutes(i).toInstant().toEpochMilli(),
-				null
-			);
+			final OffsetDateTime timestamp = OffsetDateTime.now();
+			for (int i = 0; i < 12; i++) {
+				ioService.recordBootstrap(
+					i + 1, catalogName, 0,
+					timestamp.plusMinutes(i).toInstant().toEpochMilli(),
+					null
+				);
+			}
+
+			final PaginatedList<CatalogVersion> catalogVersions0 = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
+			assertEquals(0, catalogVersions0.getData().get(0).version());
+			assertEquals(13, catalogVersions0.getTotalRecordCount());
+
+			trimAndCheck(ioService, 4, 4, 9);
+			trimAndCheck(ioService, 7, 7, 6);
+			trimAndCheck(ioService, 8, 8, 5);
 		}
-
-		final PaginatedList<CatalogVersion> catalogVersions0 = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
-		assertEquals(0, catalogVersions0.getData().get(0).version());
-		assertEquals(13, catalogVersions0.getTotalRecordCount());
-
-		trimAndCheck(ioService, 4, 4, 9);
-		trimAndCheck(ioService, 7, 7, 6);
-		trimAndCheck(ioService, 8, 8, 5);
 	}
 
 	@Nonnull
 	private Path prepareInvalidCatalogContents() {
-		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
-			SEALED_CATALOG_SCHEMA.getName(),
-			getStorageOptions(),
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class),
-			Mockito.mock(ExportFileService.class)
-		);
-
-		ioService.getStoragePartPersistenceService(0L)
-			.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
-
-		final EvitaSession mockSession = mock(EvitaSession.class);
-		when(mockSession.getCatalogSchema()).thenReturn(SEALED_CATALOG_SCHEMA);
-
-		final EntityCollection productCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleProductSchema(mockSession, EntitySchemaBuilder::toInstance), 1
-		);
-		final EntityCollection brandCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleBrandSchema(mockSession, EntitySchemaBuilder::toInstance), 2
-		);
-		final EntityCollection storeCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleStoreSchema(mockSession, EntitySchemaBuilder::toInstance), 3
-		);
-
-		// try to serialize
-		ioService.storeHeader(
-			catalogId,
-			CatalogState.WARMING_UP,
-			0L, 0, null,
-			Arrays.asList(
-				productCollection.flush().header(),
-				brandCollection.flush().header(),
-				storeCollection.flush().header()
-			),
-			new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
-		);
-
 		final Path dataDirectory = getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
 		final Path catalogPath = dataDirectory.resolve(TEST_CATALOG);
 		final Path renamedCatalogPath = dataDirectory.resolve(RENAMED_CATALOG);
+
+		try (
+			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+				SEALED_CATALOG_SCHEMA.getName(),
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
+			ioService.getStoragePartPersistenceService(0L)
+				.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
+
+			final EvitaSession mockSession = mock(EvitaSession.class);
+			when(mockSession.getCatalogSchema()).thenReturn(SEALED_CATALOG_SCHEMA);
+
+			final EntityCollection productCollection = constructEntityCollectionWithSomeEntities(
+				ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleProductSchema(mockSession, EntitySchemaBuilder::toInstance), 1
+			);
+			final EntityCollection brandCollection = constructEntityCollectionWithSomeEntities(
+				ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleBrandSchema(mockSession, EntitySchemaBuilder::toInstance), 2
+			);
+			final EntityCollection storeCollection = constructEntityCollectionWithSomeEntities(
+				ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleStoreSchema(mockSession, EntitySchemaBuilder::toInstance), 3
+			);
+
+			// try to serialize
+			ioService.storeHeader(
+				catalogId,
+				CatalogState.WARMING_UP,
+				0L, 0, null,
+				Arrays.asList(
+					productCollection.flush().header(),
+					brandCollection.flush().header(),
+					storeCollection.flush().header()
+				),
+				new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
+			);
+		}
+
 		// rename catalog bootstrap file
 		assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogBootstrapFileName(TEST_CATALOG)).toFile()
 			.renameTo(catalogPath.resolve(CatalogPersistenceService.getCatalogBootstrapFileName(RENAMED_CATALOG)).toFile()));
@@ -851,8 +864,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 		// finally rename folder
 		assertTrue(catalogPath.toFile().renameTo(renamedCatalogPath.toFile()));
-
-		ioService.close();
 
 		return renamedCatalogPath;
 	}

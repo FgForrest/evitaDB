@@ -135,7 +135,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 	private Mutation readMutation() {
 		Assert.isPremiseValid(
 			this.observableInput != null,
-			"Observable input is null!"
+			"Observable input must be set before reading a mutation."
 		);
 		final StorageRecord<Mutation> storageRecord = StorageRecord.read(
 			this.observableInput, (stream, length) -> (Mutation) this.kryo.readClassAndObject(stream)
