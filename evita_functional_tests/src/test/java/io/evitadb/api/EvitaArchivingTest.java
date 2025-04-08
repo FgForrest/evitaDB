@@ -74,6 +74,7 @@ import static io.evitadb.api.EvitaIndexingTest.getGlobalIndex;
 import static io.evitadb.api.EvitaIndexingTest.getReferencedEntityIndex;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.utils.StringUtils.normalizeLineEndings;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -1756,7 +1757,9 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						        [1:1] CATEGORY: 2
 						            [1:0] CATEGORY: 5
 						""",
-					result.getExtraResult(Hierarchy.class).toString()
+					normalizeLineEndings(
+						result.getExtraResult(Hierarchy.class).toString()
+					)
 				);
 
 				assertThrows(
@@ -2013,7 +2016,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						        [1:1] CATEGORY: 2
 						            [1:0] CATEGORY: 5
 						""",
-					result.getExtraResult(Hierarchy.class).toString()
+					normalizeLineEndings(result.getExtraResult(Hierarchy.class).toString())
 				);
 			}
 		);

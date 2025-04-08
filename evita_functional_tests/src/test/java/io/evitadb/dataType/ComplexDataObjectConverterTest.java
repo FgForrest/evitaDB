@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,6 +61,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static io.evitadb.utils.StringUtils.normalizeLineEndings;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -125,7 +126,10 @@ class ComplexDataObjectConverterTest {
 		final Serializable serializedForm = converter.getSerializableForm();
 
 		assertTrue(serializedForm instanceof ComplexDataObject);
-		assertEquals(readFromClasspath("testData/DataObjectConverterTest_complexObject.txt"), serializedForm.toString());
+		assertEquals(
+			normalizeLineEndings(readFromClasspath("testData/DataObjectConverterTest_complexObject.txt")),
+			normalizeLineEndings(serializedForm.toString())
+		);
 	}
 
 	@Test
@@ -186,7 +190,10 @@ class ComplexDataObjectConverterTest {
 		final Serializable serializedForm = converter.getSerializableForm();
 
 		assertTrue(serializedForm instanceof ComplexDataObject);
-		assertEquals(readFromClasspath("testData/DataObjectConverterTest_complexObject.txt"), serializedForm.toString());
+		assertEquals(
+			normalizeLineEndings(readFromClasspath("testData/DataObjectConverterTest_complexObject.txt")),
+			normalizeLineEndings(serializedForm.toString())
+		);
 	}
 
 	@Test

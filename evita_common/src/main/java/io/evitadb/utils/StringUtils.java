@@ -39,6 +39,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -286,10 +287,12 @@ public class StringUtils {
 	@Nonnull
 	public static String toCamelCase(@Nonnull String s) {
 		final List<String> words = splitStringWithCaseIntoWords(s);
-		return uncapitalize(
-			words.stream()
-				.map(word -> capitalize(word.toLowerCase()))
-				.collect(Collectors.joining())
+		return Objects.requireNonNull(
+			uncapitalize(
+				words.stream()
+					.map(word -> capitalize(word.toLowerCase()))
+					.collect(Collectors.joining())
+			)
 		);
 	}
 
@@ -618,6 +621,18 @@ public class StringUtils {
 	}
 
 	/**
+	 * Normalizes the line endings in the given string by replacing all occurrences
+	 * of Windows-style line endings ("\r\n") with Unix-style line endings ("\n").
+	 *
+	 * @param inputString the input string containing line endings to normalize; must not be null
+	 * @return a new string with all line endings normalized to "\n"
+	 */
+	@Nonnull
+	public static String normalizeLineEndings(@Nonnull String inputString) {
+		return inputString.replace("\r\n", "\n");
+	}
+
+	/**
 	 * Method taken from Apache Commons - StringUtils. See copyright notice for Apache Commons.
 	 *
 	 * <p>
@@ -664,7 +679,7 @@ public class StringUtils {
 	 * @see org.apache.commons.lang3.StringUtils#replaceEach(String, String[], String[], boolean, int)
 	 * @since 2.4
 	 */
-	@Nonnull
+	@Nullable
 	private static String replaceEach(
 		@Nullable final String text,
 		@Nullable final String[] searchList,

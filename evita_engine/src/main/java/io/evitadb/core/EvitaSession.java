@@ -393,7 +393,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Override
 	public boolean isActive() {
-		return closedFuture == null || beingClosed;
+		return this.closedFuture == null || this.beingClosed;
 	}
 
 	@Traced
@@ -414,12 +414,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		if (this.closedFuture == null) {
 			// forcefully close all opened stateful streams
 			if (this.returnedStreams != null) {
-				this.returnedStreams.forEach(weakReference -> {
-					final Stream<?> stream = weakReference.get();
-					if (stream != null) {
-						stream.close();
-					}
-				});
+				// rewrap collection so that we don't get concurrent modification exception
+				new ArrayList<>(this.returnedStreams)
+					.forEach(weakReference -> {
+						final Stream<?> stream = weakReference.get();
+						if (stream != null) {
+							stream.close();
+						}
+					});
 			}
 			// flush changes if we're not in transactional mode
 			final Catalog theCatalog = this.catalog.get();

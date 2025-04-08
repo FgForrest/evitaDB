@@ -110,8 +110,8 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * @param maintainedFile the maintained file to be purged
 	 */
 	private static void purgeFile(@Nonnull MaintainedFile maintainedFile) {
+		maintainedFile.removalLambda().run();
 		if (maintainedFile.path().toFile().delete()) {
-			maintainedFile.removalLambda().run();
 			log.debug("Deleted obsolete file {}", maintainedFile.path());
 		} else {
 			log.warn("Could not delete obsolete file {}", maintainedFile.path());
@@ -167,6 +167,9 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 				}
 			);
 			this.maintainedFiles.add(fileToMaintain);
+		} else {
+			// execute the removal lambda immediately when time travel is enabled to release accompanied resources
+			removalLambda.run();
 		}
 	}
 

@@ -118,6 +118,7 @@ import io.evitadb.store.wal.CatalogWriteAheadLog.WalPurgeCallback;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.CollectionUtils;
@@ -310,6 +311,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * Contains the millis from the time when catalog statistics was reported.
 	 */
 	private long lastCatalogStatisticsTimestamp;
+	/**
+	 * Flag indicating whether the catalog is closed. This flag is set to true when the catalog is closed and
+	 * should not be used anymore.
+	 */
+	private boolean closed;
 
 	/**
 	 * Method returns continuous stream of catalog bootstrap records from the catalog bootstrap file.
@@ -470,10 +476,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			() -> new TemporalDataNotAvailableException(pastMoment)
 		);
 
-		return getCatalogBootstrapRecordStream(catalogName, storageOptions)
-			.takeWhile(current -> !current.timestamp().isAfter(pastMoment))
-			.reduce((previous, current) -> current)
-			.orElseGet(() -> getLastCatalogBootstrap(catalogName, storageOptions));
+		try (final Stream<CatalogBootstrap> catalogBootstrapRecordStream = getCatalogBootstrapRecordStream(catalogName, storageOptions)) {
+			return catalogBootstrapRecordStream
+				.takeWhile(current -> !current.timestamp().isAfter(pastMoment))
+				.reduce((previous, current) -> current)
+				.orElseGet(() -> getLastCatalogBootstrap(catalogName, storageOptions));
+		}
 	}
 
 	/**
@@ -1175,26 +1183,31 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 		this.catalogPersistenceServiceVersions = new long[]{catalogVersion};
 		this.warmUpVersionCardinality = catalogVersion == 0 ? 1 : 0;
-
-		final File restoreFlagFile = catalogStoragePath.resolve(CatalogPersistenceService.RESTORE_FLAG).toFile();
-		verifyCatalogNameMatches(
-			catalogInstance, catalogVersion, catalogName, catalogStoragePath,
-			catalogStoragePartPersistenceService, restoreFlagFile.exists() ?
-				OnDifferentCatalogName.ADAPT : OnDifferentCatalogName.THROW_EXCEPTION,
-			this.bootstrapUsed
-		);
-		if (restoreFlagFile.exists()) {
-			Assert.isPremiseValid(
-				restoreFlagFile.delete(),
-				() -> new UnexpectedIOException(
-					"Unable to delete restore flag file `" + restoreFlagFile.getAbsolutePath() + "`!",
-					"Unable to delete restore flag file!"
-				)
-			);
-		}
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
 			catalogStoragePartPersistenceService.getCatalogHeader(catalogVersion).getEntityTypeFileIndexes().size()
 		);
+
+		try {
+			final File restoreFlagFile = catalogStoragePath.resolve(CatalogPersistenceService.RESTORE_FLAG).toFile();
+			verifyCatalogNameMatches(
+				catalogInstance, catalogVersion, catalogName, catalogStoragePath,
+				catalogStoragePartPersistenceService, restoreFlagFile.exists() ?
+					OnDifferentCatalogName.ADAPT : OnDifferentCatalogName.THROW_EXCEPTION,
+				this.bootstrapUsed
+			);
+			if (restoreFlagFile.exists()) {
+				Assert.isPremiseValid(
+					restoreFlagFile.delete(),
+					() -> new UnexpectedIOException(
+						"Unable to delete restore flag file `" + restoreFlagFile.getAbsolutePath() + "`!",
+						"Unable to delete restore flag file!"
+					)
+				);
+			}
+		} catch (UnexpectedCatalogContentsException ex) {
+			this.close();
+			throw ex;
+		}
 	}
 
 	private DefaultCatalogPersistenceService(
@@ -1647,8 +1660,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void delete() {
-		FileUtils.deleteDirectory(catalogStoragePath);
+	public void closeAndDelete() {
+		// close factory first and then delete The directory
+		this.close();
+		FileUtils.deleteDirectory(this.catalogStoragePath);
 	}
 
 	@Override
@@ -2147,35 +2162,45 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Override
 	public void close() {
-		// close WAL
-		if (this.catalogWal != null) {
-			IOUtils.closeQuietly(this.catalogWal::close);
+		if (!this.closed) {
+			this.closed = true;
+			// close WAL
+			if (this.catalogWal != null) {
+				IOUtils.closeQuietly(this.catalogWal::close);
+			}
+			// close all services
+			IOUtils.closeQuietly(
+				this.entityCollectionPersistenceServices.values()
+					.stream()
+					.map(service -> (IOExceptionThrowingRunnable) service::close)
+					.toArray(IOExceptionThrowingRunnable[]::new)
+			);
+			this.entityCollectionPersistenceServices.clear();
+			// close current file offset index
+			IOUtils.closeQuietly(
+				this.catalogStoragePartPersistenceService.values()
+					.stream()
+					.map(service -> (IOExceptionThrowingRunnable) service::close)
+					.toArray(IOExceptionThrowingRunnable[]::new)
+			);
+			this.catalogStoragePartPersistenceService.clear();
+			// close bootstrap file
+			final BootstrapWriteOnlyFileHandle bootstrapWriteOnlyFileHandle = this.bootstrapWriteHandle.get();
+			if (bootstrapWriteOnlyFileHandle != null) {
+				IOUtils.closeQuietly(
+					bootstrapWriteOnlyFileHandle::close
+				);
+			}
+			// close off heap manager, maintainer and observable output keeper
+			IOUtils.closeQuietly(
+				// close off heap manager
+				this.offHeapMemoryManager::close,
+				// purge obsolete files
+				this.obsoleteFileMaintainer::close,
+				// close observable output keeper
+				this.observableOutputKeeper::close
+			);
 		}
-		// close all services
-		IOUtils.closeQuietly(
-			this.entityCollectionPersistenceServices.values()
-				.stream()
-				.map(service -> (IOExceptionThrowingRunnable) service::close)
-				.toArray(IOExceptionThrowingRunnable[]::new)
-		);
-		this.entityCollectionPersistenceServices.clear();
-		// close current file offset index
-		IOUtils.closeQuietly(
-			this.catalogStoragePartPersistenceService.values()
-				.stream()
-				.map(service -> (IOExceptionThrowingRunnable) service::close)
-				.toArray(IOExceptionThrowingRunnable[]::new)
-		);
-		this.catalogStoragePartPersistenceService.clear();
-		// close off heap manager, maintainer and observable output keeper
-		IOUtils.closeQuietly(
-			// close off heap manager
-			this.offHeapMemoryManager::close,
-			// purge obsolete files
-			this.obsoleteFileMaintainer::close,
-			// close observable output keeper
-			this.observableOutputKeeper::close
-		);
 	}
 
 	@Override
@@ -2203,7 +2228,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Override
 	public boolean isClosed() {
-		return this.catalogStoragePartPersistenceService.isEmpty();
+		return this.closed;
 	}
 
 	/**
@@ -2430,6 +2455,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				),
 				() -> new GenericEvitaInternalError("Failed to replace the bootstrap write handle in a critical section!")
 			);
+			// remove old persistence storages
+			final InsertionPosition position = ArrayUtils.computeInsertPositionOfLongInOrderedArray(catalogVersion, this.catalogPersistenceServiceVersions);
+			if (position.alreadyPresent()) {
+				for (int i = 0; i < position.position(); i++) {
+					removeCatalogPersistenceServiceForVersion(this.catalogPersistenceServiceVersions[0]);
+				}
+			}
 		} catch (InterruptedException e) {
 			throw new GenericEvitaInternalError(
 				"Failed to lock the bootstrap file for catalog `" + this.catalogName + "`!",
@@ -2832,7 +2864,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * The service may not necessarily match exactly the passed catalog version. If the catalog version is not found,
 	 * method removes the service for the closest lower version - which should be valid for entire version span.
 	 *
-	 * Mehod is not thread safe and caller must ensure it's called only from single thread.
+	 * Method is not thread safe and caller must ensure it's called only from single thread.
 	 *
 	 * @param catalogVersion the catalog version to remove the persistence service for
 	 */
@@ -2988,11 +3020,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	@Nullable
 	private DataFilesBulkInfo fetchDataFilesInfo(long catalogVersion) {
-		return getCatalogBootstrapRecordStream(this.catalogName, this.bootstrapStorageOptions)
-			.filter(it -> it.catalogVersion() == catalogVersion)
-			.map(it -> new DataFilesBulkInfo(it, fetchCatalogHeader(it)))
-			.findFirst()
-			.orElse(null);
+		try (final Stream<CatalogBootstrap> catalogBootstrapRecordStream = getCatalogBootstrapRecordStream(this.catalogName, this.bootstrapStorageOptions)) {
+			return catalogBootstrapRecordStream
+				.filter(it -> it.catalogVersion() == catalogVersion)
+				.map(it -> new DataFilesBulkInfo(it, fetchCatalogHeader(it)))
+				.findFirst()
+				.orElse(null);
+		}
 	}
 
 	/**

@@ -171,24 +171,22 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 	@Nullable
 	private FileForFetch start() {
 		final TrafficRecordingSettings settings = getStatus().settings();
+		final String fileName = "traffic_recording_" + settings.catalogName() + "_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 		ExportSessionSink exportSessionSink = null;
 		try {
-			final String fileName = "traffic_recording_" + settings.catalogName() + "_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-			final ExportFileHandle exportFileHandle = this.exportFileService.storeFile(
-				fileName + ".zip",
-				"Traffic recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
-					" with sampling rate " + settings.samplingRate() + "%" + getFinishCondition(settings) + ".",
-				"application/zip",
-				this.getClass().getSimpleName()
-			);
-
 			exportSessionSink = settings.exportFile() ?
 				new ExportSessionSink(
 					this.trafficRecordingEngine.getTrafficOptions().trafficDiskBufferSizeInBytes(),
 					settings,
 					this::stopInternal,
 					this::updateProgress,
-					exportFileHandle
+					this.exportFileService.storeFile(
+						fileName + ".zip",
+						"Traffic recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
+							" with sampling rate " + settings.samplingRate() + "%" + getFinishCondition(settings) + ".",
+						"application/zip",
+						this.getClass().getSimpleName()
+					)
 				) :
 				null;
 

@@ -123,7 +123,7 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 @NotThreadSafe
-public class CatalogWriteAheadLog implements Closeable {
+public class CatalogWriteAheadLog implements AutoCloseable {
 	/**
 	 * The size of a transaction mutation in the WAL file.
 	 */
@@ -260,9 +260,7 @@ public class CatalogWriteAheadLog implements Closeable {
 
 			try (
 				final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
-					new RandomAccessFileInputStream(
-						walFile
-					)
+					new RandomAccessFileInputStream(walFile, true)
 				)
 			) {
 				if (storageOptions.computeCRC32C()) {
@@ -395,7 +393,7 @@ public class CatalogWriteAheadLog implements Closeable {
 	static FirstAndLastCatalogVersions getFirstAndLastCatalogVersionsFromWalFile(@Nonnull File walFile) throws FileNotFoundException {
 		try (
 			final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(walFile, "r");
-			final RandomAccessFileInputStream inputStream = new RandomAccessFileInputStream(randomAccessOldWalFile);
+			final RandomAccessFileInputStream inputStream = new RandomAccessFileInputStream(randomAccessOldWalFile, true);
 			final Input input = new Input(inputStream)
 		) {
 			inputStream.seek(walFile.length() - WAL_TAIL_LENGTH);
@@ -994,16 +992,14 @@ public class CatalogWriteAheadLog implements Closeable {
 			try (
 				final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(walFile, "r");
 				final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
-					new RandomAccessFileInputStream(
-						randomAccessOldWalFile
-					)
+					new RandomAccessFileInputStream(randomAccessOldWalFile, true)
 				)
 			) {
 				input.seekWithUnknownLength(startPosition + 4);
 				return of(
 					Objects.requireNonNull(
 						(TransactionMutation) StorageRecord.read(
-							input, (stream, length) -> catalogKryoPool.obtain().readClassAndObject(stream)
+							input, (stream, length) -> this.catalogKryoPool.obtain().readClassAndObject(stream)
 						).payload()
 					)
 				);
@@ -1176,12 +1172,12 @@ public class CatalogWriteAheadLog implements Closeable {
 
 			if (!toRemove.isEmpty()) {
 				this.pendingRemovals.removeAll(toRemove);
+				// first trim the bootstrap record file
+				this.bootstrapFileTrimmer.accept(firstCatalogVersionToBeKept);
 				// call the listener to remove the obsolete files
 				if (firstCatalogVersionToBeKept > -1) {
 					this.onWalPurgeCallback.purgeFilesUpTo(firstCatalogVersionToBeKept);
 				}
-				// now trim the bootstrap record file
-				this.bootstrapFileTrimmer.accept(firstCatalogVersionToBeKept);
 			}
 
 			return -1;
@@ -1227,9 +1223,7 @@ public class CatalogWriteAheadLog implements Closeable {
 				try (
 					final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(oldWalFile, "r");
 					final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
-						new RandomAccessFileInputStream(
-							randomAccessOldWalFile
-						)
+						new RandomAccessFileInputStream(randomAccessOldWalFile, true)
 					)
 				) {
 					input.seekWithUnknownLength(oldWalFile.length() - WAL_TAIL_LENGTH);

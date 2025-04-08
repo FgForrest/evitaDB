@@ -155,7 +155,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 				final RandomAccessFile randomWalFile = new RandomAccessFile(this.walFile, "r");
 				this.observableInput = new ObservableInput<>(
 					new RandomAccessFileInputStream(
-						randomWalFile
+						randomWalFile, true
 					)
 				);
 				if (this.storageOptions.computeCRC32C()) {
@@ -196,11 +196,14 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 				this.transactionMutation = initialTransactionMutation;
 			} catch (BufferUnderflowException e) {
 				// we've reached EOF or the tx mutation hasn't been yet completely written
+				if (this.observableInput != null) {
+					this.observableInput.close();
+				}
 				this.transactionMutation = null;
 				this.observableInput = null;
 			} catch (IOException e) {
 				throw new UnexpectedIOException(
-					"Failed to read WAL file `" + walFile.getName() + "`!",
+					"Failed to read WAL file `" + this.walFile.getName() + "`!",
 					"Failed to read WAL file!",
 					e
 				);
@@ -217,7 +220,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 		if (this.kryo != null) {
 			this.catalogKryoPool.free(this.kryo);
 		}
-		if (observableInput != null) {
+		if (this.observableInput != null) {
 			this.observableInput.close();
 		}
 		if (this.onClose != null) {
@@ -245,7 +248,8 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 				this.filePosition = 0L;
 				this.observableInput = new ObservableInput<>(
 					new RandomAccessFileInputStream(
-						new RandomAccessFile(nextWalFile, "r")
+						new RandomAccessFile(nextWalFile, "r"),
+						true
 					)
 				);
 				if (this.storageOptions.computeCRC32C()) {
@@ -274,7 +278,10 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 	@Nonnull
 	protected TransactionMutationWithLocation readAndRecordTransactionMutation() {
 		final ObservableInput<RandomAccessFileInputStream> theObservableInput = this.observableInput;
-		Assert.notNull(theObservableInput, "The observable input cannot be null!");
+		Assert.isPremiseValid(
+			this.observableInput != null,
+			"Observable input is not initialized!"
+		);
 
 		// read content length and leading transaction mutation
 		final long totalBefore = theObservableInput.total();
