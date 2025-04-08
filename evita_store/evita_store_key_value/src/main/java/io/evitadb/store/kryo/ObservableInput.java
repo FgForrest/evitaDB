@@ -415,7 +415,6 @@ public class ObservableInput<T extends InputStream> extends Input {
 			if (remaining >= required) {
 				/* EXTENSION */
 				this.limit += count;
-				/* TODO JNO - nevím */
 				if (!this.compressed) {
 					this.limit = constraintLimitWithRecordLength();
 				}
@@ -445,7 +444,6 @@ public class ObservableInput<T extends InputStream> extends Input {
 
 		/* EXTENSION */
 		this.limit = remaining;
-		/* TODO JNO - nevím */
 		if (!this.compressed) {
 			this.limit = constraintLimitWithRecordLength();
 		}
@@ -510,7 +508,6 @@ public class ObservableInput<T extends InputStream> extends Input {
 
 		/* EXTENSION */
 		this.limit = remaining;
-		/* TODO JNO - nevím */
 		if (!this.compressed) {
 			this.limit = constraintLimitWithRecordLength();
 		}

@@ -338,14 +338,18 @@ public class EvitaServer {
 			)
 		);
 
-		try {
+		try (
+			final InputStream resourceAsStream = EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION);
+		) {
 			// iterate over all files in the directory and merge them into a single configuration
-			Map<String, Object> finalYaml = loadYamlContents(readerFactory.apply(EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION)), yamlParser.get());
+			Map<String, Object> finalYaml = loadYamlContents(readerFactory.apply(resourceAsStream), yamlParser.get());
 			Map<String, Object> endpointDefaults = updateEndpointDefaults(Map.of(), finalYaml);
 			for (Path file : files) {
-				final Map<String, Object> loadedYaml = loadYamlContents(readerFactory.apply(new FileInputStream(file.toFile())), yamlParser.get());
-				endpointDefaults = updateEndpointDefaults(endpointDefaults, loadedYaml);
-				finalYaml = combine(finalYaml, loadedYaml);
+				try (final InputStream fileInputStream = new BufferedInputStream(new FileInputStream(file.toFile()))) {
+					final Map<String, Object> loadedYaml = loadYamlContents(readerFactory.apply(fileInputStream), yamlParser.get());
+					endpointDefaults = updateEndpointDefaults(endpointDefaults, loadedYaml);
+					finalYaml = combine(finalYaml, loadedYaml);
+				}
 			}
 			// apply the api.endpointDefaults
 			applyEndpointDefaults(finalYaml, endpointDefaults);
