@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.driver;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.Empty;
 import com.google.protobuf.Int32Value;
+import com.google.protobuf.Int64Value;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
@@ -1513,7 +1514,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public Task<?, FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+	public Task<?, FileForFetch> backupCatalog(
+		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
+		boolean includingWAL
+	) throws TemporalDataNotAvailableException {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			final GrpcBackupCatalogResponse grpcResponse = executeWithBlockingEvitaSessionService(
@@ -1522,6 +1527,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 					final Builder builder = GrpcBackupCatalogRequest.newBuilder();
 					ofNullable(pastMoment)
 						.ifPresent(pm -> builder.setPastMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(pm)));
+					ofNullable(catalogVersion)
+						.ifPresent(cv -> builder.setCatalogVersion(Int64Value.newBuilder().setValue(cv).build()));
 					return evitaSessionService.backupCatalog(
 						builder
 							.setIncludingWAL(includingWAL)

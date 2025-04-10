@@ -151,12 +151,13 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	public CompletableFuture<FileForFetch> backupCatalog(
 		@Nonnull String catalogName,
 		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
 		boolean includingWAL
 	) throws TemporalDataNotAvailableException {
 		this.evita.assertActiveAndWritable();
 		// we need writable session for backup
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(catalogName)) {
-			return session.backupCatalog(pastMoment, includingWAL).getFutureResult();
+			return session.backupCatalog(pastMoment, catalogVersion, includingWAL).getFutureResult();
 		}
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1198,7 +1198,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * !!! Important: remember to close the stream after you are done with it to release the resources
 	 *
 	 * @param request request that specifies the criteria for the changes to be returned, multiple criteria definitions
-	 *                 are combined with logical OR
+	 *                are combined with logical OR
 	 * @return stream of change data captures that match the specified criteria in reversed order
 	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
 	 */
@@ -1210,15 +1210,21 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
 	 *
-	 * @param pastMoment   leave null for creating backup for actual dataset, or specify past moment to create backup for
-	 *                     the dataset as it was at that moment
-	 * @param includingWAL if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
-	 *                     restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @param pastMoment     leave null for creating backup for actual dataset, or specify past moment to create backup for
+	 *                       the dataset as it was at that moment
+	 * @param catalogVersion precise catalog version to create backup for, or null to create backup for the latest version,
+	 *                       when set not null, the pastMoment parameter is ignored
+	 * @param includingWAL   if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
+	 *                       restored, it'll replay the WAL contents locally to bring the catalog to the current state
 	 * @return jobId of the backup process
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
 	@Nonnull
-	Task<?, FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
+	Task<?, FileForFetch> backupCatalog(
+		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
+		boolean includingWAL
+	) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Default implementation uses ID for comparing two sessions (and to distinguish one session from another).

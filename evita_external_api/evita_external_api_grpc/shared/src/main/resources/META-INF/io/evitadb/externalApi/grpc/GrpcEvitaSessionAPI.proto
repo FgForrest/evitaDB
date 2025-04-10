@@ -326,6 +326,9 @@ message GrpcBackupCatalogRequest {
   // True, if the WAL should be included in the backup. Use false if you want to restore catalog in exact state as
   // it was at the pastMoment.
   bool includingWAL = 2;
+  // precise catalog version to create backup for, or null to create backup for the latest version,
+  // when set not null, the pastMoment parameter is ignored
+  google.protobuf.Int64Value catalogVersion = 3;
 }
 
 // Response to a catalog backup request.

@@ -752,6 +752,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					request.hasPastMoment() ?
 						EvitaDataTypesConverter.toOffsetDateTime(request.getPastMoment()) :
 						null,
+					request.hasCatalogVersion() ?
+						request.getCatalogVersion().getValue() : null,
 					request.getIncludingWAL()
 				);
 

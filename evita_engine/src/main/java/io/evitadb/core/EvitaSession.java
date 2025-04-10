@@ -1359,7 +1359,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Traced
 	@Nonnull
 	@Override
-	public Task<?, FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+	public Task<?, FileForFetch> backupCatalog(
+		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
+		boolean includingWAL
+	) throws TemporalDataNotAvailableException {
 		// added read only check
 		isTrue(
 			!isReadOnly(),
@@ -1368,7 +1372,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final CatalogContract theCatalog = getCatalog();
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
 		return theCatalog.backup(
-			pastMoment, includingWAL,
+			pastMoment, catalogVersion, includingWAL,
 			ccControl::registerConsumerOfCatalogInVersion,
 			ccControl::unregisterConsumerOfCatalogInVersion
 		);

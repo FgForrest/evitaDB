@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,6 +64,8 @@ public interface EvitaManagementContract {
 	 * @param catalogName  the name of the catalog to backup
 	 * @param pastMoment   leave null for creating backup for actual dataset, or specify past moment to create backup for
 	 *                     the dataset as it was at that moment
+	 * @param catalogVersion precise catalog version to create backup for, or null to create backup for the latest version,
+	 *                       when set not null, the pastMoment parameter is ignored
 	 * @param includingWAL if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
 	 *                     restored, it'll replay the WAL contents locally to bring the catalog to the current state
 	 * @return jobId of the backup process
@@ -73,6 +75,7 @@ public interface EvitaManagementContract {
 	CompletableFuture<FileForFetch> backupCatalog(
 		@Nonnull String catalogName,
 		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
 		boolean includingWAL
 	) throws TemporalDataNotAvailableException;
 

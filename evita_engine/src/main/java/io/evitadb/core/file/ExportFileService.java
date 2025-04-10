@@ -554,6 +554,7 @@ public class ExportFileService implements Closeable {
 	private final static class WriteMetadataOnCloseOutputStream extends FileOutputStream implements Closeable {
 		private final CompletableFuture<FileForFetch> fileForFetchFuture;
 		private final Supplier<FileForFetch> onClose;
+		private boolean closed;
 
 		public WriteMetadataOnCloseOutputStream(
 			@Nonnull Path finalFilePath,
@@ -567,10 +568,14 @@ public class ExportFileService implements Closeable {
 
 		@Override
 		public void close() throws IOException {
-			try {
-				super.close();
-			} finally {
-				this.fileForFetchFuture.complete(this.onClose.get());
+			// avoid closing the stream multiple times
+			if (!this.closed) {
+				this.closed = true;
+				try {
+					super.close();
+				} finally {
+					this.fileForFetchFuture.complete(this.onClose.get());
+				}
 			}
 		}
 

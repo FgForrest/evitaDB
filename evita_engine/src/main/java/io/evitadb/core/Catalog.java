@@ -928,12 +928,13 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Override
 	public ServerTask<?, FileForFetch> backup(
 		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
 		boolean includingWAL,
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
 	) throws TemporalDataNotAvailableException {
 		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createBackupTask(
-			pastMoment, includingWAL, onStart, onComplete
+			pastMoment, catalogVersion, includingWAL, onStart, onComplete
 		);
 		this.scheduler.submit(backupTask);
 		return backupTask;

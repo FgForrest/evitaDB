@@ -340,18 +340,21 @@ public interface CatalogContract {
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
 	 *
-	 * @param pastMoment   leave null for creating backup for actual dataset, or specify past moment to create backup for
-	 *                     the dataset as it was at that moment
-	 * @param includingWAL if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
-	 *                     restored, it'll replay the WAL contents locally to bring the catalog to the current state
-	 * @param onStart      callback that will be executed before the backup process starts
-	 * @param onComplete   callback that will be executed when the backup process is completed
+	 * @param pastMoment     leave null for creating backup for actual dataset, or specify past moment to create backup for
+	 *                       the dataset as it was at that moment
+	 * @param catalogVersion precise catalog version to create backup for, or null to create backup for the latest version,
+	 *                       when set not null, the pastMoment parameter is ignored
+	 * @param includingWAL   if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
+	 *                       restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @param onStart        callback that will be executed before the backup process starts
+	 * @param onComplete     callback that will be executed when the backup process is completed
 	 * @return jobId of the backup process
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
 	@Nonnull
 	ServerTask<?, FileForFetch> backup(
 		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
 		boolean includingWAL,
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
