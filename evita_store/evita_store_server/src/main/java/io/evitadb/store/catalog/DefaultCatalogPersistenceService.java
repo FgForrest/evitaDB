@@ -467,20 +467,61 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	) {
 		Assert.isTrue(
 			pastMoment.isBefore(OffsetDateTime.now()),
-			() -> new TemporalDataNotAvailableException(pastMoment)
+			() -> new TemporalDataNotAvailableException()
 		);
+		final Optional<CatalogBootstrap> firstCatalogBootstrap = getFirstCatalogBootstrap(catalogName, storageOptions);
+		final OffsetDateTime firstTimestamp = firstCatalogBootstrap.map(CatalogBootstrap::timestamp).orElse(null);
 		Assert.isTrue(
-			getFirstCatalogBootstrap(catalogName, storageOptions)
+			firstCatalogBootstrap
 				.map(it -> it.timestamp().compareTo(pastMoment) <= 0)
 				.orElse(false),
-			() -> new TemporalDataNotAvailableException(pastMoment)
+			() -> firstTimestamp == null ? new TemporalDataNotAvailableException() : new TemporalDataNotAvailableException(firstTimestamp)
 		);
 
 		try (final Stream<CatalogBootstrap> catalogBootstrapRecordStream = getCatalogBootstrapRecordStream(catalogName, storageOptions)) {
 			return catalogBootstrapRecordStream
 				.takeWhile(current -> !current.timestamp().isAfter(pastMoment))
 				.reduce((previous, current) -> current)
-				.orElseGet(() -> getLastCatalogBootstrap(catalogName, storageOptions));
+				.orElseThrow(() -> new TemporalDataNotAvailableException(firstTimestamp));
+		}
+	}
+
+	/**
+	 * Retrieves the catalog bootstrap that is valid for passed date and time for a given catalog.
+	 *
+	 * @param catalogName    The name of the catalog.
+	 * @param storageOptions The storage options for reading the bootstrap file.
+	 * @param catalogVersion     The version to search for the catalog bootstrap record.
+	 * @return The first catalog bootstrap or NULL if the catalog bootstrap file is empty.
+	 * @throws UnexpectedIOException             If there is an error opening the catalog bootstrap file.
+	 * @throws TemporalDataNotAvailableException If the catalog bootstrap starts with later record than the specified
+	 *                                           moment or is in the future
+	 */
+	@Nonnull
+	static CatalogBootstrap getCatalogBootstrapForSpecificVersion(
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions,
+		long catalogVersion
+	) {
+		final Optional<CatalogBootstrap> firstBootstrap = getFirstCatalogBootstrap(catalogName, storageOptions);
+		final long firstCatalogVersion = firstBootstrap.map(CatalogBootstrap::catalogVersion).orElse(0L);
+		Assert.isTrue(
+			firstBootstrap
+				.map(it -> it.catalogVersion() <= catalogVersion)
+				.orElse(false),
+			() -> new TemporalDataNotAvailableException(firstCatalogVersion)
+		);
+
+		try (final Stream<CatalogBootstrap> catalogBootstrapRecordStream = getCatalogBootstrapRecordStream(catalogName, storageOptions)) {
+			final CatalogBootstrap bootstrapRecord = catalogBootstrapRecordStream
+				.takeWhile(current -> current.catalogVersion() <= catalogVersion)
+				.reduce((previous, current) -> current)
+				.orElseThrow(() -> new TemporalDataNotAvailableException(firstCatalogVersion));
+			Assert.isTrue(
+				bootstrapRecord.catalogVersion() == catalogVersion,
+				() -> new TemporalDataNotAvailableException(firstCatalogVersion)
+			);
+			return bootstrapRecord;
 		}
 	}
 
@@ -880,14 +921,20 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		ConsoleWriter.writeLine("Catalog `" + catalogName + "` uses deprecated storage record format of storage protocol version 2.", ConsoleColor.BRIGHT_BLUE, ConsoleDecoration.BOLD);
 		ConsoleWriter.writeLine("Upgrading `" + catalogName + "` to storage record format of storage protocol version " + STORAGE_PROTOCOL_VERSION + ".", ConsoleColor.BRIGHT_BLUE, ConsoleDecoration.BOLD);
 		// first create backup of all catalog files
-		final ExportFileHandle exportFileHandle = exportFileService.storeFile(
-			catalogStoragePath.toFile().getName() + "_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "_upgrade.zip",
-			"Catalog `" + catalogName + "` backup before storage protocol upgrade.",
-			"application/zip",
-			null
-		);
-		ConsoleWriter.writeLine("Backing up catalog `" + catalogName + "` to `" + exportFileHandle.filePath() + "` before upgrade...", ConsoleColor.DARK_BLUE);
-		FileUtils.compressDirectory(catalogStoragePath, exportFileHandle.outputStream());
+		try (
+			final ExportFileHandle exportFileHandle = exportFileService.storeFile(
+				catalogStoragePath.toFile().getName() + "_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "_upgrade.zip",
+				"Catalog `" + catalogName + "` backup before storage protocol upgrade.",
+				"application/zip",
+				null
+			)
+		) {
+			ConsoleWriter.writeLine("Backing up catalog `" + catalogName + "` to `" + exportFileHandle.filePath() + "` before upgrade...", ConsoleColor.DARK_BLUE);
+			FileUtils.compressDirectory(catalogStoragePath, exportFileHandle.outputStream());
+		} catch (IOException e) {
+			// just log the error and continue
+			log.error("Failed to backup catalog `" + catalogName + "` before upgrade!", e);
+		}
 		// next migrate catalog bootstrap file
 		final int recordCount = CatalogBootstrap.getOldRecordCount(
 			bootstrapFilePath.toFile().length()
@@ -895,11 +942,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final Path targetPath = catalogStoragePath.resolve("../" + catalogStoragePath.toFile().getName() + "__upgrade").normalize();
 		Assert.isPremiseValid(targetPath.toFile().mkdirs(), "Failed to create target directory for upgrade!");
 		try (
-			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, bootstrapStorageOptions)
-		) {
+			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, bootstrapStorageOptions);
 			final BootstrapWriteOnlyFileHandle targetBootstrapHandle = createBootstrapWriteOnlyHandle(
 				catalogName, bootstrapStorageOptions, targetPath
 			);
+		) {
 			targetBootstrapHandle.checkAndExecute(
 				"copy bootstrap record",
 				() -> {
@@ -2142,14 +2189,21 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Override
 	public ServerTask<?, FileForFetch> createBackupTask(
 		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
 		boolean includingWAL,
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
 	) throws TemporalDataNotAvailableException {
-		final CatalogBootstrap bootstrapRecord = pastMoment == null ?
-			this.bootstrapUsed : getCatalogBootstrapForSpecificMoment(this.catalogName, this.bootstrapStorageOptions, pastMoment);
+		final CatalogBootstrap bootstrapRecord;
+		if (catalogVersion != null) {
+			bootstrapRecord = getCatalogBootstrapForSpecificVersion(this.catalogName, this.bootstrapStorageOptions, catalogVersion);
+		} else if (pastMoment != null) {
+			bootstrapRecord = getCatalogBootstrapForSpecificMoment(this.catalogName, this.bootstrapStorageOptions, pastMoment);
+		} else {
+			bootstrapRecord = this.bootstrapUsed;
+		}
 		return new BackupTask(
-			this.catalogName, pastMoment, includingWAL,
+			this.catalogName, pastMoment, catalogVersion, includingWAL,
 			bootstrapRecord, this.exportFileService, this,
 			onStart, onComplete
 		);
@@ -2871,20 +2925,15 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	private void removeCatalogPersistenceServiceForVersion(long catalogVersion) {
 		try {
 			this.cpsvLock.lockInterruptibly();
-			final int index = Arrays.binarySearch(this.catalogPersistenceServiceVersions, catalogVersion);
-			final int lookupIndex = index >= 0 ? index : (-index - 2);
-			Assert.isPremiseValid(
-				lookupIndex >= 0 && lookupIndex < this.catalogPersistenceServiceVersions.length,
-				() -> new GenericEvitaInternalError("Catalog version " + catalogVersion + " not found in the catalog persistence service versions!")
-			);
-			if (catalogVersion == 0 && this.warmUpVersionCardinality > 0) {
-				this.warmUpVersionCardinality--;
+			if (catalogVersion == 0) {
+				if (this.warmUpVersionCardinality > 1) {
+					this.warmUpVersionCardinality--;
+				} else if (this.warmUpVersionCardinality == 1) {
+					this.warmUpVersionCardinality = 0;
+					doRemoveCatalogPersistenceServiceForVersion(catalogVersion);
+				}
 			} else {
-				final long versionToRemove = this.catalogPersistenceServiceVersions[lookupIndex];
-				this.catalogPersistenceServiceVersions = ArrayUtils.removeLongFromArrayOnIndex(this.catalogPersistenceServiceVersions, lookupIndex);
-				// remove the service and release its resources
-				final CatalogOffsetIndexStoragePartPersistenceService storageService = this.catalogStoragePartPersistenceService.remove(versionToRemove);
-				storageService.close();
+				doRemoveCatalogPersistenceServiceForVersion(catalogVersion);
 			}
 		} catch (InterruptedException e) {
 			throw new GenericEvitaInternalError(
@@ -2896,6 +2945,27 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			if (this.cpsvLock.isHeldByCurrentThread()) {
 				this.cpsvLock.unlock();
 			}
+		}
+	}
+
+	/**
+	 * Internal method for removing catalog persistence service for the specified catalog version. No locking,
+	 * no cardinality checks - just removal. Method is meant to be called from {@link #removeCatalogPersistenceServiceForVersion(long)}
+	 * only.
+	 *
+	 * @param catalogVersion the catalog version to remove the persistence service for
+	 */
+	private void doRemoveCatalogPersistenceServiceForVersion(long catalogVersion) {
+		final int index = Arrays.binarySearch(this.catalogPersistenceServiceVersions, catalogVersion);
+		final int lookupIndex = index >= 0 ? index : (-index - 2);
+		if (lookupIndex >= 0 && lookupIndex < this.catalogPersistenceServiceVersions.length) {
+			final long versionToRemove = this.catalogPersistenceServiceVersions[lookupIndex];
+			this.catalogPersistenceServiceVersions = ArrayUtils.removeLongFromArrayOnIndex(this.catalogPersistenceServiceVersions, lookupIndex);
+			// remove the service and release its resources
+			final CatalogOffsetIndexStoragePartPersistenceService storageService = this.catalogStoragePartPersistenceService.remove(versionToRemove);
+			storageService.close();
+		} else {
+			// the version to remove might already have been removed, so we do nothing
 		}
 	}
 

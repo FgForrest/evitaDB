@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -133,11 +133,12 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	public CompletableFuture<FileForFetch> backupCatalog(
 		@Nonnull String catalogName,
 		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
 		boolean includingWAL
 	) throws TemporalDataNotAvailableException {
 		this.evitaClient.assertActive();
 		try (final EvitaSessionContract session = this.evitaClient.createReadWriteSession(catalogName)) {
-			final Task<?, FileForFetch> resultTask = session.backupCatalog(pastMoment, includingWAL);
+			final Task<?, FileForFetch> resultTask = session.backupCatalog(pastMoment, catalogVersion, includingWAL);
 			return resultTask.getFutureResult();
 		}
 	}
