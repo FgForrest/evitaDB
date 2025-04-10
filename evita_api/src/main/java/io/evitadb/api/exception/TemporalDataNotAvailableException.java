@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,15 +38,24 @@ import java.time.OffsetDateTime;
 public class TemporalDataNotAvailableException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 2157655513551186466L;
 	@Getter private final OffsetDateTime offsetDateTime;
+	@Getter private final Long catalogVersion;
 
 	public TemporalDataNotAvailableException() {
 		super("No historical data is available.");
 		this.offsetDateTime = null;
+		this.catalogVersion = null;
 	}
 
 	public TemporalDataNotAvailableException(@Nonnull OffsetDateTime offsetDateTime) {
 		super("The latest data available is from " + offsetDateTime + ".");
 		this.offsetDateTime = offsetDateTime;
+		this.catalogVersion = null;
+	}
+
+	public TemporalDataNotAvailableException(long catalogVersion) {
+		super("The latest data available is from " + catalogVersion + ".");
+		this.offsetDateTime = null;
+		this.catalogVersion = catalogVersion;
 	}
 
 }

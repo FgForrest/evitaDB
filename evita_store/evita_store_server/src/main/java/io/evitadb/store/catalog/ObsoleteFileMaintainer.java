@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
@@ -101,23 +102,6 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 */
 	private final LongFunction<DataFilesBulkInfo> dataFilesInfoFetcher;
 
-	/**
-	 * Purges the specified maintained file.
-	 *
-	 * This method deletes the specified maintained file from the file system. If the deletion is successful,
-	 * the removalLambda associated with the maintained file is executed.
-	 *
-	 * @param maintainedFile the maintained file to be purged
-	 */
-	private static void purgeFile(@Nonnull MaintainedFile maintainedFile) {
-		maintainedFile.removalLambda().run();
-		if (maintainedFile.path().toFile().delete()) {
-			log.debug("Deleted obsolete file {}", maintainedFile.path());
-		} else {
-			log.warn("Could not delete obsolete file {}", maintainedFile.path());
-		}
-	}
-
 	public ObsoleteFileMaintainer(
 		@Nonnull String catalogName,
 		@Nonnull Scheduler scheduler,
@@ -156,7 +140,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		if (catalogVersion <= 0L) {
 			// version 0L represents catalog in WARM-UP (non-transactional) state where we apply all changes immediately
 			purgeFile(fileToMaintain);
-		} else if (!this.timeTravelEnabled) {
+		} else {
 			// if the first catalog version is not set, set it to the current catalog version
 			this.firstCatalogVersion.compareAndExchange(0, catalogVersion);
 			this.lastCatalogVersion.accumulateAndGet(
@@ -167,9 +151,6 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 				}
 			);
 			this.maintainedFiles.add(fileToMaintain);
-		} else {
-			// execute the removal lambda immediately when time travel is enabled to release accompanied resources
-			removalLambda.run();
 		}
 	}
 
@@ -179,7 +160,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * when WAL files are removed and this logic is executed in {@link ObsoleteWalPurgeCallback} callback.
 	 *
 	 * @param lastKnownMinimalActiveVersion the minimal catalog version that is still being used, NULL when there is no
-	 *                                    active session
+	 *                                      active session
 	 */
 	@Override
 	public void consumersLeft(long lastKnownMinimalActiveVersion) {
@@ -214,10 +195,24 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	@Nonnull
 	public WalPurgeCallback createWalPurgeCallback() {
 		if (this.timeTravelEnabled) {
-			return new ObsoleteWalPurgeCallback(this.catalogStoragePath, this.dataFilesInfoFetcher);
+			return new ObsoleteWalPurgeCallback(
+				this.catalogStoragePath,
+				this::purgeMaintainedFilesOlderThan,
+				this.dataFilesInfoFetcher
+			);
 		} else {
 			return WalPurgeCallback.NO_OP;
 		}
+	}
+
+	/**
+	 * Method is called from {@link ObsoleteWalPurgeCallback} that is invoked in case time travel is enabled when
+	 * the bootstrap file gets reduced and old history is purged. This method first purges all maintained files and calls
+	 * their respective removal lambdas.
+	 */
+	private void purgeMaintainedFilesOlderThan(long firstActiveCatalogVersion) {
+		this.lastKnownMinimalActiveVersion.set(firstActiveCatalogVersion);
+		this.purgeObsoleteFiles();
 	}
 
 	/**
@@ -244,6 +239,26 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		this.maintainedFiles.removeAll(itemsToRemove);
 		this.firstCatalogVersion.set(newFirstCatalogVersion);
 		return -1L;
+	}
+
+	/**
+	 * Purges the specified maintained file.
+	 *
+	 * This method deletes the specified maintained file from the file system. If the deletion is successful,
+	 * the removalLambda associated with the maintained file is executed.
+	 *
+	 * @param maintainedFile the maintained file to be purged
+	 */
+	private void purgeFile(@Nonnull MaintainedFile maintainedFile) {
+		maintainedFile.removalLambda().run();
+		// when time travel is enabled, the files are removed only when bootstrap records is purged
+		if (!this.timeTravelEnabled) {
+			if (maintainedFile.path().toFile().delete()) {
+				log.debug("Deleted obsolete file {}", maintainedFile.path());
+			} else {
+				log.warn("Could not delete obsolete file {}", maintainedFile.path());
+			}
+		}
 	}
 
 	/**
@@ -285,65 +300,81 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		 */
 		private final Path catalogStoragePath;
 		/**
+		 * The callback that is called when the catalog version is purged.
+		 */
+		private final LongConsumer maintainedFilePurgeCallback;
+		/**
 		 * The supplier of the catalog header for the specified catalog version.
 		 */
 		private final LongFunction<DataFilesBulkInfo> dataFilesInfoFetcher;
-
+		/**
+		 * The last catalog version that was observed. This variable is used to ignore calls with lower catalog version
+		 * than were already processed.
+		 */
+		private long lastObservedCatalogVersion = -1L;
 
 		@Override
 		public void purgeFilesUpTo(long firstActiveCatalogVersion) {
-			final DataFilesBulkInfo activeFiles = ofNullable(this.dataFilesInfoFetcher.apply(firstActiveCatalogVersion))
-				.orElseThrow(
-					() -> new GenericEvitaInternalError(
-						"Catalog bootstrap record and header for the catalog version `" + firstActiveCatalogVersion + "` " +
-							"are not available. Cannot purge obsolete files."
-					)
-				);
-			final int firstUsedCatalogDataFileIndex = activeFiles.bootstrapRecord().catalogFileIndex();
-			final Map<Integer, Integer> entityFileIndex = activeFiles
-				.catalogHeader()
-				.getEntityTypeFileIndexes()
-				.stream()
-				.collect(
-					Collectors.toMap(
-						CollectionFileReference::entityTypePrimaryKey,
-						CollectionFileReference::fileIndex
-					)
-				);
+			if (firstActiveCatalogVersion > this.lastObservedCatalogVersion) {
+				this.lastObservedCatalogVersion = firstActiveCatalogVersion;
+				// first purge all maintained files
+				this.maintainedFilePurgeCallback.accept(firstActiveCatalogVersion);
+				// then purge all obsolete files in the folders
+				final DataFilesBulkInfo activeFiles = ofNullable(this.dataFilesInfoFetcher.apply(firstActiveCatalogVersion))
+					.orElseThrow(
+						() -> new GenericEvitaInternalError(
+							"Catalog bootstrap record and header for the catalog version `" + firstActiveCatalogVersion + "` " +
+								"are not available. Cannot purge obsolete files."
+						)
+					);
+				final int firstUsedCatalogDataFileIndex = activeFiles.bootstrapRecord().catalogFileIndex();
+				final Map<Integer, Integer> entityFileIndex = activeFiles
+					.catalogHeader()
+					.getEntityTypeFileIndexes()
+					.stream()
+					.collect(
+						Collectors.toMap(
+							CollectionFileReference::entityTypePrimaryKey,
+							CollectionFileReference::fileIndex
+						)
+					);
 
-			ofNullable(
-				this.catalogStoragePath.toFile()
-					.listFiles((dir, name) -> name.endsWith(CATALOG_FILE_SUFFIX))
-			)
-				.stream()
-				.flatMap(Arrays::stream)
-				.filter(file -> getIndexFromCatalogFileName(file.getName()) < firstUsedCatalogDataFileIndex)
-				.forEach(file -> {
-					if (file.delete()) {
-						log.debug("Deleted obsolete catalog file `{}`", file.getAbsolutePath());
-					} else {
-						log.warn("Could not delete obsolete catalog file `{}`", file.getAbsolutePath());
-					}
-				});
+				ofNullable(
+					this.catalogStoragePath.toFile()
+						.listFiles((dir, name) -> name.endsWith(CATALOG_FILE_SUFFIX))
+				)
+					.stream()
+					.flatMap(Arrays::stream)
+					.filter(file -> getIndexFromCatalogFileName(file.getName()) < firstUsedCatalogDataFileIndex)
+					.forEach(file -> {
+						if (file.delete()) {
+							log.debug("Deleted obsolete catalog file `{}`", file.getAbsolutePath());
+						} else {
+							log.warn("Could not delete obsolete catalog file `{}`", file.getAbsolutePath());
+						}
+					});
 
-			ofNullable(
-				this.catalogStoragePath.toFile()
-					.listFiles((dir, name) -> name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX))
-			)
-				.stream()
-				.flatMap(Arrays::stream)
-				.filter(file -> {
-					final EntityTypePrimaryKeyAndFileIndex result = getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(file.getName());
-					final Integer firstUsedEntityFileIndex = entityFileIndex.get(result.entityTypePrimaryKey());
-					return firstUsedEntityFileIndex == null || result.fileIndex() < firstUsedEntityFileIndex;
-				})
-				.forEach(file -> {
-					if (file.delete()) {
-						log.debug("Deleted obsolete entity collection file `{}`", file.getAbsolutePath());
-					} else {
-						log.warn("Could not delete entity collection file `{}`", file.getAbsolutePath());
-					}
-				});
+				ofNullable(
+					this.catalogStoragePath.toFile()
+						.listFiles((dir, name) -> name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX))
+				)
+					.stream()
+					.flatMap(Arrays::stream)
+					.filter(file -> {
+						final EntityTypePrimaryKeyAndFileIndex result = getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(file.getName());
+						final Integer firstUsedEntityFileIndex = entityFileIndex.get(result.entityTypePrimaryKey());
+						return firstUsedEntityFileIndex == null || result.fileIndex() < firstUsedEntityFileIndex;
+					})
+					.forEach(file -> {
+						if (file.delete()) {
+							log.debug("Deleted obsolete entity collection file `{}`", file.getAbsolutePath());
+						} else {
+							log.warn("Could not delete entity collection file `{}`", file.getAbsolutePath());
+						}
+					});
+			} else {
+				// this callback was already called with this or newer catalog version
+			}
 		}
 	}
 }

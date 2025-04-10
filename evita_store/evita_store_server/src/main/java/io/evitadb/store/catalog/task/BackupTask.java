@@ -95,6 +95,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	public BackupTask(
 		@Nonnull String catalogName,
 		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
 		boolean includingWAL,
 		@Nonnull CatalogBootstrap bootstrapRecord,
 		@Nonnull ExportFileService exportFileService,
@@ -107,10 +108,16 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			BackupTask.class.getSimpleName(),
 			"Backup catalog " + catalogName +
 				(pastMoment == null ? " now" : " at " + pastMoment) +
-				(includingWAL ? "" : ", including WAL: " + includingWAL),
-			new BackupSettings(pastMoment, includingWAL),
+				(catalogVersion == null ? "" : " for version " + catalogVersion) +
+				(includingWAL ? "" : ", including WAL"),
+			new BackupSettings(pastMoment, catalogVersion, includingWAL),
 			(task) -> ((BackupTask) task).doBackup(),
 			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED
+		);
+		Assert.isPremiseValid(
+			catalogVersion == null || bootstrapRecord.catalogVersion() == catalogVersion,
+			"Catalog version " + catalogVersion + " is not the same as the one in the bootstrap record " +
+				bootstrapRecord.catalogVersion() + "!"
 		);
 		this.catalogName = catalogName;
 		this.bootstrapRecord = bootstrapRecord;
@@ -528,11 +535,14 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	/**
 	 * Settings for this instance of backup task.
 	 *
-	 * @param pastMoment   the date and time to create SNAPSHOT backup from
-	 * @param includingWAL whether to include WAL files in the backup
+	 * @param pastMoment     the date and time to create SNAPSHOT backup from
+	 * @param catalogVersion precise catalog version to create backup for, or null to create backup for the latest version,
+	 *                       when set not null, the pastMoment parameter is ignored
+	 * @param includingWAL   whether to include WAL files in the backup
 	 */
 	public record BackupSettings(
 		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
 		boolean includingWAL
 	) implements Serializable {
 
@@ -541,6 +551,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			return Objects.requireNonNull(
 				StringUtils.capitalize(
 					(pastMoment == null ? "" : "pastMoment=" + EvitaDataTypes.formatValue(pastMoment) + ", ") +
+						(catalogVersion == null ? "" : "catalogVersion=" + catalogVersion + ", ") +
 						"includingWAL=" + includingWAL
 				)
 			);

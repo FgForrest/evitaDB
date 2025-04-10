@@ -241,6 +241,7 @@ public final class CorruptedCatalog implements CatalogContract {
 	@Override
 	public ServerTask<Void, FileForFetch> backup(
 		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
 		boolean includingWAL,
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
