@@ -37,6 +37,7 @@ import io.evitadb.externalApi.lab.configuration.LabOptions;
 import io.evitadb.externalApi.lab.gui.dto.EvitaDBConnection;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -44,6 +45,7 @@ import java.nio.file.Paths;
 import java.util.Base64;
 import java.util.Base64.Encoder;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
@@ -78,6 +80,89 @@ public class GuiHandler implements HttpService {
 		return new GuiHandler(labConfig, serverName, objectMapper);
 	}
 
+	/**
+	 * Creates a resource location with forward slashes. It is necessary to handle it this way for the sake of Windows
+	 * compatibility - it needs forwards slashes within jar file resources.
+	 *
+	 * @param path path of a jar file resource to be converted
+	 * @return path of a jar file resource with forward slashes
+	 */
+	@Nonnull
+	private static String createJarResourceLocationWithForwardSlashes(@Nonnull Path path) {
+		return path.toString().replace("\\", "/");
+	}
+
+	/**
+	 * Determines whether the lab data set parameter is present and its value in the query parameters of the current
+	 * service request context.
+	 *
+	 * @param ctx the service request context containing query parameters
+	 * @return true if the lab data set parameter is present and evaluates to true, otherwise false
+	 */
+	@Nonnull
+	private static Boolean isLabDataSet(@Nonnull ServiceRequestContext ctx) {
+		return Boolean.parseBoolean(ctx.queryParam(EVITALAB_DATA_SET_PARAM_NAME));
+	}
+
+	/**
+	 * Passes a param to the evitaLab as system property. Its value is encoded with Base64
+	 */
+	private static void passEncodedParam(@Nonnull QueryParamsBuilder params, @Nonnull String name, @Nonnull String value) {
+		params.add(name, BASE_64_ENCODER.encodeToString(value.getBytes(StandardCharsets.UTF_8)));
+	}
+
+	/**
+	 * Serves static assets for the GUI from the specified path or JAR resources.
+	 * The method locates the requested resource using the provided class loader and path,
+	 * ensuring compatibility with forward-slash resource referencing. It also applies caching
+	 * for immutable assets.
+	 *
+	 * @param ctx         the current service request context
+	 * @param req         the HTTP request to handle
+	 * @param classLoader the class loader used to locate the asset
+	 * @param path        the relative path to the requested asset
+	 * @param fsPath      the base file system path of the assets
+	 * @return an {@link HttpResponse} containing the served asset or an error response
+	 * @throws Exception if an error occurs while serving the asset
+	 */
+	@Nonnull
+	private static HttpResponse serveAssets(
+		@Nonnull ServiceRequestContext ctx,
+		@Nonnull HttpRequest req,
+		@Nonnull ClassLoader classLoader,
+		@Nonnull String path,
+		@Nonnull Path fsPath
+	) throws Exception {
+		return HttpFile.builder(
+				classLoader,
+				createJarResourceLocationWithForwardSlashes(
+					fsPath.resolve(Paths.get(path.substring(1)))
+				)
+			)
+			// all assets are versioned so we can cache them for long and never change
+			.cacheControl(ServerCacheControl.IMMUTABLE)
+			.build()
+			.asService()
+			.serve(ctx, req);
+	}
+
+	/**
+	 * Determines if the original client request was using HTTPS.
+	 *
+	 * @param ctx ServiceRequestContext of the current request
+	 * @return true if the original request was HTTPS, based on the actual connection or X-Forwarded-Proto
+	 */
+	private static boolean isClientHttps(@Nonnull ServiceRequestContext ctx) {
+		// Check if the connection itself is over TLS
+		if (ctx.sessionProtocol().isTls()) {
+			return true; // Direct connection is secure
+		}
+
+		// Check the "X-Forwarded-Proto" header (set by NGINX or proxies) for client protocol
+		final String forwardedProto = ctx.request().headers().get(HttpHeaderNames.X_FORWARDED_PROTO);
+		return forwardedProto != null && forwardedProto.equalsIgnoreCase("https");
+	}
+
 	private GuiHandler(@Nonnull LabOptions labConfig,
 	                   @Nonnull String serverName,
 	                   @Nonnull ObjectMapper objectMapper) {
@@ -106,17 +191,24 @@ public class GuiHandler implements HttpService {
 	}
 
 	@Nonnull
-	private HttpResponse serveRoot(@Nonnull ServiceRequestContext ctx,
-	                               @Nonnull HttpRequest req,
-	                               @Nonnull ClassLoader classLoader,
-	                               @Nonnull Path fsPath) throws Exception {
+	private HttpResponse serveRoot(
+		@Nonnull ServiceRequestContext ctx,
+		@Nonnull HttpRequest req,
+		@Nonnull ClassLoader classLoader,
+		@Nonnull Path fsPath
+	) throws Exception {
 		final boolean labDataSetParamValue = isLabDataSet(ctx);
 		if (!labDataSetParamValue) {
 			final QueryParamsBuilder paramsWithLabData = ctx.queryParams().toBuilder();
 			passLabDataSet(paramsWithLabData);
 			passServerName(paramsWithLabData);
 			passReadOnlyFlag(paramsWithLabData);
-			passPreconfiguredEvitaDBConnections(paramsWithLabData);
+
+			final String authority = req.headers().authority();
+			passPreconfiguredEvitaDBConnections(
+				paramsWithLabData,
+				authority == null ? null : (isClientHttps(ctx) ? "https://" : "http://") + authority
+			);
 
 			final String newQueryString = paramsWithLabData.toQueryString();
 
@@ -132,9 +224,9 @@ public class GuiHandler implements HttpService {
 		}
 
 		return HttpFile.builder(
-			classLoader,
-			createJarResourceLocationWithForwardSlashes(fsPath.resolve("index.html"))
-		)
+				classLoader,
+				createJarResourceLocationWithForwardSlashes(fsPath.resolve("index.html"))
+			)
 			// we don't want to cache evitaLab index file because in development environments, developers often
 			// switch evitaDB server under same hostname and each evitaDB server may have different version or config
 			// therefore we need to make sure that the initialization of evitaLab is always fresh
@@ -143,42 +235,6 @@ public class GuiHandler implements HttpService {
 			.build()
 			.asService()
 			.serve(ctx, req);
-	}
-
-	@Nonnull
-	private HttpResponse serveAssets(@Nonnull ServiceRequestContext ctx,
-	                                 @Nonnull HttpRequest req,
-	                                 @Nonnull ClassLoader classLoader,
-									 @Nonnull String path,
-	                                 @Nonnull Path fsPath) throws Exception {
-		return HttpFile.builder(
-			classLoader,
-			createJarResourceLocationWithForwardSlashes(
-				fsPath.resolve(Paths.get(path.substring(1)))
-			)
-		)
-			// all assets are versioned so we can cache them for long and never change
-			.cacheControl(ServerCacheControl.IMMUTABLE)
-			.build()
-			.asService()
-			.serve(ctx, req);
-	}
-
-
-	/**
-	 * Creates a resource location with forward slashes. It is necessary to handle it this way for the sake of Windows
-	 * compatibility - it needs forwards slashes within jar file resources.
-	 * @param path path of a jar file resource to be converted
-	 * @return path of a jar file resource with forward slashes
-	 */
-	@Nonnull
-	private static String createJarResourceLocationWithForwardSlashes(@Nonnull Path path) {
-		return path.toString().replace("\\", "/");
-	}
-
-	@Nonnull
-	private static Boolean isLabDataSet(@Nonnull ServiceRequestContext ctx) {
-		return Boolean.parseBoolean(ctx.queryParam(EVITALAB_DATA_SET_PARAM_NAME));
 	}
 
 	/**
@@ -209,35 +265,42 @@ public class GuiHandler implements HttpService {
 	 * Passes a {@link #EVITALAB_PRECONFIGURED_CONNECTIONS_PARAM_NAME} param to the evitaLab as system property with preconfigured
 	 * evitaDB connections.
 	 */
-	private void passPreconfiguredEvitaDBConnections(@Nonnull QueryParamsBuilder params) throws IOException {
-		final List<EvitaDBConnection> preconfiguredConnections = resolvePreconfiguredEvitaDBConnections();
+	private void passPreconfiguredEvitaDBConnections(@Nonnull QueryParamsBuilder params, @Nullable String incomingRequestHostAndPort) throws IOException {
+		final List<EvitaDBConnection> preconfiguredConnections = resolvePreconfiguredEvitaDBConnections(incomingRequestHostAndPort);
 		final String serializedSelfConnection = objectMapper.writeValueAsString(preconfiguredConnections);
 
 		passEncodedParam(params, EVITALAB_PRECONFIGURED_CONNECTIONS_PARAM_NAME, serializedSelfConnection);
 	}
 
-	/**
-	 * Passes a param to the evitaLab as system property. Its value is encoded with Base64
-	 */
-	private void passEncodedParam(@Nonnull QueryParamsBuilder params, @Nonnull String name, @Nonnull String value) {
-		params.add(name, BASE_64_ENCODER.encodeToString(value.getBytes(StandardCharsets.UTF_8)));
-	}
-
 	@Nonnull
-	private List<EvitaDBConnection> resolvePreconfiguredEvitaDBConnections() {
-		if (preconfiguredConnections == null) {
-			final List<EvitaDBConnection> customPreconfiguredConnections = labConfig.getGui().getPreconfiguredConnections();
-			if (customPreconfiguredConnections != null) {
-				preconfiguredConnections = customPreconfiguredConnections;
-			} else {
-				final EvitaDBConnection selfConnection = new EvitaDBConnection(
-					null,
-					serverName,
-					labConfig.getResolvedExposeOnUrl()
+	private List<EvitaDBConnection> resolvePreconfiguredEvitaDBConnections(@Nullable String incomingRequestHostAndPort) {
+		final List<EvitaDBConnection> customPreconfiguredConnections = this.labConfig.getGui().getPreconfiguredConnections();
+		if (customPreconfiguredConnections != null) {
+			return customPreconfiguredConnections;
+		} else {
+			if (
+				// connections not cached
+				this.preconfiguredConnections == null ||
+				// or cached with different URL than incoming
+				(incomingRequestHostAndPort != null && !Objects.equals(incomingRequestHostAndPort, this.preconfiguredConnections.get(0).serverUrl()))
+			) {
+				// generate self-connection
+				final String serverUrl;
+				if (this.labConfig.getGui().isPreferIncomingHostAndPort() && incomingRequestHostAndPort != null) {
+					serverUrl = incomingRequestHostAndPort;
+				} else {
+					serverUrl = this.labConfig.getResolvedExposeOnUrl();
+				}
+				// and cache
+				this.preconfiguredConnections = List.of(
+					new EvitaDBConnection(
+						null,
+						this.serverName,
+						serverUrl
+					)
 				);
-				preconfiguredConnections = List.of(selfConnection);
 			}
+			return this.preconfiguredConnections;
 		}
-		return preconfiguredConnections;
 	}
 }
