@@ -2670,7 +2670,7 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateBackupAndRestoreCatalog() throws IOException, ExecutionException, InterruptedException {
 		setupCatalogWithProductAndCategory();
 
-		final CompletableFuture<FileForFetch> backupPathFuture = evita.management().backupCatalog(TEST_CATALOG, null, true);
+		final CompletableFuture<FileForFetch> backupPathFuture = evita.management().backupCatalog(TEST_CATALOG, null, null, true);
 		final Path backupPath = backupPathFuture.join().path(evita.getConfiguration().storage().exportDirectory());
 
 		assertTrue(backupPath.toFile().exists());
@@ -2723,7 +2723,7 @@ class EvitaTest implements EvitaTestSupport {
 		});
 
 		final EvitaManagement management = evita.management();
-		final CompletableFuture<FileForFetch> backupPathFuture = management.backupCatalog(TEST_CATALOG, null, true);
+		final CompletableFuture<FileForFetch> backupPathFuture = management.backupCatalog(TEST_CATALOG, null, null, true);
 		final Path backupPath = backupPathFuture.join().path(evita.getConfiguration().storage().exportDirectory());
 
 		assertTrue(backupPath.toFile().exists());
@@ -2783,7 +2783,7 @@ class EvitaTest implements EvitaTestSupport {
 		// Step 2: Generate backup tasks using the custom executor
 		final List<CompletableFuture<CompletableFuture<FileForFetch>>> backupTasks = Stream.generate(
 				() -> CompletableFuture.supplyAsync(
-					() -> management.backupCatalog(TEST_CATALOG, null, true),
+					() -> management.backupCatalog(TEST_CATALOG, null, null, true),
 					executorService
 				)
 			)

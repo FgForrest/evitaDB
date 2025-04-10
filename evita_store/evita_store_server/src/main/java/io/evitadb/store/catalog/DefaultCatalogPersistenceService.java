@@ -514,7 +514,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 		try (final Stream<CatalogBootstrap> catalogBootstrapRecordStream = getCatalogBootstrapRecordStream(catalogName, storageOptions)) {
 			final CatalogBootstrap bootstrapRecord = catalogBootstrapRecordStream
-				.takeWhile(current -> current.catalogVersion() < catalogVersion)
+				.takeWhile(current -> current.catalogVersion() <= catalogVersion)
 				.reduce((previous, current) -> current)
 				.orElseThrow(() -> new TemporalDataNotAvailableException(firstCatalogVersion));
 			Assert.isTrue(

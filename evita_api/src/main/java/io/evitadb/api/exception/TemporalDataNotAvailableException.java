@@ -47,13 +47,13 @@ public class TemporalDataNotAvailableException extends EvitaInvalidUsageExceptio
 	}
 
 	public TemporalDataNotAvailableException(@Nonnull OffsetDateTime offsetDateTime) {
-		super("The latest data available is from " + offsetDateTime + ".");
+		super("The oldest data available is from " + offsetDateTime + ".");
 		this.offsetDateTime = offsetDateTime;
 		this.catalogVersion = null;
 	}
 
 	public TemporalDataNotAvailableException(long catalogVersion) {
-		super("The latest data available is from " + catalogVersion + ".");
+		super("The oldest data available is for catalog version " + catalogVersion + ".");
 		this.offsetDateTime = null;
 		this.catalogVersion = catalogVersion;
 	}

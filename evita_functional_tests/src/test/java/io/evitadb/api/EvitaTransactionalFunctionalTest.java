@@ -1252,7 +1252,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			final AtomicReference<CompletableFuture<FileForFetch>> lastBackupProcess = new AtomicReference<>();
 			final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
 				evita, productSchema, theEvita -> {
-					lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, false));
+					lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null,false));
 				}
 			);
 
@@ -1348,7 +1348,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			final AtomicReference<CompletableFuture<FileForFetch>> lastBackupProcess = new AtomicReference<>();
 			final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
 				evita, productSchema, theEvita -> {
-					lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, true));
+					lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, true));
 				}
 			);
 
@@ -1587,7 +1587,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 							try {
 								log.info("Bootstrap record: " + record);
 								// create backup from each point in time
-								final Path backupPath = restartedEvita.management().backupCatalog(TEST_CATALOG, record.catalogVersion(), false)
+								final Path backupPath = restartedEvita.management().backupCatalog(TEST_CATALOG, null, record.catalogVersion(), false)
 									.get(2, TimeUnit.MINUTES).path(evita.getConfiguration().storage().exportDirectory());
 								// restore it to unique new catalog
 								final String restoredCatalogName = TEST_CATALOG + "_restored_" + record.catalogVersion();

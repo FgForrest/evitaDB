@@ -26,6 +26,7 @@ package io.evitadb.driver;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.Empty;
 import com.google.protobuf.Int32Value;
+import com.google.protobuf.Int64Value;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
@@ -1480,7 +1481,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					ofNullable(pastMoment)
 						.ifPresent(pm -> builder.setPastMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(pm)));
 					ofNullable(catalogVersion)
-						.ifPresent(pm -> builder.setCatalogVersion(pm));
+						.ifPresent(cv -> builder.setCatalogVersion(Int64Value.newBuilder().setValue(cv).build()));
 					return evitaSessionService.backupCatalog(
 						builder
 							.setIncludingWAL(includingWAL)

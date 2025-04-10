@@ -145,6 +145,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		try {
 			final BackupSettings settings = getStatus().settings();
 			final OffsetDateTime thePastMoment = settings.pastMoment();
+			final Long theHistoricalCatalogVersion = settings.catalogVersion();
 			final boolean theIncludingWAL = settings.includingWAL();
 			final long catalogVersion = this.bootstrapRecord.catalogVersion();
 
@@ -157,12 +158,12 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 			final ExportFileHandle exportFileHandle = exportFileService.storeFile(
 				"backup_" + this.catalogName + "_" +
-					(thePastMoment == null ?
+					(thePastMoment == null && theHistoricalCatalogVersion == null ?
 						"actual_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) :
-						"historical_" + thePastMoment.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+						"historical_" + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
 					) + ".zip",
 				"The backup of the " +
-					(thePastMoment == null ? "actual " : "historical " + thePastMoment) +
+					(thePastMoment == null && theHistoricalCatalogVersion == null ? "actual " : "historical " + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment)) +
 					"catalog `" + this.catalogName + "`" + (theIncludingWAL ? " including WAL." : "."),
 				"application/zip",
 				this.getClass().getSimpleName()
@@ -170,7 +171,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 			try {
 				try (final Closeables closeables = new Closeables()) {
-					final CatalogOffsetIndexStoragePartPersistenceService catalogOffsetIndexPersistenceService = thePastMoment == null ?
+					final CatalogOffsetIndexStoragePartPersistenceService catalogOffsetIndexPersistenceService = thePastMoment == null && theHistoricalCatalogVersion == null ?
 						defaultCatalogPersistenceService.getStoragePartPersistenceService(catalogVersion) :
 						closeables.add(defaultCatalogPersistenceService.createCatalogOffsetIndexStoragePartService(this.bootstrapRecord));
 
@@ -186,7 +187,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 						// collect all entity collection services and calculate total record count to backup
 						final ServicesAndStatistics servicesAndStatistics = getServicesAndStatistics(
-							catalogVersion, thePastMoment, theIncludingWAL,
+							catalogVersion, thePastMoment, theHistoricalCatalogVersion, theIncludingWAL,
 							defaultCatalogPersistenceService, catalogOffsetIndexPersistenceService,
 							catalogHeader, closeables
 						);
@@ -444,6 +445,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	private static ServicesAndStatistics getServicesAndStatistics(
 		long catalogVersion,
 		@Nullable OffsetDateTime thePastMoment,
+		@Nullable Long theHistoricalCatalogVersion,
 		boolean theIncludingWAL,
 		@Nonnull DefaultCatalogPersistenceService defaultCatalogPersistenceService,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService catalogPersistenceService,
@@ -465,7 +467,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				entityCollectionHeader != null,
 				"Entity collection header for entity type `" + entityTypeFileIndex.entityType() + "` was unexpectedly not created!"
 			);
-			final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = thePastMoment == null ?
+			final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = thePastMoment == null && theHistoricalCatalogVersion == null ?
 				defaultCatalogPersistenceService.getOrCreateEntityCollectionPersistenceService(
 					catalogVersion, entityTypeFileIndex.entityType(), entityTypeFileIndex.entityTypePrimaryKey()
 				) :

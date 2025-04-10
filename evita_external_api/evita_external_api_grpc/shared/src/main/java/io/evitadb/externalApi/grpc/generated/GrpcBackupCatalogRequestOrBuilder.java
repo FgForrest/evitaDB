@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,4 +67,34 @@ public interface GrpcBackupCatalogRequestOrBuilder extends
    * @return The includingWAL.
    */
   boolean getIncludingWAL();
+
+  /**
+   * <pre>
+   * precise catalog version to create backup for, or null to create backup for the latest version,
+   * when set not null, the pastMoment parameter is ignored
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+   * @return Whether the catalogVersion field is set.
+   */
+  boolean hasCatalogVersion();
+  /**
+   * <pre>
+   * precise catalog version to create backup for, or null to create backup for the latest version,
+   * when set not null, the pastMoment parameter is ignored
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+   * @return The catalogVersion.
+   */
+  com.google.protobuf.Int64Value getCatalogVersion();
+  /**
+   * <pre>
+   * precise catalog version to create backup for, or null to create backup for the latest version,
+   * when set not null, the pastMoment parameter is ignored
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+   */
+  com.google.protobuf.Int64ValueOrBuilder getCatalogVersionOrBuilder();
 }

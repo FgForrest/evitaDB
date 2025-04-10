@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1039,7 +1039,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 
 		final EvitaManagementContract management = evitaClient.management();
-		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(TEST_CATALOG, null, true);
+		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(TEST_CATALOG, null, null,true);
 		final FileForFetch fileForFetch = backupFileFuture.get(3, TimeUnit.MINUTES);
 
 		log.info("Catalog backed up to file: {}", fileForFetch.fileId());
@@ -1078,7 +1078,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 
 		final EvitaManagementContract management = evitaClient.management();
-		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(TEST_CATALOG, null, true);
+		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(TEST_CATALOG, null, null, true);
 		final FileForFetch fileForFetch = backupFileFuture.get(3, TimeUnit.MINUTES);
 
 		log.info("Catalog backed up to file: {}", fileForFetch.fileId());
@@ -1149,7 +1149,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 
 		final EvitaManagementContract management = evitaClient.management();
-		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(TEST_CATALOG, null, true);
+		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(TEST_CATALOG, null, null, true);
 		final FileForFetch fileForFetch = backupFileFuture.get(3, TimeUnit.MINUTES);
 
 		log.info("Catalog backed up to file: {}", fileForFetch.fileId());
@@ -1943,7 +1943,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		// Step 2: Generate backup tasks using the custom executor
 		final List<CompletableFuture<CompletableFuture<FileForFetch>>> backupTasks = Stream.generate(
 				() -> CompletableFuture.supplyAsync(
-					() -> management.backupCatalog(TEST_CATALOG, null, true),
+					() -> management.backupCatalog(TEST_CATALOG, null, null, true),
 					executorService
 				)
 			)
