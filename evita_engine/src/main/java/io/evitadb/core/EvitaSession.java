@@ -1525,7 +1525,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Override
 	public boolean methodIsRunning() {
-		return false;
+		// method invocation should be handled on session proxy level
+		throw new UnsupportedOperationException("This method is not supported in this session!");
+	}
+
+	@Override
+	public void executeWhenMethodIsNotRunning(@Nonnull Runnable lambda) {
+		// method invocation should be handled on session proxy level
+		throw new UnsupportedOperationException("This method is not supported in this session!");
 	}
 
 	@Nonnull
