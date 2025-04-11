@@ -2237,6 +2237,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					.map(service -> (IOExceptionThrowingRunnable) service::close)
 					.toArray(IOExceptionThrowingRunnable[]::new)
 			);
+			this.catalogPersistenceServiceVersions = ArrayUtils.EMPTY_LONG_ARRAY;
 			this.catalogStoragePartPersistenceService.clear();
 			// close bootstrap file
 			final BootstrapWriteOnlyFileHandle bootstrapWriteOnlyFileHandle = this.bootstrapWriteHandle.get();

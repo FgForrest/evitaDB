@@ -312,7 +312,7 @@ final class SessionRegistry {
 	 */
 	private <T> T handleSuspension(@Nonnull Supplier<T> supplier) {
 		final InSuspension inSuspension = this.activeSuspendOperation.get();
-		if (inSuspension == null) {
+		if (inSuspension == null || inSuspension.suspendThreadId() == Thread.currentThread().getId()) {
 			return supplier.get();
 		} else if (inSuspension.suspendOperation() == SuspendOperation.POSTPONE) {
 			if (inSuspension.awaitFinish(500, TimeUnit.MILLISECONDS)) {
@@ -808,13 +808,16 @@ final class SessionRegistry {
 	 */
 	private record InSuspension(
 		@Nonnull SuspendOperation suspendOperation,
-		@Nonnull CompletableFuture<Void> suspendFuture
+		@Nonnull CompletableFuture<Void> suspendFuture,
+		/* TOBEDONE #187 - TRY TO REMOVE THIS LOGIC WITH BETTER REFRESHING LOGIC IN APIS */
+		long suspendThreadId
 	) {
 
 		public InSuspension(@Nonnull SuspendOperation suspendOperation) {
 			this(
 				suspendOperation,
-				new CompletableFuture<>()
+				new CompletableFuture<>(),
+				Thread.currentThread().getId()
 			);
 		}
 
