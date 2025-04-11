@@ -74,9 +74,9 @@
 				<artifactId>github-release-asset-downloader-maven-plugin</artifactId>
 				<version>1.0.1</version>
 				<configuration>
-					<owner>lukashornych</owner>
+					<owner>FgForrest</owner>
 					<repo>evitalab</repo>
-					<assetName>Dist.zip</assetName>
+					<assetName>Dist.Standalone.zip</assetName>
 					<targetDir>${project.basedir}/src/main/resources/META-INF/lab/gui</targetDir>
 				</configuration>
 			</plugin>
