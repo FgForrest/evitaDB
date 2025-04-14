@@ -30,6 +30,7 @@ import com.linecorp.armeria.client.ClientFactoryBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
@@ -480,6 +481,18 @@ public class EvitaClient implements EvitaContract {
 		return new LinkedHashSet<>(
 			grpcResponse.getCatalogNamesList()
 		);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<CatalogState> getCatalogState(@Nonnull String catalogName) {
+		assertActive();
+		final GrpcGetCatalogStateResponse grpcResponse = executeWithEvitaService(
+			evitaService -> evitaService.getCatalogState(GrpcGetCatalogStateRequest.newBuilder().setCatalogName(catalogName).build())
+		);
+		return grpcResponse.hasCatalogState() ?
+			Optional.of(EvitaEnumConverter.toCatalogState(grpcResponse.getCatalogState())) :
+			Optional.empty();
 	}
 
 	@Nonnull

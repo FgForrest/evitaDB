@@ -441,6 +441,13 @@ public final class Evita implements EvitaContract {
 		return this.catalogs.keySet();
 	}
 
+	@Nonnull
+	@Override
+	public Optional<CatalogState> getCatalogState(@Nonnull String catalogName) {
+		return Optional.ofNullable(this.catalogs.get(catalogName))
+			.map(it -> it instanceof CorruptedCatalog ? CatalogState.CORRUPTED : it.getCatalogState());
+	}
+
 	@Override
 	@Nonnull
 	public CatalogSchemaBuilder defineCatalog(@Nonnull String catalogName) {

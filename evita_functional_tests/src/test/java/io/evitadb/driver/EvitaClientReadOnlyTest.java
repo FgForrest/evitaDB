@@ -602,6 +602,12 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldGetCatalogState(EvitaClient evitaClient) {
+		assertEquals(CatalogState.ALIVE, evitaClient.getCatalogState(TEST_CATALOG).orElseThrow());
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldQueryCatalog(EvitaClient evitaClient) {
 		final CatalogSchemaContract catalogSchema = evitaClient.queryCatalog(
 			TEST_CATALOG,

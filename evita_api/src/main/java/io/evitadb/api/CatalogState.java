@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,8 +42,7 @@ public enum CatalogState {
      * Writing to the catalog in this phase is much faster than with transactional access. Operations are executed in bulk,
      * transactional logic is disabled and doesn't slow down the writing process.
      *
-     * This phase is meant to quickly fill initial state of the catalog from the external primary data store. This state
-     * is also planned to be used when new replica is created and needs to quickly catch up with the master.
+     * This phase is meant to quickly fill initial state of the catalog from the external primary data store.
      */
     WARMING_UP,
 
@@ -52,6 +51,11 @@ public enum CatalogState {
      * All operations are executed transactionally and leave the date in consistent state even if any error occurs.
      * Multiple readers and writers can work with the catalog simultaneously.
      */
-    ALIVE
+    ALIVE,
+
+    /**
+     * State signalizing that evitaDB engine was not able to consistently open and load this catalog from the file system.
+     */
+    CORRUPTED
 
 }
