@@ -1281,10 +1281,19 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				e
 			);
 		}
-		final EntityCollectionHeader newCollecitonHeader = createEntityCollectionHeader(catalogVersion, catalogStoragePath, offsetIndexDescriptor, headerInfoSupplier, newReference);
+		final EntityCollectionHeader newCollectionHeader = createEntityCollectionHeader(catalogVersion, catalogStoragePath, offsetIndexDescriptor, headerInfoSupplier, newReference);
 		// emit event
 		event.finish().commit();
-		return newCollecitonHeader;
+		log.info(
+			"Compaction of catalog `{}` entity collection `{}` finished, current size is `{}` and active record share is `{}`%, " +
+				"entity collection files on disk consume `{}` bytes.",
+			catalogName,
+			this.entityCollectionFileReference.entityType(),
+			offsetIndexDescriptor.getFileSize(),
+			offsetIndexDescriptor.getActiveRecordShare(),
+			this.getSizeOnDiskInBytes()
+		);
+		return newCollectionHeader;
 	}
 
 	/**
