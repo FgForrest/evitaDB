@@ -288,8 +288,7 @@ class StorageRecordTest {
 	@ParameterizedTest
 	@MethodSource("combineSettings")
 	void shouldWriteAndReadRandomlyMultipleDifferentRecordsOfVaryingSize(Crc32Check crc32Check, Compression compression) throws IOException {
-		/* TODO JNO - revert to 256 */
-		final int count = 6;
+		final int count = 256;
 		final int retrievalCount = 512;
 		final Map<FileLocation, StorageRecord<ByteChunk>> index = generateAndWriteRandomRecords(
 			count, rec -> {}, crc32Check, compression

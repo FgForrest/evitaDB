@@ -962,6 +962,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Override
 	public void terminate() {
+		Assert.isPremiseValid(!isTerminated(), "Catalog is already terminated!");
 		try {
 			terminateInternally();
 		} finally {

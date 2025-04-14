@@ -165,6 +165,15 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	boolean methodIsRunning();
 
 	/**
+	 * Invokes lambda once no method on the current object is running or immediately if there is no method running.
+	 * This method allows to execute code that needs to be executed when the session is not busy with any method.
+	 * When lambda is invoked, it is guaranteed that no other method starts running on the current object.
+	 *
+	 * @param lambda the lambda to be executed when no method is running
+	 */
+	void executeWhenMethodIsNotRunning(@Nonnull Runnable lambda);
+
+	/**
 	 * Retrieves a CompletableFuture that represents the finalization status of a session. If the catalog is in
 	 * transactional mode, the future will respect the requested {@link CommitBehavior} bound to the current transaction.
 	 *

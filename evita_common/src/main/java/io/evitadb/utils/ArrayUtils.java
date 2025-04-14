@@ -57,6 +57,7 @@ public class ArrayUtils {
 
 	public static final String[] EMPTY_STRING_ARRAY = new String[0];
 	public static final int[] EMPTY_INT_ARRAY = new int[0];
+	public static final long[] EMPTY_LONG_ARRAY = new long[0];
 
 	/**
 	 * Returns true if array is either null or has no items in it

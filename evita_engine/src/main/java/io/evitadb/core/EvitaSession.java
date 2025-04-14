@@ -112,6 +112,7 @@ import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -213,6 +214,16 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	private volatile CompletableFuture<Long> closedFuture;
 	/**
+	 * This future is created when closing sequence is initiated and is completed when the {@link #closedFuture} is
+	 * finally created.
+	 */
+	private final AtomicReference<CompletableFuture<CompletableFuture<Long>>> closingSequenceFuture = new AtomicReference<>();
+	/**
+	 * Flag is set to true, when the session is being closed and only termination callback is executing. The session
+	 * should still be operative until the termination callback is finished.
+	 */
+	private final AtomicBoolean beingClosed = new AtomicBoolean(false);
+	/**
 	 * Timestamp of the last session activity (call).
 	 */
 	private long lastCall = System.currentTimeMillis();
@@ -220,11 +231,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Contains a number of nested session calls.
 	 */
 	private int nestLevel;
-	/**
-	 * Flag is set to true, when the session is being closed and only termination callback is executing. The session
-	 * should still be operative until the termination callback is finished.
-	 */
-	private boolean beingClosed;
 	/**
 	 * Contains a number of streams that were returned by the {@link #getMutationsHistory(ChangeCatalogCaptureRequest)},
 	 * {@link #getRecordings(TrafficRecordingCaptureRequest)}, {@link #getRecordingsReversed(TrafficRecordingCaptureRequest)}
@@ -394,7 +400,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Override
 	public boolean isActive() {
-		return this.closedFuture == null || this.beingClosed;
+		return this.closedFuture == null || this.beingClosed.get();
 	}
 
 	@Traced
@@ -412,84 +418,97 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public CompletableFuture<Long> closeNow(@Nonnull CommitBehavior commitBehaviour) {
-		if (this.closedFuture == null) {
-			// forcefully close all opened stateful streams
-			if (this.returnedStreams != null) {
-				// rewrap collection so that we don't get concurrent modification exception
-				new ArrayList<>(this.returnedStreams)
-					.forEach(weakReference -> {
-						final Stream<?> stream = weakReference.get();
-						if (stream != null) {
-							stream.close();
-						}
-					});
-			}
-			// flush changes if we're not in transactional mode
-			final Catalog theCatalog = this.catalog.get();
-			if (theCatalog.getCatalogState() == CatalogState.WARMING_UP) {
-				isPremiseValid(
-					this.transactionAccessor.get() == null,
-					"In warming-up mode no transaction is expected to be opened!"
-				);
-				theCatalog.flush();
-				// immediately complete future
-				if (!this.finalizationFuture.isCompletedExceptionally()) {
-					try {
-						validateCatalogSchema(theCatalog);
-						this.finalizationFuture.complete(getCatalogVersion());
-					} catch (Exception ex) {
-						this.finalizationFuture.completeExceptionally(ex);
-					}
+		if (this.closedFuture == null && this.closingSequenceFuture.get() == null) {
+			if (this.closingSequenceFuture.compareAndSet(null, new CompletableFuture<>())) {
+				// forcefully close all opened stateful streams
+				if (this.returnedStreams != null) {
+					// rewrap collection so that we don't get concurrent modification exception
+					new ArrayList<>(this.returnedStreams)
+						.forEach(weakReference -> {
+							final Stream<?> stream = weakReference.get();
+							if (stream != null) {
+								stream.close();
+							}
+						});
 				}
-			} else {
-				if (this.transactionAccessor.get() != null) {
-					try {
-						if (!this.transactionAccessor.get().isRollbackOnly()) {
+				// flush changes if we're not in transactional mode
+				final Catalog theCatalog = this.catalog.get();
+				if (theCatalog.getCatalogState() == CatalogState.WARMING_UP) {
+					isPremiseValid(
+						this.transactionAccessor.get() == null,
+						"In warming-up mode no transaction is expected to be opened!"
+					);
+					theCatalog.flush();
+					// immediately complete future
+					if (!this.finalizationFuture.isCompletedExceptionally()) {
+						try {
 							validateCatalogSchema(theCatalog);
+							this.finalizationFuture.complete(getCatalogVersion());
+						} catch (Exception ex) {
+							this.finalizationFuture.completeExceptionally(ex);
 						}
-					} catch (Exception ex) {
-						this.finalizationFuture.completeExceptionally(ex);
-					} finally {
-						// close transaction
-						this.transactionAccessor.get().close();
 					}
 				} else {
-					// immediately complete future
-					this.finalizationFuture.complete(getCatalogVersion());
-				}
-			}
-			// join both futures together and apply termination callback
-			this.closedFuture = this.finalizationFuture.whenComplete((aLong, throwable) -> {
-				// then apply termination callbacks
-				String finishedWithError = null;
-				try {
-					this.beingClosed = true;
-					ofNullable(this.terminationCallback)
-						.ifPresent(it -> it.onTermination(this));
-				} catch (Throwable tcException) {
-					finishedWithError = tcException.getClass().getName() + ": " + (tcException.getMessage() == null ? "no message" : tcException.getMessage());
-					log.error("Error occurred while executing termination callback!", tcException);
-					if (throwable == null) {
-						throw new TransactionException("Error occurred while executing termination callback!", tcException);
+					if (this.transactionAccessor.get() != null) {
+						try {
+							if (!this.transactionAccessor.get().isRollbackOnly()) {
+								validateCatalogSchema(theCatalog);
+							}
+						} catch (Exception ex) {
+							this.finalizationFuture.completeExceptionally(ex);
+						} finally {
+							// close transaction
+							this.transactionAccessor.get().close();
+						}
 					} else {
-						throwable.addSuppressed(tcException);
+						// immediately complete future
+						this.finalizationFuture.complete(getCatalogVersion());
 					}
-				} finally {
-					theCatalog.getTrafficRecordingEngine().closeSession(this.id, finishedWithError);
-					this.beingClosed = false;
 				}
-				if (throwable instanceof CancellationException cancellationException) {
-					throw cancellationException;
-				} else if (throwable instanceof TransactionException transactionException) {
-					throw transactionException;
-				} else if (throwable instanceof EvitaInvalidUsageException invalidUsageException) {
-					throw invalidUsageException;
-				} else if (throwable instanceof EvitaInternalError internalError) {
-					throw internalError;
-				} else if (throwable != null) {
-					throw new TransactionException("Unexpected exception occurred while executing transaction!", throwable);
-				}
-			});
+				// join both futures together and apply termination callback
+				this.closedFuture = this.finalizationFuture.whenComplete((aLong, throwable) -> {
+					// then apply termination callbacks
+					String finishedWithError = null;
+					try {
+						Assert.isPremiseValid(
+							this.beingClosed.compareAndSet(false, true),
+							"Expectation failed!"
+						);
+						ofNullable(this.terminationCallback)
+							.ifPresent(it -> it.onTermination(this));
+					} catch (Throwable tcException) {
+						finishedWithError = tcException.getClass().getName() + ": " + (tcException.getMessage() == null ? "no message" : tcException.getMessage());
+						log.error("Error occurred while executing termination callback!", tcException);
+						if (throwable == null) {
+							throw new TransactionException("Error occurred while executing termination callback!", tcException);
+						} else {
+							throwable.addSuppressed(tcException);
+						}
+					} finally {
+						theCatalog.getTrafficRecordingEngine().closeSession(this.id, finishedWithError);
+						Assert.isPremiseValid(
+							this.beingClosed.compareAndSet(true, false),
+							"Expectation failed!"
+						);
+					}
+					if (throwable instanceof CancellationException cancellationException) {
+						throw cancellationException;
+					} else if (throwable instanceof TransactionException transactionException) {
+						throw transactionException;
+					} else if (throwable instanceof EvitaInvalidUsageException invalidUsageException) {
+						throw invalidUsageException;
+					} else if (throwable instanceof EvitaInternalError internalError) {
+						throw internalError;
+					} else if (throwable != null) {
+						throw new TransactionException("Unexpected exception occurred while executing transaction!", throwable);
+					}
+				});
+
+				this.closingSequenceFuture.get().complete(this.closedFuture);
+			} else {
+				// wait until the closed future is finally created
+				return this.closingSequenceFuture.get().join();
+			}
 		}
 		return this.closedFuture;
 	}
@@ -1532,7 +1551,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Override
 	public boolean methodIsRunning() {
-		return false;
+		// method invocation should be handled on session proxy level
+		throw new UnsupportedOperationException("This method is not supported in this session!");
+	}
+
+	@Override
+	public void executeWhenMethodIsNotRunning(@Nonnull Runnable lambda) {
+		// method invocation should be handled on session proxy level
+		throw new UnsupportedOperationException("This method is not supported in this session!");
 	}
 
 	@Nonnull

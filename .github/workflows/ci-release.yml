@@ -40,7 +40,7 @@ jobs:
     steps:
 
     - name: Download release branch info
-      uses: dawidd6/action-download-artifact@20319c5641d495c8a52e688b7dc5fada6c3a9fbc # v8
+      uses: dawidd6/action-download-artifact@07ab29fd4a977ae4d2b275087cf67563dfdf0295 # v9
       if: ${{ github.event.workflow_run.conclusion == 'success' }}
       with:
         workflow: ${{ github.event.workflow_run.workflow_id }}
@@ -130,6 +130,7 @@ jobs:
         version: ${{ steps.release_version.outputs.version }}
         publish: false
         latest: ${{ github.ref_name == 'master' && 'true' || 'legacy' }}
+        commitish: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
 
     - name: Upload dist.zip to release
       uses: actions/upload-release-asset@64e5e85fc528f162d7ba7ce2d15a3bb67efb3d80 # v1.0.1

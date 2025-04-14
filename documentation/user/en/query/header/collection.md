@@ -1,7 +1,7 @@
 ---
 title: Collection
 date: '12.12.2024'
-perex: Only a few constraints can be used in the header part of the query. Collection defines the query target.
+perex: Only a few constraints can be used in the header part of the query. Collection defines the target entity collection for the query.
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
 preferredLang: 'evitaql'
