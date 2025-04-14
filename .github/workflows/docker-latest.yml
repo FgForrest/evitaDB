@@ -23,7 +23,7 @@ jobs:
           ref: master  # Always checks out the master branch (due to config file)
 
       - name: Download a JAR file to deploy # download `evita-server.jar` artifact if the workflow we react to was successful
-        uses: dawidd6/action-download-artifact@20319c5641d495c8a52e688b7dc5fada6c3a9fbc # v8
+        uses: dawidd6/action-download-artifact@07ab29fd4a977ae4d2b275087cf67563dfdf0295 # v9
         with:
           workflow: ${{ github.event.workflow_run.workflow_id }}
           workflow_conclusion: success
@@ -31,7 +31,7 @@ jobs:
           path: docker
 
       - name: Download a version information # download `version.txt` artifact if the workflow we react to was successful
-        uses: dawidd6/action-download-artifact@20319c5641d495c8a52e688b7dc5fada6c3a9fbc # v8
+        uses: dawidd6/action-download-artifact@07ab29fd4a977ae4d2b275087cf67563dfdf0295 # v9
         with:
           workflow: ${{ github.event.workflow_run.workflow_id }}
           workflow_conclusion: success
