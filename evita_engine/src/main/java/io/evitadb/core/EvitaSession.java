@@ -216,7 +216,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * This future is created when closing sequence is initiated and is completed when the {@link #closedFuture} is
 	 * finally created.
 	 */
-	private final AtomicReference<CompletableFuture<Void>> closingSequenceFuture = new AtomicReference<>();
+	private final AtomicReference<CompletableFuture<CompletableFuture<Long>>> closingSequenceFuture = new AtomicReference<>();
 	/**
 	 * Flag is set to true, when the session is being closed and only termination callback is executing. The session
 	 * should still be operative until the termination callback is finished.
@@ -503,10 +503,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					}
 				});
 
-				this.closingSequenceFuture.get().complete(null);
+				this.closingSequenceFuture.get().complete(this.closedFuture);
 			} else {
 				// wait until the closed future is finally created
-				this.closingSequenceFuture.get();
+				return this.closingSequenceFuture.get().join();
 			}
 		}
 		return this.closedFuture;
