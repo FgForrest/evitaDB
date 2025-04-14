@@ -1492,15 +1492,18 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 								.setAttribute(attributeCode, faker.code().isbn10())
 								.setAttribute(attributeName, faker.book().title())
 								.setAttribute(attributePrice, BigDecimal.valueOf(faker.number().randomDouble(2, 1, 1000)));
-							lastVersionEntity.set(entityBuilder.toInstance());
-							theEntityRef.set(lastVersionEntity.get());
+							theEntityRef.set(entityBuilder.toInstance());
 							entityBuilder.upsertVia(session);
 						},
 						// fast track - we don't wait for anything (to cause as much "churn" as we can)
 						CommitBehavior.WAIT_FOR_WAL_PERSISTENCE
 					).get();
 
-					versionedEntities.put(expectedLastVersion, theEntityRef.get());
+					final SealedEntity theEntity = theEntityRef.get();
+					if (theEntity != null) {
+						versionedEntities.put(expectedLastVersion, theEntity);
+						lastVersionEntity.set(theEntity);
+					}
 
 					if (expectedLastVersion - 1000 > lastWaitCatalogVersion) {
 						log.info("Letting the system breathe ...");
