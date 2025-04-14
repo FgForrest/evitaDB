@@ -24,13 +24,11 @@
 package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
@@ -60,7 +58,6 @@ import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.file.ExportFileService;
-import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.dataType.PaginatedList;
@@ -69,14 +66,11 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
-import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.ReadOnlyHandle;
-import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
-import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.CatalogPersistenceService;
@@ -85,7 +79,6 @@ import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.test.Entities;
@@ -95,7 +88,6 @@ import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -114,21 +106,19 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService.loadOffsetIndexDescriptor;
-import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.*;
+import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getCatalogBootstrapForSpecificMoment;
+import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getFirstCatalogBootstrap;
+import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getLastCatalogBootstrap;
 import static io.evitadb.store.catalog.DefaultIsolatedWalServiceTest.DATA_MUTATION_EXAMPLE;
 import static io.evitadb.store.catalog.DefaultIsolatedWalServiceTest.SCHEMA_MUTATION_EXAMPLE;
 import static io.evitadb.store.spi.CatalogPersistenceService.CATALOG_FILE_SUFFIX;
-import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogDataStoreFileName;
 import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogDataStoreFileNamePattern;
 import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static java.util.Optional.empty;
@@ -239,124 +229,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			fail("File " + file + " should not exist after close!");
 		}
 		cleanTestSubDirectory(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
-	}
-
-	@Disabled("This test is not meant to be run in CI, it is for manual post-mortem analysis of the catalog WAL file remnants.")
-	@Test
-	void analyzeWriteAheadLog() {
-		final String catalogName = "decodoma_cz";
-		final Path basePath = Path.of("/www/oss/evitaDB/data/");
-		final Path catalogFilePath = basePath.resolve(catalogName);
-		final StorageOptions storageOptions = StorageOptions.builder().storageDirectory(basePath).build();
-		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
-		final Pool<Kryo> catalogKryoPool = new Pool<>(true, false, 16) {
-			@Override
-			protected Kryo create() {
-				return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
-			}
-		};
-
-		try (
-			final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
-				1, catalogName, catalogFilePath, catalogKryoPool,
-				storageOptions, transactionOptions,
-				new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
-				0
-			)
-		) {
-			final AtomicReference<UUID> lastTransactionId = new AtomicReference<>();
-			wal.getCommittedMutationStream(-1)
-				.forEach(mutation -> {
-					if (mutation instanceof TransactionMutation txMut && !Objects.equals(lastTransactionId.get(), txMut.getTransactionId())) {
-						System.out.println("\n\n>>>>  Transaction " + txMut.getTransactionId() + " at " + txMut.getCommitTimestamp() + "\n\n");
-						lastTransactionId.set(txMut.getTransactionId());
-					}
-					System.out.println("  " + mutation);
-				});
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
-	}
-
-	@Disabled("This test is not meant to be run in CI, it is for manual post-mortem analysis of the catalog data file remnants.")
-	@Test
-	void postMortemAnalysis() {
-		final String catalogName = "decodoma_cz";
-		final Path basePath = Path.of("/www/oss/evitaDB/data/");
-		final Path catalogFilePath = basePath.resolve(catalogName);
-		final OffsetIndexRecordTypeRegistry recordRegistry = new OffsetIndexRecordTypeRegistry();
-		final StorageOptions storageOptions = StorageOptions.builder().storageDirectory(basePath).build();
-		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
-		final AtomicReference<CatalogHeader> catalogHeaderRef = new AtomicReference<>();
-		final Pool<Kryo> catalogKryoPool = new Pool<>(true, false, 16) {
-			@Override
-			protected Kryo create() {
-				return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
-			}
-		};
-
-		getCatalogBootstrapRecordStream(
-			catalogName,
-			storageOptions
-		).forEach(it -> {
-			System.out.print(it.catalogFileIndex() + "/" + it.catalogVersion() + ": " + it.timestamp() + " (" + it.fileLocation() + ")");
-			try {
-				final OffsetIndex indexRead = new OffsetIndex(
-					it.catalogVersion(),
-					catalogFilePath.resolve(getCatalogDataStoreFileName(catalogName, it.catalogFileIndex())),
-					it.fileLocation(),
-					storageOptions,
-					recordRegistry,
-					new WriteOnlyFileHandle(
-						catalogName,
-						FileType.CATALOG,
-						catalogName,
-						storageOptions,
-						catalogFilePath,
-						observableOutputKeeper
-					),
-					null,
-					null,
-					(indexBuilder, theInput) -> loadOffsetIndexDescriptor(
-						catalogFilePath, recordRegistry, VERSIONED_KRYO_FACTORY,
-						catalogHeaderRef::set,
-						indexBuilder, theInput, it.fileLocation()
-					)
-				);
-				final WalFileReference walRef = catalogHeaderRef.get().walFileReference();
-				if (walRef == null) {
-					System.out.println(" -> OK, size " + indexRead.getEntries().size());
-				} else {
-					System.out.println(" -> OK " + walRef.fileIndex() + "/" + walRef.fileLocation() + ", size " + indexRead.getEntries().size());
-				}
-			} catch (Exception e) {
-				System.out.println(" -> ERROR: " + e.getMessage());
-			}
-		});
-
-		final CatalogHeader catalogHeader = catalogHeaderRef.get();
-		try (
-			final CatalogWriteAheadLog wal = createWalIfAnyWalFilePresent(
-				catalogHeader.version(), catalogName, storageOptions, transactionOptions, new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
-				position -> System.out.println("Trim attempted: " + position),
-				() -> firstActiveCatalogVersion -> System.out.println("Purge attempted: " + firstActiveCatalogVersion),
-				catalogFilePath, catalogKryoPool
-			)
-		) {
-			if (wal != null) {
-				final AtomicReference<UUID> lastTransactionId = new AtomicReference<>();
-				wal.getCommittedMutationStream(catalogHeader.version())
-					.forEach(mutation -> {
-						if (mutation instanceof TransactionMutation txMut && !Objects.equals(lastTransactionId.get(), txMut.getTransactionId())) {
-							System.out.println("\n\n>>>>  Transaction " + txMut.getTransactionId() + " at " + txMut.getCommitTimestamp() + "\n\n");
-							lastTransactionId.set(txMut.getTransactionId());
-						}
-						System.out.println("  " + mutation);
-					});
-			}
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
 	}
 
 	@Test
