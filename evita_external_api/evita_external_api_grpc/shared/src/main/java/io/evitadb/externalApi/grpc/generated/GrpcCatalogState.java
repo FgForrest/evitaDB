@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,6 +64,14 @@ public enum GrpcCatalogState
   ALIVE(1),
   /**
    * <pre>
+   * State signalizing that evitaDB engine was not able to consistently open and load this catalog from the file system.
+   * </pre>
+   *
+   * <code>CORRUPTED = 3;</code>
+   */
+  CORRUPTED(3),
+  /**
+   * <pre>
    * Unknown state of the catalog. Used when catalog is corrupted.
    * </pre>
    *
@@ -102,6 +110,14 @@ public enum GrpcCatalogState
   public static final int ALIVE_VALUE = 1;
   /**
    * <pre>
+   * State signalizing that evitaDB engine was not able to consistently open and load this catalog from the file system.
+   * </pre>
+   *
+   * <code>CORRUPTED = 3;</code>
+   */
+  public static final int CORRUPTED_VALUE = 3;
+  /**
+   * <pre>
    * Unknown state of the catalog. Used when catalog is corrupted.
    * </pre>
    *
@@ -136,6 +152,7 @@ public enum GrpcCatalogState
     switch (value) {
       case 0: return WARMING_UP;
       case 1: return ALIVE;
+      case 3: return CORRUPTED;
       case 2: return UNKNOWN_CATALOG_STATE;
       default: return null;
     }

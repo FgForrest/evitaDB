@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -131,6 +131,14 @@ public interface EvitaContract extends AutoCloseable {
 	 */
 	@Nonnull
 	Set<String> getCatalogNames();
+
+	/**
+	 * Returns the state of the catalog of particular name.
+	 *
+	 * @return {@link CatalogState} of the catalog or empty optional if the catalog doesn't exist
+	 */
+	@Nonnull
+	Optional<CatalogState> getCatalogState(@Nonnull String catalogName);
 
 	/**
 	 * Creates new catalog of particular name if it doesn't exist. The schema of the catalog (should it was created or

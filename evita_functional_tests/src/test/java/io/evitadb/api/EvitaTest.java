@@ -2119,6 +2119,8 @@ class EvitaTest implements EvitaTestSupport {
 
 	@Test
 	void shouldStartEvenIfOneCatalogIsCorrupted() {
+		assertTrue(evita.getCatalogState(TEST_CATALOG + "_1").isEmpty());
+
 		evita.defineCatalog(TEST_CATALOG + "_1")
 			.updateViaNewSession(evita);
 		evita.updateCatalog(
@@ -2147,6 +2149,8 @@ class EvitaTest implements EvitaTestSupport {
 			}
 		);
 
+		assertEquals(CatalogState.WARMING_UP, evita.getCatalogState(TEST_CATALOG + "_1").orElseThrow());
+
 		evita.close();
 
 		// damage the TEST_CATALOG_1 contents
@@ -2160,6 +2164,8 @@ class EvitaTest implements EvitaTestSupport {
 		evita = new Evita(
 			getEvitaConfiguration()
 		);
+
+		assertEquals(CatalogState.CORRUPTED, evita.getCatalogState(TEST_CATALOG + "_1").orElseThrow());
 
 		final PortManager portManager = getPortManager();
 		final String dataSetName = "evitaTest";
