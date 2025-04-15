@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -206,15 +206,13 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 		priceBetween.add(jsonNodeFactory.textNode("20"));
 		andWrapperContainer.putIfAbsent("priceBetween", priceBetween);
 
-		final ArrayNode facetHaving = jsonNodeFactory.arrayNode();
 		final ObjectNode facetHavingWrapperContainer = jsonNodeFactory.objectNode();
 		final ArrayNode entityPrimaryKeyInSet = jsonNodeFactory.arrayNode();
 		entityPrimaryKeyInSet.add(10);
 		entityPrimaryKeyInSet.add(20);
 		entityPrimaryKeyInSet.add(30);
 		facetHavingWrapperContainer.putIfAbsent("entityPrimaryKeyInSet", entityPrimaryKeyInSet);
-		facetHaving.add(facetHavingWrapperContainer);
-		andWrapperContainer.putIfAbsent("facetBrandHaving", facetHaving);
+		andWrapperContainer.putIfAbsent("facetBrandHaving", facetHavingWrapperContainer);
 
 		and.add(andWrapperContainer);
 		orWrapperContainer2.putIfAbsent("and", and);

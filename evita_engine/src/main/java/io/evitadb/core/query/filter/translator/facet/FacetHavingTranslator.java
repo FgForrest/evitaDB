@@ -97,61 +97,66 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Set<Scope> scopes
 	) {
-		HierarchyHaving hierarchyIncludeConstraint = null;
-		HierarchyExcluding hierarchyExcludeConstraint = null;
-		IntSet excludedIndexes = null;
-		EntitySchemaContract targetSchema = null;
-		boolean isHierarchical = false;
-		for (int i = 0; i < children.length; i++) {
-			FilterConstraint child = children[i];
-			if (child instanceof FacetIncludingChildren fic) {
-				hierarchyIncludeConstraint = having(fic.getChildren());
-				if (excludedIndexes == null) {
-					targetSchema = assertReferenceIsHierarchical(filterByVisitor, referenceSchema, scopes);
-					excludedIndexes = new IntHashSet(2);
-					isHierarchical = true;
+		if (children.length == 1 && children[0] instanceof And and) {
+			// if the only child is AND, we can use it directly
+			return isolateFilteringConstraints(filterByVisitor, and.getChildren(), referenceSchema, scopes);
+		} else {
+			HierarchyHaving hierarchyIncludeConstraint = null;
+			HierarchyExcluding hierarchyExcludeConstraint = null;
+			IntSet excludedIndexes = null;
+			EntitySchemaContract targetSchema = null;
+			boolean isHierarchical = false;
+			for (int i = 0; i < children.length; i++) {
+				FilterConstraint child = children[i];
+				if (child instanceof FacetIncludingChildren fic) {
+					hierarchyIncludeConstraint = having(fic.getChildren());
+					if (excludedIndexes == null) {
+						targetSchema = assertReferenceIsHierarchical(filterByVisitor, referenceSchema, scopes);
+						excludedIndexes = new IntHashSet(2);
+						isHierarchical = true;
+					}
+					excludedIndexes.add(i);
+				} else if (child instanceof FacetIncludingChildrenExcept fic) {
+					hierarchyExcludeConstraint = excluding(fic.getChildren());
+					if (excludedIndexes == null) {
+						targetSchema = assertReferenceIsHierarchical(filterByVisitor, referenceSchema, scopes);
+						excludedIndexes = new IntHashSet(2);
+						isHierarchical = true;
+					}
+					excludedIndexes.add(i);
 				}
-				excludedIndexes.add(i);
-			} else if (child instanceof FacetIncludingChildrenExcept fic) {
-				hierarchyExcludeConstraint = excluding(fic.getChildren());
-				if (excludedIndexes == null) {
-					targetSchema = assertReferenceIsHierarchical(filterByVisitor, referenceSchema, scopes);
-					excludedIndexes = new IntHashSet(2);
-					isHierarchical = true;
-				}
-				excludedIndexes.add(i);
 			}
+
+			final FilterBy mainFiltering = excludedIndexes == null ?
+				filterBy(children) : createCopyExcludingIndexes(children, excludedIndexes);
+
+			Assert.isTrue(
+				mainFiltering.getChildrenCount() > 0,
+				() -> "FacetHaving must contain at least one filter constraint!"
+			);
+
+			final HierarchySpecificationFilterConstraint[] hierarchyConstraints = Stream.of(
+					(HierarchySpecificationFilterConstraint) hierarchyIncludeConstraint,
+					hierarchyExcludeConstraint
+				)
+				.filter(Objects::nonNull)
+				.toArray(HierarchySpecificationFilterConstraint[]::new);
+			return new FacetFiltering(
+				mainFiltering,
+				isHierarchical ?
+					parentNodeIds -> hierarchyWithin(
+						referenceSchema.getName(),
+						entityPrimaryKeyInSet(parentNodeIds),
+						hierarchyConstraints
+					) : null,
+				targetSchema,
+				scopes.stream()
+					.map(scope -> filterByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), scope))
+					.filter(Optional::isPresent)
+					.map(Optional::get)
+					.toArray(EntityIndex[]::new)
+			);
 		}
-
-		final FilterBy mainFiltering = excludedIndexes == null ?
-			filterBy(children) : createCopyExcludingIndexes(children, excludedIndexes);
-
-		Assert.isTrue(
-			mainFiltering.getChildrenCount() > 0,
-			() -> "FacetHaving must contain at least one filter constraint!"
-		);
-
-		final HierarchySpecificationFilterConstraint[] hierarchyConstraints = Stream.of(
-				(HierarchySpecificationFilterConstraint) hierarchyIncludeConstraint,
-				hierarchyExcludeConstraint
-			)
-			.filter(Objects::nonNull)
-			.toArray(HierarchySpecificationFilterConstraint[]::new);
-		return new FacetFiltering(
-			mainFiltering,
-			isHierarchical ?
-				parentNodeIds -> hierarchyWithin(
-					referenceSchema.getName(),
-					entityPrimaryKeyInSet(parentNodeIds),
-					hierarchyConstraints
-				) : null,
-			targetSchema,
-			scopes.stream()
-				.map(scope -> filterByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), scope))
-				.filter(Optional::isPresent)
-				.map(Optional::get)
-				.toArray(EntityIndex[]::new)
-		);
 	}
 
 	/**
