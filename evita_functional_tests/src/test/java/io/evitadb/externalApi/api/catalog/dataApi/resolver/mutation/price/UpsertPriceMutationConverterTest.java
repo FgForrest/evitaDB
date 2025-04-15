@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,7 +40,9 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Map;
 
+import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -230,5 +232,43 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final UpsertPriceMutation inputMutation = new UpsertPriceMutation(
+			1,
+			"basic",
+			Currency.getInstance("CZK"),
+			1,
+			BigDecimal.valueOf(10),
+			BigDecimal.valueOf(10),
+			BigDecimal.valueOf(11),
+			DateTimeRange.between(
+				LocalDateTime.of(2022, 10, 4, 15, 0),
+				LocalDateTime.of(2022, 10, 8, 15, 0),
+				ZoneOffset.UTC
+			),
+			true
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
+					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
+					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), "CZK")
+					.e(UpsertPriceMutationDescriptor.INNER_RECORD_ID.name(), 1)
+					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), "10")
+					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), "10")
+					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), "11")
+					.e(UpsertPriceMutationDescriptor.VALIDITY.name(), array()
+						.i("2022-10-04T15:00:00Z").i("2022-10-08T15:00:00Z"))
+					.e(UpsertPriceMutationDescriptor.INDEXED.name(), true)
+					.build()
+			);
 	}
 }

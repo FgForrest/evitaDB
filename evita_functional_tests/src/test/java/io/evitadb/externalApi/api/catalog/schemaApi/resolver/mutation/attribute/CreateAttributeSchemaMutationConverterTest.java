@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,13 +33,16 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationO
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateAttributeSchemaMutationDescriptor;
+import lombok.SneakyThrows;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -122,6 +125,7 @@ class CreateAttributeSchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation2);
 	}
+
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final CreateAttributeSchemaMutation expectedMutation = new CreateAttributeSchemaMutation(
@@ -168,5 +172,52 @@ class CreateAttributeSchemaMutationConverterTest {
 		);
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	@SneakyThrows
+	void shouldSerializeLocalMutationToOutput() {
+		final CreateAttributeSchemaMutation inputMutation = new CreateAttributeSchemaMutation(
+			"code",
+			"desc",
+			"depr",
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			},
+			new Scope[] { Scope.LIVE },
+			new Scope[] { Scope.LIVE },
+			false,
+			true,
+			true,
+			String.class,
+			"defaultCode",
+			2
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+					.e(CreateAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
+					.e(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
+					.e(CreateAttributeSchemaMutationDescriptor.UNIQUE_IN_SCOPES.name(), list()
+						.i(map()
+							.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+							.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())))
+					.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), array()
+						.i(Scope.LIVE.name()))
+					.e(CreateAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES.name(), array()
+						.i(Scope.LIVE.name()))
+					.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), false)
+					.e(CreateAttributeSchemaMutationDescriptor.NULLABLE.name(), true)
+					.e(CreateAttributeSchemaMutationDescriptor.REPRESENTATIVE.name(), true)
+					.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class.getSimpleName())
+					.e(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), "defaultCode")
+					.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
+					.build()
+			);
 	}
 }

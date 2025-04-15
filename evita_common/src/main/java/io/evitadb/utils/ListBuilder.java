@@ -23,8 +23,9 @@
 
 package io.evitadb.utils;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
@@ -36,14 +37,20 @@ import java.util.List;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class ListBuilder {
 
+	private final OutputType outputType;
 	private final List<Object> list = new LinkedList<>();
 
 	@Nonnull
 	public static ListBuilder list() {
-		return new ListBuilder();
+		return new ListBuilder(OutputType.LIST);
+	}
+
+	@Nonnull
+	public static ListBuilder array() {
+		return new ListBuilder(OutputType.ARRAY);
 	}
 
 	@Nonnull
@@ -59,7 +66,18 @@ public class ListBuilder {
 	}
 
 	@Nonnull
-	public List<Object> build() {
-		return Collections.unmodifiableList(list);
+	public Object build() {
+		if (outputType == OutputType.LIST) {
+			return Collections.unmodifiableList(list);
+		} else if (outputType == OutputType.ARRAY) {
+			return list.toArray();
+		} else {
+			throw new GenericEvitaInternalError("Unsupported output type `" + outputType + "`.");
+		}
+	}
+
+
+	private enum OutputType {
+		LIST, ARRAY
 	}
 }

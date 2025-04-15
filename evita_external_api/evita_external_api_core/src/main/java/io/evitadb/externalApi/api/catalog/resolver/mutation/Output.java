@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.resolver.mutation;
 
 import io.evitadb.dataType.Range;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MapBuilder;
 import lombok.RequiredArgsConstructor;
@@ -39,12 +40,15 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static io.evitadb.utils.MapBuilder.map;
 
@@ -132,10 +136,13 @@ public class Output {
 	/**
 	 * Serializes Evita-supported value into universal serializable type to be used e.g. in JSON serialization.
 	 */
-	@Nonnull
-	private Object toSerializableValue(@Nonnull Object value) {
+	@Nullable
+	private Object toSerializableValue(@Nullable Object value) {
+		if (value == null) return null;
 		if (value instanceof Output nestedOutput) return nestedOutput.getOutputMutationObject();
 		if (value instanceof Collection<?> values) return toSerializableCollection(values);
+		// we optimistically assume that the Map is already serialized output passed from another converter
+		if (value instanceof Map<?, ?> nestedObject) return nestedObject;
 		if(value instanceof Object[] values) return toSerializableArray(values);
 		if (value.getClass().isArray()) return toSerializableArray(value);
 		if (value instanceof String string) return string;
@@ -154,6 +161,7 @@ public class Output {
 		if (value instanceof LocalTime localTime) return toSerializableValue(localTime);
 		if (value instanceof Range<?> range) return toSerializableValue(range);
 		if (value.getClass().isEnum()) return toSerializableValue((Enum<?>) value);
+		if (value instanceof Class<?> type) return toSerializableValue(type);
 
 		throw exceptionFactory.createInternalError("Serialization of value of class: " + value.getClass().getName() + " is not implemented yet.");
 	}
@@ -167,7 +175,7 @@ public class Output {
 	private Serializable toSerializableCollection(@Nonnull Collection<?> values) {
 		return values.stream()
 			.map(this::toSerializableValue)
-			.toArray();
+			.collect(Collectors.toCollection(ArrayList::new));
 	}
 
 	/**
@@ -197,52 +205,52 @@ public class Output {
 	}
 
 	@Nonnull
-	private String toSerializableValue(@Nonnull Long longNumber) {
+	private static String toSerializableValue(@Nonnull Long longNumber) {
 		return String.valueOf(longNumber);
 	}
 
 	@Nonnull
-	private String toSerializableValue(@Nonnull Character character) {
+	private static String toSerializableValue(@Nonnull Character character) {
 		return character.toString();
 	}
 
 	@Nonnull
-	private String toSerializableValue(@Nonnull BigDecimal bigDecimal) {
+	private static String toSerializableValue(@Nonnull BigDecimal bigDecimal) {
 		return bigDecimal.toPlainString();
 	}
 
 	@Nonnull
-	private String toSerializableValue(@Nonnull Locale locale) {
+	private static String toSerializableValue(@Nonnull Locale locale) {
 		return locale.toLanguageTag();
 	}
 
 	@Nonnull
-	private String toSerializableValue(@Nonnull Currency currency) {
+	private static String toSerializableValue(@Nonnull Currency currency) {
 		return currency.getCurrencyCode();
 	}
 
 	@Nonnull
-	private String toSerializableValue(@Nonnull OffsetDateTime offsetDateTime) {
+	private static String toSerializableValue(@Nonnull OffsetDateTime offsetDateTime) {
 		return DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(offsetDateTime);
 	}
 
 	@Nonnull
-	private String toSerializableValue(@Nonnull LocalDateTime localDateTime) {
+	private static String toSerializableValue(@Nonnull LocalDateTime localDateTime) {
 		return DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(localDateTime);
 	}
 
 	@Nonnull
-	private String toSerializableValue(@Nonnull LocalDate localDate) {
+	private static String toSerializableValue(@Nonnull LocalDate localDate) {
 		return DateTimeFormatter.ISO_LOCAL_DATE.format(localDate);
 	}
 
 	@Nonnull
-	private String toSerializableValue(@Nonnull LocalTime localTime) {
+	private static String toSerializableValue(@Nonnull LocalTime localTime) {
 		return DateTimeFormatter.ISO_LOCAL_TIME.format(localTime);
 	}
 
 	@Nonnull
-	private String toSerializableValue(@Nonnull Enum<?> e) {
+	private static String toSerializableValue(@Nonnull Enum<?> e) {
 		return e.name();
 	}
 
@@ -252,5 +260,9 @@ public class Output {
 		serializedRange[0] = range.getPreciseFrom() != null ? toSerializableValue(range.getPreciseFrom()) : null;
 		serializedRange[1] = range.getPreciseTo() != null ? toSerializableValue(range.getPreciseTo()) : null;
 		return serializedRange;
+	}
+
+	private static Serializable toSerializableValue(@Nonnull Class<?> type) {
+		return DataTypeSerializer.serialize(type);
 	}
 }

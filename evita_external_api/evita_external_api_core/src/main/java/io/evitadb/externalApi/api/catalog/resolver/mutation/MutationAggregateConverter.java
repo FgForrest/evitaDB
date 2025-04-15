@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -87,19 +87,21 @@ public abstract class MutationAggregateConverter<M extends Mutation, C extends M
 		return convertFromInput(new Input(getMutationAggregateName(), inputMutationObject, exceptionFactory));
 	}
 
+	@Nullable
 	public Object convertToOutput(@Nonnull M mutation) {
 		final Output output = new Output(getMutationAggregateName(), getExceptionFactory());
 		convertToOutput(mutation, output);
 		return objectParser.serialize(output.getOutputMutationObject());
 	}
 
+	@Nullable
 	public Object convertToOutput(@Nonnull M[] mutations) {
 		final Output output = new Output(getMutationAggregateName(), getExceptionFactory());
 		convertToOutput(List.of(mutations), output);
 		return objectParser.serialize(output.getOutputMutationObject());
 	}
 
-	// todo lho implement
+	@Nullable
 	public Object convertToOutput(@Nonnull Collection<M> mutations) {
 		final Output output = new Output(getMutationAggregateName(), getExceptionFactory());
 		convertToOutput(mutations, output);
@@ -125,7 +127,7 @@ public abstract class MutationAggregateConverter<M extends Mutation, C extends M
 	}
 
 	protected void convertMutationToOutput(@Nonnull M mutation, @Nonnull Output output) {
-			// todo lho lookup
+			// todo lho name lookup
 		getConverters().get(StringUtils.toCamelCase(mutation.getClass().getSimpleName())).convertToOutput(mutation, output);
 	}
 

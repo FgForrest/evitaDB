@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -229,5 +230,23 @@ class UpsertAttributeMutationConverterTest {
 					.build()
 			)
 		);
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final UpsertAttributeMutation inputMutation = new UpsertAttributeMutation(ATTRIBUTE_CODE, Locale.ENGLISH, "phone");
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+					.e(UpsertAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
+					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
+					.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), String.class.getSimpleName())
+					.build()
+			);
 	}
 }

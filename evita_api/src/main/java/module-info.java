@@ -54,6 +54,7 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.extraResult;
 	exports io.evitadb.api.requestResponse.chunk;
 	exports io.evitadb.api.requestResponse.schema;
+	exports io.evitadb.api.requestResponse.schema.annotation;
 	exports io.evitadb.api.requestResponse.schema.mutation;
 	exports io.evitadb.api.requestResponse.schema.builder;
 	exports io.evitadb.api.requestResponse.schema.mutation.associatedData;

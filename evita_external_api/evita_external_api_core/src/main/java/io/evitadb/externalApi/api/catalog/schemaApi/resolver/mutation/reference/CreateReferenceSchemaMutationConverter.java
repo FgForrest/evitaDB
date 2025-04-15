@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
@@ -49,22 +48,4 @@ public class CreateReferenceSchemaMutationConverter extends ReferenceSchemaMutat
 		return CreateReferenceSchemaMutation.class;
 	}
 
-	@Nonnull
-	@Override
-	protected CreateReferenceSchemaMutation convertFromInput(@Nonnull Input input) {
-		/* TODO JNO - consult with LHO */
-		/*return new CreateReferenceSchemaMutation(
-			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
-			input.getProperty(CreateReferenceSchemaMutationDescriptor.DESCRIPTION),
-			input.getProperty(CreateReferenceSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getProperty(CreateReferenceSchemaMutationDescriptor.CARDINALITY),
-			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE),
-			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED),
-			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE),
-			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED, false),
-			input.getProperty(CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES),
-			input.getProperty(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES)
-		);*/
-		return null;
-	}
 }

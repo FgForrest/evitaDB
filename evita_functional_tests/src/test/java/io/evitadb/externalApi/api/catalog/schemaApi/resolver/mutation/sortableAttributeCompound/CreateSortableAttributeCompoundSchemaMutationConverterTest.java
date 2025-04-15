@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,8 +40,10 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
+import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -167,5 +169,43 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 		);
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final CreateSortableAttributeCompoundSchemaMutation inputMutation = new CreateSortableAttributeCompoundSchemaMutation(
+			"code",
+			"desc",
+			"depr",
+			new Scope[] { Scope.LIVE },
+			new AttributeElement("a", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
+			new AttributeElement("b", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
+					.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
+					.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
+					.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), array()
+						.i(Scope.LIVE.name()))
+					.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
+						map()
+							.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "a")
+							.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.ASC.name())
+							.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_FIRST.name())
+							.build(),
+						map()
+							.e(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), "b")
+							.e(AttributeElementDescriptor.DIRECTION.name(), OrderDirection.DESC.name())
+							.e(AttributeElementDescriptor.BEHAVIOUR.name(), OrderBehaviour.NULLS_LAST.name())
+							.build()
+					))
+					.build()
+			);
 	}
 }

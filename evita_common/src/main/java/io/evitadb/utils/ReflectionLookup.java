@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -330,7 +330,8 @@ public class ReflectionLookup {
 			for (RecordComponent recordComponent : recordComponents) {
 				final String propertyName = recordComponent.getName();
 				final Field propertyField = mapField(onClass, propertyName);
-				registerPropertyDescriptor(result, recordComponent.getAccessor(), propertyName, false, propertyField);
+				// todo lho discuss with JNO
+				registerPropertyDescriptor(result, recordComponent.getAccessor(), propertyName, true, propertyField);
 			}
 		} else {
 			final Method[] methods = onClass.getMethods();
