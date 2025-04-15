@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import io.evitadb.api.query.visitor.QueryPurifierVisitor;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -252,11 +251,12 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 								.build(),
 							map()
 								.e("priceBetween", List.of(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)))
-								.e("facetBrandHaving", List.of(
+								.e(
+									"facetBrandHaving",
 									map()
 										.e("entityPrimaryKeyInSet",  List.of(10, 20, 30))
 										.build()
-								))
+								)
 								.build()
 						))
 						.e("referenceCategoryHaving", List.of(
@@ -314,11 +314,12 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 								.build(),
 							map()
 								.e("priceBetween", null)
-								.e("facetBrandHaving", List.of(
+								.e(
+									"facetBrandHaving",
 									map()
 										.e("entityPrimaryKeyInSet",  List.of(10, 20, 30))
 										.build()
-								))
+								)
 								.build()
 						))
 						.e("referenceCategoryHaving", List.of(
