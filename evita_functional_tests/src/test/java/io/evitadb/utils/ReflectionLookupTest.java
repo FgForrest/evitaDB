@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -134,6 +134,13 @@ class ReflectionLookupTest {
 		final Class<PojoExample> examinedClass = PojoExample.class;
 		final Collection<Method> allGetters = tested.findAllGetters(examinedClass);
 		assertEquals(6, allGetters.size());
+	}
+
+	@Test
+	void shouldReturnAllGettersOnRecord() {
+		final Class<RecordExample> examinedClass = RecordExample.class;
+		final Collection<Method> allGetters = tested.findAllGetters(examinedClass);
+		assertEquals(5, allGetters.size());
 	}
 
 	@Test
@@ -311,6 +318,15 @@ class ReflectionLookupTest {
 
 		}
 
+	}
+
+	private record RecordExample(
+		Boolean readOnly,
+		boolean valid,
+		String text,
+		LocalDateTime date,
+		int number
+	) {
 	}
 
 	@Data

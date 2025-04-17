@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,20 +50,5 @@ public class DisallowEvolutionModeInEntitySchemaMutationConverter extends Entity
 	@Override
 	protected Class<DisallowEvolutionModeInEntitySchemaMutation> getMutationClass() {
 		return DisallowEvolutionModeInEntitySchemaMutation.class;
-	}
-
-	@Nonnull
-	@Override
-	protected DisallowEvolutionModeInEntitySchemaMutation convertFromInput(@Nonnull Input input) {
-		return new DisallowEvolutionModeInEntitySchemaMutation(
-			// we need this because we don't support multiple constructors in automatic conversion
-			(EvolutionMode[]) input.getProperty(DisallowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES)
-		);
-	}
-
-	@Override
-	protected void convertToOutput(@Nonnull DisallowEvolutionModeInEntitySchemaMutation mutation, @Nonnull Output output) {
-		// we need this because we don't support multiple constructors in automatic conversion
-		output.setProperty(DisallowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES, mutation.getEvolutionModes());
 	}
 }

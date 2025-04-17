@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -76,6 +76,8 @@ public class LocalMutationAggregateConverter extends MutationAggregateConverter<
 	                                       @Nonnull MutationObjectParser objectParser,
 	                                       @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
+		// todo lho nullability comes from io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingDataFetcher.ChangeCatalogDataCaptureBodyDataFetcher.ChangeCatalogDataCaptureBodyDataFetcher
+		//  we need to decide what we want when we generate schema for this use case
 		this.entitySchema = entitySchema;
 
 		// associated data
@@ -104,6 +106,7 @@ public class LocalMutationAggregateConverter extends MutationAggregateConverter<
 	@Nonnull
 	@Override
 	protected String getMutationAggregateName() {
+		// we need separate converter for each schema because each schema has different mutations allowed
 		return LocalMutationAggregateDescriptor.THIS.name(entitySchema);
 	}
 }

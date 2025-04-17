@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -76,13 +76,14 @@ public class Input {
 	@Nonnull
 	public <T> T getRequiredValue() {
 		assertMutationObjectNonNull();
-		//noinspection unchecked
+		//noinspection unchecked,DataFlowIssue
 		return (T) inputMutationObject;
 	}
 
 	@Nonnull
 	public <T extends Serializable> T getRequiredValue(@Nonnull Class<T> targetType) {
 		assertMutationObjectNonNull();
+		//noinspection DataFlowIssue
 		return toTargetType(inputMutationObject, targetType);
 	}
 
@@ -136,15 +137,16 @@ public class Input {
 	                  boolean required,
 	                  @Nonnull Function<Object, T> propertyMapper,
 	                  @Nullable T defaultValue) {
-		assertMutationObjectNonNull();
 		assertMutationObjectIsObject();
-		//noinspection unchecked
+		//noinspection unchecked,DataFlowIssue
 		final T propertyValue = Optional.ofNullable(((Map<String, Object>) inputMutationObject).get(name))
 			.map(propertyMapper)
 			.orElse(defaultValue);
 		if (required) {
 			assertRequiredPropertyNonNull(name, propertyValue);
 		}
+		// the nullability is dynamic based on property mapper
+		//noinspection DataFlowIssue
 		return propertyValue;
 	}
 
@@ -164,7 +166,7 @@ public class Input {
 			propertyDescriptor.primitiveType() != null,
 			() -> exceptionFactory.createInternalError("Property descriptor of property `" + propertyDescriptor.name() + "` doesn't specify type. You must specify type explicitly.")
 		);
-		//noinspection unchecked
+		//noinspection unchecked,DataFlowIssue
 		return getProperty(propertyDescriptor.name(), propertyDescriptor.primitiveType().nonNull(), (Class<T>) propertyDescriptor.primitiveType().javaType(), defaultValue);
 	}
 
@@ -285,6 +287,8 @@ public class Input {
 			final Class<? extends Serializable> componentType = (Class<? extends Serializable>) targetType.getComponentType();
 			return (T) toArrayOfSpecificType(propertyName, rawPropertyValue, componentType);
 		} else {
+			// cannot be null, if value is not nullable on input
+			//noinspection DataFlowIssue
 			return EvitaDataTypes.toTargetType((Serializable) rawPropertyValue, targetType);
 		}
 	}
@@ -426,6 +430,8 @@ public class Input {
 	}
 
 	private void assertMutationObjectIsObject() {
+		assertMutationObjectNonNull();
+		//noinspection DataFlowIssue
 		Assert.isPremiseValid(
 			inputMutationObject instanceof Map<?, ?>,
 			() -> exceptionFactory.createInternalError("Expected map for mutation but found `" + inputMutationObject.getClass().getName() + "`.")

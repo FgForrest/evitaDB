@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,9 +23,26 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReflectedReferenceSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.util.Map;
+
+import static io.evitadb.utils.ListBuilder.array;
+import static io.evitadb.utils.ListBuilder.list;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Tests for {@link CreateReflectedReferenceSchemaMutationConverter}
@@ -41,8 +58,7 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 		converter = new CreateReflectedReferenceSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
-	/* TODO JNO - fix */
-	/*@Test
+	@Test
 	void shouldResolveInputToLocalMutation() {
 		final CreateReflectedReferenceSchemaMutation expectedMutation = new CreateReflectedReferenceSchemaMutation(
 			"tags",
@@ -57,7 +73,7 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 			new String[] { "order" }
 		);
 
-		final CreateReflectedReferenceSchemaMutation convertedMutation1 = converter.convert(
+		final CreateReflectedReferenceSchemaMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -69,14 +85,14 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 					.i(Scope.LIVE))
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES.name(), list()
 					.i(Scope.LIVE))
-				.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT)
+				.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTES_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT)
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER.name(), list()
 					.i("order"))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final CreateReflectedReferenceSchemaMutation convertedMutation2 = converter.convert(
+		final CreateReflectedReferenceSchemaMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -88,7 +104,7 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 					.i(Scope.LIVE.name()))
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES.name(), list()
 					.i(Scope.LIVE.name()))
-				.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())
+				.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTES_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER.name(), list()
 					.i("order"))
 				.build()
@@ -111,12 +127,12 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 			null
 		);
 
-		final CreateReflectedReferenceSchemaMutation convertedMutation1 = converter.convert(
+		final CreateReflectedReferenceSchemaMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME.name(), "tags")
-				.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())
+				.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTES_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -126,37 +142,37 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 					.e(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME.name(), "tags")
-					.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTES_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())
 					.build()
 			)
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME.name(), "tags")
-					.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTES_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())
 					.build()
 			)
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
-					.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTES_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())
 					.build()
 			)
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
@@ -164,7 +180,45 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
-	}*/
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final CreateReflectedReferenceSchemaMutation inputMutation = new CreateReflectedReferenceSchemaMutation(
+			"tags",
+			"desc",
+			"depr",
+			Cardinality.ZERO_OR_MORE,
+			"tag",
+			"tags",
+			new Scope[] { Scope.LIVE },
+			new Scope[] { Scope.LIVE },
+			AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+			new String[] { "order" }
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.CARDINALITY.name(), Cardinality.ZERO_OR_MORE.name())
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME.name(), "tags")
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), array()
+						.i(Scope.LIVE.name()))
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES.name(), array()
+						.i(Scope.LIVE.name()))
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTES_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER.name(), array()
+						.i("order"))
+					.build()
+			);
+	}
 }

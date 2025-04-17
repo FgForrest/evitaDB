@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -107,5 +107,19 @@ class RemovePriceMutationConverterTest {
 		);
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final RemovePriceMutation inputMutation = new RemovePriceMutation(1, "basic", Currency.getInstance("CZK"));
+
+		assertEquals(
+			map()
+				.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
+				.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
+				.e(RemovePriceMutationDescriptor.CURRENCY.name(), "CZK")
+				.build(),
+			converter.convertToOutput(inputMutation)
+		);
 	}
 }

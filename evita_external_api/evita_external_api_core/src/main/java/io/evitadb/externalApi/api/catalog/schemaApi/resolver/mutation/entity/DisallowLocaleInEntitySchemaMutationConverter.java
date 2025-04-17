@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,15 +24,11 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowLocaleInEntitySchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowLocaleInEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
-import java.util.Locale;
 
 /**
  * Implementation of {@link SchemaMutationConverter} for resolving {@link DisallowLocaleInEntitySchemaMutation}.
@@ -50,20 +46,5 @@ public class DisallowLocaleInEntitySchemaMutationConverter extends EntitySchemaM
 	@Override
 	protected Class<DisallowLocaleInEntitySchemaMutation> getMutationClass() {
 		return DisallowLocaleInEntitySchemaMutation.class;
-	}
-
-	@Nonnull
-	@Override
-	protected DisallowLocaleInEntitySchemaMutation convertFromInput(@Nonnull Input input) {
-		return new DisallowLocaleInEntitySchemaMutation(
-			// we need this because we don't support multiple constructors in automatic conversion
-			(Locale[]) input.getProperty(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES)
-		);
-	}
-
-	@Override
-	protected void convertToOutput(@Nonnull DisallowLocaleInEntitySchemaMutation mutation, @Nonnull Output output) {
-		// we need this because we don't support multiple constructors in automatic conversion
-		output.setProperty(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES, mutation.getLocales());
 	}
 }

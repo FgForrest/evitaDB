@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,9 +23,14 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PropertyObjectListMapper;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaGloballyUniqueMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -45,22 +50,29 @@ public class SetAttributeSchemaGloballyUniqueMutationConverter extends Attribute
 	@Nonnull
 	@Override
 	protected Class<SetAttributeSchemaGloballyUniqueMutation> getMutationClass() {
-		/* TODO JNO - vyřešit s LHO */
-		/*final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = input.getOptionalField(
+		return SetAttributeSchemaGloballyUniqueMutation.class;
+	}
+
+	@Nonnull
+	@Override
+	protected SetAttributeSchemaGloballyUniqueMutation convertFromInput(@Nonnull Input input) {
+		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = input.getOptionalProperty(
 			SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(),
-			new FieldObjectListMapper<>(
+			new PropertyObjectListMapper<>(
 				getMutationName(),
 				getExceptionFactory(),
 				SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES,
 				ScopedGlobalAttributeUniquenessType.class,
 				nestedInput -> new ScopedGlobalAttributeUniquenessType(
-					nestedInput.getRequiredField(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE),
-					nestedInput.getRequiredField(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE)
+					nestedInput.getProperty(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE),
+					nestedInput.getProperty(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE)
 				)
 			)
-		);*/
+		);
 
-		return SetAttributeSchemaGloballyUniqueMutation.class;
+		return new SetAttributeSchemaGloballyUniqueMutation(
+			input.getProperty(SetAttributeSchemaGloballyUniqueMutationDescriptor.NAME),
+			uniqueGloballyInScopes
+		);
 	}
-
 }

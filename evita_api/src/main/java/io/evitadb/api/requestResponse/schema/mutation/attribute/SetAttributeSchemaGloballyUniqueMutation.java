@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
@@ -77,6 +78,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 		);
 	}
 
+	@SerializableCreator
 	public SetAttributeSchemaGloballyUniqueMutation(@Nonnull String name, @Nullable ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes) {
 		this.name = name;
 		this.uniqueGloballyInScopes = uniqueGloballyInScopes == null ?

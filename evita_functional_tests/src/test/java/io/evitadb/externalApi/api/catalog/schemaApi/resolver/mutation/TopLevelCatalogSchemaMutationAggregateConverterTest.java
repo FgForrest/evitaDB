@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -38,7 +38,9 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
+import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -83,5 +85,28 @@ public class TopLevelCatalogSchemaMutationAggregateConverterTest {
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final List<TopLevelCatalogSchemaMutation> inputMutation = List.of(
+			new CreateCatalogSchemaMutation("entityType"),
+			new RemoveCatalogSchemaMutation("entityType")
+		);
+
+		//noinspection unchecked
+		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				list()
+					.i(map()
+						.e(TopLevelCatalogSchemaMutationAggregateDescriptor.CREATE_CATALOG_SCHEMA_MUTATION.name(), map()
+							.e(CreateCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "entityType")))
+					.i(map()
+						.e(TopLevelCatalogSchemaMutationAggregateDescriptor.REMOVE_CATALOG_SCHEMA_MUTATION.name(), map()
+							.e(RemoveCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "entityType")))
+					.build()
+			);
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,10 +24,10 @@
 package io.evitadb.externalApi.api.catalog.resolver.mutation;
 
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
-import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -40,12 +40,15 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Resolves individual JSON objects into actual {@link Mutation} implementations.
@@ -82,7 +85,6 @@ public abstract class MutationConverter<M extends Mutation> {
 	@Getter(AccessLevel.PROTECTED)
 	private final MutationResolvingExceptionFactory exceptionFactory;
 
-	// todo lho this would be fine to have it central but it would be hard to do, we have to much mutations
 	@Getter(AccessLevel.PROTECTED)
 	private final ReflectionLookup reflectionLookup = new ReflectionLookup(ReflectionCachingBehaviour.CACHE);
 
@@ -96,7 +98,7 @@ public abstract class MutationConverter<M extends Mutation> {
 		return convertFromInput(new Input(getMutationName(), inputMutationObject, exceptionFactory));
 	}
 
-	@Nonnull
+	@Nullable
 	public Object convertToOutput(@Nonnull M mutation) {
 		final Output output = new Output(getMutationName(), exceptionFactory);
 		convertToOutput(mutation, output);
@@ -118,15 +120,9 @@ public abstract class MutationConverter<M extends Mutation> {
 		convertObjectToOutput(mutation, output);
 	}
 
-	// todo lho docs
 	private void convertObjectToOutput(@Nonnull Object object, @Nonnull Output output) {
 		final Class<?> objectType = object.getClass();
-		final Constructor<?>[] constructors = objectType.getConstructors();
-		Assert.isPremiseValid(
-			constructors.length == 1,
-			() -> new ExternalApiInternalError("Mutation class must have exactly one public constructor for automatic conversion. The `" + getMutationName() + "` doesn't have any or more than one.")
-		);
-		final Constructor<?> constructor = constructors[0];
+		final Constructor<?> constructor = resolveCreatorConstructor(objectType);
 
 		if (constructor.getParameterCount() == 0) {
 			output.setValue(true);
@@ -141,47 +137,63 @@ public abstract class MutationConverter<M extends Mutation> {
 					continue;
 				}
 
-				final Class<?> type = parameter.getType();
-
-				final Method getter = reflectionLookup.findGetter(objectType, name);
-				Assert.isPremiseValid(
-					getter != null,
-					() -> exceptionFactory.createInternalError("Could not find getter for property `" + name + "` in mutation `" + getMutationName() + "`.")
-				);
-
 				final Object originalValue;
-				try {
-					originalValue = getter.invoke(object);
-				} catch (IllegalAccessException | InvocationTargetException e) {
-					throw exceptionFactory.createInternalError("Could not invoke getter for property `" + name + "` in mutation `" + getMutationName() + "`.");
+				final Method getter = reflectionLookup.findGetter(objectType, name);
+				if (getter != null) {
+					try {
+						originalValue = getter.invoke(object);
+					} catch (IllegalAccessException | InvocationTargetException e) {
+						throw exceptionFactory.createInternalError("Could not invoke getter for property `" + name + "` in mutation `" + getMutationName() + "`.", e);
+					}
+				} else {
+					final Field propertyField = reflectionLookup.findPropertyField(objectType, name);
+					if (propertyField != null) {
+						try {
+							originalValue = propertyField.get(object);
+						} catch (IllegalAccessException e) {
+							throw exceptionFactory.createInternalError("Could not invoke field for property `" + name + "` in mutation `" + getMutationName() + "`.", e);
+						}
+					} else {
+						throw exceptionFactory.createInternalError("Could not find getter nor field for property `" + name + "` in mutation `" + getMutationName() + "`.");
+					}
 				}
 
+
+				Class<?> targetType = parameter.getType();
+				if (Serializable.class.equals(targetType)) {
+					if (Serializable.class.isAssignableFrom(originalValue.getClass())) {
+						targetType = originalValue.getClass();
+					} else {
+						throw exceptionFactory.createInternalError(
+							"Could not serialize property `" + name + "` in mutation `" + getMutationName() + "`. " +
+								"Value to serialize is not serializable as expected, it is `" + originalValue.getClass().getName() + "`."
+						);
+					}
+				}
 				final Object targetValue;
-				if (Class.class.isAssignableFrom(type)) {
-					targetValue = DataTypeSerializer.serialize(type);
-				} else if (
-					EvitaDataTypes.isSupportedTypeOrItsArray(type) ||
-					type.isEnum() ||
-					(type.isArray() && type.getComponentType().isEnum())
+
+				if (
+					Class.class.isAssignableFrom(targetType) ||
+					EvitaDataTypes.isSupportedTypeOrItsArray(targetType) ||
+					targetType.isEnum() ||
+					(targetType.isArray() && targetType.getComponentType().isEnum())
 				) {
 					targetValue = originalValue;
-				} else {
-					if (type.isArray()) {
-						final int arraySize = Array.getLength(originalValue);
-						final List<Object> targetList = new ArrayList<>(arraySize);
-						for (int j = 0; j < arraySize; j++) {
-							final Object item = Array.get(originalValue, 0);
+				} else if (targetType.isArray()) {
+					final int arraySize = Array.getLength(originalValue);
+					final List<Object> targetList = new ArrayList<>(arraySize);
+					for (int j = 0; j < arraySize; j++) {
+						final Object item = Array.get(originalValue, j);
 
-							final Output innerItemOutput = new Output(getMutationName(), exceptionFactory);
-							convertObjectToOutput(item, innerItemOutput);
-							targetList.set(i, innerItemOutput.getOutputMutationObject());
-						}
-						targetValue = targetList;
-					} else {
-						final Output innerOutput = new Output(getMutationName(), exceptionFactory);
-						convertObjectToOutput(originalValue, innerOutput);
-						targetValue = innerOutput.getOutputMutationObject();
+						final Output innerItemOutput = new Output(getMutationName(), exceptionFactory);
+						convertObjectToOutput(item, innerItemOutput);
+						targetList.add(innerItemOutput);
 					}
+					targetValue = targetList;
+				} else {
+					final Output innerOutput = new Output(getMutationName(), exceptionFactory);
+					convertObjectToOutput(originalValue, innerOutput);
+					targetValue = innerOutput;
 				}
 				output.setProperty(name, targetValue);
 			}
@@ -190,12 +202,7 @@ public abstract class MutationConverter<M extends Mutation> {
 
 	@Nonnull
 	private Object convertObjectFromInput(@Nonnull Input input, @Nonnull Class<?> outputType) {
-		final Constructor<?>[] constructors = outputType.getConstructors();
-		Assert.isPremiseValid(
-			constructors.length == 1,
-			() -> new ExternalApiInternalError("Mutation class must have exactly one public constructor for automatic conversion. The `" + getMutationName() + "` doesn't have any or more than one.")
-		);
-		final Constructor<?> constructor = constructors[0];
+		final Constructor<?> constructor = resolveCreatorConstructor(outputType);
 		final Object[] instantiationArgs = new Object[constructor.getParameterCount()];
 
 		if (constructor.getParameterCount() == 0) {
@@ -222,12 +229,10 @@ public abstract class MutationConverter<M extends Mutation> {
 				) {
 					//noinspection unchecked
 					instantiationArgs[i] = input.getProperty(name, required, (Class<? extends Serializable>) type);
+				} else if (type.isArray()) {
+					instantiationArgs[i] = convertInnerObjectListFromInput(input, name, required, type.getComponentType());
 				} else {
-					if (type.isArray()) {
-						instantiationArgs[i] = convertInnerObjectListFromInput(input, name, required, type.getComponentType());
-					} else {
-						instantiationArgs[i] = convertInnerObjectFromInput(input, name, required, type);
-					}
+					instantiationArgs[i] = convertInnerObjectFromInput(input, name, required, type);
 				}
 			}
 		}
@@ -283,5 +288,23 @@ public abstract class MutationConverter<M extends Mutation> {
 					.toArray(size -> (T[]) Array.newInstance(componentType, size));
 			}
 		);
+	}
+
+	@Nonnull
+	private static Constructor<?> resolveCreatorConstructor(@Nonnull Class<?> outputType) {
+		final Constructor<?>[] constructors = outputType.getConstructors();
+		final Optional<Constructor<?>> annotatedConstructor = Arrays.stream(constructors)
+			.filter(it -> it.getAnnotation(SerializableCreator.class) != null)
+			.findFirst();
+		if (annotatedConstructor.isPresent()) {
+			return annotatedConstructor.get();
+		} else if (constructors.length == 1) {
+			return constructors[0];
+		} else {
+			throw new ExternalApiInternalError(
+				"Mutation class `" + outputType.getName() + "` must have exactly one public constructor or a constructor marked with @SerializableCreator" +
+					" for automatic conversion. "
+			);
+		}
 	}
 }

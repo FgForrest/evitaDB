@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-class RemoveHierarchicalPlacementMutationConverterTest {
+class RemoveParentMutationConverterTest {
 
 	private RemoveParentMutationConverter converter;
 
@@ -64,5 +64,13 @@ class RemoveHierarchicalPlacementMutationConverterTest {
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(false));
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		assertEquals(
+			true, // this mutation doesn't have any parameter, therefore it defaults to "true" (this makes sense within mutation aggregator where the value is prefixed with mutation name)
+			converter.convertToOutput(new RemoveParentMutation())
+		);
 	}
 }

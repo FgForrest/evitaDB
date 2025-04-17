@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,10 +24,15 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PropertyObjectListMapper;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
@@ -60,50 +65,47 @@ public class CreateGlobalAttributeSchemaMutationConverter extends AttributeSchem
 			new ValueTypeMapper(getExceptionFactory(), CreateGlobalAttributeSchemaMutationDescriptor.TYPE)
 		);
 
-		/* TODO JNO - vyřešit s LHO */
-		/*final ScopedAttributeUniquenessType[] uniqueInScopes = input.getOptionalField(
+		final ScopedAttributeUniquenessType[] uniqueInScopes = input.getOptionalProperty(
 			CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_IN_SCOPES.name(),
-			new FieldObjectListMapper<>(
+			new PropertyObjectListMapper<>(
 				getMutationName(),
 				getExceptionFactory(),
 				CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_IN_SCOPES,
 				ScopedAttributeUniquenessType.class,
 				nestedInput -> new ScopedAttributeUniquenessType(
-					nestedInput.getRequiredField(ScopedAttributeUniquenessTypeDescriptor.SCOPE),
-					nestedInput.getRequiredField(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE)
+					nestedInput.getProperty(ScopedAttributeUniquenessTypeDescriptor.SCOPE),
+					nestedInput.getProperty(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE)
 				)
 			)
 		);
-		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = input.getOptionalField(
+		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = input.getOptionalProperty(
 			CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(),
-			new FieldObjectListMapper<>(
+			new PropertyObjectListMapper<>(
 				getMutationName(),
 				getExceptionFactory(),
 				CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES,
 				ScopedGlobalAttributeUniquenessType.class,
 				nestedInput -> new ScopedGlobalAttributeUniquenessType(
-					nestedInput.getRequiredField(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE),
-					nestedInput.getRequiredField(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE)
+					nestedInput.getProperty(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE),
+					nestedInput.getProperty(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE)
 				)
 			)
 		);
 
 		return new CreateGlobalAttributeSchemaMutation(
-			input.getProperty(AttributeSchemaMutationDescriptor.NAME),
+			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.NAME),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
 			uniqueInScopes,
 			uniqueGloballyInScopes,
-			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES, false),
-			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES, false),
+			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES),
+			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED, false),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.NULLABLE, false),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.REPRESENTATIVE, false),
 			valueType,
 			input.getOptionalProperty(CreateGlobalAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)
-		);*/
-
-		return null;
+		);
 	}
 }

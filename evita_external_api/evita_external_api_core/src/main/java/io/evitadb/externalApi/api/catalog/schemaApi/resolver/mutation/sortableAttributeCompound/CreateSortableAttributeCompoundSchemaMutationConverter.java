@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,21 +45,6 @@ public class CreateSortableAttributeCompoundSchemaMutationConverter
 	@Nonnull
 	@Override
 	protected Class<CreateSortableAttributeCompoundSchemaMutation> getMutationClass() {
-		/* TODO JNO - vyřešit s LHO */
-		/*final AttributeElement[] attributeElements = input.getRequiredField(
-			CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(),
-			new FieldObjectListMapper<>(
-				getMutationName(),
-				getExceptionFactory(),
-				CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS,
-				AttributeElement.class,
-				nestedInput -> new AttributeElement(
-					nestedInput.getRequiredField(AttributeElementDescriptor.ATTRIBUTE_NAME),
-					nestedInput.getRequiredField(AttributeElementDescriptor.DIRECTION),
-					nestedInput.getRequiredField(AttributeElementDescriptor.BEHAVIOUR)
-				)
-			)
-		);*/
 		return CreateSortableAttributeCompoundSchemaMutation.class;
 	}
 

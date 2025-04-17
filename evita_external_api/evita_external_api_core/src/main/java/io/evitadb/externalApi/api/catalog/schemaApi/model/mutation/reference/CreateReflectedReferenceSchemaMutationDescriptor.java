@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -115,7 +115,7 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 			""")
 		.type(nullable(Scope[].class))
 		.build();
-	PropertyDescriptor ATTRIBUTE_INHERITANCE_BEHAVIOR = PropertyDescriptor.builder()
+	PropertyDescriptor ATTRIBUTES_INHERITANCE_BEHAVIOR = PropertyDescriptor.builder()
 		.name("attributeInheritanceBehavior")
 		.description("""
 			Specifies the inheritance behavior for attributes in the reflected schema. There are two options:

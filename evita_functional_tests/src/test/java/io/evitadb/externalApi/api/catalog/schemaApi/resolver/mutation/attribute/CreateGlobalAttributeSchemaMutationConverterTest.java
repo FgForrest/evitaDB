@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,8 +41,10 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -136,6 +138,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation2);
 	}
+
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final CreateGlobalAttributeSchemaMutation expectedMutation = new CreateGlobalAttributeSchemaMutation(
@@ -183,5 +186,58 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 		);
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final CreateGlobalAttributeSchemaMutation inputMutation = new CreateGlobalAttributeSchemaMutation(
+			"code",
+			"desc",
+			"depr",
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+			},
+			new ScopedGlobalAttributeUniquenessType[]{
+				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
+			},
+			new Scope[]{Scope.LIVE},
+			new Scope[]{Scope.LIVE},
+			true,
+			false,
+			true,
+			String.class,
+			"defaultCode",
+			2
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_IN_SCOPES.name(), list()
+						.i(map()
+							.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+							.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())))
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
+						.i(map()
+							.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+							.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())))
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), array()
+						.i(Scope.LIVE.name()))
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES.name(), array()
+						.i(Scope.LIVE.name()))
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED.name(), true)
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.NULLABLE.name(), false)
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.REPRESENTATIVE.name(), true)
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.TYPE.name(), String.class.getSimpleName())
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), "defaultCode")
+					.e(CreateGlobalAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
+					.build()
+			);
 	}
 }

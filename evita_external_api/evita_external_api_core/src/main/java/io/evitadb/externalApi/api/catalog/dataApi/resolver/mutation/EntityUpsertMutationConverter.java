@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityUpsertMut
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
+import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -92,7 +93,12 @@ public abstract class EntityUpsertMutationConverter<A> {
 			EntityUpsertMutationDescriptor.LOCAL_MUTATIONS,
 			localMutationAggregateConverter.convertToOutput((Collection<LocalMutation<?,?>>) entityUpsertMutation.getLocalMutations())
 		);
-		return output.getOutputMutationObject();
+		final Object outputMutationObject = output.getOutputMutationObject();
+		Assert.isPremiseValid(
+			outputMutationObject != null,
+			() -> exceptionFactory.createInternalError("Output mutation cannot be null, because input mutation is present.")
+		);
+		return outputMutationObject;
 	}
 
 	/**

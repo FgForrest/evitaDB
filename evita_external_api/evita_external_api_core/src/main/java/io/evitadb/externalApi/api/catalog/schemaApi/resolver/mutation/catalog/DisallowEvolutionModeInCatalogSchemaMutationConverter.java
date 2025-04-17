@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,20 +50,5 @@ public class DisallowEvolutionModeInCatalogSchemaMutationConverter extends Local
 	@Override
 	protected Class<DisallowEvolutionModeInCatalogSchemaMutation> getMutationClass() {
 		return DisallowEvolutionModeInCatalogSchemaMutation.class;
-	}
-
-	@Nonnull
-	@Override
-	protected DisallowEvolutionModeInCatalogSchemaMutation convertFromInput(@Nonnull Input input) {
-		// there are 2 constructors, which we don't support currently
-		return new DisallowEvolutionModeInCatalogSchemaMutation(
-			(CatalogEvolutionMode[]) input.getProperty(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES)
-		);
-	}
-
-	@Override
-	protected void convertToOutput(@Nonnull DisallowEvolutionModeInCatalogSchemaMutation mutation, @Nonnull Output output) {
-		// there are 2 constructors, which we don't support currently
-		output.setProperty(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES, mutation.getEvolutionModes());
 	}
 }

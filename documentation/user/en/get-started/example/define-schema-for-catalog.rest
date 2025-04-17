@@ -144,6 +144,7 @@ PUT /rest/evita/schema
               "name": "brand",
               "referencedEntityType": "Brand",
               "referencedEntityTypeManaged": true,
+              "referencedGroupTypeManaged": false,
               "cardinality": "ZERO_OR_ONE",
               "description": "Reference to the brand or manufacturer of the product.",
               "indexedInScopes": ["LIVE"],
@@ -155,6 +156,7 @@ PUT /rest/evita/schema
               "name": "categories",
               "referencedEntityType": "Category",
               "referencedEntityTypeManaged": true,
+              "referencedGroupTypeManaged": false,
               "cardinality": "ZERO_OR_MORE",
               "description": "Reference to one or more categories the product is listed in.",
               "indexedInScopes": ["LIVE"]

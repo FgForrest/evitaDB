@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import java.util.EnumSet;
 import java.util.Map;
 
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -215,5 +216,29 @@ class ReferenceAttributeMutationConverterTest {
 					.build()
 			)
 		);
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ReferenceAttributeMutation inputMutation = new ReferenceAttributeMutation(
+			new ReferenceKey(REFERENCE_TAGS, 1),
+			new RemoveAttributeMutation(ATTRIBUTE_CODE)
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
+						.e(ReferenceAttributeMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
+							.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+							.build())
+						.build())
+					.build()
+			);
 	}
 }
