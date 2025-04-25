@@ -34,6 +34,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.exception.CatalogNotAliveException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.InvalidMutationException;
@@ -47,11 +48,9 @@ import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
@@ -85,7 +84,6 @@ import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
-import io.evitadb.core.cdc.CatalogChangeCaptureBlock;
 import io.evitadb.core.cdc.CatalogChangeObserver;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.file.ExportFileService;
@@ -319,6 +317,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportFileService exportFileService,
+		@Nonnull ObservableExecutorService requestExecutor,
 		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
@@ -379,7 +378,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			exportFileService,
 			scheduler
 		);
-		this.changeObserver = new CatalogChangeObserver(catalogSchema.getName());
+		this.changeObserver = new CatalogChangeObserver(requestExecutor);
 
 		this.persistenceService.storeHeader(
 			this.catalogId, CatalogState.WARMING_UP, catalogVersion, 0, null,
@@ -395,6 +394,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportFileService exportFileService,
+		@Nonnull ObservableExecutorService requestExecutor,
 		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
@@ -524,7 +524,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			this.transactionManager = new TransactionManager(
 				this, evitaConfiguration, scheduler, transactionalExecutor, newCatalogVersionConsumer
 			);
-			this.changeObserver = new CatalogChangeObserver(catalogSchema.getName());
+			this.changeObserver = new CatalogChangeObserver(requestExecutor);
 		} catch (RuntimeException ex) {
 			// clean opened resources before propagating exception
 			if (this.persistenceService != null) {
@@ -1314,6 +1314,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 */
 	public void notifyCatalogPresentInLiveView() {
 		this.transactionManager.notifyCatalogPresentInLiveView(this);
+		this.changeObserver.notifyCatalogPresentInLiveView(this);
 	}
 
 	/**
@@ -1397,42 +1398,14 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		}
 	}
 
-	// todo jno reimplement
 	@Nonnull
 	@Override
 	public ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request) {
-//		return changeObserver.registerObserver(this, request, callback);
-		throw new GenericEvitaInternalError("Not implemented yet!");
-	}
-
-	/**
-	 * TODO JNO - implement and document me
-	 */
-	public void notifyObservers(
-		@Nonnull CaptureArea captureArea,
-		@Nonnull Operation changeDataOperation,
-		@Nullable String entityType,
-		@Nullable Integer entityTypePrimaryKey,
-		@Nullable Integer entityPrimaryKey,
-		@Nullable Integer newVersion,
-		@Nullable Mutation mutation,
-		@Nonnull CatalogChangeCaptureBlock captureBlock
-	) {
-		changeObserver.notifyObservers(
-			changeDataOperation, captureArea,
-			entityType,
-			entityTypePrimaryKey,
-			entityPrimaryKey,
-			newVersion, mutation, captureBlock
+		Assert.isTrue(
+			getCatalogState() == CatalogState.ALIVE,
+			() -> new CatalogNotAliveException(getInternalSchema().getName())
 		);
-	}
-
-	/**
-	 * TODO JNO - document me
-	 * @return
-	 */
-	public CatalogChangeCaptureBlock createChangeCaptureBlock() {
-		return new CatalogChangeCaptureBlock(changeObserver);
+		return this.changeObserver.registerObserver(request);
 	}
 
 	/*

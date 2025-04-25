@@ -60,11 +60,9 @@
 			<artifactId>armeria-grpc-protocol</artifactId>
 			<version>${armeria.version}</version>
 		</dependency>
-		<!-- TODO JNO - potřebujeme?! 187 -->
 		<dependency>
 			<groupId>com.salesforce.servicelibs</groupId>
 			<artifactId>reactive-grpc-common</artifactId>
-			<version>1.2.4</version>
 		</dependency>
 	</dependencies>
 </project>

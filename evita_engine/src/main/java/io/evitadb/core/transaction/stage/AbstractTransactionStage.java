@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	@Override
 	public void onSubscribe(Subscription subscription) {
 		this.subscription = subscription;
-		subscription.request(1);
+		this.subscription.request(1);
 	}
 
 	@Override

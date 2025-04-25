@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -71,14 +71,6 @@ public interface EvitaContract extends AutoCloseable {
 	 * @return true if the Evita instance is active
 	 */
 	boolean isActive();
-
-	/**
-	 * Creates new publisher that emits {@link ChangeSystemCapture}s that match the request.
-	 *
-	 * @param request defines what events are captured
-	 * @return publisher that emits {@link ChangeSystemCapture}s that match the request
-	 */
-	ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request);
 
 	/**
 	 * Creates {@link EvitaSessionContract} for querying the database.
@@ -372,8 +364,18 @@ public interface EvitaContract extends AutoCloseable {
 		@Nonnull Consumer<EvitaSessionContract> updater,
 		@Nonnull CommitBehavior commitBehaviour,
 		@Nullable SessionFlags... flags
-	)
-		throws TransactionException;
+	) throws TransactionException;
+
+	/**
+	 * Creates new publisher that emits {@link ChangeSystemCapture}s that match the request.
+	 *
+	 * @param request defines what events are captured
+	 * @return publisher that emits {@link ChangeSystemCapture}s that match the request
+	 */
+	@Nonnull
+	ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(
+		@Nonnull ChangeSystemCaptureRequest request
+	);
 
 	/**
 	 * Returns management service that allows to execute various management tasks on the Evita instance and retrieve

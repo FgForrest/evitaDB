@@ -61,8 +61,6 @@ public class GraphQLProviderRegistrar implements ExternalApiProviderRegistrar<Gr
         @Nonnull GraphQLOptions graphQLConfig
     ) {
         final GraphQLManager graphQLManager = new GraphQLManager(evita, apiOptions.headers(), graphQLConfig);
-        /* TODO JNO - verify */
-        /*evita.registerStructuralChangeObserver(new CatalogGraphQLRefreshingObserver(graphQLManager));*/
         return new GraphQLProvider(graphQLConfig, graphQLManager, apiOptions.requestTimeoutInMillis());
     }
 }

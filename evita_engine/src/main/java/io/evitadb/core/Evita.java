@@ -24,8 +24,6 @@
 package io.evitadb.core;
 
 import io.evitadb.api.CatalogContract;
-import io.evitadb.api.CatalogState;
-import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.EvitaSessionTerminationCallback;
@@ -40,14 +38,11 @@ import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextProvider;
-import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
@@ -67,8 +62,6 @@ import io.evitadb.core.async.SessionKiller;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
-import io.evitadb.core.cdc.CatalogChangeCaptureBlock;
-import io.evitadb.core.cdc.CatalogChangeObserver;
 import io.evitadb.core.cdc.SystemChangeObserver;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
@@ -110,7 +103,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -684,6 +676,7 @@ public final class Evita implements EvitaContract {
 					this.reflectionLookup,
 					this.serviceExecutor,
 					this.management.exportFileService(),
+					this.requestExecutor,
 					this.transactionExecutor,
 					this::replaceCatalogReference,
 					this.tracingContext
@@ -711,9 +704,10 @@ public final class Evita implements EvitaContract {
 		);
 	}
 
+	@Nonnull
 	@Override
 	public ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request) {
-		return changeObserver.registerPublisher(request);
+		return this.changeObserver.registerPublisher(request);
 	}
 
 	/*
@@ -766,6 +760,7 @@ public final class Evita implements EvitaContract {
 						this.reflectionLookup,
 						this.serviceExecutor,
 						this.management.exportFileService(),
+						this.requestExecutor,
 						this.transactionExecutor,
 						this::replaceCatalogReference,
 						this.tracingContext
@@ -775,9 +770,7 @@ public final class Evita implements EvitaContract {
 				}
 			}
 		);
-		/* TODO JNO - review */
-		changeObserver.notifyPublishers(catalogName, Operation.UPSERT, () -> createCatalogSchema);
-		/* TODO JNO - this.structuralChangeObservers.forEach(it -> it.onCatalogCreate(catalogName));*/
+		this.changeObserver.notifyPublishers(catalogName, createCatalogSchema);
 		emitEvitaStatistics();
 		emitCatalogStatistics(catalogName);
 	}
@@ -852,30 +845,11 @@ public final class Evita implements EvitaContract {
 			// notify callback that it's now a live snapshot
 			((Catalog) replacedCatalog).notifyCatalogPresentInLiveView();
 
-			/* TODO JNO - tohle je z 187 a možná správně */
-
-//			changeObserver.notifyPublishers(
-//				catalogNameToBeReplacedWith, Operation.REMOVE,
-//				() -> modifyCatalogSchemaName
-//			);
-//			if (previousCatalog == null) {
-//				changeObserver.notifyPublishers(
-//					catalogNameToBeReplaced, Operation.UPSERT,
-//					() -> modifyCatalogSchemaName
-//				);
-//			} else {
-//				changeObserver.notifyPublishers(
-//					catalogNameToBeReplaced, Operation.UPSERT, () -> modifyCatalogSchemaName
-//				);
-//			}
-
-			/* TODO JNO */
-		/*	this.structuralChangeObservers.forEach(it -> it.onCatalogDelete(catalogNameToBeReplacedWith));
-			if (previousCatalog == null) {
-				this.structuralChangeObservers.forEach(it -> it.onCatalogCreate(catalogNameToBeReplaced));
-			} else {
-				this.structuralChangeObservers.forEach(it -> it.onCatalogSchemaUpdate(catalogNameToBeReplaced));
-			}*/
+			// notify publishers about the change
+			if (previousCatalog != null) {
+				this.changeObserver.notifyPublishers(catalogNameToBeReplaced, new RemoveCatalogSchemaMutation(previousCatalog.getName()));
+			}
+			this.changeObserver.notifyPublishers(catalogNameToBeReplacedWith, modifyCatalogSchemaName);
 
 			// now remove the catalog that was renamed to, we need observers to be still able to access it and therefore
 			// and therefore the removal only takes place here
@@ -923,13 +897,10 @@ public final class Evita implements EvitaContract {
 		if (catalogToRemove == null) {
 			throw new CatalogNotFoundException(catalogName);
 		} else {
-			/* TODO JNO - 187 */
-//			doWithPretendingCatalogStillPresent(
-//				catalogToRemove,
-//				() -> changeObserver.notifyPublishers(catalogName, Operation.REMOVE, () -> removeCatalogSchema)
-//			);
-			/* TODO JNO - tohle je asi nový */
-			/*this.structuralChangeObservers.forEach(it -> doWithPretendingCatalogStillPresent(catalogToRemove, () -> it.onCatalogDelete(catalogName)));*/
+			doWithPretendingCatalogStillPresent(
+				catalogToRemove,
+				() -> this.changeObserver.notifyPublishers(catalogName, removeCatalogSchema)
+			);
 			catalogToRemove.terminateAndDelete();
 			// we need to update catalog statistics
 			emitEvitaStatistics();
@@ -946,22 +917,16 @@ public final class Evita implements EvitaContract {
 		notNull(catalog, "Sanity check.");
 		final String catalogName = catalog.getName();
 		// catalog indexes are ConcurrentHashMap - we can do it safely here
-		final AtomicReference<CatalogContract> originalCatalog = new AtomicReference<>();
 		this.catalogs.computeIfPresent(
 			catalogName, (cName, currentCatalog) -> {
 				// replace catalog only when reference/pointer differs
 				if (currentCatalog != catalog && currentCatalog.getVersion() < catalog.getVersion()) {
-					originalCatalog.set(currentCatalog);
 					return catalog;
 				} else {
 					return currentCatalog;
 				}
 			}
 		);
-
-		// notify structural changes callbacks
-		ofNullable(originalCatalog.get())
-			.ifPresent(it -> notifyStructuralChangeObservers(catalog, it));
 
 		// notify callback that it's now a live snapshot
 		catalog.notifyCatalogPresentInLiveView();
@@ -998,99 +963,6 @@ public final class Evita implements EvitaContract {
 		}
 	}
 
-	/* TODO JNO - 187 */
-
-	/**
-	 * Method will examine changes in `newCatalog` compared to `currentCatalog` and notify {@link #changeObserver}
-	 * in case there is any key structural change identified.
-	 */
-	/*private static void notifyStructuralChangeObservers(@Nonnull CatalogContract newCatalog, @Nonnull CatalogContract currentCatalog) {
-		if (newCatalog instanceof Catalog newCatalogInstance) {
-			final CatalogChangeCaptureBlock captureBlock = newCatalogInstance.createChangeCaptureBlock();
-			final int newCatalogVersion = newCatalog.getSchema().version();
-			if (currentCatalog.getSchema().version() != newCatalogVersion) {
-				newCatalogInstance.notifyObservers(
-					CaptureArea.SCHEMA, Operation.UPSERT,
-					null, null, null, newCatalogVersion, null,
-					captureBlock
-				);
-			}
-			// and examine catalog entity collection changes
-			final Set<String> currentEntityTypes = currentCatalog.getEntityTypes();
-			final Set<String> examinedTypes = CollectionUtils.createHashSet(currentEntityTypes.size());
-			for (String entityType : currentEntityTypes) {
-				examinedTypes.add(entityType);
-				final EntityCollectionContract existingCollection = currentCatalog.getCollectionForEntityOrThrowException(entityType);
-				final Optional<EntityCollectionContract> updatedCollection = newCatalog.getCollectionForEntity(entityType);
-				if (updatedCollection.isEmpty()) {
-					newCatalogInstance.notifyObservers(
-						CaptureArea.SCHEMA, Operation.REMOVE,
-						entityType, existingCollection.getEntityTypePrimaryKey(),
-						null, null, null,
-						captureBlock
-					);
-				} else {
-					final EntityCollectionContract updatedCollectionRef = updatedCollection.get();
-					final int newCollectionVersion = updatedCollectionRef.getSchema().version();
-					if (existingCollection.getSchema().version() != newCollectionVersion) {
-						newCatalogInstance.notifyObservers(
-							CaptureArea.SCHEMA, Operation.UPSERT,
-							entityType, updatedCollectionRef.getEntityTypePrimaryKey(),
-							null, newCollectionVersion, null,
-							captureBlock
-						);
-					}
-				}
-			}
-			for (String entityType : newCatalog.getEntityTypes()) {
-				if (!examinedTypes.contains(entityType)) {
-					final EntityCollection createdCollection = newCatalogInstance.getCollectionForEntityOrThrowException(entityType);
-					final int newCollectionVersion = createdCollection.getSchema().version();
-					newCatalogInstance.notifyObservers(
-						CaptureArea.SCHEMA, Operation.UPSERT,
-						entityType, createdCollection.getEntityTypePrimaryKey(),
-						null, newCollectionVersion, null,
-						captureBlock
-					);
-				}
-			}
-			captureBlock.finish();
-		}
-	}*/
-
-	/**
-	 * Method will examine changes in `newCatalog` compared to `currentCatalog` and notify {@link #changeObserver}
-	 * in case there is any key structural change identified.
-	 */
-	private void notifyStructuralChangeObservers(@Nonnull CatalogContract newCatalog, @Nonnull CatalogContract currentCatalog) {
-		final String catalogName = newCatalog.getName();
-		/* TODO JNO - tohle je staré?! */
-		/*if (currentCatalog.getSchema().version() != newCatalog.getSchema().version()) {
-			this.structuralChangeObservers.forEach(it -> it.onCatalogSchemaUpdate(catalogName));
-		}*/
-		// and examine catalog entity collection changes
-		final Set<String> currentEntityTypes = currentCatalog.getEntityTypes();
-		final Set<String> examinedTypes = CollectionUtils.createHashSet(currentEntityTypes.size());
-		for (String entityType : currentEntityTypes) {
-			examinedTypes.add(entityType);
-			final EntityCollectionContract existingCollection = currentCatalog.getCollectionForEntityOrThrowException(entityType);
-			final Optional<EntityCollectionContract> updatedCollection = newCatalog.getCollectionForEntity(entityType);
-			/* TODO JNO - tohle je asi nový */
-			/*if (updatedCollection.isEmpty()) {
-				this.structuralChangeObservers.forEach(it -> it.onEntityCollectionDelete(catalogName, entityType));
-			} else if (existingCollection.getSchema().version() != updatedCollection.get().getSchema().version()) {
-				this.structuralChangeObservers.forEach(it -> it.onEntitySchemaUpdate(catalogName, entityType));
-			}*/
-		}
-		for (String entityType : newCatalog.getEntityTypes()) {
-			/* TODO JNO- tohle je asi nový */
-			/*if (!examinedTypes.contains(entityType)) {
-				this.structuralChangeObservers.forEach(it -> it.onEntityCollectionCreate(catalogName, entityType));
-			}
-			captureBlock.finish();*/
-		}
-	}
-
 	/**
 	 * Creates {@link EvitaSession} instance and registers all appropriate termination callbacks along.
 	 */
@@ -1109,22 +981,12 @@ public final class Evita implements EvitaContract {
 					catalog = (Catalog) catalogContract;
 				}
 
-				final NonTransactionalCatalogDescriptor nonTransactionalCatalogDescriptor =
-					catalog.getCatalogState() == CatalogState.WARMING_UP && sessionTraits.isReadWrite() && !sessionTraits.isDryRun() ?
-						new NonTransactionalCatalogDescriptor(catalog) : null;
-
 				if (this.readOnly) {
 					isTrue(!sessionTraits.isReadWrite() || sessionTraits.isDryRun(), ReadOnlyException::new);
 				}
 
-				final EvitaSessionTerminationCallback terminationCallback = session -> {
-					sessionRegistry.removeSession((EvitaSession) session);
-
-					if (sessionTraits.isReadWrite()) {
-						ofNullable(nonTransactionalCatalogDescriptor)
-							.ifPresent(NonTransactionalCatalogDescriptor::notifyStructuralChangeObservers);
-					}
-				};
+				final EvitaSessionTerminationCallback terminationCallback =
+					session -> sessionRegistry.removeSession((EvitaSession) session);
 
 				return sessionRegistry.addSession(
 					catalog.supportsTransaction(),
@@ -1209,25 +1071,46 @@ public final class Evita implements EvitaContract {
 	 * Attempts to close all resources of evitaDB.
 	 */
 	private void closeInternal() {
+		RuntimeException exception = null;
 		try {
 			// first close all sessions
 			CompletableFuture.allOf(
 				CompletableFuture.runAsync(this::closeAllSessions),
-				/* TODO JNO - revidovat, jestli se to má zavírat zde */
 				CompletableFuture.runAsync(this.changeObserver::close)
 			).join();
+		} catch (RuntimeException ex) {
+			exception = ex;
+		}
 
+		try {
+			// then close all thread pools and management services
 			CompletableFuture.allOf(
 				CompletableFuture.runAsync(this.management::close),
 				CompletableFuture.runAsync(() -> shutdownScheduler("request", this.requestExecutor, 60)),
 				CompletableFuture.runAsync(() -> shutdownScheduler("transaction", this.transactionExecutor, 60)),
 				CompletableFuture.runAsync(() -> shutdownScheduler("service", this.serviceExecutor, 60))
 			).join();
+		} catch (RuntimeException ex) {
+			if (exception == null) {
+				exception = ex;
+			} else {
+				exception.addSuppressed(ex);
+			}
+		}
 
+		try {
 			// terminate all catalogs finally (if we did this prematurely, many exceptions would occur)
 			closeCatalogs().join();
 		} catch (RuntimeException ex) {
-			log.error("Failed to close evitaDB. Some resources might not have been released properly.", ex);
+			if (exception == null) {
+				exception = ex;
+			} else {
+				exception.addSuppressed(ex);
+			}
+		}
+
+		if (exception != null) {
+			log.error("Failed to close evitaDB. Some resources might not have been released properly.", exception);
 		}
 	}
 
@@ -1249,140 +1132,6 @@ public final class Evita implements EvitaContract {
 			IOUtils.closeQuietly(this.folderLock::close);
 			return null;
 		});
-	}
-
-	/**
-	 * This descriptor allows to recognize collection and schema modifications in non-transactional mode where the
-	 * contents of the original catalog are directly modified.
-	 */
-	private static class NonTransactionalCatalogDescriptor {
-		/**
-		 * Reference to the catalog.
-		 */
-		private final Catalog theCatalog;
-		/**
-		 * Contains observed version of the catalog schema in time this class is instantiated.
-		 */
-		private final int catalogSchemaVersion;
-		/**
-		 * Contains index of entity collection types and their assigned primary keys observed in time this class is instantiated.
-		 */
-		private final Map<String, Integer> entityCollectionPrimaryKeys;
-		/**
-		 * Contains observed versions of the catalog entity collection schemas in time this class is instantiated.
-		 */
-		private final Map<String, Integer> entityCollectionSchemaVersions;
-
-		NonTransactionalCatalogDescriptor(@Nonnull Catalog catalog) {
-			this.theCatalog = catalog;
-			this.catalogSchemaVersion = catalog.getSchema().version();
-			final Set<String> entityTypes = catalog.getEntityTypes();
-			this.entityCollectionPrimaryKeys = CollectionUtils.createHashMap(entityTypes.size());
-			this.entityCollectionSchemaVersions = CollectionUtils.createHashMap(entityTypes.size());
-			for (String entityType : entityTypes) {
-				final EntityCollection entityCollection = catalog.getCollectionForEntityOrThrowException(entityType);
-				this.entityCollectionPrimaryKeys.put(entityType, entityCollection.getEntityTypePrimaryKey());
-				this.entityCollectionSchemaVersions.put(entityType, entityCollection.getSchema().version());
-			}
-		}
-
-		/**
-		 * Method will examine changes in `newCatalog` compared to `currentCatalog` and notify {@link Catalog}
-		 * {@link CatalogChangeObserver} in case there is any key structural change identified.
-		 */
-		void notifyStructuralChangeObservers() {
-			final CatalogChangeCaptureBlock captureBlock = theCatalog.createChangeCaptureBlock();
-
-			if (isCatalogSchemaModified(theCatalog)) {
-				final int newSchemaVersion = theCatalog.getSchema().version();
-				theCatalog.notifyObservers(
-					CaptureArea.SCHEMA, Operation.UPSERT,
-					null, null, newSchemaVersion, null, null,
-					captureBlock
-				);
-			}
-			// and examine catalog entity collection changes
-			this.entityCollectionSchemaVersions
-				.keySet()
-				.stream()
-				.filter(it -> isEntityCollectionSchemaModified(theCatalog, it))
-				.forEach(it -> {
-					final EntityCollection entityCollection = theCatalog.getCollectionForEntityOrThrowException(it);
-					final EntitySchemaContract sealedEntitySchema = entityCollection.getSchema();
-					theCatalog.notifyObservers(
-						CaptureArea.SCHEMA, Operation.UPSERT,
-						it, entityCollection.getEntityTypePrimaryKey(),
-						null,
-						sealedEntitySchema.version(),
-						null,
-						captureBlock
-					);
-				});
-			getCreatedCollections(theCatalog)
-				.forEach(it -> {
-					final EntityCollection entityCollection = theCatalog.getCollectionForEntityOrThrowException(it);
-					final EntitySchemaContract sealedEntitySchema = entityCollection.getSchema();
-					theCatalog.notifyObservers(
-						CaptureArea.SCHEMA, Operation.UPSERT,
-						it, entityCollection.getEntityTypePrimaryKey(),
-						null,
-						sealedEntitySchema.version(),
-						null,
-						captureBlock
-					);
-				});
-			getDeletedCollections(theCatalog)
-				.forEach(it -> {
-					theCatalog.notifyObservers(
-						CaptureArea.SCHEMA, Operation.REMOVE,
-						it, this.entityCollectionPrimaryKeys.get(it),
-						null, null, null,
-						captureBlock
-					);
-				});
-
-			captureBlock.finish();
-		}
-
-		/**
-		 * Returns true if passed catalog schema version differs from version originally observed.
-		 */
-		private boolean isCatalogSchemaModified(@Nonnull CatalogContract catalog) {
-			return this.catalogSchemaVersion != catalog.getSchema().version();
-		}
-
-		/**
-		 * Returns true if passed catalog entity collection schema version differs from version originally observed.
-		 */
-		private boolean isEntityCollectionSchemaModified(@Nonnull CatalogContract catalog, @Nonnull String entityType) {
-			final Integer myVersion = this.entityCollectionSchemaVersions.get(entityType);
-			final Integer theirVersion = catalog.getCollectionForEntity(entityType)
-				.map(EntityCollectionContract::getSchema)
-				.map(EntitySchemaContract::version)
-				.orElse(null);
-			return theirVersion != null && myVersion != null && !Objects.equals(myVersion, theirVersion);
-		}
-
-		/**
-		 * Returns stream of entity types, that are available in catalog, but was not observed initially.
-		 */
-		private Stream<String> getCreatedCollections(@Nonnull CatalogContract catalog) {
-			return catalog.getEntityTypes()
-				.stream()
-				.filter(it -> !this.entityCollectionSchemaVersions.containsKey(it));
-		}
-
-		/**
-		 * Returns stream of entity types, that were observed initially, but are not present in current catalog.
-		 */
-		private Stream<String> getDeletedCollections(@Nonnull CatalogContract catalog) {
-			final Set<String> newEntityTypes = catalog.getEntityTypes();
-			return this.entityCollectionSchemaVersions
-				.keySet()
-				.stream()
-				.filter(it -> !newEntityTypes.contains(it));
-		}
-
 	}
 
 	/**

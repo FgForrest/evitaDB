@@ -227,9 +227,11 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	CompletableFuture<Long> closeNow(@Nonnull CommitBehavior commitBehaviour);
 
 	/**
-	 * TODO JNO - document me
+	 * Creates new publisher that emits {@link ChangeCatalogCapture}s that match the request.
+	 *
+	 * @param request defines what events are captured
+	 * @return publisher that emits {@link ChangeCatalogCapture}s that match the request
 	 */
-	// todo jno: implement
 	@Nonnull
 	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request);
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 
 /**
  * Record represents a CDC event that is sent to the subscriber if it matches to the request he made.
@@ -62,7 +63,7 @@ public record ChangeCatalogCapture(
 	public static ChangeCatalogCapture dataCapture(
 		@Nonnull MutationPredicateContext context,
 		@Nonnull Operation operation,
-		@Nonnull Mutation mutation
+		@Nullable Mutation mutation
 	) {
 		return new ChangeCatalogCapture(
 			context.getVersion(),
@@ -120,4 +121,26 @@ public record ChangeCatalogCapture(
 		);
 	}
 
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof ChangeCatalogCapture that)) return false;
+
+		return this.index == that.index &&
+			this.version == that.version &&
+			Objects.equals(this.body, that.body) &&
+			this.area == that.area &&
+			Objects.equals(this.entityType, that.entityType) &&
+			this.operation == that.operation;
+	}
+
+	@Override
+	public int hashCode() {
+		int result = Long.hashCode(version);
+		result = 31 * result + index;
+		result = 31 * result + area.hashCode();
+		result = 31 * result + Objects.hashCode(entityType);
+		result = 31 * result + operation.hashCode();
+		result = 31 * result + Objects.hashCode(body);
+		return result;
+	}
 }

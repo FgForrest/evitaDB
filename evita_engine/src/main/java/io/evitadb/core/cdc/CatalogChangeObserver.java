@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,404 +23,224 @@
 
 package io.evitadb.core.cdc;
 
-import io.evitadb.api.requestResponse.cdc.CaptureArea;
-import io.evitadb.api.requestResponse.cdc.CaptureSite;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.DataSite;
-import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.cdc.SchemaSite;
-import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
-import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.Catalog;
-import io.evitadb.dataType.ContainerType;
-import io.evitadb.utils.ArrayUtils;
+import io.evitadb.core.async.ObservableExecutorService;
+import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * TODO JNO - document me
- * TODO JNO - toto je na přepis
+ * This observer is responsible for maintaining a list of active publishers that are interested in receiving updates
+ * about changes in the catalog (capturing data changes). It allows for registering and unregistering observers, and
+ * it manages the lifecycle of the publishers.
+ *
+ * Observer is expected to be a singleton passed from one catalog instance (version) to the next one. All the publishers
+ * whose subscribers can keep up with the changes in the current catalog versions are registered
+ * to the {@link #getUpToDateMutationReaderPublisher(long)}, lagging publishers have their own instances of
+ * {@link MutationReaderPublisher} and consume changes in their own pace.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
 public class CatalogChangeObserver {
-	private final String catalogName;
-	private final Map<UUID, RequestWithObserver> catalogObservers = new ConcurrentHashMap<>();
-	private final SchemaOperationObservers schemaObservers = new SchemaOperationObservers();
-	private final DataOperationObservers dataObservers = new DataOperationObservers();
+	/**
+	 * Executor to be used in new publishers.
+	 */
+	private final ObservableExecutorService executor;
+	/**
+	 * Lambda function that provides
+	 */
+	private final AtomicReference<Catalog> currentCatalog;
+	/**
+	 * Map of all active publishers. A unique UUID identifies each publisher.
+	 */
+	private final Map<UUID, CapturePublisher> catalogObservers;
+	/**
+	 * Subscribers following the up-to-date catalog version share a single publisher.
+	 */
+	private final AtomicReference<MutationReaderPublisher<CapturePublisher>> mutationReader;
+	/**
+	 * Lock to synchronize creating & removing current state mutation reader.
+	 */
+	private final ReentrantLock lock = new ReentrantLock();
 
+	public CatalogChangeObserver(@Nonnull ObservableExecutorService executor) {
+		this.executor = executor;
+		this.currentCatalog = new AtomicReference<>();
+		this.catalogObservers = CollectionUtils.createConcurrentHashMap(32);
+		this.mutationReader = new AtomicReference<>();
+	}
+
+	/**
+	 * Registers a new observer for capturing catalog changes based on the specified request.
+	 * It creates a {@link ChangeCapturePublisher} that will multicast captured events to interested subscribers.
+	 * The publisher's lifecycle is tied to the observer registration and will handle changes starting from the requested
+	 * catalog version or the current catalog version if not specified.
+	 *
+	 * @param request the request specifying the configuration for what changes need to be captured
+	 *                (e.g., starting catalog version, content type, and filters on mutations)
+	 * @return an instance of {@link ChangeCapturePublisher} that can be used to subscribe and receive captured events
+	 */
 	@Nonnull
-	public UUID registerObserver(
-		@Nonnull Catalog catalog,
-		@Nonnull ChangeCatalogCaptureRequest request
-	) {
+	public ChangeCapturePublisher<ChangeCatalogCapture> registerObserver(@Nonnull ChangeCatalogCaptureRequest request) {
+		final Catalog theCatalog = this.currentCatalog.get();
+		Assert.isPremiseValid(
+			theCatalog != null,
+			"Catalog must be attached to the observer before registering a new publisher!"
+		);
 		final UUID uuid = UUIDUtil.randomUUID();
-		final RequestWithObserver requestWithObserver = new RequestWithObserver(uuid, request/*, callback*/);
-		catalogObservers.put(uuid, requestWithObserver);
-		/* TODO JNO - tohle je špatně */
-		final ChangeCatalogCaptureCriteria criteria = request.criteria()[0];
-		final CaptureArea[] areas = criteria.area() == null ?
-			CaptureArea.values() : new CaptureArea[]{criteria.area()};
-		for (CaptureArea area : areas) {
-			switch (area) {
-				case SCHEMA -> schemaObservers.registerObserver(catalog, criteria, requestWithObserver);
-				case DATA -> dataObservers.registerObserver(catalog, criteria, requestWithObserver);
-			}
+		final long startCatalogVersion = request.sinceVersion() == null ? theCatalog.getVersion() : request.sinceVersion();
+		final int startIndex = request.sinceIndex() == null ? 0 : request.sinceIndex();
+		final CapturePublisher capturePublisher = new CapturePublisher(
+			uuid,
+			startCatalogVersion,
+			startIndex,
+			this.executor,
+			MutationPredicateFactory.createChangeCatalogCapturePredicate(request),
+			request.content(),
+			this::registerLaggingPublisher,
+			this.catalogObservers::remove
+		);
+		Assert.isPremiseValid(
+			this.catalogObservers.putIfAbsent(uuid, capturePublisher) == null,
+			"Generated UUID was not unique - unexpected in our spacetime plane."
+		);
+		if (startCatalogVersion == theCatalog.getVersion()) {
+			registerUpToDatePublisher(capturePublisher);
+		} else {
+			registerLaggingPublisher(capturePublisher);
 		}
-		return uuid;
+		return capturePublisher;
 	}
 
+	/**
+	 * Unregisters an observer associated with the specified UUID from the list of catalog observers.
+	 * If the observer is successfully removed, any associated resources are released and any publishers
+	 * tied to the observer are closed. If the catalog observer list becomes empty after the removal,
+	 * the mutation reader publisher is also removed.
+	 *
+	 * @param uuid the unique identifier of the observer to be unregistered
+	 * @return {@code true} if the observer was successfully unregistered, {@code false} if no observer
+	 *         with the specified UUID was found
+	 */
 	public boolean unregisterObserver(@Nonnull UUID uuid) {
-		return catalogObservers.remove(uuid) != null;
-	}
-
-	public void notifyObservers(
-		@Nonnull Operation operation,
-		@Nonnull CaptureArea captureArea,
-		@Nonnull String entityType,
-		@Nonnull Integer entityTypePk,
-		@Nullable Integer entityPk,
-		@Nullable Integer version,
-		@Nonnull Mutation mutation,
-		@Nonnull CatalogChangeCaptureBlock captureBlock
-	) {
-		switch (captureArea) {
-			case SCHEMA ->
-				schemaObservers.notifyObservers(catalogName, operation, entityType, entityTypePk, version, mutation, captureBlock);
-			case DATA ->
-				dataObservers.notifyObservers(catalogName, operation, entityType, entityTypePk, version, entityPk, mutation, captureBlock);
+		final CapturePublisher removedPublisher = this.catalogObservers.remove(uuid);
+		if (removedPublisher != null) {
+			removedPublisher.close();
+			if (this.catalogObservers.isEmpty()) {
+				removeMutationReaderPublisher();
+			}
+			return true;
+		} else {
+			return false;
 		}
 	}
 
-	// todo jno: reimplement
-//	@Nullable
-//	public ChangeDataCaptureObserver getObserver(@Nonnull UUID uuid) {
-//		return catalogObservers.get(uuid).observer();
-//	}
-
-	private record RequestWithObserver(
-		@Nonnull UUID uuid,
-		@Nonnull ChangeCatalogCaptureRequest request
-		// todo jno: reimplement
-//		@Nonnull ChangeDataCaptureObserver observer
-	) {
-
+	/**
+	 * Notifies that the specified catalog is now present in the live view and updates the current catalog reference.
+	 * If a mutation reader publisher is available, it initiates reading all mutations.
+	 *
+	 * @param catalog the catalog object representing the current state to be set as present in the live view
+	 */
+	public void notifyCatalogPresentInLiveView(@Nonnull Catalog catalog) {
+		this.currentCatalog.set(catalog);
+		final MutationReaderPublisher<CapturePublisher> mutationReaderPublisher = this.mutationReader.get();
+		if (mutationReaderPublisher != null) {
+			mutationReaderPublisher.readAll();
+		}
 	}
 
-	private static class SchemaOperationObservers {
-		private final EntityTypeSchemaObservers createObservers = new EntityTypeSchemaObservers();
-		private final EntityTypeSchemaObservers updateObservers = new EntityTypeSchemaObservers();
-		private final EntityTypeSchemaObservers removeObservers = new EntityTypeSchemaObservers();
+	/**
+	 * Registers a publisher that is up-to-date with the current catalog version. The publisher will not react when its
+	 * buffer is completely emptied and is subscribed to the mutation reader following the latest changes in the catalog.
+	 *
+	 * @param capturePublisher the instance of {@link CapturePublisher} to be registered and subscribed
+	 *                         to the mutation reader publisher for processing updates
+	 */
+	private void registerUpToDatePublisher(@Nonnull CapturePublisher capturePublisher) {
+		// we need to execute subscription in a locked block to avoid situation where the publisher is closed and removed
+		this.lock.lock();
+		try {
+			final MutationReaderPublisher<CapturePublisher> mutationReaderPublisher = getUpToDateMutationReaderPublisher(
+				capturePublisher.getContinueWithVersion()
+			);
+			mutationReaderPublisher.subscribe(capturePublisher);
+		} finally {
+			this.lock.unlock();
+		}
+	}
 
-		public void registerObserver(
-			@Nonnull Catalog catalog,
-			@Nonnull ChangeCatalogCaptureCriteria criteria,
-			@Nonnull RequestWithObserver requestWithObserver
-		) {
-			final CaptureSite site = criteria.site() == null ? SchemaSite.ALL : criteria.site();
-			if (site instanceof SchemaSite schemaSite) {
-				final Operation[] operations = ArrayUtils.isEmpty(schemaSite.operation()) ?
-					Operation.values() : schemaSite.operation();
+	private void registerLaggingPublisher(@Nonnull CapturePublisher capturePublisher) {
+		final MutationReaderPublisher<CapturePublisher> newMutationReader = new MutationReaderPublisher<>(
+			capturePublisher.getContinueWithVersion(),
+			capturePublisher.getContinueWithIndex(),
+			() -> this.currentCatalog.get().getVersion(),
+			catalogVersion -> this.currentCatalog.get().getCommittedMutationStream(catalogVersion),
+			null,
+			this::registerUpToDatePublisher
+		);
+		newMutationReader.subscribe(capturePublisher);
+		// trigger initialization of the new publisher
+		newMutationReader.readAll();
+	}
 
-				for (Operation operation : operations) {
-					switch (operation) {
-						case UPSERT -> createObservers.registerObserver(catalog, schemaSite, requestWithObserver);
-						// case UPSERT -> updateObservers.registerObserver(catalog, schemaSite, requestWithObserver);
-						case REMOVE -> removeObservers.registerObserver(catalog, schemaSite, requestWithObserver);
-					}
+	/**
+	 * Retrieves or initializes a singleton instance of {@link MutationReaderPublisher} tied to the current version
+	 * and thread executor. If a publisher instance already exists, it reuses the existing instance; otherwise,
+	 * it creates and sets up a new one.
+	 *
+	 * @param sinceCatalogVersion the catalog version from which mutations will be read
+	 * @return the singleton instance of the {@link MutationReaderPublisher} bound to the specified parameters
+	 */
+	@Nonnull
+	private MutationReaderPublisher<CapturePublisher> getUpToDateMutationReaderPublisher(long sinceCatalogVersion) {
+		MutationReaderPublisher<CapturePublisher> mutationReaderPublisher = this.mutationReader.get();
+		if (mutationReaderPublisher == null) {
+			// create a new publisher
+			final MutationReaderPublisher<CapturePublisher> newMutationReaderPublisher = new MutationReaderPublisher<>(
+				sinceCatalogVersion + 1L,
+				0,
+				() -> this.currentCatalog.get().getVersion(),
+				catalogVersion -> this.currentCatalog.get().getCommittedMutationStream(catalogVersion),
+				this::registerLaggingPublisher,
+				null
+			);
+			Assert.isPremiseValid(
+				this.mutationReader.compareAndExchange(null, newMutationReaderPublisher) == null,
+				"Publisher was already created by another thread (unexpected situation, we're in a locked block)."
+			);
+			mutationReaderPublisher = newMutationReaderPublisher;
+		}
+		return mutationReaderPublisher;
+	}
+
+	/**
+	 * Releases and removes the currently active {@link MutationReaderPublisher} instance, ensuring proper cleanup
+	 * and thread-safe operation.
+	 *
+	 * This method is used to manage the lifecycle of the {@link MutationReaderPublisher} by removing the existing publisher
+	 * when it is no longer needed ensuring the resources are properly closed, avoiding potential memory leaks.
+	 */
+	private void removeMutationReaderPublisher() {
+		if (this.mutationReader.get() != null) {
+			this.lock.lock();
+			try {
+				final MutationReaderPublisher<CapturePublisher> mutationReaderPublisher = this.mutationReader.get();
+				if (mutationReaderPublisher != null && !mutationReaderPublisher.hasSubscribers()) {
+					mutationReaderPublisher.close();
+					this.mutationReader.set(null);
 				}
-			} else {
-				throw new IllegalStateException("Unknown site type: " + site.getClass().getName());
-			}
-		}
-
-		public void notifyObservers(
-			@Nonnull String catalog,
-			@Nonnull Operation operation,
-			@Nullable String entityType,
-			@Nullable Integer entityTypePk,
-			@Nullable Integer version,
-			@Nonnull Mutation mutation,
-			@Nonnull CatalogChangeCaptureBlock captureBlock
-		) {
-			switch (operation) {
-				case UPSERT ->
-					createObservers.notifyObservers(catalog, operation, entityType, entityTypePk, version, mutation, captureBlock);
-				/*case UPDATE ->
-					updateObservers.notifyObservers(catalog, operation, entityType, entityTypePk, version, mutation, captureBlock);*/
-				case REMOVE ->
-					removeObservers.notifyObservers(catalog, operation, entityType, entityTypePk, version, mutation, captureBlock);
-			}
-		}
-	}
-
-	private static class EntityTypeSchemaObservers {
-		private final List<RequestWithObserver> genericObservers = new CopyOnWriteArrayList<>();
-		private final Map<Integer, List<RequestWithObserver>> entityTypeObservers = new ConcurrentHashMap<>();
-
-		public void registerObserver(@Nonnull Catalog catalog, @Nonnull SchemaSite site, @Nonnull RequestWithObserver requestWithObserver) {
-			if (site.entityType() == null) {
-				genericObservers.add(requestWithObserver);
-			} else {
-				entityTypeObservers.merge(
-					catalog.getCollectionForEntityOrThrowException(site.entityType()).getEntityTypePrimaryKey(),
-					List.of(requestWithObserver),
-					(rwo1, rwo2) -> {
-						final List<RequestWithObserver> combined = new ArrayList<>(rwo1);
-						combined.addAll(rwo2);
-						return combined;
-					}
-				);
-			}
-		}
-
-		public void notifyObservers(
-			@Nullable String catalog,
-			@Nullable Operation operation,
-			@Nullable String entityType,
-			@Nullable Integer entityTypePk,
-			@Nullable Integer version,
-			@Nonnull Mutation mutation,
-			@Nonnull CatalogChangeCaptureBlock captureBlock
-		) {
-			ChangeCatalogCapture captureHeader = null;
-			ChangeCatalogCapture captureBody = null;
-			for (RequestWithObserver observer : genericObservers) {
-				final ChangeCatalogCaptureRequest request = observer.request();
-				switch (request.content()) {
-					case HEADER -> {
-						captureHeader = captureHeader == null ?
-							// todo jno implement counter
-							new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, operation, null) : captureHeader;
-						captureBlock.notify(observer.uuid(), captureHeader);
-					}
-					case BODY -> {
-						captureBody = captureBody == null ?
-							// todo jno implement counter
-							new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, operation, mutation) : captureBody;
-						captureBlock.notify(observer.uuid(), captureBody);
-					}
-				}
-			}
-			if (entityTypePk != null) {
-				final List<RequestWithObserver> observers = entityTypeObservers.get(entityTypePk);
-				if (observers != null) {
-					for (RequestWithObserver observer : observers) {
-						final ChangeCatalogCaptureRequest request = observer.request();
-						switch (request.content()) {
-							case HEADER -> {
-								captureHeader = captureHeader == null ?
-									// todo jno implement counter
-									new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, operation, null) : captureHeader;
-								captureBlock.notify(observer.uuid(), captureHeader);
-							}
-							case BODY -> {
-								captureBody = captureBody == null ?
-									// todo jno implement counter
-									new ChangeCatalogCapture(0, 0, CaptureArea.SCHEMA, entityType, operation, mutation) : captureBody;
-								captureBlock.notify(observer.uuid(), captureBody);
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	private static class DataOperationObservers {
-		private final EntityTypeDataObservers createObservers = new EntityTypeDataObservers();
-		private final EntityTypeDataObservers updateObservers = new EntityTypeDataObservers();
-		private final EntityTypeDataObservers removeObservers = new EntityTypeDataObservers();
-
-		public void registerObserver(
-			@Nonnull Catalog catalog,
-			@Nonnull ChangeCatalogCaptureCriteria criteria,
-			@Nonnull RequestWithObserver requestWithObserver
-		) {
-			final CaptureSite site = criteria.site() == null ? DataSite.ALL : criteria.site();
-			if (site instanceof DataSite dataSite) {
-				final Operation[] operations = ArrayUtils.isEmpty(dataSite.operation()) ?
-					Operation.values() : dataSite.operation();
-
-				for (Operation operation : operations) {
-					switch (operation) {
-						case UPSERT -> createObservers.registerObserver(catalog, dataSite, requestWithObserver);
-						/*case UPDATE -> updateObservers.registerObserver(catalog, dataSite, requestWithObserver);*/
-						case REMOVE -> removeObservers.registerObserver(catalog, dataSite, requestWithObserver);
-					}
-				}
-			} else {
-				throw new IllegalStateException("Unknown site type: " + site.getClass().getName());
-			}
-		}
-
-		public void notifyObservers(
-			@Nonnull String catalog,
-			@Nonnull Operation operation,
-			@Nullable String entityType,
-			@Nullable Integer entityTypePk,
-			@Nullable Integer entityPk,
-			@Nullable Integer version,
-			@Nonnull Mutation mutation,
-			@Nonnull CatalogChangeCaptureBlock captureBlock
-		) {
-			switch (operation) {
-				case UPSERT ->
-					createObservers.notifyObservers(catalog, operation, entityType, entityTypePk, entityPk, version, mutation, captureBlock);
-				/*case UPDATE ->
-					updateObservers.notifyObservers(catalog, operation, entityType, entityTypePk, entityPk, version, mutation, captureBlock);*/
-				case REMOVE ->
-					removeObservers.notifyObservers(catalog, operation, entityType, entityTypePk, entityPk, version, mutation, captureBlock);
-			}
-		}
-	}
-
-	private static class EntityTypeDataObservers {
-		private final ClassifierTypeObserver genericObservers = new ClassifierTypeObserver();
-		private final Map<Integer, EntityObserver> entityTypeObservers = new ConcurrentHashMap<>();
-
-		public void registerObserver(
-			@Nonnull Catalog catalog,
-			@Nonnull DataSite site,
-			@Nonnull RequestWithObserver requestWithObserver
-		) {
-			if (site.entityType() == null) {
-				Assert.isTrue(
-					site.entityPrimaryKey() == null,
-					"Entity primary key is expected to be null for data site without entity type defined!"
-				);
-				genericObservers.registerObserver(site, requestWithObserver);
-			} else {
-				entityTypeObservers.computeIfAbsent(
-					catalog.getCollectionForEntityOrThrowException(site.entityType()).getEntityTypePrimaryKey(),
-					entityTypePk -> new EntityObserver()
-				).registerObserver(site, requestWithObserver);
-			}
-		}
-
-		public void notifyObservers(
-			@Nullable String catalog,
-			@Nullable Operation operation,
-			@Nullable String entityType,
-			@Nullable Integer entityTypePk,
-			@Nullable Integer entityPk,
-			@Nullable Integer version,
-			@Nonnull Mutation mutation,
-			@Nonnull CatalogChangeCaptureBlock captureBlock
-		) {
-			genericObservers.notifyObservers(catalog, operation, entityType, version, mutation, captureBlock);
-			if (entityTypePk != null) {
-				final EntityObserver observer = entityTypeObservers.get(entityTypePk);
-				if (observer != null) {
-					observer.notifyObservers(catalog, operation, entityType, entityPk, version, mutation, captureBlock);
-				}
-			}
-		}
-
-	}
-
-	private static class EntityObserver {
-		private final ClassifierTypeObserver genericObservers = new ClassifierTypeObserver();
-		private final Map<Integer, ClassifierTypeObserver> entityObservers = new ConcurrentHashMap<>();
-
-		public void registerObserver(@Nonnull DataSite site, @Nonnull RequestWithObserver requestWithObserver) {
-			entityObservers.computeIfAbsent(
-				site.entityPrimaryKey(),
-				entityPk -> new ClassifierTypeObserver()
-			).registerObserver(site, requestWithObserver);
-		}
-
-		public void notifyObservers(String catalog, Operation operation, String entityType, Integer entityPk, Integer version, Mutation mutation, CatalogChangeCaptureBlock captureBlock) {
-			genericObservers.notifyObservers(catalog, operation, entityType, version, mutation, captureBlock);
-			final ClassifierTypeObserver entityObserver = this.entityObservers.get(entityPk);
-			if (entityObserver != null) {
-				entityObserver.notifyObservers(catalog, operation, entityType, version, mutation, captureBlock);
-			}
-		}
-	}
-
-	private static class ClassifierTypeObserver {
-		private final List<RequestWithObserver> genericObservers = new CopyOnWriteArrayList<>();
-		private final List<RequestWithObserver> entityObservers = new CopyOnWriteArrayList<>();
-		private final List<RequestWithObserver> attributeObservers = new CopyOnWriteArrayList<>();
-		private final List<RequestWithObserver> associatedDataObservers = new CopyOnWriteArrayList<>();
-		private final List<RequestWithObserver> referenceObservers = new CopyOnWriteArrayList<>();
-		private final List<RequestWithObserver> referenceAttributeObservers = new CopyOnWriteArrayList<>();
-
-		public void registerObserver(@Nonnull DataSite site, @Nonnull RequestWithObserver requestWithObserver) {
-			final ContainerType[] classifierTypes = ArrayUtils.isEmpty(site.containerType()) ?
-				ContainerType.values() : site.containerType();
-			for (ContainerType classifierType : classifierTypes) {
-				switch (classifierType) {
-					case ENTITY -> entityObservers.add(requestWithObserver);
-					case ATTRIBUTE -> attributeObservers.add(requestWithObserver);
-					case ASSOCIATED_DATA -> associatedDataObservers.add(requestWithObserver);
-					case REFERENCE -> referenceObservers.add(requestWithObserver);
-					/* TODO JNO - tohle je blbě */
-					case PRICE -> referenceAttributeObservers.add(requestWithObserver);
-				}
-			}
-		}
-
-		public void notifyObservers(String catalog, Operation operation, String entityType, Integer version, Mutation mutation, CatalogChangeCaptureBlock captureBlock) {
-			final ContainerType containerType = mutation instanceof LocalMutation<?, ?> localMutation ? localMutation.containerType() : ContainerType.ENTITY;
-			final AtomicReference<ChangeCatalogCapture> captureHeader = new AtomicReference<>();
-			final AtomicReference<ChangeCatalogCapture> captureBody = new AtomicReference<>();
-
-			final Consumer<RequestWithObserver> notify = requestWithObserver -> {
-				final ChangeCatalogCaptureRequest request = requestWithObserver.request();
-				switch (request.content()) {
-					case HEADER -> {
-						captureBlock.notify(
-							requestWithObserver.uuid(),
-							captureHeader.updateAndGet(
-								cdc -> cdc == null ?
-									// todo jno implement counter
-									new ChangeCatalogCapture(0, 0, CaptureArea.DATA, entityType, operation, null) :
-									cdc
-							)
-						);
-					}
-					case BODY -> {
-						captureBlock.notify(
-							requestWithObserver.uuid(),
-							captureBody.updateAndGet(
-								cdc -> cdc == null ?
-									// todo jno implement counter
-									new ChangeCatalogCapture(0, 0, CaptureArea.DATA, entityType, operation, mutation) :
-									cdc
-							)
-						);
-					}
-				}
-			};
-
-			// notify generic observers first
-			genericObservers.forEach(notify);
-
-			// notify observers for specific classifier type
-			switch (containerType) {
-				case ENTITY -> entityObservers.forEach(notify);
-				case ATTRIBUTE -> attributeObservers.forEach(notify);
-				case ASSOCIATED_DATA -> associatedDataObservers.forEach(notify);
-				case REFERENCE -> referenceObservers.forEach(notify);
-				/* TODO JNO - tohle je blbě*/
-				case PRICE -> referenceAttributeObservers.forEach(notify);
+			} finally {
+				this.lock.unlock();
 			}
 		}
 	}

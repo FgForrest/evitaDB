@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,11 @@
 package io.evitadb.externalApi.graphql.api.catalog;
 
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.externalApi.graphql.GraphQLManager;
 import lombok.RequiredArgsConstructor;
 
@@ -38,7 +43,6 @@ import java.util.concurrent.Flow.Subscription;
 // TOBEDONE LHO: consider more efficient GraphQL schema updating when only part of Evita schema is updated
 @RequiredArgsConstructor
 public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemCapture> {
-
 	private final GraphQLManager graphQLManager;
 	private Subscription subscription;
 
@@ -50,13 +54,18 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 
 	@Override
 	public void onNext(ChangeSystemCapture item) {
-		switch (item.operation()) {
-			/* TODO JNO - distinguish */
-			case UPSERT -> graphQLManager.registerCatalog(item.catalog());
-			/*case  -> graphQLManager.refreshCatalog(item.catalog());*/
-			case REMOVE -> graphQLManager.unregisterCatalog(item.catalog());
+		final Mutation body = item.body();
+		if (body instanceof CreateCatalogSchemaMutation create) {
+			this.graphQLManager.registerCatalog(create.getCatalogName());
+		} else if (body instanceof ModifyCatalogSchemaNameMutation nameChange) {
+			this.graphQLManager.unregisterCatalog(nameChange.getCatalogName());
+			this.graphQLManager.registerCatalog(nameChange.getNewCatalogName());
+		} else if (body instanceof ModifyCatalogSchemaMutation modify) {
+			this.graphQLManager.refreshCatalog(modify.getCatalogName());
+		} else if (body instanceof RemoveCatalogSchemaMutation remove) {
+			this.graphQLManager.unregisterCatalog(remove.getCatalogName());
 		}
-		subscription.request(1);
+		this.subscription.request(1);
 	}
 
 	@Override

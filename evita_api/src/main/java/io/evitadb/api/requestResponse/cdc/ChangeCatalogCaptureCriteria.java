@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ public record ChangeCatalogCaptureCriteria(
 ) {
 
 	public ChangeCatalogCaptureCriteria {
-		if (site != null) {
+		if (area != null) {
 			switch (area) {
 				case SCHEMA -> Assert.isTrue(site instanceof SchemaSite, "Schema site must be provided for schema area");
 				case DATA -> Assert.isTrue(site instanceof DataSite, "Data site must be provided for data area");
@@ -67,8 +67,8 @@ public record ChangeCatalogCaptureCriteria(
 	 * Builder class for {@link ChangeCatalogCaptureRequest}.
 	 */
 	public static class Builder {
-		private CaptureArea area;
-		private CaptureSite site;
+		@Nullable private CaptureArea area;
+		@Nullable private CaptureSite site;
 
 		/**
 		 * Sets the area of the capture.
@@ -101,7 +101,10 @@ public record ChangeCatalogCaptureCriteria(
 		 */
 		@Nonnull
 		public ChangeCatalogCaptureCriteria build() {
-			return new ChangeCatalogCaptureCriteria(area, site);
+			return new ChangeCatalogCaptureCriteria(
+				this.area,
+				this.site
+			);
 		}
 
 	}

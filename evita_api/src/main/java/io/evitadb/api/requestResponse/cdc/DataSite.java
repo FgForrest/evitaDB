@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,10 +35,9 @@ import javax.annotation.Nullable;
  *
  * @param entityType       the {@link EntitySchema#getName()} of the intercepted entity type
  * @param entityPrimaryKey the {@link EntityContract#getPrimaryKey()} of the intercepted entity
- * @param classifierType   the intercepted {@link ClassifierType} of the entity data
  * @param operation        the intercepted type of {@link Operation}
  * @param containerType    the intercepted {@link ContainerType} of the entity data
- * @param containerName   the intercepted name of the classifier
+ * @param containerName    the intercepted name of the classifier
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record DataSite(
@@ -53,6 +52,7 @@ public record DataSite(
 
 	/**
 	 * Creates builder object that helps you create DataSite record using builder pattern.
+	 *
 	 * @return new instance of {@link Builder}
 	 */
 	@Nonnull
@@ -64,14 +64,15 @@ public record DataSite(
 	 * Builder class for {@link DataSite}.
 	 */
 	public static class Builder {
-		private String entityType;
-		private Integer entityPrimaryKey;
-		private Operation[] operation;
-		private ContainerType[] containerType;
-		private String[] containerName;
+		@Nullable private String entityType;
+		@Nullable private Integer entityPrimaryKey;
+		@Nullable private Operation[] operation;
+		@Nullable private ContainerType[] containerType;
+		@Nullable private String[] containerName;
 
 		/**
 		 * Sets the entity type.
+		 *
 		 * @param entityType the entity type
 		 * @return this builder
 		 */
@@ -83,17 +84,19 @@ public record DataSite(
 
 		/**
 		 * Sets the entity primary key.
+		 *
 		 * @param entityPrimaryKey the entity primary key
 		 * @return this builder
 		 */
 		@Nonnull
-		public Builder entityPrimaryKey(int entityPrimaryKey) {
+		public Builder entityPrimaryKey(@Nullable Integer entityPrimaryKey) {
 			this.entityPrimaryKey = entityPrimaryKey;
 			return this;
 		}
 
 		/**
 		 * Sets the operation.
+		 *
 		 * @param operation the operation
 		 * @return this builder
 		 */
@@ -105,6 +108,7 @@ public record DataSite(
 
 		/**
 		 * Sets the container type.
+		 *
 		 * @param containerType the container type
 		 * @return this builder
 		 */
@@ -116,6 +120,7 @@ public record DataSite(
 
 		/**
 		 * Sets the classifier name.
+		 *
 		 * @param containerName the classifier name
 		 * @return this builder
 		 */
@@ -127,11 +132,18 @@ public record DataSite(
 
 		/**
 		 * Builds the {@link DataSite} record.
+		 *
 		 * @return the {@link DataSite} record
 		 */
 		@Nonnull
 		public DataSite build() {
-			return new DataSite(entityType, entityPrimaryKey, operation, containerType, containerName);
+			return new DataSite(
+				this.entityType,
+				this.entityPrimaryKey,
+				this.operation,
+				this.containerType,
+				this.containerName
+			);
 		}
 
 	}

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -57,7 +57,7 @@ public abstract class AbstractChangeCapturePublisher
 	@Getter @Nonnull private final UUID id = UUID.randomUUID();
 	@Getter @Nonnull private final R request;
 	@Nonnull private final Consumer<P> terminationCallback;
-	@Nonnull protected final BufferedPublisher<C> delegate;
+	@Nonnull protected final CapturePublisher delegate;
 
 	private boolean active = true;
 
@@ -70,21 +70,23 @@ public abstract class AbstractChangeCapturePublisher
 	                                         @Nonnull Consumer<P> terminationCallback) {
 		this.request = request;
 		this.terminationCallback = terminationCallback;
-		this.delegate = new BufferedPublisher<>(executor);
+		/* TODO LHO / JNO, update here */
+		this.delegate = null; // new CapturePublisher(executor, Flow.defaultBufferSize());
 	}
 
 	@Override
 	public void subscribe(Subscriber<? super C> subscriber) {
-		delegate.subscribe(subscriber);
+		/* TODO LHO / JNO, update here */
+		// this.delegate.subscribe(subscriber);
 	}
 
 	@Override
 	public void close() {
-		if (active) {
-			delegate.close();
+		if (this.active) {
+			this.active = false;
+			this.delegate.close();
 			//noinspection unchecked
-			terminationCallback.accept((P) this);
-			active = false;
+			this.terminationCallback.accept((P) this);
 		}
 	}
 }

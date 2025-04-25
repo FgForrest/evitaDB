@@ -24,5 +24,6 @@ module evita.java.driver {
 	requires io.grpc.stub;
 	requires com.linecorp.armeria.grpc;
 	requires com.linecorp.armeria;
+	requires reactive.grpc.common;
 
 }

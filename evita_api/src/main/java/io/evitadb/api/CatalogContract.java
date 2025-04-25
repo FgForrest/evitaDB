@@ -23,6 +23,7 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.exception.CatalogNotAliveException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.InvalidMutationException;
@@ -254,11 +255,16 @@ public interface CatalogContract {
 	Optional<SealedEntitySchema> getEntitySchema(@Nonnull String entityType);
 
 	/**
-	 * TODO JNO - document me
+	 * Creates new publisher that emits {@link ChangeCatalogCapture}s that match the request. Change catalog capture
+	 * operates on WAL (Write Ahead Log) and can be enabled only when the catalog is in {@link CatalogState#ALIVE} state.
+	 *
+	 * @param request defines what events are captured
+	 * @return publisher that emits {@link ChangeCatalogCapture}s that match the request
+	 * @throws CatalogNotAliveException when the catalog is not in {@link CatalogState#ALIVE} state
 	 */
-	// todo jno: reimplement to publishers
 	@Nonnull
-	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request);
+	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request)
+		throws CatalogNotAliveException;
 
 	/**
 	 * Changes state of the catalog from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}.

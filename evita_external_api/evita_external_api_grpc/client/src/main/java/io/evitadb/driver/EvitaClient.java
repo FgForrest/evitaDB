@@ -379,6 +379,7 @@ public class EvitaClient implements EvitaContract {
 		}
 	}
 
+	@Nonnull
 	@Override
 	public ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request) {
 		/* TODO JNO - complete rewrite!! */

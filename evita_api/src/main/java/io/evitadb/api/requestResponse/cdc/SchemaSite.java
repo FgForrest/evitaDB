@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,9 +58,9 @@ public record SchemaSite(
 	 * Builder class for {@link SchemaSite}.
 	 */
 	public static class Builder {
-		private String entityType;
-		private Operation[] operation;
-		private ContainerType[] containerType;
+		@Nullable private String entityType;
+		@Nullable private Operation[] operation;
+		@Nullable private ContainerType[] containerType;
 
 		/**
 		 * Sets the entity type.
@@ -105,7 +105,11 @@ public record SchemaSite(
 		 */
 		@Nonnull
 		public SchemaSite build() {
-			return new SchemaSite(entityType, operation, containerType);
+			return new SchemaSite(
+				this.entityType,
+				this.operation,
+				this.containerType
+			);
 		}
 	}
 
