@@ -18,16 +18,14 @@
           ],
           userFilter: [
             {
-              facetParameterValuesHaving: [
-                {
-                  entityHaving: {
-                    attributeCodeInSet: [
-                      "gluten-free",
-                      "original-recipe"
-                    ]
-                  }
+              facetParameterValuesHaving: {
+                entityHaving: {
+                  attributeCodeInSet: [
+                    "gluten-free",
+                    "original-recipe"
+                  ]
                 }
-              ],
+              },
               priceBetween: [
                 "600",
                 "1600"

@@ -11,16 +11,14 @@ POST /rest/evita/Product/query
     ],
     "userFilter" : [
       {
-        "facetCategoriesHaving" : [
-          {
-            "entityHaving" : {
-              "attributeCodeEquals" : "laptops"
-            },
-            "includingChildrenHaving" : {
-              "attributeCodeContains" : "books"
-            }
+        "facetCategoriesHaving" : {
+          "entityHaving" : {
+            "attributeCodeEquals" : "laptops"
+          },
+          "includingChildrenHaving" : {
+            "attributeCodeContains" : "books"
           }
-        ]
+        }
       }
     ]
   },

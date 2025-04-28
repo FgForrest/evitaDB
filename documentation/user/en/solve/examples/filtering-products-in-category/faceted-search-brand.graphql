@@ -9,13 +9,11 @@
       },
       userFilter: [
         {
-          facetBrandHaving: [
-            {
-              entityPrimaryKeyInSet: [
-                66465
-              ]
-            }
-          ]
+          facetBrandHaving: {
+            entityPrimaryKeyInSet: [
+              66465
+            ]
+          }
         }
       ]
     }
