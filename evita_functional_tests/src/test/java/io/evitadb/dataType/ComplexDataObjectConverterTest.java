@@ -133,6 +133,20 @@ class ComplexDataObjectConverterTest {
 	}
 
 	@Test
+	void shouldSerializeComplexRecord() throws IOException {
+		final TestComplexRecord veryComplexRecord = createVeryComplexRecord();
+		final ComplexDataObjectConverter<TestComplexRecord> converter = new ComplexDataObjectConverter<>(veryComplexRecord);
+		final Serializable serializedForm = converter.getSerializableForm();
+
+		assertTrue(serializedForm instanceof ComplexDataObject);
+		assertEquals(
+			normalizeLineEndings(readFromClasspath("testData/DataObjectConverterTest_complexObject.txt")),
+			normalizeLineEndings(serializedForm.toString())
+		);
+	}
+
+
+	@Test
 	void shouldEstimateSizeOfComplexObject() {
 		final TestComplexObject veryComplexObject = createVeryComplexObject();
 		final ComplexDataObjectConverter<TestComplexObject> converter = new ComplexDataObjectConverter<>(veryComplexObject);
@@ -150,6 +164,17 @@ class ComplexDataObjectConverterTest {
 		final ComplexDataObjectConverter<TestComplexObject> deserializer = new ComplexDataObjectConverter<>(TestComplexObject.class, reflectionLookup);
 		final TestComplexObject deserializedObject = deserializer.getOriginalForm(serializedForm);
 		assertEquals(createVeryComplexObject(), deserializedObject);
+	}
+
+	@Test
+	void shouldDeserializeComplexRecord() {
+		final TestComplexRecord veryComplexRecord = createVeryComplexRecord();
+		final ComplexDataObjectConverter<TestComplexRecord> serializer = new ComplexDataObjectConverter<>(veryComplexRecord);
+		final Serializable serializedForm = serializer.getSerializableForm();
+
+		final ComplexDataObjectConverter<TestComplexRecord> deserializer = new ComplexDataObjectConverter<>(TestComplexRecord.class, reflectionLookup);
+		final TestComplexRecord deserializedObject = deserializer.getOriginalForm(serializedForm);
+		assertEquals(createVeryComplexRecord(), deserializedObject);
 	}
 
 	@Test
@@ -311,6 +336,34 @@ class ComplexDataObjectConverterTest {
 		);
 	}
 
+	private TestComplexRecord createVeryComplexRecord() {
+		return createComplexRecord(
+			"ABC",
+			new InnerContainer(
+				Collections.singletonMap(
+					"ZZZ",
+					createComplexObject("DEF", null)
+				),
+				null,
+				new LinkedHashSet<>(
+					Arrays.asList(
+						createComplexObject("RTE", null),
+						createComplexObject("EGD", null)
+					)
+				),
+				Arrays.asList(
+					createComplexObject("RRR", null),
+					createComplexObject("EEE", null)
+				),
+				new TestComplexObject[]{
+					createComplexObject("TTT", null),
+					createComplexObject("GGG", null)
+				},
+				createComplexObject("WWW", null)
+			)
+		);
+	}
+
 	private ArrayContainer createArrayComplexObject() {
 		return new ArrayContainer(
 			new int[]{78, 65},
@@ -360,6 +413,28 @@ class ComplexDataObjectConverterTest {
 
 	private TestComplexObject createComplexObject(String id, InnerContainer innerContainer) {
 		return new TestComplexObject(
+			id,
+			(byte) 1, (byte) 2,
+			(short) 3, (short) 4,
+			5, 6,
+			7L, 7L,
+			true, false,
+			'A', 'B',
+			new BigDecimal("123.12"),
+			OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
+			LocalDateTime.of(2021, 1, 1, 0, 0, 0, 0),
+			LocalDate.of(2021, 1, 1),
+			LocalTime.of(0, 0, 0, 0),
+			DateTimeRange.since(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)),
+			IntegerNumberRange.to(124),
+			Locale.CANADA,
+			innerContainer,
+			CustomEnum.ENUM_B
+		);
+	}
+
+	private TestComplexRecord createComplexRecord(String id, InnerContainer innerContainer) {
+		return new TestComplexRecord(
 			id,
 			(byte) 1, (byte) 2,
 			(short) 3, (short) 4,
@@ -436,6 +511,34 @@ class ComplexDataObjectConverterTest {
 		private Locale fLocale;
 		private InnerContainer innerContainer;
 		private CustomEnum fCustomEnum;
+	}
+
+	public record TestComplexRecord(
+		String fString,
+		Byte fByte,
+		byte fByteP,
+		Short fShort,
+		short fShortP,
+		Integer fInteger,
+		int fIntegerP,
+		Long fLong,
+		long fLongP,
+		Boolean fBoolean,
+		boolean fBooleanP,
+		Character fChar,
+		char fCharP,
+		BigDecimal fBigDecimal,
+		OffsetDateTime fOffsetDateTime,
+		LocalDateTime fLocalDateTime,
+		LocalDate fLocalDate,
+		LocalTime fLocalTime,
+		DateTimeRange fDateTimeRange,
+		IntegerNumberRange fNumberRange,
+		Locale fLocale,
+		InnerContainer innerContainer,
+		CustomEnum fCustomEnum
+	) implements Serializable {
+		@Serial private static final long serialVersionUID = 7169622529995308080L;
 	}
 
 	@Data
