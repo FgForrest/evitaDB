@@ -3,15 +3,13 @@
     filterBy: {
       userFilter: [
         {
-          facetParameterValuesHaving: [
-            {
-              entityHaving: {
-                attributeCodeInSet: [
-                  "ram-memory-24"
-                ]
-              }
+          facetParameterValuesHaving: {
+            entityHaving: {
+              attributeCodeInSet: [
+                "ram-memory-24"
+              ]
             }
-          ]
+          }
         }
       ]
     },

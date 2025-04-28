@@ -29,13 +29,11 @@ POST /rest/evita/Product/query
     "priceValidInNow" : true,
     "userFilter" : [
       {
-        "facetBrandHaving" : [
-          {
-            "entityPrimaryKeyInSet" : [
-              66465
-            ]
-          }
-        ],
+        "facetBrandHaving" : {
+          "entityPrimaryKeyInSet" : [
+            66465
+          ]
+        },
         "priceBetween" : [
           "50",
           "400"
@@ -106,8 +104,7 @@ POST /rest/evita/Product/query
       ]
     },
     "priceHistogram" : {
-      "requestedBucketCount" : 10,
-      "behavior" : "STANDARD"
+      "requestedBucketCount" : 10
     },
     "page" : {
       "number" : 1,

@@ -8,15 +8,13 @@
       },
       userFilter: [
         {
-          facetBrandHaving: [
-            {
-              entityHaving: {
-                attributeCodeInSet: [
-                  "amazon"
-                ]
-              }
+          facetBrandHaving: {
+            entityHaving: {
+              attributeCodeInSet: [
+                "amazon"
+              ]
             }
-          ]
+          }
         }
       ]
     }

@@ -3,15 +3,13 @@
     filterBy: {
       userFilter: [
         {
-          facetGroupsHaving: [
-            {
-              entityHaving: {
-                attributeCodeInSet: [
-                  "sale"
-                ]
-              }
+          facetGroupsHaving: {
+            entityHaving: {
+              attributeCodeInSet: [
+                "sale"
+              ]
             }
-          ]
+          }
         }
       ]
     },

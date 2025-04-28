@@ -10,14 +10,12 @@
       ],
       userFilter: [
         {
-          facetCategoriesHaving: [
-            {
-              entityHaving: {
-                attributeCodeEquals: "laptops"
-              },
-              includingChildren: true
-            }
-          ]
+          facetCategoriesHaving: {
+            entityHaving: {
+              attributeCodeEquals: "laptops"
+            },
+            includingChildren: true
+          }
         }
       ]
     }

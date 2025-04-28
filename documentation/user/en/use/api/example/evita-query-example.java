@@ -29,7 +29,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 					page(1, 20),
 					facetSummary(IMPACT),
 					priceType(WITH_TAX),
-					priceHistogram(30)
+					priceHistogram(30, STANDARD)
 				)
 			)
 		);

@@ -8,7 +8,7 @@
         "count" : 56,
         "impact" : {
           "difference" : 0,
-          "matchCount" : 56,
+          "matchCount" : 191,
           "hasSense" : true
         },
         "facetEntity" : {
@@ -23,7 +23,7 @@
         "count" : 31,
         "impact" : {
           "difference" : 31,
-          "matchCount" : 87,
+          "matchCount" : 222,
           "hasSense" : true
         },
         "facetEntity" : {
@@ -38,7 +38,7 @@
         "count" : 5,
         "impact" : {
           "difference" : 5,
-          "matchCount" : 61,
+          "matchCount" : 196,
           "hasSense" : true
         },
         "facetEntity" : {
@@ -53,7 +53,7 @@
         "count" : 56,
         "impact" : {
           "difference" : 56,
-          "matchCount" : 112,
+          "matchCount" : 247,
           "hasSense" : true
         },
         "facetEntity" : {
@@ -64,11 +64,11 @@
         }
       },
       {
-        "requested" : false,
+        "requested" : true,
         "count" : 89,
         "impact" : {
-          "difference" : 89,
-          "matchCount" : 145,
+          "difference" : 0,
+          "matchCount" : 191,
           "hasSense" : true
         },
         "facetEntity" : {
@@ -79,11 +79,11 @@
         }
       },
       {
-        "requested" : false,
+        "requested" : true,
         "count" : 20,
         "impact" : {
-          "difference" : 20,
-          "matchCount" : 76,
+          "difference" : 0,
+          "matchCount" : 191,
           "hasSense" : true
         },
         "facetEntity" : {
@@ -94,11 +94,11 @@
         }
       },
       {
-        "requested" : false,
+        "requested" : true,
         "count" : 26,
         "impact" : {
-          "difference" : 26,
-          "matchCount" : 82,
+          "difference" : 0,
+          "matchCount" : 191,
           "hasSense" : true
         },
         "facetEntity" : {
@@ -113,7 +113,7 @@
         "count" : 9,
         "impact" : {
           "difference" : 9,
-          "matchCount" : 65,
+          "matchCount" : 200,
           "hasSense" : true
         },
         "facetEntity" : {
@@ -128,7 +128,7 @@
         "count" : 1,
         "impact" : {
           "difference" : 1,
-          "matchCount" : 57,
+          "matchCount" : 192,
           "hasSense" : true
         },
         "facetEntity" : {
@@ -143,7 +143,7 @@
         "count" : 2,
         "impact" : {
           "difference" : 2,
-          "matchCount" : 58,
+          "matchCount" : 193,
           "hasSense" : true
         },
         "facetEntity" : {
@@ -158,7 +158,7 @@
         "count" : 1,
         "impact" : {
           "difference" : 1,
-          "matchCount" : 57,
+          "matchCount" : 192,
           "hasSense" : true
         },
         "facetEntity" : {
@@ -173,7 +173,7 @@
         "count" : 3,
         "impact" : {
           "difference" : 3,
-          "matchCount" : 59,
+          "matchCount" : 194,
           "hasSense" : true
         },
         "facetEntity" : {
@@ -188,7 +188,7 @@
         "count" : 3,
         "impact" : {
           "difference" : 3,
-          "matchCount" : 59,
+          "matchCount" : 194,
           "hasSense" : true
         },
         "facetEntity" : {
