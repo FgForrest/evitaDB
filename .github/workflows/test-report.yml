@@ -4,7 +4,7 @@ name: Test-Report
 
 on:
   workflow_run:
-    workflows: ['CI Dev branch', 'All tests including long-running', 'Documentation tests'] # runs after CI of full test workflow
+    workflows: ['CI Dev branch', 'All tests including long-running', 'CI Dev branch documentation'] # runs after CI of full test workflow
     types:
       - completed
 
