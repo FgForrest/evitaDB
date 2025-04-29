@@ -165,6 +165,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService.readCatalogHeader;
 import static io.evitadb.store.spi.CatalogPersistenceService.*;
+import static io.evitadb.store.wal.CatalogWriteAheadLog.WAL_TAIL_LENGTH;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -1019,7 +1020,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 								rawRecord = StorageRecord.readOldRaw(input);
 								StorageRecord.writeRaw(output, rawRecord.control(), rawRecord.generationId(), rawRecord.rawData());
 								readTotal += rawRecord.location().recordLength();
-							} while (rawRecord.location().endPosition() < sourceFileSize);
+							} while (rawRecord.location().endPosition() + WAL_TAIL_LENGTH < sourceFileSize);
 						} else {
 							RawRecord rawRecord;
 							do {
@@ -1034,6 +1035,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 							"Failed to open catalog data file!",
 							e
 						);
+					} catch (RuntimeException e) {
+						log.error("Failed to migrate catalog `" + catalogName + "` file: " + filePath, e);
+						throw e;
 					}
 				});
 			// finally remove original directory and rename migrated one
