@@ -100,13 +100,18 @@ public class TraverseReferenceAttributeComparator
 	public int compare(EntityContract o1, EntityContract o2) {
 		final ReferenceAttributeValue attribute1 = this.attributeValueFetcher.apply(o1);
 		final ReferenceAttributeValue attribute2 = this.attributeValueFetcher.apply(o2);
-		if (attribute1 != null && attribute2 != null) {
+		// to correctly compare the references we need to compare only attributes on the same reference
+		final boolean bothAttributesSpecified = attribute1 != null && attribute2 != null;
+		final boolean attributesExistOnSameReference = bothAttributesSpecified && attribute1.referencedKey().equals(attribute2.referencedKey());
+		if (attributesExistOnSameReference) {
 			final int result = attribute1.compareTo(attribute2);
 			if (result == 0) {
 				return this.pkComparator.compare(o1, o2);
 			} else {
 				return result;
 			}
+		} else if (bothAttributesSpecified) {
+			return attribute1.referencedKey().compareTo(attribute2.referencedKey());
 		} else if (attribute1 == null && attribute2 != null) {
 			return 1;
 		} else if (attribute1 != null) {
