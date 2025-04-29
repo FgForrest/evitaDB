@@ -435,7 +435,7 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
-							<groups>longRunning</groups>
+							<groups>integration,functional,longRunning</groups>
 							<parallel>all</parallel>
 							<useUnlimitedThreads>true</useUnlimitedThreads>
 						</configuration>
