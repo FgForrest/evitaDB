@@ -65,7 +65,6 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 			"Expected exactly one index for sorting, but " + indexForSort.length + " were found."
 		);
 
-		//noinspection SuspiciousToArrayCall
 		return Stream.of(
 			new AttributeExactSorter(
 				attributeName,
