@@ -103,9 +103,9 @@ public class ReferenceCompoundAttributeReferenceComparator implements ReferenceC
 			.toArray(ComparatorSource[]::new);
 
 		// initialize normalizers
-		this.normalizer = createNormalizerFor(comparatorSource);
+		this.normalizer = createNormalizerFor(this.comparatorSource);
 		//noinspection rawtypes
-		final Comparator baseComparator = createCombinedComparatorFor(locale, comparatorSource);
+		final Comparator baseComparator = createCombinedComparatorFor(locale, this.comparatorSource);
 		//noinspection unchecked
 		this.comparator = orderDirection == OrderDirection.ASC ?
 			baseComparator : (o1, o2) -> baseComparator.compare(o2, o1);
@@ -141,7 +141,7 @@ public class ReferenceCompoundAttributeReferenceComparator implements ReferenceC
 	public int compare(ReferenceContract o1, ReferenceContract o2) {
 		final ComparableArray valueToCompare1 = getAndMemoizeValue(o1);
 		final ComparableArray valueToCompare2 = getAndMemoizeValue(o2);
-		return comparator.compare(valueToCompare1, valueToCompare2);
+		return this.comparator.compare(valueToCompare1, valueToCompare2);
 	}
 
 	/**

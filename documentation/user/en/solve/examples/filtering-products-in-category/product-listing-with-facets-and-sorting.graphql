@@ -28,13 +28,11 @@
       priceValidInNow: true,
       userFilter: [
         {
-          facetBrandHaving: [
-            {
-              entityPrimaryKeyInSet: [
-                66465
-              ]
-            }
-          ],
+          facetBrandHaving: {
+            entityPrimaryKeyInSet: [
+              66465
+            ]
+          },
           priceBetween: [
             "50",
             "400"
@@ -48,10 +46,7 @@
       }
     ]
   ) {
-    recordPage(
-      number: 1
-      size: 16
-    ) {
+    recordPage(size: 16) {
       data {
         primaryKey
         attributes {

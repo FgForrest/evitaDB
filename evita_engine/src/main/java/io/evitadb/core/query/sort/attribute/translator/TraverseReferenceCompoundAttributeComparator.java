@@ -102,14 +102,19 @@ public class TraverseReferenceCompoundAttributeComparator
 
 	@Override
 	public int compare(EntityContract o1, EntityContract o2) {
-		final ReferenceAttributeValue valueToCompare1 = getAndMemoizeValue(o1);
-		final ReferenceAttributeValue valueToCompare2 = getAndMemoizeValue(o2);
-		if (valueToCompare1 != ReferenceAttributeValue.MISSING && valueToCompare2 != ReferenceAttributeValue.MISSING) {
-			return valueToCompare1.compareTo(valueToCompare2);
+		final ReferenceAttributeValue attribute1 = getAndMemoizeValue(o1);
+		final ReferenceAttributeValue attribute2 = getAndMemoizeValue(o2);
+		// to correctly compare the references we need to compare only attributes on the same reference
+		final boolean bothAttributesSpecified = attribute1 != ReferenceAttributeValue.MISSING && attribute2 != ReferenceAttributeValue.MISSING;
+		final boolean attributesExistOnSameReference = bothAttributesSpecified && attribute1.referencedEntityPrimaryKey() == attribute2.referencedEntityPrimaryKey();
+		if (attributesExistOnSameReference) {
+			return attribute1.compareTo(attribute2);
+		} else if (bothAttributesSpecified) {
+			return Integer.compare(attribute1.referencedEntityPrimaryKey(), attribute2.referencedEntityPrimaryKey());
 		} else {
-			if (valueToCompare1 != ReferenceAttributeValue.MISSING) {
+			if (attribute1 != ReferenceAttributeValue.MISSING) {
 				return -1;
-			} else if (valueToCompare2 != ReferenceAttributeValue.MISSING) {
+			} else if (attribute2 != ReferenceAttributeValue.MISSING) {
 				return 1;
 			} else {
 				return 0;

@@ -19,16 +19,14 @@ POST /rest/evita/Product/query
         ],
         "userFilter" : [
           {
-            "facetParameterValuesHaving" : [
-              {
-                "entityHaving" : {
-                  "attributeCodeInSet" : [
-                    "gluten-free",
-                    "original-recipe"
-                  ]
-                }
+            "facetParameterValuesHaving" : {
+              "entityHaving" : {
+                "attributeCodeInSet" : [
+                  "gluten-free",
+                  "original-recipe"
+                ]
               }
-            ],
+            },
             "priceBetween" : [
               "600",
               "1600"
@@ -48,8 +46,7 @@ POST /rest/evita/Product/query
     },
     "priceType" : "WITH_TAX",
     "priceHistogram" : {
-      "requestedBucketCount" : 30,
-      "behavior" : "STANDARD"
+      "requestedBucketCount" : 30
     }
   }
 }
