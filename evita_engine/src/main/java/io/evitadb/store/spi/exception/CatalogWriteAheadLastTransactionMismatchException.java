@@ -39,7 +39,7 @@ import java.io.Serial;
  */
 public class CatalogWriteAheadLastTransactionMismatchException extends EvitaInternalError {
 	@Serial private static final long serialVersionUID = 6117942525622800073L;
-	@Getter private long currentTransactionVersion;
+	@Getter private final long currentTransactionVersion;
 
 	public CatalogWriteAheadLastTransactionMismatchException(long currentTransactionVersion, @Nonnull String privateMessage, @Nonnull String publicMessage) {
 		super(privateMessage, publicMessage);

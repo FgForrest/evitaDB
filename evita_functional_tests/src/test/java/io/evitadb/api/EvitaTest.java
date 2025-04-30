@@ -2724,9 +2724,23 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateBackupAndRestoreTransactionalCatalog() throws IOException, ExecutionException, InterruptedException {
 		setupCatalogWithProductAndCategory();
 
-		evita.queryCatalog(TEST_CATALOG, session -> {
-			session.goLiveAndClose();
-		});
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.goLiveAndClose();
+			}
+		);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Changed name")
+					.upsertVia(session);
+			}
+		);
 
 		final EvitaManagement management = evita.management();
 		final CompletableFuture<FileForFetch> backupPathFuture = management.backupCatalog(TEST_CATALOG, null, null, true);
@@ -2771,6 +2785,30 @@ class EvitaTest implements EvitaTestSupport {
 						}
 					});
 			});
+
+		// verify we can write to the original catalog again
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Changed name again")
+					.upsertVia(session);
+			}
+		);
+
+		// and to the restored one as well
+		evita.updateCatalog(
+			TEST_CATALOG + "_restored",
+			session -> {
+				session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Changed name again")
+					.upsertVia(session);
+			}
+		);
 	}
 
 	@Test
