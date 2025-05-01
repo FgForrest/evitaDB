@@ -162,7 +162,8 @@ class ComplexDataObjectToJsonConverterTest {
 			IntegerNumberRange.to(124),
 			Locale.CANADA,
 			innerContainer,
-			CustomEnum.ENUM_B
+			CustomEnum.ENUM_B,
+			OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
 		);
 	}
 
@@ -200,6 +201,7 @@ class ComplexDataObjectToJsonConverterTest {
 		private Locale fLocale;
 		private InnerContainer innerContainer;
 		private CustomEnum fCustomEnum;
+		private OffsetDateTime timestamp;
 	}
 
 	@Data
@@ -228,6 +230,7 @@ class ComplexDataObjectToJsonConverterTest {
 		private final IntegerNumberRange fNumberRange;
 		private final Locale fLocale;
 		private final InnerImmutableContainer innerContainer;
+		private final OffsetDateTime timestamp;
 	}
 
 	@Data

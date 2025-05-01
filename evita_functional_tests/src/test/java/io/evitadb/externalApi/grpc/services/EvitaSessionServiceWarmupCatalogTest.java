@@ -32,6 +32,7 @@ import io.evitadb.api.query.visitor.PrettyPrintingVisitor;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
+import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.GrpcProvider;
@@ -49,6 +50,7 @@ import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.VersionUtils.SemVer;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -74,7 +76,10 @@ class EvitaSessionServiceWarmupCatalogTest {
 	@DataSet(value = GRPC_THOUSAND_PRODUCTS_WARM_UP, expectedCatalogState = CatalogState.WARMING_UP, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
 		final GrpcClientBuilder clientBuilder = TestGrpcClientBuilderCreator.getBuilder(
-			new ClientSessionInterceptor(),
+			new ClientSessionInterceptor(
+				EvitaClientConfiguration.builder().build(),
+				new SemVer(2025, 4)
+			),
 			evitaServer.getExternalApiServer()
 		);
 

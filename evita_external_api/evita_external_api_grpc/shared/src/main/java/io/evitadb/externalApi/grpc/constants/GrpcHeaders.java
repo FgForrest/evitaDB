@@ -23,9 +23,12 @@
 
 package io.evitadb.externalApi.grpc.constants;
 
+import io.evitadb.utils.VersionUtils;
+import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.Metadata;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 
 /**
  * Shared gRPC constant repository. The constants that we want o be shared between the Java client and the gRPC server.
@@ -50,6 +53,10 @@ public interface GrpcHeaders {
 	 * Constant string representing clientId that is used to fetch session from context.
 	 */
 	String CLIENT_ID_HEADER = "clientId";
+	/**
+	 * Constant string representing metadata that is used to fetch gRPC metadata object from the context.
+	 */
+	String CLIENT_VERSION = "clientVersion";
 
 	/**
 	 * Returns the gRPC trace task name with method name.
@@ -57,8 +64,23 @@ public interface GrpcHeaders {
 	 * @param metadata gRPC metadata object
 	 * @return gRPC trace task name with method name
 	 */
+	@Nonnull
 	static String getGrpcTraceTaskNameWithMethodName(@Nonnull Metadata metadata) {
 		final Metadata.Key<String> methodName = Metadata.Key.of(METHOD_NAME_HEADER, Metadata.ASCII_STRING_MARSHALLER);
 		return "gRPC - " + metadata.get(methodName);
 	}
+
+	/**
+	 * Retrieves the client version from the provided gRPC metadata.
+	 *
+	 * @param metadata the gRPC metadata object containing client metadata
+	 * @return an {@link Optional} containing the client version as a {@link VersionUtils.SemVer} object
+	 *         if the version metadata exists; otherwise, an empty {@link Optional}
+	 */
+	@Nonnull
+	static Optional<VersionUtils.SemVer> getClientVersion(@Nonnull Metadata metadata) {
+		final Metadata.Key<String> clientVersion = Metadata.Key.of(CLIENT_VERSION, Metadata.ASCII_STRING_MARSHALLER);
+		return Optional.ofNullable(metadata.get(clientVersion)).map(SemVer::fromString);
+	}
+
 }

@@ -46,7 +46,8 @@
             'fShort': 3,
             'fShortP': 4,
             'fString': 'TTT',
-            'innerContainer': <NULL>
+            'innerContainer': <NULL>,
+            'timestamp': 2021-01-01T00:00:00Z
          },
          {
             'fBigDecimal': 123.12,
@@ -71,7 +72,8 @@
             'fShort': 3,
             'fShortP': 4,
             'fString': 'GGG',
-            'innerContainer': <NULL>
+            'innerContainer': <NULL>,
+            'timestamp': 2021-01-01T00:00:00Z
          }
       ],
       'index': {
@@ -98,7 +100,8 @@
             'fShort': 3,
             'fShortP': 4,
             'fString': 'DEF',
-            'innerContainer': <NULL>
+            'innerContainer': <NULL>,
+            'timestamp': 2021-01-01T00:00:00Z
          }
       },
       'indexWithComplexKey': <NULL>,
@@ -126,7 +129,8 @@
             'fShort': 3,
             'fShortP': 4,
             'fString': 'RRR',
-            'innerContainer': <NULL>
+            'innerContainer': <NULL>,
+            'timestamp': 2021-01-01T00:00:00Z
          },
          {
             'fBigDecimal': 123.12,
@@ -151,7 +155,8 @@
             'fShort': 3,
             'fShortP': 4,
             'fString': 'EEE',
-            'innerContainer': <NULL>
+            'innerContainer': <NULL>,
+            'timestamp': 2021-01-01T00:00:00Z
          }
       ],
       'pojo': {
@@ -177,7 +182,8 @@
          'fShort': 3,
          'fShortP': 4,
          'fString': 'WWW',
-         'innerContainer': <NULL>
+         'innerContainer': <NULL>,
+         'timestamp': 2021-01-01T00:00:00Z
       },
       'set': [
          {
@@ -203,7 +209,8 @@
             'fShort': 3,
             'fShortP': 4,
             'fString': 'RTE',
-            'innerContainer': <NULL>
+            'innerContainer': <NULL>,
+            'timestamp': 2021-01-01T00:00:00Z
          },
          {
             'fBigDecimal': 123.12,
@@ -228,8 +235,10 @@
             'fShort': 3,
             'fShortP': 4,
             'fString': 'EGD',
-            'innerContainer': <NULL>
+            'innerContainer': <NULL>,
+            'timestamp': 2021-01-01T00:00:00Z
          }
       ]
-   }
+   },
+   'timestamp': 2021-01-01T00:00:00Z
 }

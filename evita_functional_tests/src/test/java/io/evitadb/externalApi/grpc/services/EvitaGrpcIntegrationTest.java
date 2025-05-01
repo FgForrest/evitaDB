@@ -25,6 +25,7 @@ package io.evitadb.externalApi.grpc.services;
 
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.core.Evita;
+import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.GrpcProvider;
@@ -44,6 +45,7 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -72,7 +74,13 @@ public class EvitaGrpcIntegrationTest {
 	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, destroyAfterClass = true)
 	GrpcClientBuilder setUp(Evita evita, EvitaServer evitaServer) {
 		new TestDataProvider().generateEntities(evita, 1);
-		return TestGrpcClientBuilderCreator.getBuilder(new ClientSessionInterceptor(), evitaServer.getExternalApiServer());
+		return TestGrpcClientBuilderCreator.getBuilder(
+			new ClientSessionInterceptor(
+				EvitaClientConfiguration.builder().build(),
+				new SemVer(2025, 4)
+			),
+			evitaServer.getExternalApiServer()
+		);
 	}
 
 	@AfterEach

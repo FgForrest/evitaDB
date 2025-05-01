@@ -71,6 +71,20 @@ public class VersionUtils {
 	}
 
 	/**
+	 * Compares the provided major and minor versions against a given SemVer object to check if the
+	 * provided version is greater than or equal to the compared version.
+	 *
+	 * @param major the major version to compare
+	 * @param minor the minor version to compare
+	 * @param comparedVersion the SemVer object to compare against; can be null
+	 * @return true if the provided version is greater than or equal to the compared version, false otherwise
+	 */
+	public static boolean greaterThanEquals(int major, int minor, @Nullable SemVer comparedVersion) {
+		return comparedVersion != null &&
+			(major > comparedVersion.major() || (major == comparedVersion.major() && minor >= comparedVersion.minor()));
+	}
+
+	/**
 	 * A class representing a semantic version.
 	 *
 	 * @param major the major version
@@ -85,6 +99,10 @@ public class VersionUtils {
 		boolean snapshot
 	) implements Comparable<SemVer> {
 
+		public SemVer(int major, int minor) {
+			this(major, minor, null, false);
+		}
+
 		@Override
 		public int compareTo(@Nonnull SemVer o) {
 			return compare(this, o);
@@ -95,6 +113,7 @@ public class VersionUtils {
 		 *
 		 * @param version the string version in the format "major.minor.patch"
 		 */
+		@Nonnull
 		public static SemVer fromString(@Nonnull String version) {
 			if (version.equals("?")) {
 				throw new InvalidEvitaVersionException(
@@ -121,6 +140,7 @@ public class VersionUtils {
 			}
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			// construct the SemVer string back again
