@@ -33,6 +33,10 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.dataType.*;
+import io.evitadb.dataType.data.DataItem;
+import io.evitadb.dataType.data.DataItemArray;
+import io.evitadb.dataType.data.DataItemMap;
+import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -59,6 +63,7 @@ import java.util.Arrays;
 import java.util.Currency;
 import java.util.EnumSet;
 import java.util.Locale;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -175,6 +180,8 @@ public class EvitaDataTypesConverter {
 	public static Serializable toEvitaValue(@Nonnull GrpcEvitaAssociatedDataValue value) {
 		if (value.getValueCase() == ValueCase.PRIMITIVEVALUE) {
 			return toEvitaValue(value.getPrimitiveValue());
+		} else if (value.getValueCase() == ValueCase.ROOT) {
+			return toComplexObject(value.getRoot());
 		} else if (value.getValueCase() == ValueCase.JSONVALUE) {
 			return ComplexDataObjectConverter.convertJsonToComplexDataObject(value.getJsonValue());
 		} else {
@@ -331,8 +338,8 @@ public class EvitaDataTypesConverter {
 	 * @return converted {@link GrpcEvitaAssociatedDataValue}
 	 */
 	@Nonnull
-	public static GrpcEvitaAssociatedDataValue toGrpcEvitaAssociatedDataValue(@Nullable Serializable value) {
-		return toGrpcEvitaAssociatedDataValue(value, null);
+	public static GrpcEvitaAssociatedDataValue toGrpcEvitaAssociatedDataValue(@Nonnull Serializable value, @Nonnull AssociatedDataForm form) {
+		return toGrpcEvitaAssociatedDataValue(value, null, form);
 	}
 
 	/**
@@ -343,12 +350,16 @@ public class EvitaDataTypesConverter {
 	 * @return converted {@link GrpcEvitaAssociatedDataValue}
 	 */
 	@Nonnull
-	public static GrpcEvitaAssociatedDataValue toGrpcEvitaAssociatedDataValue(@Nullable Serializable value, @Nullable Integer version) {
+	public static GrpcEvitaAssociatedDataValue toGrpcEvitaAssociatedDataValue(@Nonnull Serializable value, @Nullable Integer version, @Nonnull AssociatedDataForm form) {
 		final GrpcEvitaAssociatedDataValue.Builder builder = GrpcEvitaAssociatedDataValue.newBuilder()
 			.setType(toGrpcEvitaAssociatedDataDataType(value.getClass()));
 
 		if (value instanceof ComplexDataObject complexDataObject) {
-			builder.setJsonValue(ComplexDataObjectConverter.convertComplexDataObjectToJson(complexDataObject).toString());
+			// TOBEDONE #538 - remove when all clients are `2025.4` or higher
+			switch (form) {
+				case JSON -> builder.setJsonValue(ComplexDataObjectConverter.convertComplexDataObjectToJson(complexDataObject).toString());
+				case STRUCTURED_VALUE -> builder.setRoot(toGrpcDataItem(complexDataObject.root()));
+			}
 		} else {
 			builder.setPrimitiveValue(toGrpcEvitaValue(value, version));
 		}
@@ -358,6 +369,89 @@ public class EvitaDataTypesConverter {
 		}
 
 		return builder.build();
+	}
+
+	/**
+	 * Converts the provided DataItem object to a GrpcDataItem object.
+	 *
+	 * @param dataItem the DataItem to be converted; must not be null
+	 * @return the converted GrpcDataItem instance
+	 * @throws EvitaInvalidUsageException if the dataItem is of an unsupported type
+	 */
+	@Nonnull
+	public static GrpcDataItem toGrpcDataItem(@Nonnull DataItem dataItem) {
+		final GrpcDataItem.Builder builder = GrpcDataItem.newBuilder();
+		if (dataItem instanceof DataItemValue div) {
+			builder.setPrimitiveValue(toGrpcEvitaValue(div.value()));
+		} else if (dataItem instanceof DataItemArray dia) {
+			final GrpcDataItemArray.Builder arrayBuilder = GrpcDataItemArray.newBuilder();
+			for (DataItem child : dia.children()) {
+				arrayBuilder.addChildren(toGrpcDataItem(child));
+			}
+			builder.setArrayValue(arrayBuilder.build());
+		} else if (dataItem instanceof DataItemMap dim) {
+			final io.evitadb.externalApi.grpc.generated.DataItemMap.Builder mapBuilder = io.evitadb.externalApi.grpc.generated.DataItemMap.newBuilder();
+			for (String propertyName : dim.getPropertyNames()) {
+				final DataItem property = dim.getProperty(propertyName);
+				if (property != null) {
+					mapBuilder.putData(propertyName, toGrpcDataItem(property));
+				}
+			}
+			builder.setMapValue(mapBuilder.build());
+		} else {
+			throw new EvitaInvalidUsageException("Unsupported Evita data type in gRPC API '" + dataItem.getClass().getName() + "'.");
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Converts a given GrpcDataItem into a ComplexDataObject.
+	 *
+	 * @param root the GrpcDataItem to be converted, must not be null
+	 * @return a new ComplexDataObject created from the given GrpcDataItem, never null
+	 */
+	@Nonnull
+	public static ComplexDataObject toComplexObject(@Nonnull GrpcDataItem root) {
+		return new ComplexDataObject(
+			toDataItem(root)
+		);
+	}
+
+	/**
+	 * Converts a given {@code GrpcDataItem} into the corresponding {@code DataItem}.
+	 *
+	 * @param dataItem the gRPC data item to be converted, must not be null
+	 * @return the converted {@code DataItem} representation of the provided {@code GrpcDataItem}
+	 * @throws EvitaInvalidUsageException if the provided {@code GrpcDataItem} contains an unsupported or unrecognized type
+	 */
+	@Nonnull
+	private static DataItem toDataItem(@Nonnull GrpcDataItem dataItem) {
+		if (dataItem.hasPrimitiveValue()) {
+			return new DataItemValue(
+				toEvitaValue(dataItem.getPrimitiveValue())
+			);
+		} else if (dataItem.hasArrayValue()) {
+			return new DataItemArray(
+				dataItem.getArrayValue().getChildrenList()
+					.stream()
+					.map(EvitaDataTypesConverter::toDataItem)
+					.toArray(DataItem[]::new)
+			);
+		} else if (dataItem.hasMapValue()) {
+			return new DataItemMap(
+				dataItem.getMapValue().getDataMap()
+					.entrySet()
+					.stream()
+					.collect(
+						Collectors.toMap(
+							Entry::getKey,
+							it -> toDataItem(it.getValue())
+						)
+					)
+			);
+		} else {
+			throw new EvitaInvalidUsageException("Unsupported Evita data type in gRPC API '" + dataItem.getClass().getName() + "'.");
+		}
 	}
 
 
@@ -630,7 +724,7 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static Locale toLocale(@Nonnull GrpcLocale locale) {
-		return EvitaDataTypes.toTargetType(locale.getLanguageTag(), Locale.class);
+		return Objects.requireNonNull(EvitaDataTypes.toTargetType(locale.getLanguageTag(), Locale.class));
 	}
 
 	@Nonnull
@@ -678,8 +772,13 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static Predecessor toPredecessor(@Nonnull GrpcPredecessor predecessor) {
-		return predecessor.getHead() ? Predecessor.HEAD :
-			(predecessor.hasPredecessorId() ? new Predecessor(predecessor.getPredecessorId().getValue()) : null);
+		if (predecessor.getHead()) {
+			return Predecessor.HEAD;
+		} else if (predecessor.hasPredecessorId()) {
+			return new Predecessor(predecessor.getPredecessorId().getValue());
+		} else {
+			throw new EvitaInvalidUsageException("Predecessor must be either HEAD or have a predecessor ID.");
+		}
 	}
 
 	/**
@@ -690,8 +789,13 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static ReferencedEntityPredecessor toReferencedEntityPredecessor(@Nonnull GrpcPredecessor predecessor) {
-		return predecessor.getHead() ? ReferencedEntityPredecessor.HEAD :
-			(predecessor.hasPredecessorId() ? new ReferencedEntityPredecessor(predecessor.getPredecessorId().getValue()) : null);
+		if (predecessor.getHead()) {
+			return ReferencedEntityPredecessor.HEAD;
+		} else if (predecessor.hasPredecessorId()) {
+			return new ReferencedEntityPredecessor(predecessor.getPredecessorId().getValue());
+		} else {
+			throw new EvitaInvalidUsageException("ReferencedEntityPredecessor must be either HEAD or have a predecessor ID.");
+		}
 	}
 
 	/**
@@ -799,7 +903,7 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static BigDecimal toBigDecimal(@Nonnull GrpcBigDecimal grpcBigDecimal) {
-		return EvitaDataTypes.toTargetType(grpcBigDecimal.getValueString(), BigDecimal.class);
+		return Objects.requireNonNull(EvitaDataTypes.toTargetType(grpcBigDecimal.getValueString(), BigDecimal.class));
 	}
 
 	@Nonnull
@@ -1552,7 +1656,7 @@ public class EvitaDataTypesConverter {
 			taskStatus.hasStarted() ? EvitaDataTypesConverter.toOffsetDateTime(taskStatus.getStarted()) : null,
 			taskStatus.hasFinished() ? EvitaDataTypesConverter.toOffsetDateTime(taskStatus.getFinished()) : null,
 			taskStatus.getProgress(),
-			taskStatus.hasSettings() ? taskStatus.getSettings().getValue() : null,
+			taskStatus.hasSettings() ? taskStatus.getSettings().getValue() : "",
 			taskStatus.hasFile() ?
 				EvitaDataTypesConverter.toFileForFetch(taskStatus.getFile()) :
 				taskStatus.hasText() ? taskStatus.getText().getValue() : null,
@@ -1701,4 +1805,20 @@ public class EvitaDataTypesConverter {
 			.setName(nameVariant)
 			.build();
 	}
+
+	/**
+	 * TOBEDONE #538 - remove this enum when all clients are `2025.4` or newer
+	 */
+	public enum AssociatedDataForm {
+		/**
+		 * Deprecated form of passing associated data.
+		 */
+		JSON,
+		/**
+		 * New form of passing associated data.
+		 */
+		STRUCTURED_VALUE
+
+	}
+
 }

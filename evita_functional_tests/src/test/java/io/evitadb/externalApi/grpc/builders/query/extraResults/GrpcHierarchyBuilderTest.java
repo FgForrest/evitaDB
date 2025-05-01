@@ -101,13 +101,13 @@ public class GrpcHierarchyBuilderTest {
 			)
 		);
 
-		final GrpcHierarchy referenceSelfHierarchy = GrpcHierarchyStatisticsBuilder.buildHierarchy(hierarchy.getSelfHierarchy());
+		final GrpcHierarchy referenceSelfHierarchy = GrpcHierarchyStatisticsBuilder.buildHierarchy(hierarchy.getSelfHierarchy(), null);
 
 		final Map<String, GrpcHierarchy> referenceHierarchies = new HashMap<>(hierarchy.getReferenceHierarchies().size());
 		for (Entry<String, Map<String, List<LevelInfo>>> entry : hierarchy.getReferenceHierarchies().entrySet()) {
 			referenceHierarchies.put(
 				entry.getKey(),
-				GrpcHierarchyStatisticsBuilder.buildHierarchy(entry.getValue())
+				GrpcHierarchyStatisticsBuilder.buildHierarchy(entry.getValue(), null)
 			);
 		}
 
@@ -158,13 +158,13 @@ public class GrpcHierarchyBuilderTest {
 			)
 		);
 
-		final GrpcHierarchy entitySelfHierarchy = GrpcHierarchyStatisticsBuilder.buildHierarchy(entityHierarchy.getSelfHierarchy());
+		final GrpcHierarchy entitySelfHierarchy = GrpcHierarchyStatisticsBuilder.buildHierarchy(entityHierarchy.getSelfHierarchy(), null);
 
 		final Map<String, GrpcHierarchy> entityHierarchies = new HashMap<>(entityHierarchy.getReferenceHierarchies().size());
 		for (Entry<String, Map<String, List<LevelInfo>>> entry : entityHierarchy.getReferenceHierarchies().entrySet()) {
 			entityHierarchies.put(
 				entry.getKey(),
-				GrpcHierarchyStatisticsBuilder.buildHierarchy(entry.getValue())
+				GrpcHierarchyStatisticsBuilder.buildHierarchy(entry.getValue(), null)
 			);
 		}
 

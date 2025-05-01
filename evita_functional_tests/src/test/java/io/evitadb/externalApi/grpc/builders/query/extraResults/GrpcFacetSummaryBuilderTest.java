@@ -110,7 +110,7 @@ public class GrpcFacetSummaryBuilderTest {
 		);
 
 		final Builder extraResults = GrpcExtraResults.newBuilder();
-		GrpcFacetSummaryBuilder.buildFacetSummary(extraResults, facetSummary);
+		GrpcFacetSummaryBuilder.buildFacetSummary(extraResults, facetSummary, null);
 
 		GrpcAssertions.assertFacetSummary(facetSummary, extraResults.getFacetGroupStatisticsList());
 	}

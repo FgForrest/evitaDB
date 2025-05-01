@@ -296,7 +296,7 @@ message GrpcEvitaValue {
   // The type of the stored value.
   GrpcEvitaDataType type = 100;
   // Contains version of this value and gets increased with any entity type update. Allows to execute
-  //			optimistic locking i.e. avoiding parallel modifications.
+  // optimistic locking i.e. avoiding parallel modifications. May be null if value is used within larger complex object.
   google.protobuf.Int32Value version = 101;
 }
 
@@ -307,14 +307,41 @@ message GrpcEvitaAssociatedDataValue {
   oneof value {
     // Primitive value.
     GrpcEvitaValue primitiveValue = 1;
-    // JSON string value.
-    string jsonValue = 2;
+    // JSON string value, this old approach led to data type loss and is deprecated.
+    string jsonValue = 2 [deprecated = true];
+    // The array of values.
+    GrpcDataItem root = 4;
   }
   // The type of the stored value.
   GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;
   // Contains version of this value and gets increased with any entity type update. Allows to execute
   //			optimistic locking i.e. avoiding parallel modifications.
   google.protobuf.Int32Value version = 3;
+}
+
+// Structure that holds a complex object. It can be either a map or an array of values.
+message GrpcDataItem {
+  // The stored value. May by only one of the following at the time.
+  oneof value {
+    // Primitive value.
+    GrpcEvitaValue primitiveValue = 1;
+    // The array of values.
+    GrpcDataItemArray arrayValue = 4;
+    // The map of values.
+    DataItemMap mapValue = 5;
+  }
+}
+
+// Structure that holds a array of values stored inside array of the complex object.
+message GrpcDataItemArray {
+  // The stored array of values.
+  repeated GrpcDataItem children = 1;
+}
+
+// Structure that holds a map of values stored inside map of the complex object.
+message DataItemMap {
+  // The stored named fields with associated values.
+  map<string, GrpcDataItem> data = 1;
 }
 
 // identification of the file available for fetching

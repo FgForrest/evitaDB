@@ -25,6 +25,7 @@ package io.evitadb.driver.interceptor;
 
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
+import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
 import io.grpc.ClientCall;
@@ -36,6 +37,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.function.Supplier;
 
 /**
@@ -46,13 +48,14 @@ import java.util.function.Supplier;
  */
 public class ClientSessionInterceptor implements ClientInterceptor {
 	private final EvitaClientConfiguration configuration;
+	private final SemVer version;
 
-	public ClientSessionInterceptor(@Nonnull EvitaClientConfiguration configuration) {
+	public ClientSessionInterceptor(
+		@Nonnull EvitaClientConfiguration configuration,
+		@Nullable SemVer clientVersion
+	) {
 		this.configuration = configuration;
-	}
-
-	public ClientSessionInterceptor() {
-		this.configuration = null;
+		this.version = clientVersion;
 	}
 
 	/**
@@ -70,12 +73,13 @@ public class ClientSessionInterceptor implements ClientInterceptor {
 		return new ForwardingClientCall.SimpleForwardingClientCall<>(channel.newCall(methodDescriptor, callOptions)) {
 			@Override
 			public void start(Listener<RespT> listener, Metadata metadata) {
+				metadata.put(Metadata.Key.of(GrpcHeaders.CLIENT_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), ClientSessionInterceptor.this.configuration.clientId());
 				final String sessionId = SessionIdHolder.getSessionId();
 				if (sessionId != null) {
 					metadata.put(Metadata.Key.of(GrpcHeaders.SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), SessionIdHolder.getSessionId());
 				}
-				if (configuration != null) {
-					metadata.put(Metadata.Key.of(GrpcHeaders.CLIENT_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), configuration.clientId());
+				if (ClientSessionInterceptor.this.version != null) {
+					metadata.put(Metadata.Key.of(GrpcHeaders.CLIENT_VERSION, Metadata.ASCII_STRING_MARSHALLER), ClientSessionInterceptor.this.version.toString());
 				}
 				super.start(listener, metadata);
 			}

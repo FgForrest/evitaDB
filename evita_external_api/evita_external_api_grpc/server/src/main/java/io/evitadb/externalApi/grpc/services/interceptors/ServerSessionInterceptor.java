@@ -28,8 +28,10 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.SessionNotFoundException;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
+import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
+import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.Context;
 import io.grpc.Contexts;
 import io.grpc.Metadata;
@@ -109,6 +111,21 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 	private final Evita evita;
 
 	/**
+	 * Retrieves the client version information from the current gRPC metadata context.
+	 *
+	 * The method fetches metadata associated with the client version and converts it into
+	 * a {@link SemVer} object, if available.
+	 *
+	 * @return an {@link Optional} containing the client version as a {@link SemVer} object
+	 *         if the version metadata exists in the context; otherwise, an empty {@link Optional}
+	 */
+	@Nonnull
+	public static Optional<SemVer> getClientVersion() {
+		final Metadata metadata = ServerSessionInterceptor.METADATA.get();
+		return metadata == null ? Optional.empty() : GrpcHeaders.getClientVersion(metadata);
+	}
+
+	/**
 	 * This method is intercepting calls to gRPC services. If client provided session type and sessionId in metadata, an attempt
 	 * for getting matching session will occur. If session is not found and is required by endpoint, then
 	 * unauthenticated status will be returned to the client.
@@ -157,6 +174,17 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 		return Contexts.interceptCall(context, serverCall, metadata, serverCallHandler);
 	}
 
+	/**
+	 * Resolves and retrieves the active session associated with the provided session ID.
+	 *
+	 * The method attempts to fetch a session by its ID and verifies if the session is active
+	 * and compatible with the {@link EvitaInternalSessionContract} interface. If the session
+	 * ID is null, or the session is not active or incompatible, an empty {@link Optional} is returned.
+	 *
+	 * @param sessionId the session ID as a {@link String}; can be null
+	 * @return an {@link Optional} containing the active {@link EvitaInternalSessionContract}
+	 *         if a valid active session exists for the provided ID, or an empty {@link Optional} otherwise
+	 */
 	@Nonnull
 	private Optional<EvitaInternalSessionContract> resolveActiveSession(@Nullable String sessionId) {
 		if (sessionId == null) {
@@ -174,6 +202,17 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 			});
 	}
 
+	/**
+	 * Checks if the endpoint corresponding to the provided gRPC server call requires a session.
+	 *
+	 * This method determines whether a particular endpoint associated with the given server call
+	 * requires a session by checking if the endpoint is listed in a predefined set of endpoints
+	 * that do not require a session. If the endpoint is not found in this set, it is considered
+	 * to require a session.
+	 *
+	 * @param serverCall the gRPC server call being checked; must not be null
+	 * @return true if the endpoint requires a session; false otherwise
+	 */
 	private static <ReqT, RespT> boolean isEndpointRequiresSession(@Nonnull ServerCall<ReqT, RespT> serverCall) {
 		return !ENDPOINTS_NOT_REQUIRING_SESSION.contains(serverCall.getMethodDescriptor().getFullMethodName());
 	}

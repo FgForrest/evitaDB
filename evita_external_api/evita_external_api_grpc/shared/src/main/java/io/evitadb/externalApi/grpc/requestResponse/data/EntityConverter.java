@@ -35,10 +35,8 @@ import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
 import io.evitadb.api.requestResponse.chunk.OffsetAndLimit;
 import io.evitadb.api.requestResponse.chunk.PageTransformer;
-import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
-import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.DevelopmentConstants;
@@ -61,19 +59,23 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
-import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.AssociatedDataForm;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.VersionUtils;
+import io.evitadb.utils.VersionUtils.SemVer;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.BiFunction;
@@ -88,7 +90,7 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Class used for building suitable form of entity based on {@link SealedEntity}. The main methods here are
- * {@link #toGrpcSealedEntity(SealedEntity)} and {@link #toGrpcBinaryEntity(BinaryEntity)}, which are used for building
+ * {@link #toGrpcSealedEntity(SealedEntity, SemVer)} and {@link #toGrpcBinaryEntity(BinaryEntity)}, which are used for building
  * {@link GrpcSealedEntity} and {@link GrpcBinaryEntity} respectively.
  * Decision factor of which is going to be used is whether {@link SessionFlags#BINARY} was passed when creating a session.
  *
@@ -153,7 +155,7 @@ public class EntityConverter {
 		}
 
 		if (EntityReference.class.isAssignableFrom(expectedType)) {
-			throw new GenericEvitaInternalError("EntityReference is not expected in this method!");
+			throw new EvitaInvalidUsageException("EntityReference is not expected in this method!");
 		} else {
 			final List<ReferenceContract> references = grpcEntity.getReferencesList()
 				.stream()
@@ -298,10 +300,11 @@ public class EntityConverter {
 	 * {@link GrpcReference} and {@link GrpcPrice} and from those builds new instance of {@link GrpcSealedEntity}.
 	 *
 	 * @param entity {@link SealedEntity} to convert
+	 * @param clientVersion version of the client so that the server can adjust the response
 	 * @return new instance of {@link GrpcSealedEntity}
 	 */
 	@Nonnull
-	public static GrpcSealedEntity toGrpcSealedEntity(@Nonnull SealedEntity entity) {
+	public static GrpcSealedEntity toGrpcSealedEntity(@Nonnull SealedEntity entity, @Nullable SemVer clientVersion) {
 		//noinspection ConstantConditions
 		final GrpcSealedEntity.Builder entityBuilder = GrpcSealedEntity.newBuilder()
 			.setEntityType(entity.getType())
@@ -322,10 +325,10 @@ public class EntityConverter {
 						);
 					} else if (parent instanceof SealedEntity sealedEntity) {
 						entityBuilder.setParentEntity(
-							toGrpcSealedEntity(sealedEntity)
+							toGrpcSealedEntity(sealedEntity, clientVersion)
 						);
 					} else {
-						throw new IllegalStateException("Unexpected parent type: " + parent.getClass());
+						throw new EvitaInvalidUsageException("Unexpected parent type: " + parent.getClass());
 					}
 				});
 		}
@@ -365,7 +368,7 @@ public class EntityConverter {
 			referencesRequestedAndFetched = entityDecorator.referencesAvailable();
 			referenceRequestedPredicate = entityDecorator::referencesAvailable;
 		} else {
-			throw new GenericEvitaInternalError("Unexpected entity type: " + entity.getClass());
+			throw new EvitaInvalidUsageException("Unexpected entity type: " + entity.getClass());
 		}
 		if (referencesRequestedAndFetched) {
 			for (ReferenceContract reference : entity.getReferences()) {
@@ -388,7 +391,9 @@ public class EntityConverter {
 				}
 
 				if (reference.getReferencedEntity().isPresent()) {
-					grpcReferenceBuilder.setReferencedEntity(toGrpcSealedEntity(reference.getReferencedEntity().get()));
+					grpcReferenceBuilder.setReferencedEntity(
+						toGrpcSealedEntity(reference.getReferencedEntity().get(), clientVersion)
+					);
 				} else {
 					grpcReferenceBuilder.setReferencedEntityReference(GrpcEntityReference.newBuilder()
 						.setEntityType(reference.getReferencedEntityType())
@@ -400,15 +405,18 @@ public class EntityConverter {
 				}
 
 				if (reference.getGroupEntity().isPresent()) {
-					grpcReferenceBuilder.setGroupReferencedEntity(toGrpcSealedEntity(reference.getGroupEntity().get()));
+					grpcReferenceBuilder.setGroupReferencedEntity(
+						toGrpcSealedEntity(reference.getGroupEntity().get(), clientVersion)
+					);
 				} else if (reference.getGroup().isPresent()) {
 					final GroupEntityReference theGroup = reference.getGroup().get();
-					grpcReferenceBuilder.setGroupReferencedEntityReference(GrpcEntityReference.newBuilder()
-						.setEntityType(theGroup.getType())
-						.setPrimaryKey(theGroup.getPrimaryKey())
-						.setReferenceVersion(Int32Value.newBuilder().setValue(reference.version()).build())
-						.setVersion(theGroup.version())
-						.build()
+					grpcReferenceBuilder.setGroupReferencedEntityReference(
+						GrpcEntityReference.newBuilder()
+							.setEntityType(theGroup.getType())
+							.setPrimaryKey(theGroup.getPrimaryKey())
+							.setReferenceVersion(Int32Value.newBuilder().setValue(reference.version()).build())
+							.setVersion(theGroup.version())
+							.build()
 					);
 				}
 
@@ -446,9 +454,11 @@ public class EntityConverter {
 		if (entity.associatedDataAvailable() && !entity.getAssociatedDataValues().isEmpty()) {
 			final Map<Locale, GrpcLocalizedAssociatedData.Builder> localizedAssociatedData = CollectionUtils.createHashMap(entity.getLocales().size());
 			final Map<String, GrpcEvitaAssociatedDataValue> globalAssociatedData = CollectionUtils.createHashMap(entity.getSchema().getAssociatedData().size());
-			for (AssociatedDataContract.AssociatedDataValue theAssociatedData : entity.getAssociatedDataValues()) {
+			for (AssociatedDataValue theAssociatedData : entity.getAssociatedDataValues()) {
 				final GrpcEvitaAssociatedDataValue associatedDataValue = EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(
-					theAssociatedData.value(), theAssociatedData.version()
+					Objects.requireNonNull(theAssociatedData.value()), theAssociatedData.version(),
+					VersionUtils.greaterThanEquals(2025, 4, clientVersion) ?
+						AssociatedDataForm.STRUCTURED_VALUE : AssociatedDataForm.JSON
 				);
 
 				if (theAssociatedData.key().localized()) {
@@ -622,7 +632,7 @@ public class EntityConverter {
 	}
 
 	/**
-	 * Builds a entity reference with parent in gRPC entity from {@link EntityReferenceWithParent} instance.
+	 * Builds an entity reference with parent in gRPC entity from {@link EntityReferenceWithParent} instance.
 	 */
 	private static GrpcEntityReferenceWithParent toGrpcEntityReferenceWithParent(
 		@Nonnull EntityReferenceWithParent entityReference
@@ -756,12 +766,21 @@ public class EntityConverter {
 		@Nonnull GrpcEvitaAssociatedDataValue associatedDataValue
 	) {
 		Assert.isTrue(associatedDataValue.hasVersion(), "Missing attribute value version.");
+		final Serializable value;
+		if (associatedDataValue.hasPrimitiveValue()) {
+			value = EvitaDataTypesConverter.toEvitaValue(associatedDataValue.getPrimitiveValue());
+		} else if (associatedDataValue.hasRoot()) {
+			value = EvitaDataTypesConverter.toComplexObject(associatedDataValue.getRoot());
+		} else if (associatedDataValue.hasJsonValue()) {
+			value = ComplexDataObjectConverter.convertJsonToComplexDataObject(associatedDataValue.getJsonValue());
+		} else {
+			throw new EvitaInvalidUsageException("Associated data value is missing value.");
+		}
+
 		return new AssociatedDataValue(
 			associatedDataValue.getVersion().getValue(),
 			associatedDataKey,
-			associatedDataValue.hasPrimitiveValue() ?
-				EvitaDataTypesConverter.toEvitaValue(associatedDataValue.getPrimitiveValue()) :
-				ComplexDataObjectConverter.convertJsonToComplexDataObject(associatedDataValue.getJsonValue())
+			value
 		);
 	}
 
@@ -800,9 +819,9 @@ public class EntityConverter {
 		int maxAttributeCount,
 		@Nonnull Collection<AttributeValue> entityAttributes
 	) {
-		final Map<Locale, GrpcLocalizedAttribute.Builder> localizedAttributes = CollectionUtils.createHashMap(maxLocaleCount);
+		final Map<Locale, Builder> localizedAttributes = CollectionUtils.createHashMap(maxLocaleCount);
 		final Map<String, GrpcEvitaValue> globalAttributes = CollectionUtils.createHashMap(maxAttributeCount);
-		for (AttributesContract.AttributeValue attribute : entityAttributes) {
+		for (AttributeValue attribute : entityAttributes) {
 			if (attribute.key().localized()) {
 				final Builder localizedAttributesBuilder = localizedAttributes.computeIfAbsent(
 					attribute.key().locale(),

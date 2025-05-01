@@ -351,7 +351,7 @@ public class ReflectionLookup {
 					continue;
 				}
 
-				final Field propertyField = mapField(onClass, propertyName);
+				final Field propertyField = mapField(onClass, Objects.requireNonNull(propertyName));
 				registerPropertyDescriptor(result, method, propertyName, isGetter, propertyField);
 			}
 		}
@@ -1399,6 +1399,7 @@ public class ReflectionLookup {
 	 * @param arguments this SHOULD BE LinkedHashSet implementation or emptySet
 	 */
 	private record ConstructorKey(Class<?> type, Set<ArgumentKey> arguments) {
+		@Nonnull
 		@Override
 		public String toString() {
 			return type.getSimpleName() + "(" +
@@ -1413,6 +1414,8 @@ public class ReflectionLookup {
 	 * Contains constructor key and its weight (i.e. match with non-assigned properties).
 	 */
 	private record WeightedConstructorKey(ConstructorKey constructorKey, long weight) {
+
+		@Nonnull
 		@Override
 		public String toString() {
 			return constructorKey.toString();

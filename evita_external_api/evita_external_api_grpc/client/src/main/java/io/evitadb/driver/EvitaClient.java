@@ -57,6 +57,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidEvitaVersionException;
 import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
+import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager.Builder;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -83,6 +84,7 @@ import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -260,17 +262,21 @@ public class EvitaClient implements EvitaContract {
 		if (configuration.tlsEnabled()) {
 			uriScheme = "https";
 
-			final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
+			final Builder certificateBuilder = new Builder()
 				.useGeneratedCertificate(configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
 				.usingTrustedServerCertificate(configuration.trustCertificate())
 				.trustStorePassword(configuration.trustStorePassword())
 				.mtls(configuration.mtlsEnabled())
-				.certificateClientFolderPath(configuration.certificateFolderPath())
-				.serverCertificateFilePath(configuration.serverCertificatePath())
 				.clientCertificateFilePath(configuration.certificateFileName())
 				.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
-				.clientPrivateKeyPassword(configuration.certificateKeyPassword())
-				.build();
+				.clientPrivateKeyPassword(configuration.certificateKeyPassword());
+			if (configuration.certificateFolderPath() != null) {
+				certificateBuilder.certificateClientFolderPath(configuration.certificateFolderPath());
+			}
+			if (configuration.serverCertificatePath() != null) {
+				certificateBuilder.serverCertificateFilePath(configuration.serverCertificatePath());
+			}
+			final ClientCertificateManager clientCertificateManager = certificateBuilder.build();
 
 			clientFactoryBuilder = clientCertificateManager.buildClientSslContext((certificateType, certificate) -> {
 					try {
@@ -296,10 +302,18 @@ public class EvitaClient implements EvitaContract {
 
 		this.executor = Executors.newCachedThreadPool();
 		this.clientFactory = clientFactoryBuilder.build();
+
+		SemVer clientVersion;
+		try {
+			clientVersion = SemVer.fromString(getVersion());
+		} catch (InvalidEvitaVersionException e) {
+			clientVersion = null;
+		}
+
 		final GrpcClientBuilder grpcClientBuilder = GrpcClients.builder(uriScheme + "://" + configuration.host() + ":" + configuration.port() + "/")
 			.factory(this.clientFactory)
 			.serializationFormat(GrpcSerializationFormats.PROTO)
-			.intercept(new ClientSessionInterceptor(configuration));
+			.intercept(new ClientSessionInterceptor(configuration, clientVersion));
 
 		final ClientTracingContext context = getClientTracingContext(configuration);
 		if (configuration.openTelemetryInstance() != null) {
@@ -319,20 +333,18 @@ public class EvitaClient implements EvitaContract {
 		this.active.set(true);
 
 		try {
+			if (clientVersion == null) {
+				log.warn("Client version `{}` is not a valid semantic version. Aborting version check, this situation may lead to compatibility issues.", getVersion());
+				return;
+			}
+
 			final SystemStatus systemStatus = this.management().getSystemStatus();
 			final SemVer serverVersion;
-			final SemVer clientVersion;
 
 			try {
 				serverVersion = SemVer.fromString(systemStatus.version());
 			} catch (InvalidEvitaVersionException e) {
 				log.warn("Server version `{}` is not a valid semantic version. Aborting version check, this situation may lead to compatibility issues.", systemStatus.version());
-				return;
-			}
-			try {
-				clientVersion = SemVer.fromString(getVersion());
-			} catch (InvalidEvitaVersionException e) {
-				log.warn("Client version `{}` is not a valid semantic version. Aborting version check, this situation may lead to compatibility issues.", getVersion());
 				return;
 			}
 
@@ -356,7 +368,7 @@ public class EvitaClient implements EvitaContract {
 					);
 				} else {
 					throw new IncompatibleClientException(
-						"Client version `" + clientVersion + "` is higher than server version `" + serverVersion + "`. " +
+						"Client version `" + clientVersion + "` is higher than the server version `" + serverVersion + "`. " +
 							"This situation will probably lead to compatibility issues. Please update the server to " +
 							"the latest version.",
 						"Incompatible client version!"
@@ -366,7 +378,7 @@ public class EvitaClient implements EvitaContract {
 		} catch (IncompatibleClientException ex) {
 			throw ex;
 		} catch (Exception ex) {
-			log.error("Failed to connect to evitaDB server. Please check the connection settings.", ex);
+			log.error("Failed to connect to the evitaDB server. Please check the connection settings.", ex);
 		}
 	}
 
@@ -381,25 +393,24 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 		final GrpcEvitaSessionResponse grpcResponse;
 
+		final GrpcEvitaSessionRequest.Builder sessionBuilder = GrpcEvitaSessionRequest.newBuilder()
+			.setCatalogName(traits.catalogName())
+			.setDryRun(traits.isDryRun());
+
 		if (traits.isReadWrite()) {
+			if (traits.commitBehaviour() != null) {
+				sessionBuilder.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(traits.commitBehaviour()));
+			}
 			if (traits.isBinary()) {
 				grpcResponse = executeWithEvitaService(
 					evitaService -> evitaService.createBinaryReadWriteSession(
-						GrpcEvitaSessionRequest.newBuilder()
-							.setCatalogName(traits.catalogName())
-							.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(traits.commitBehaviour()))
-							.setDryRun(traits.isDryRun())
-							.build()
+						sessionBuilder.build()
 					)
 				);
 			} else {
 				grpcResponse = executeWithEvitaService(
 					evitaService -> evitaService.createReadWriteSession(
-						GrpcEvitaSessionRequest.newBuilder()
-							.setCatalogName(traits.catalogName())
-							.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(traits.commitBehaviour()))
-							.setDryRun(traits.isDryRun())
-							.build()
+						sessionBuilder.build()
 					)
 				);
 			}
@@ -407,19 +418,13 @@ public class EvitaClient implements EvitaContract {
 			if (traits.isBinary()) {
 				grpcResponse = executeWithEvitaService(
 					evitaService -> evitaService.createBinaryReadOnlySession(
-						GrpcEvitaSessionRequest.newBuilder()
-							.setCatalogName(traits.catalogName())
-							.setDryRun(traits.isDryRun())
-							.build()
+						sessionBuilder.build()
 					)
 				);
 			} else {
 				grpcResponse = executeWithEvitaService(
 					evitaService -> evitaService.createReadOnlySession(
-						GrpcEvitaSessionRequest.newBuilder()
-							.setCatalogName(traits.catalogName())
-							.setDryRun(traits.isDryRun())
-							.build()
+						sessionBuilder.build()
 					)
 				);
 			}
@@ -446,7 +451,7 @@ public class EvitaClient implements EvitaContract {
 				ofNullable(traits.onTermination())
 					.ifPresent(it -> it.onTermination(evitaSession));
 			},
-			this.timeout.get().peek()
+			Objects.requireNonNull(this.timeout.get().peek())
 		);
 
 		this.activeSessions.put(evitaClientSession.getId(), evitaClientSession);
@@ -796,7 +801,7 @@ public class EvitaClient implements EvitaContract {
 	private <T> T executeWithEvitaService(
 		@Nonnull AsyncCallFunction<EvitaServiceFutureStub, ListenableFuture<T>> lambda
 	) {
-		final Timeout timeout = this.timeout.get().peek();
+		final Timeout timeout = Objects.requireNonNull(this.timeout.get().peek());
 		try {
 			return lambda.apply(this.evitaServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
 				.get(timeout.timeout(), timeout.timeoutUnit());

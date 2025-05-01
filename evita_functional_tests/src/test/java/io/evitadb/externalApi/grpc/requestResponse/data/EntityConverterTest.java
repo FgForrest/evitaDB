@@ -44,6 +44,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcPrice;
 import io.evitadb.externalApi.grpc.generated.GrpcSealedEntity;
 import io.evitadb.externalApi.grpc.testUtils.GrpcAssertions;
 import io.evitadb.test.Entities;
+import io.evitadb.utils.VersionUtils.SemVer;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -65,7 +66,7 @@ import java.util.Set;
 class EntityConverterTest {
 
 	@Test
-	void buildSealedEntity() {
+	void buildSealedEntityOldVersion() {
 		final SealedEntity entity = new InitialEntityBuilder(createEntitySchema(), 1)
 			.setReference("test2", 1)
 			.setAttribute("test1", Locale.ENGLISH, LocalDateTime.now())
@@ -73,7 +74,21 @@ class EntityConverterTest {
 			.setPrice(1, "test", Currency.getInstance("CZK"), BigDecimal.ONE, BigDecimal.TEN, BigDecimal.valueOf(1.1), true)
 			.toInstance();
 
-		final GrpcSealedEntity grpcEntity = EntityConverter.toGrpcSealedEntity(entity);
+		final GrpcSealedEntity grpcEntity = EntityConverter.toGrpcSealedEntity(entity, null);
+
+		GrpcAssertions.assertEntity(entity, grpcEntity);
+	}
+
+	@Test
+	void buildSealedEntityCurrentVersion() {
+		final SealedEntity entity = new InitialEntityBuilder(createEntitySchema(), 1)
+			.setReference("test2", 1)
+			.setAttribute("test1", Locale.ENGLISH, LocalDateTime.now())
+			.setAssociatedData("test2", Locale.ENGLISH, new String[]{"test1", "test2"})
+			.setPrice(1, "test", Currency.getInstance("CZK"), BigDecimal.ONE, BigDecimal.TEN, BigDecimal.valueOf(1.1), true)
+			.toInstance();
+
+		final GrpcSealedEntity grpcEntity = EntityConverter.toGrpcSealedEntity(entity, new SemVer(2025, 4));
 
 		GrpcAssertions.assertEntity(entity, grpcEntity);
 	}

@@ -38,9 +38,12 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+
+import static io.evitadb.utils.VersionUtils.SemVer;
 
 /**
  * This class is used to build {@link GrpcFacetStatistics} from {@link FacetSummary} and segment them into necessary collections.
@@ -53,10 +56,11 @@ public class GrpcFacetSummaryBuilder {
 	/**
 	 * This method builds {@link GrpcFacetStatistics}, segments them into group statistics.
 	 *
+	 * @param extraResults the builder where the built result should be placed in
 	 * @param facetSummary {@link FacetSummary} returned by evita response
-	 * @return list of all group statistics
+	 * @param clientVersion version of the client so that the server can adjust the response
 	 */
-	public static void buildFacetSummary(@Nonnull Builder extraResults, @Nonnull FacetSummary facetSummary) {
+	public static void buildFacetSummary(@Nonnull Builder extraResults, @Nonnull FacetSummary facetSummary, @Nullable SemVer clientVersion) {
 		final Collection<FacetGroupStatistics> originalGroupStatistics = facetSummary.getReferenceStatistics();
 		final List<GrpcFacetGroupStatistics> facetGroupStatistics = new ArrayList<>(originalGroupStatistics.size());
 
@@ -73,7 +77,7 @@ public class GrpcFacetSummaryBuilder {
 						.setEntityType(entityReference.getType())
 						.setPrimaryKey(entityReference.getPrimaryKey()));
 				} else if (facetStatistic.getFacetEntity() instanceof final SealedEntity entity) {
-					statisticsBuilder.setFacetEntity(EntityConverter.toGrpcSealedEntity(entity));
+					statisticsBuilder.setFacetEntity(EntityConverter.toGrpcSealedEntity(entity, clientVersion));
 				}
 
 				final RequestImpact impact = facetStatistic.getImpact();
@@ -99,7 +103,7 @@ public class GrpcFacetSummaryBuilder {
 						.setEntityType(entityReference.getType())
 						.setPrimaryKey(entityReference.getPrimaryKey()));
 				} else if (groupStatistics.getGroupEntity() instanceof SealedEntity entity) {
-					groupStatisticBuilder.setGroupEntity(EntityConverter.toGrpcSealedEntity(entity));
+					groupStatisticBuilder.setGroupEntity(EntityConverter.toGrpcSealedEntity(entity, clientVersion));
 				}
 			}
 

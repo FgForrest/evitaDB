@@ -110,6 +110,20 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
+          case 34: {
+            io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder subBuilder = null;
+            if (valueCase_ == 4) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcDataItem) value_).toBuilder();
+            }
+            value_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcDataItem.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcDataItem) value_);
+              value_ = subBuilder.buildPartial();
+            }
+            valueCase_ = 4;
+            break;
+          }
           case 800: {
             int rawValue = input.readEnum();
 
@@ -154,7 +168,8 @@ private static final long serialVersionUID = 0L;
       implements com.google.protobuf.Internal.EnumLite,
           com.google.protobuf.AbstractMessage.InternalOneOfEnum {
     PRIMITIVEVALUE(1),
-    JSONVALUE(2),
+    @java.lang.Deprecated JSONVALUE(2),
+    ROOT(4),
     VALUE_NOT_SET(0);
     private final int value;
     private ValueCase(int value) {
@@ -174,6 +189,7 @@ private static final long serialVersionUID = 0L;
       switch (value) {
         case 1: return PRIMITIVEVALUE;
         case 2: return JSONVALUE;
+        case 4: return ROOT;
         case 0: return VALUE_NOT_SET;
         default: return null;
       }
@@ -235,24 +251,26 @@ private static final long serialVersionUID = 0L;
   public static final int JSONVALUE_FIELD_NUMBER = 2;
   /**
    * <pre>
-   * JSON string value.
+   * JSON string value, this old approach led to data type loss and is deprecated.
    * </pre>
    *
-   * <code>string jsonValue = 2;</code>
+   * <code>string jsonValue = 2 [deprecated = true];</code>
+   * @deprecated
    * @return Whether the jsonValue field is set.
    */
-  public boolean hasJsonValue() {
+  @java.lang.Deprecated public boolean hasJsonValue() {
     return valueCase_ == 2;
   }
   /**
    * <pre>
-   * JSON string value.
+   * JSON string value, this old approach led to data type loss and is deprecated.
    * </pre>
    *
-   * <code>string jsonValue = 2;</code>
+   * <code>string jsonValue = 2 [deprecated = true];</code>
+   * @deprecated
    * @return The jsonValue.
    */
-  public java.lang.String getJsonValue() {
+  @java.lang.Deprecated public java.lang.String getJsonValue() {
     java.lang.Object ref = "";
     if (valueCase_ == 2) {
       ref = value_;
@@ -271,13 +289,14 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * JSON string value.
+   * JSON string value, this old approach led to data type loss and is deprecated.
    * </pre>
    *
-   * <code>string jsonValue = 2;</code>
+   * <code>string jsonValue = 2 [deprecated = true];</code>
+   * @deprecated
    * @return The bytes for jsonValue.
    */
-  public com.google.protobuf.ByteString
+  @java.lang.Deprecated public com.google.protobuf.ByteString
       getJsonValueBytes() {
     java.lang.Object ref = "";
     if (valueCase_ == 2) {
@@ -294,6 +313,49 @@ private static final long serialVersionUID = 0L;
     } else {
       return (com.google.protobuf.ByteString) ref;
     }
+  }
+
+  public static final int ROOT_FIELD_NUMBER = 4;
+  /**
+   * <pre>
+   * The array of values.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+   * @return Whether the root field is set.
+   */
+  @java.lang.Override
+  public boolean hasRoot() {
+    return valueCase_ == 4;
+  }
+  /**
+   * <pre>
+   * The array of values.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+   * @return The root.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcDataItem getRoot() {
+    if (valueCase_ == 4) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcDataItem) value_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcDataItem.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * The array of values.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder getRootOrBuilder() {
+    if (valueCase_ == 4) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcDataItem) value_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcDataItem.getDefaultInstance();
   }
 
   public static final int TYPE_FIELD_NUMBER = 100;
@@ -387,6 +449,9 @@ private static final long serialVersionUID = 0L;
     if (version_ != null) {
       output.writeMessage(3, getVersion());
     }
+    if (valueCase_ == 4) {
+      output.writeMessage(4, (io.evitadb.externalApi.grpc.generated.GrpcDataItem) value_);
+    }
     if (type_ != io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.STRING.getNumber()) {
       output.writeEnum(100, type_);
     }
@@ -409,6 +474,10 @@ private static final long serialVersionUID = 0L;
     if (version_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getVersion());
+    }
+    if (valueCase_ == 4) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(4, (io.evitadb.externalApi.grpc.generated.GrpcDataItem) value_);
     }
     if (type_ != io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.STRING.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
@@ -445,6 +514,10 @@ private static final long serialVersionUID = 0L;
         if (!getJsonValue()
             .equals(other.getJsonValue())) return false;
         break;
+      case 4:
+        if (!getRoot()
+            .equals(other.getRoot())) return false;
+        break;
       case 0:
       default:
     }
@@ -473,6 +546,10 @@ private static final long serialVersionUID = 0L;
       case 2:
         hash = (37 * hash) + JSONVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getJsonValue().hashCode();
+        break;
+      case 4:
+        hash = (37 * hash) + ROOT_FIELD_NUMBER;
+        hash = (53 * hash) + getRoot().hashCode();
         break;
       case 0:
       default:
@@ -661,6 +738,13 @@ private static final long serialVersionUID = 0L;
       if (valueCase_ == 2) {
         result.value_ = value_;
       }
+      if (valueCase_ == 4) {
+        if (rootBuilder_ == null) {
+          result.value_ = value_;
+        } else {
+          result.value_ = rootBuilder_.build();
+        }
+      }
       result.type_ = type_;
       if (versionBuilder_ == null) {
         result.version_ = version_;
@@ -731,6 +815,10 @@ private static final long serialVersionUID = 0L;
           valueCase_ = 2;
           value_ = other.value_;
           onChanged();
+          break;
+        }
+        case ROOT: {
+          mergeRoot(other.getRoot());
           break;
         }
         case VALUE_NOT_SET: {
@@ -960,26 +1048,28 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * JSON string value.
+     * JSON string value, this old approach led to data type loss and is deprecated.
      * </pre>
      *
-     * <code>string jsonValue = 2;</code>
+     * <code>string jsonValue = 2 [deprecated = true];</code>
+     * @deprecated
      * @return Whether the jsonValue field is set.
      */
     @java.lang.Override
-    public boolean hasJsonValue() {
+    @java.lang.Deprecated public boolean hasJsonValue() {
       return valueCase_ == 2;
     }
     /**
      * <pre>
-     * JSON string value.
+     * JSON string value, this old approach led to data type loss and is deprecated.
      * </pre>
      *
-     * <code>string jsonValue = 2;</code>
+     * <code>string jsonValue = 2 [deprecated = true];</code>
+     * @deprecated
      * @return The jsonValue.
      */
     @java.lang.Override
-    public java.lang.String getJsonValue() {
+    @java.lang.Deprecated public java.lang.String getJsonValue() {
       java.lang.Object ref = "";
       if (valueCase_ == 2) {
         ref = value_;
@@ -998,14 +1088,15 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * JSON string value.
+     * JSON string value, this old approach led to data type loss and is deprecated.
      * </pre>
      *
-     * <code>string jsonValue = 2;</code>
+     * <code>string jsonValue = 2 [deprecated = true];</code>
+     * @deprecated
      * @return The bytes for jsonValue.
      */
     @java.lang.Override
-    public com.google.protobuf.ByteString
+    @java.lang.Deprecated public com.google.protobuf.ByteString
         getJsonValueBytes() {
       java.lang.Object ref = "";
       if (valueCase_ == 2) {
@@ -1025,14 +1116,15 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * JSON string value.
+     * JSON string value, this old approach led to data type loss and is deprecated.
      * </pre>
      *
-     * <code>string jsonValue = 2;</code>
+     * <code>string jsonValue = 2 [deprecated = true];</code>
+     * @deprecated
      * @param value The jsonValue to set.
      * @return This builder for chaining.
      */
-    public Builder setJsonValue(
+    @java.lang.Deprecated public Builder setJsonValue(
         java.lang.String value) {
       if (value == null) {
     throw new NullPointerException();
@@ -1044,13 +1136,14 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * JSON string value.
+     * JSON string value, this old approach led to data type loss and is deprecated.
      * </pre>
      *
-     * <code>string jsonValue = 2;</code>
+     * <code>string jsonValue = 2 [deprecated = true];</code>
+     * @deprecated
      * @return This builder for chaining.
      */
-    public Builder clearJsonValue() {
+    @java.lang.Deprecated public Builder clearJsonValue() {
       if (valueCase_ == 2) {
         valueCase_ = 0;
         value_ = null;
@@ -1060,14 +1153,15 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * JSON string value.
+     * JSON string value, this old approach led to data type loss and is deprecated.
      * </pre>
      *
-     * <code>string jsonValue = 2;</code>
+     * <code>string jsonValue = 2 [deprecated = true];</code>
+     * @deprecated
      * @param value The bytes for jsonValue to set.
      * @return This builder for chaining.
      */
-    public Builder setJsonValueBytes(
+    @java.lang.Deprecated public Builder setJsonValueBytes(
         com.google.protobuf.ByteString value) {
       if (value == null) {
     throw new NullPointerException();
@@ -1077,6 +1171,183 @@ private static final long serialVersionUID = 0L;
       value_ = value;
       onChanged();
       return this;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcDataItem, io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder> rootBuilder_;
+    /**
+     * <pre>
+     * The array of values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+     * @return Whether the root field is set.
+     */
+    @java.lang.Override
+    public boolean hasRoot() {
+      return valueCase_ == 4;
+    }
+    /**
+     * <pre>
+     * The array of values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+     * @return The root.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcDataItem getRoot() {
+      if (rootBuilder_ == null) {
+        if (valueCase_ == 4) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcDataItem) value_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcDataItem.getDefaultInstance();
+      } else {
+        if (valueCase_ == 4) {
+          return rootBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcDataItem.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * The array of values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+     */
+    public Builder setRoot(io.evitadb.externalApi.grpc.generated.GrpcDataItem value) {
+      if (rootBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        value_ = value;
+        onChanged();
+      } else {
+        rootBuilder_.setMessage(value);
+      }
+      valueCase_ = 4;
+      return this;
+    }
+    /**
+     * <pre>
+     * The array of values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+     */
+    public Builder setRoot(
+        io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder builderForValue) {
+      if (rootBuilder_ == null) {
+        value_ = builderForValue.build();
+        onChanged();
+      } else {
+        rootBuilder_.setMessage(builderForValue.build());
+      }
+      valueCase_ = 4;
+      return this;
+    }
+    /**
+     * <pre>
+     * The array of values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+     */
+    public Builder mergeRoot(io.evitadb.externalApi.grpc.generated.GrpcDataItem value) {
+      if (rootBuilder_ == null) {
+        if (valueCase_ == 4 &&
+            value_ != io.evitadb.externalApi.grpc.generated.GrpcDataItem.getDefaultInstance()) {
+          value_ = io.evitadb.externalApi.grpc.generated.GrpcDataItem.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcDataItem) value_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          value_ = value;
+        }
+        onChanged();
+      } else {
+        if (valueCase_ == 4) {
+          rootBuilder_.mergeFrom(value);
+        }
+        rootBuilder_.setMessage(value);
+      }
+      valueCase_ = 4;
+      return this;
+    }
+    /**
+     * <pre>
+     * The array of values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+     */
+    public Builder clearRoot() {
+      if (rootBuilder_ == null) {
+        if (valueCase_ == 4) {
+          valueCase_ = 0;
+          value_ = null;
+          onChanged();
+        }
+      } else {
+        if (valueCase_ == 4) {
+          valueCase_ = 0;
+          value_ = null;
+        }
+        rootBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The array of values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder getRootBuilder() {
+      return getRootFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * The array of values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder getRootOrBuilder() {
+      if ((valueCase_ == 4) && (rootBuilder_ != null)) {
+        return rootBuilder_.getMessageOrBuilder();
+      } else {
+        if (valueCase_ == 4) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcDataItem) value_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcDataItem.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * The array of values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcDataItem, io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder> 
+        getRootFieldBuilder() {
+      if (rootBuilder_ == null) {
+        if (!(valueCase_ == 4)) {
+          value_ = io.evitadb.externalApi.grpc.generated.GrpcDataItem.getDefaultInstance();
+        }
+        rootBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcDataItem, io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcDataItem) value_,
+                getParentForChildren(),
+                isClean());
+        value_ = null;
+      }
+      valueCase_ = 4;
+      onChanged();;
+      return rootBuilder_;
     }
 
     private int type_ = 0;
