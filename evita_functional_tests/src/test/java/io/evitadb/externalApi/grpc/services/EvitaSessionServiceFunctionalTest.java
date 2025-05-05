@@ -127,7 +127,7 @@ class EvitaSessionServiceFunctionalTest {
 	DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
 		final GrpcClientBuilder clientBuilder = TestGrpcClientBuilderCreator.getBuilder(
 			new ClientSessionInterceptor(
-				EvitaClientConfiguration.builder().build(),
+				EvitaClientConfiguration.builder().build().clientId(),
 				new SemVer(2025, 4)
 			),
 			evitaServer.getExternalApiServer()

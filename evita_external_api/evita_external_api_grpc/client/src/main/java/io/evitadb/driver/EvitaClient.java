@@ -313,7 +313,7 @@ public class EvitaClient implements EvitaContract {
 		final GrpcClientBuilder grpcClientBuilder = GrpcClients.builder(uriScheme + "://" + configuration.host() + ":" + configuration.port() + "/")
 			.factory(this.clientFactory)
 			.serializationFormat(GrpcSerializationFormats.PROTO)
-			.intercept(new ClientSessionInterceptor(configuration, clientVersion));
+			.intercept(new ClientSessionInterceptor(configuration.clientId(), clientVersion));
 
 		final ClientTracingContext context = getClientTracingContext(configuration);
 		if (configuration.openTelemetryInstance() != null) {
