@@ -90,7 +90,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-class CatalogWriteAheadLogIntegrationTest {
+public class CatalogWriteAheadLogIntegrationTest {
 	private final Path walDirectory = Path.of(System.getProperty("java.io.tmpdir")).resolve("evita").resolve(getClass().getSimpleName());
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
 		@Override
@@ -253,7 +253,7 @@ class CatalogWriteAheadLogIntegrationTest {
 		Arrays.fill(transactionSizes, justEnoughSize);
 
 		final OffsetDateTime initialTimestamp = OffsetDateTime.now();
-		writeWal(bigOffHeapMemoryManager, transactionSizes, initialTimestamp);
+		writeWal(bigOffHeapMemoryManager, transactionSizes, initialTimestamp, isolatedWalFilePath, observableOutputKeeper, this.wal);
 		this.wal.walProcessedUntil(Long.MAX_VALUE);
 		this.wal.removeWalFiles();
 
@@ -317,18 +317,28 @@ class CatalogWriteAheadLogIntegrationTest {
 	 */
 	@Nonnull
 	private Map<Long, List<Mutation>> writeWal(@Nonnull OffHeapMemoryManager offHeapMemoryManager, int[] transactionSizes) {
-		return writeWal(offHeapMemoryManager, transactionSizes, null);
+		return writeWal(offHeapMemoryManager, transactionSizes, null, isolatedWalFilePath, observableOutputKeeper, this.wal);
 	}
 
 	/**
 	 * Writes the Write-Ahead Log (WAL) using the provided off-heap memory manager.
 	 *
+	 * @param isolatedWalFilePath the path to the isolated WAL file
+	 * @param observableOutputKeeper the observable output keeper
+	 * @param wal
 	 * @param offHeapMemoryManager the off-heap memory manager to use
 	 * @param transactionSizes     an array of transaction sizes
 	 * @return a map of catalog versions to corresponding mutations
 	 */
 	@Nonnull
-	private Map<Long, List<Mutation>> writeWal(@Nonnull OffHeapMemoryManager offHeapMemoryManager, int[] transactionSizes, @Nullable OffsetDateTime initialTimestamp) {
+	public static Map<Long, List<Mutation>> writeWal(
+		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		int[] transactionSizes,
+		@Nullable OffsetDateTime initialTimestamp,
+		@Nonnull Path isolatedWalFilePath,
+		@Nonnull ObservableOutputKeeper observableOutputKeeper,
+		@Nonnull CatalogWriteAheadLog wal
+	) {
 		final DataGenerator dataGenerator = new DataGenerator.Builder()
 			.withPriceLists(DataGenerator.PRICE_LIST_BASIC)
 			.withCurrencies(DataGenerator.CURRENCY_CZK)
@@ -387,8 +397,8 @@ class CatalogWriteAheadLogIntegrationTest {
 				timestamp
 			);
 
-			final long start = this.wal.getWalFilePath().toFile().length();
-			this.wal.append(
+			final long start = wal.getWalFilePath().toFile().length();
+			wal.append(
 				transactionMutation,
 				walReference
 			);
@@ -396,8 +406,8 @@ class CatalogWriteAheadLogIntegrationTest {
 			mutations.addFirst(
 				new TransactionMutationWithLocation(
 					transactionMutation,
-					new FileLocation(start, (int) (this.wal.getWalFilePath().toFile().length() - start)),
-					this.wal.getWalFileIndex()
+					new FileLocation(start, (int) (wal.getWalFilePath().toFile().length() - start)),
+					wal.getWalFileIndex()
 				)
 			);
 			txInMutations.put(catalogVersion, mutations);

@@ -43,10 +43,10 @@ import io.evitadb.test.Entities;
 import io.evitadb.utils.UUIDUtil;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -116,6 +116,11 @@ class CapturePublisherTest {
 	 * Created using the factory with an empty request, which means no filtering.
 	 */
 	private final MutationPredicate catchAllPredicate = MutationPredicateFactory.createChangeCatalogCapturePredicate(ChangeCatalogCaptureRequest.builder().build());
+
+	@AfterEach
+	void tearDown() {
+		this.executor.shutdown();
+	}
 
 	/**
 	 * Tests that the CapturePublisher correctly captures and forwards all published mutations to its subscriber.
@@ -909,13 +914,13 @@ class CapturePublisherTest {
 		}
 
 		/**
-		 * Wraps the subscriber in a SubscriptionAware wrapper that can detect when all items have been consumed.
+		 * Wraps the subscriber in a EmptyAwareSubscriber wrapper that can detect when all items have been consumed.
 		 *
 		 * @param subscriber the subscriber to wrap
 		 */
 		@Override
 		public void subscribe(Subscriber<? super Mutation> subscriber) {
-			super.subscribe(new SubscriptionAware<>(subscriber, () -> this.executor.execute(this.onEmptyQueueCallback)));
+			super.subscribe(new EmptyAwareSubscriber<>(subscriber, () -> this.executor.execute(this.onEmptyQueueCallback)));
 		}
 
 		/**
@@ -931,7 +936,7 @@ class CapturePublisherTest {
 				item,
 				(subscriber, mutation) -> {
 					// Notify the subscriber about the number of items delivered so far
-					((SubscriptionAware<Mutation>) subscriber).onDepletion(this.delivered.get());
+					((EmptyAwareSubscriber<?,?>) subscriber).emptyOnDepletion(this.delivered.get());
 					return onDrop.test(subscriber, mutation);
 				}
 			);
@@ -954,7 +959,7 @@ class CapturePublisherTest {
 				item, timeout, unit,
 				(subscriber, mutation) -> {
 					// Notify the subscriber about the number of items delivered so far
-					((SubscriptionAware<Mutation>) subscriber).onDepletion(this.delivered.get());
+					((EmptyAwareSubscriber<?,?>) subscriber).emptyOnDepletion(this.delivered.get());
 					return onDrop.test(subscriber, mutation);
 				}
 			);
@@ -962,90 +967,6 @@ class CapturePublisherTest {
 			return result;
 		}
 
-		/**
-		 * A wrapper around a {@link Subscriber} that can detect when all published items have been consumed
-		 * and trigger a callback to publish more items.
-		 *
-		 * @param <T> the type of items being published
-		 */
-		@RequiredArgsConstructor
-		private static class SubscriptionAware<T> implements Subscriber<T> {
-			/**
-			 * The wrapped subscriber.
-			 */
-			private final Subscriber<T> delegate;
-
-			/**
-			 * Callback that is triggered when all published items have been consumed.
-			 */
-			private final Runnable onEmptyQueueCallback;
-
-			/**
-			 * Counter that tracks the number of items processed by this subscriber.
-			 */
-			private long itemsProcessed = 0;
-
-			/**
-			 * The total number of items that have been provisioned to this subscriber.
-			 * When itemsProcessed equals itemsProvisioned, the buffer is empty.
-			 */
-			@Nullable private Long itemsProvisioned;
-
-			/**
-			 * Delegates to the wrapped subscriber.
-			 *
-			 * @param subscription the subscription to the publisher
-			 */
-			@Override
-			public void onSubscribe(Subscription subscription) {
-				this.delegate.onSubscribe(subscription);
-			}
-
-			/**
-			 * Processes an item and checks if all published items have been consumed.
-			 * If so, triggers the callback to publish more items.
-			 *
-			 * @param item the item being delivered
-			 */
-			@Override
-			public void onNext(T item) {
-				this.itemsProcessed++;
-				this.delegate.onNext(item);
-				if (this.itemsProvisioned != null && this.itemsProcessed == this.itemsProvisioned) {
-					// All published items have been consumed, trigger the callback to publish more
-					this.itemsProvisioned = null;
-					this.onEmptyQueueCallback.run();
-				}
-			}
-
-			/**
-			 * Delegates to the wrapped subscriber.
-			 *
-			 * @param throwable the error that occurred
-			 */
-			@Override
-			public void onError(Throwable throwable) {
-				this.delegate.onError(throwable);
-			}
-
-			/**
-			 * Delegates to the wrapped subscriber.
-			 */
-			@Override
-			public void onComplete() {
-				this.delegate.onComplete();
-			}
-
-			/**
-			 * Called when the publisher has delivered a certain number of items.
-			 * This allows the subscriber to know how many items to expect.
-			 *
-			 * @param itemsProvisioned the total number of items that have been delivered so far
-			 */
-			public void onDepletion(long itemsProvisioned) {
-				this.itemsProvisioned = itemsProvisioned;
-			}
-		}
 	}
 
 	/**

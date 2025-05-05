@@ -27,20 +27,22 @@ package io.evitadb.core.cdc;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
-import java.util.Map;
-import java.util.Map.Entry;
+import java.util.Deque;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscriber;
-import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -76,6 +78,10 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 	 */
 	private final LongFunction<Stream<Mutation>> mutationSupplier;
 	/**
+	 * Executor to be used in new publishers.
+	 */
+	private final Executor executor;
+	/**
 	 * Lambda that is called when the subscribers reach the current catalog version retrieved from {@link #versionSupplier}.
 	 */
 	@Nullable private final Consumer<T> discardOnReachingCurrentVersion;
@@ -91,11 +97,15 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 	/**
 	 * Map of all subscribers that are registered to this publisher with associated subscriptions.
 	 */
-	private final Map<T, Subscription> subscriptions;
+	private final Deque<EmptyAwareSubscriber<Mutation, T>> subscribers;
 	/**
 	 * Lock to synchronize reading of the publisher.
 	 */
 	private final ReentrantLock lock = new ReentrantLock();
+	/**
+	 * Counter that tracks the number of items delivered to subscribers.
+	 */
+	private final AtomicLong delivered = new AtomicLong(0);
 	/**
 	 * Last successfully consumed version by the subscribers.
 	 */
@@ -126,6 +136,7 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 	@Nullable private Stream<Mutation> mutationStream;
 
 	public MutationReaderPublisher(
+		@Nonnull Executor executor,
 		long sinceCatalogVersion,
 		int sinceIndex,
 		@Nonnull LongSupplier versionSupplier,
@@ -133,25 +144,47 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 		@Nullable Consumer<T> discardOnLagging,
 		@Nullable Consumer<T> discardOnReachingCurrentVersion
 	) {
+		this(
+			executor,
+			Flow.defaultBufferSize(),
+			sinceCatalogVersion,
+			sinceIndex,
+			versionSupplier,
+			mutationSupplier,
+			discardOnLagging,
+			discardOnReachingCurrentVersion
+		);
+	}
+
+	public MutationReaderPublisher(
+		@Nonnull Executor executor,
+		int maxBufferSize,
+		long sinceCatalogVersion,
+		int sinceIndex,
+		@Nonnull LongSupplier versionSupplier,
+		@Nonnull LongFunction<Stream<Mutation>> mutationSupplier,
+		@Nullable Consumer<T> discardOnLagging,
+		@Nullable Consumer<T> discardOnReachingCurrentVersion
+	) {
+		super(executor, maxBufferSize);
+		this.executor = executor;
 		this.sinceCatalogVersion = sinceCatalogVersion;
 		this.sinceIndex = sinceIndex;
 		this.versionSupplier = versionSupplier;
 		this.discardOnReachingCurrentVersion = discardOnReachingCurrentVersion;
 		this.mutationSupplier = mutationSupplier;
-		this.subscriptions = CollectionUtils.createConcurrentHashMap(32);
+		this.subscribers = new ConcurrentLinkedDeque<>();
 		// if there is logic that discards lagging subscribers, we should continue reading changes even if any of subscribers doesn't keep up
 		this.continueOnSubscriberSaturation = discardOnLagging != null;
 		// on drop, register to lagging mutation publishers
 		this.onDrop = (subscriber, ccc) -> {
 			//noinspection unchecked
-			final T theSubscriber = (T) subscriber;
+			final EmptyAwareSubscriber<Mutation, T> theSubscriber = ((EmptyAwareSubscriber<Mutation, T>) subscriber);
 			this.subscriberSaturated = true;
 			if (discardOnLagging != null) {
-				final Subscription subscription = this.subscriptions.remove(theSubscriber);
 				// cancel the subscription to prevent further events from being sent unless reattached to lagging publisher
-				Assert.isPremiseValid(subscription != null, "Subscriber must be registered in the map!");
-				subscription.cancel();
-				discardOnLagging.accept(theSubscriber);
+				Assert.isPremiseValid(this.subscribers.remove(theSubscriber), "Subscriber must be registered in the map!");
+				theSubscriber.cancelSubscriptionOnDepletion(discardOnLagging);
 			}
 			// never retry delivery
 			return false;
@@ -171,7 +204,7 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 				"Reading all mutations from the catalog version {} and index {} and sending them to {} subscriber(s).",
 				this.sinceCatalogVersion,
 				this.sinceIndex,
-				this.subscriptions.size()
+				this.subscribers.size()
 			);
 			// when the read is called, we start observing the saturation from the beginning
 			this.subscriberSaturated = false;
@@ -179,15 +212,21 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 			this.mutationStream = this.mutationSupplier.apply(this.sinceCatalogVersion);
 			this.currentIndex = 0;
 
+			final AtomicReference<TransactionMutation> lastTransactionMutation = new AtomicReference<>();
+			final AtomicBoolean continueReading = new AtomicBoolean(true);
 			final long readItems = Stream.concat(
-				ofNullable(this.lastReadMutation).stream(),
-				this.mutationStream
-			)
+					ofNullable(this.lastReadMutation).stream(),
+					this.mutationStream
+				)
 				.dropWhile(
 					mutation -> {
 						// first mutation in the stream must always be transaction mutation
 						if (mutation instanceof TransactionMutation txMutation) {
+							lastTransactionMutation.set(txMutation);
+							this.currentIndex = 0;
 							this.currentCatalogVersion = txMutation.getCatalogVersion();
+						} else {
+							this.currentIndex++;
 						}
 						Assert.isPremiseValid(
 							this.currentCatalogVersion > 0,
@@ -195,51 +234,57 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 						);
 						this.lastReadMutation = mutation;
 						// drop all mutations that are older than the requested catalog version and index of the mutation in the transaction block
-						return this.sinceCatalogVersion < this.currentCatalogVersion ||
-							(this.sinceCatalogVersion == this.currentCatalogVersion && this.currentIndex++ < this.sinceIndex);
+						final boolean dropped = this.currentCatalogVersion < this.sinceCatalogVersion ||
+							(this.sinceCatalogVersion == this.currentCatalogVersion && this.currentIndex < this.sinceIndex);
+						return dropped;
 					}
 				)
 				.takeWhile(
 					mutation -> {
-						if (mutation instanceof TransactionMutation txMutation && txMutation.getCatalogVersion() == this.versionSupplier.getAsLong()) {
-							// reader must never get ahead of the currently used catalog version
-							if (this.discardOnReachingCurrentVersion != null) {
-								for (Entry<T, Subscription> entry : this.subscriptions.entrySet()) {
-									entry.getValue().cancel();
-									this.discardOnReachingCurrentVersion.accept(entry.getKey());
+						if (mutation instanceof TransactionMutation txMutation) {
+							lastTransactionMutation.set(txMutation);
+							this.currentIndex = 1;
+							this.currentCatalogVersion = txMutation.getCatalogVersion();
+							if (txMutation.getCatalogVersion() == this.versionSupplier.getAsLong() + 1) {
+								// reader must never get ahead of the currently used catalog version
+								if (this.discardOnReachingCurrentVersion != null) {
+									discardSubscribers(this.discardOnReachingCurrentVersion);
 								}
-								this.subscriptions.clear();
-							}
-							return false;
-						} else {
-							// publish the mutation to all subscribers
-							offer(mutation, 0, TimeUnit.MILLISECONDS, this.onDrop);
-							// if the subscribers keep up, or when we should continue reading even if they don't
-							// return true, otherwise false to stop reading more records
-							if (!this.subscriberSaturated || this.continueOnSubscriberSaturation) {
-								// there is no pending mutation that needs to be published in the next read round
-								this.lastReadMutation = null;
-								this.sinceCatalogVersion = this.currentCatalogVersion;
-								this.sinceIndex = this.currentIndex;
-								return true;
-							} else {
-								// and remember the last catalog version and index that was succesfully consumed
+								continueReading.set(false);
 								return false;
 							}
+						} else {
+							this.currentIndex++;
 						}
+						// publish the mutation to all subscribers
+						offer(mutation, 0, TimeUnit.MILLISECONDS, this.onDrop);
+						// if the subscribers keep up, or when we should continue reading even if they don't
+						// return true, otherwise false to stop reading more records
+						if (!this.subscriberSaturated || this.continueOnSubscriberSaturation) {
+							// there is no pending mutation that needs to be published in the next read round
+							this.lastReadMutation = null;
+							this.sinceCatalogVersion = this.currentCatalogVersion;
+							this.sinceIndex = this.currentIndex;
+							continueReading.set(true);
+						} else {
+							// and remember the last catalog version and index that was successfully consumed
+							continueReading.set(false);
+						}
+						return continueReading.get();
 					}
 				).count();
+
+			// if we wanted to read more, but the stream ended, it means we reached the end of the stream
+			if (this.discardOnReachingCurrentVersion != null && continueReading.get()) {
+				if (this.currentIndex == lastTransactionMutation.get().getMutationCount() + 1) {
+					discardSubscribers(this.discardOnReachingCurrentVersion);
+				}
+			}
 
 			log.debug(
 				"Read {} items from the catalog and reached version {} and index {}.",
 				readItems, this.sinceCatalogVersion, this.sinceIndex
 			);
-
-			// if there are no subscribers left, we can close the publisher
-			if (!hasSubscribers()) {
-				log.debug("No subscribers left, closing publisher.");
-				this.close();
-			}
 		} catch (Exception ex) {
 			log.error(
 				"Error while reading mutations from the database: {}",
@@ -264,7 +309,67 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 			this.continueOnSubscriberSaturation || !this.hasSubscribers(),
 			"In lagging mode the publisher can have only one subscriber!"
 		);
-		super.subscribe(subscriber);
+
+		//noinspection unchecked
+		final EmptyAwareSubscriber<Mutation, T> theSubscriber = new EmptyAwareSubscriber<>(
+			(T) subscriber,
+			this.continueOnSubscriberSaturation ?
+				null : () -> this.executor.execute(this::readAll)
+		);
+		this.subscribers.offer(theSubscriber);
+		super.subscribe(theSubscriber);
+	}
+
+	/**
+	 * Offers an item to subscribers with a custom drop handler that tracks depletion.
+	 *
+	 * @param item   the item to offer
+	 * @param onDrop the action to perform if the item is dropped
+	 * @return the number of subscribers that accepted the item
+	 */
+	@Override
+	public int offer(Mutation item, BiPredicate<Subscriber<? super Mutation>, ? super Mutation> onDrop) {
+		final int result = super.offer(
+			item,
+			(subscriber, mutation) -> {
+				// Notify the subscriber about the number of items delivered so far
+				if (subscriber instanceof EmptyAwareSubscriber<?, ?> eas) {
+					eas.emptyOnDepletion(this.delivered.get());
+				}
+				return onDrop.test(subscriber, mutation);
+			}
+		);
+		if (!this.subscriberSaturated) {
+			this.delivered.incrementAndGet();
+		}
+		return result;
+	}
+
+	/**
+	 * Offers an item to subscribers with a timeout and a custom drop handler that tracks depletion.
+	 *
+	 * @param item    the item to offer
+	 * @param timeout the maximum time to wait
+	 * @param unit    the time unit of the timeout argument
+	 * @param onDrop  the action to perform if the item is dropped
+	 * @return the number of subscribers that accepted the item
+	 */
+	@Override
+	public int offer(Mutation item, long timeout, TimeUnit unit, BiPredicate<Subscriber<? super Mutation>, ? super Mutation> onDrop) {
+		final int result = super.offer(
+			item, timeout, unit,
+			(subscriber, mutation) -> {
+				// Notify the subscriber about the number of items delivered so far
+				if (subscriber instanceof EmptyAwareSubscriber<?, ?> eas) {
+					eas.emptyOnDepletion(this.delivered.get());
+				}
+				return onDrop.test(subscriber, mutation);
+			}
+		);
+		if (!this.subscriberSaturated) {
+			this.delivered.incrementAndGet();
+		}
+		return result;
 	}
 
 	@Override
@@ -275,6 +380,35 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 			super.close();
 		} finally {
 			this.lock.unlock();
+		}
+	}
+
+	/**
+	 * Discards all currently registered subscribers by invoking the provided lambda
+	 * for each subscriber and cancelling their associated subscriptions.
+	 * After processing, the internal subscription map is cleared.
+	 *
+	 * @param discardLambda a non-null {@link Consumer} that accepts each key
+	 *                      representing a subscriber to handle necessary discard operations.
+	 */
+	private void discardSubscribers(@Nonnull Consumer<T> discardLambda) {
+		final AtomicLong subscribersToClose = new AtomicLong(0);
+		while (!this.subscribers.isEmpty()) {
+			final EmptyAwareSubscriber<Mutation, T> subscriber = this.subscribers.poll();
+			// if the subscriber is not saturated, we need to notify it about the number of items delivered
+			if (!subscriber.isDepletionSet()) {
+				subscriber.emptyOnDepletion(this.delivered.get());
+			}
+			subscribersToClose.incrementAndGet();
+			subscriber.cancelSubscriptionOnDepletion(
+				theSubscriber -> {
+					discardLambda.accept(theSubscriber);
+					if (subscribersToClose.decrementAndGet() == 0) {
+						log.debug("No subscribers left, closing publisher.");
+						this.close();
+					}
+				}
+			);
 		}
 	}
 

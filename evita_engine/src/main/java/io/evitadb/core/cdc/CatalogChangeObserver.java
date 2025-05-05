@@ -181,6 +181,7 @@ public class CatalogChangeObserver {
 
 	private void registerLaggingPublisher(@Nonnull CapturePublisher capturePublisher) {
 		final MutationReaderPublisher<CapturePublisher> newMutationReader = new MutationReaderPublisher<>(
+			this.executor,
 			capturePublisher.getContinueWithVersion(),
 			capturePublisher.getContinueWithIndex(),
 			() -> this.currentCatalog.get().getVersion(),
@@ -207,6 +208,7 @@ public class CatalogChangeObserver {
 		if (mutationReaderPublisher == null) {
 			// create a new publisher
 			final MutationReaderPublisher<CapturePublisher> newMutationReaderPublisher = new MutationReaderPublisher<>(
+				this.executor,
 				sinceCatalogVersion + 1L,
 				0,
 				() -> this.currentCatalog.get().getVersion(),
