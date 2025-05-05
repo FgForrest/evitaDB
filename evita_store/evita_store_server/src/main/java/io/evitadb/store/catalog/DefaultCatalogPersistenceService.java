@@ -76,6 +76,7 @@ import io.evitadb.store.catalog.task.BackupTask;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.exception.InvalidFileNameException;
 import io.evitadb.store.exception.InvalidStoragePathException;
+import io.evitadb.store.exception.StoredProtocolVersionNotSupportedException;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
@@ -873,7 +874,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			final long length = bootstrapFile.length();
 			final long lastMeaningfulPosition = CatalogBootstrap.getLastMeaningfulPosition(length);
 			try {
-				return deserializeCatalogBootstrapRecord(bootstrapStorageOptions, bootstrapFilePath, lastMeaningfulPosition);
+				final CatalogBootstrap catalogBootstrap = deserializeCatalogBootstrapRecord(bootstrapStorageOptions, bootstrapFilePath, lastMeaningfulPosition);
+				if (catalogBootstrap.storageProtocolVersion() != STORAGE_PROTOCOL_VERSION) {
+					throw new StoredProtocolVersionNotSupportedException(
+						catalogBootstrap.storageProtocolVersion(), STORAGE_PROTOCOL_VERSION
+					);
+				}
+				return catalogBootstrap;
 			} catch (CorruptedRecordException ex) {
 				// corruption may signalize old format
 				final long lastMeaningfulOldPosition = CatalogBootstrap.getOldLastMeaningfulPosition(length);
