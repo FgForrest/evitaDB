@@ -747,6 +747,7 @@ public class EvitaServer {
 				ConsoleWriter.write("Failed to stop evita server in dedicated time (30 secs.).\n");
 			} finally {
 				evita.close();
+				ConsoleWriter.write("evitaDB instance closed, all files synced on disk.\n");
 			}
 		}
 
