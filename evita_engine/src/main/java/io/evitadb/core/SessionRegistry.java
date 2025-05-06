@@ -131,6 +131,16 @@ final class SessionRegistry {
 	}
 
 	/**
+	 * Retrieves the catalog associated with the registry.
+	 *
+	 * @return the current catalog instance
+	 */
+	@Nonnull
+	public Catalog getCatalog() {
+		return this.catalog.get();
+	}
+
+	/**
 	 * Method closes and removes all active sessions from the registry.
 	 * All changes are rolled back.
 	 */
