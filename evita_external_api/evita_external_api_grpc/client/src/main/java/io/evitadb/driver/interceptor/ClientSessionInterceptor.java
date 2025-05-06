@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,8 +23,10 @@
 
 package io.evitadb.driver.interceptor;
 
-import io.evitadb.driver.config.EvitaClientConfiguration;
+import io.evitadb.exception.InvalidEvitaVersionException;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
+import io.evitadb.utils.VersionUtils;
+import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
 import io.grpc.ClientCall;
@@ -36,6 +38,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.function.Supplier;
 
 /**
@@ -45,14 +48,29 @@ import java.util.function.Supplier;
  * @author Tomáš Pozler, 2022
  */
 public class ClientSessionInterceptor implements ClientInterceptor {
-	private final EvitaClientConfiguration configuration;
+	private final String clientId;
+	private final SemVer version;
 
-	public ClientSessionInterceptor(@Nonnull EvitaClientConfiguration configuration) {
-		this.configuration = configuration;
+	public ClientSessionInterceptor(
+		@Nonnull String clientId,
+		@Nullable SemVer clientVersion
+	) {
+		this.clientId = clientId;
+		this.version = clientVersion;
 	}
 
+	/**
+	 * Default constructor is used in tests.
+	 */
 	public ClientSessionInterceptor() {
-		this.configuration = null;
+		this.clientId = null;
+		SemVer version;
+		try {
+			version = VersionUtils.SemVer.fromString(VersionUtils.readVersion());
+		} catch (InvalidEvitaVersionException ignored) {
+			version = null;
+		}
+		this.version = version;
 	}
 
 	/**
@@ -70,12 +88,15 @@ public class ClientSessionInterceptor implements ClientInterceptor {
 		return new ForwardingClientCall.SimpleForwardingClientCall<>(channel.newCall(methodDescriptor, callOptions)) {
 			@Override
 			public void start(Listener<RespT> listener, Metadata metadata) {
+				if (ClientSessionInterceptor.this.clientId != null) {
+					metadata.put(Metadata.Key.of(GrpcHeaders.CLIENT_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), ClientSessionInterceptor.this.clientId);
+				}
 				final String sessionId = SessionIdHolder.getSessionId();
 				if (sessionId != null) {
 					metadata.put(Metadata.Key.of(GrpcHeaders.SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), SessionIdHolder.getSessionId());
 				}
-				if (configuration != null) {
-					metadata.put(Metadata.Key.of(GrpcHeaders.CLIENT_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), configuration.clientId());
+				if (ClientSessionInterceptor.this.version != null) {
+					metadata.put(Metadata.Key.of(GrpcHeaders.CLIENT_VERSION, Metadata.ASCII_STRING_MARSHALLER), ClientSessionInterceptor.this.version.toString());
 				}
 				super.start(listener, metadata);
 			}

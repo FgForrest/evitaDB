@@ -29,6 +29,7 @@ import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
+import io.evitadb.store.offsetIndex.exception.PrematureEndOfFileException;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -236,6 +237,47 @@ public record StorageRecord<T>(
 	) {
 		final long startPosition = input.markStart();
 		final int recordLength = input.readInt();
+		final byte originalControl = input.readByte();
+
+		// if the data is compressed we need to override the control byte and read it uncompressed
+		byte control = setBit(originalControl, COMPRESSION_BIT, false);
+		input.markPayloadStart(recordLength, control);
+		final long generationId = input.readLong();
+		final byte[] payload = input.readBytes(recordLength - CRC_NOT_COVERED_PART);
+		input.markEnd(originalControl);
+
+		return new RawRecord(
+			new FileLocation(startPosition, recordLength),
+			originalControl,
+			generationId,
+			payload
+		);
+	}
+
+	/**
+	 * Constructor that is used for READING known record from the input stream on known file location. Constructor should
+	 * be used for random access reading of arbitrary records o reading lead record for the file offset index.
+	 *
+	 * This method overrides the control byte to indicate that the record should be read as uncompressed. The payload
+	 * can be read only as a byte array and will contain compressed data of the original record
+	 *
+	 * This method is special in the sense that it verifies whether the record length doesn't exceed the file size and
+	 * if so, it throw specific exception.
+	 *
+	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
+	 */
+	@Deprecated
+	@Nonnull
+	public static RawRecord readOldRaw(
+		@Nonnull ObservableInput<?> input,
+		long fileSize
+	) throws PrematureEndOfFileException {
+		final long startPosition = input.markStart();
+		final int recordLength = input.readInt();
+		Assert.isPremiseValid(
+			startPosition + recordLength <= fileSize,
+			() -> new PrematureEndOfFileException(fileSize, startPosition, recordLength)
+		);
 		final byte originalControl = input.readByte();
 
 		// if the data is compressed we need to override the control byte and read it uncompressed

@@ -76,6 +76,7 @@ import io.evitadb.store.catalog.task.BackupTask;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.exception.InvalidFileNameException;
 import io.evitadb.store.exception.InvalidStoragePathException;
+import io.evitadb.store.exception.StoredProtocolVersionNotSupportedException;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
@@ -88,6 +89,7 @@ import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
+import io.evitadb.store.offsetIndex.exception.PrematureEndOfFileException;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
 import io.evitadb.store.offsetIndex.io.BootstrapWriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
@@ -165,6 +167,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService.readCatalogHeader;
 import static io.evitadb.store.spi.CatalogPersistenceService.*;
+import static io.evitadb.store.wal.CatalogWriteAheadLog.WAL_TAIL_LENGTH;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -872,7 +875,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			final long length = bootstrapFile.length();
 			final long lastMeaningfulPosition = CatalogBootstrap.getLastMeaningfulPosition(length);
 			try {
-				return deserializeCatalogBootstrapRecord(bootstrapStorageOptions, bootstrapFilePath, lastMeaningfulPosition);
+				final CatalogBootstrap catalogBootstrap = deserializeCatalogBootstrapRecord(bootstrapStorageOptions, bootstrapFilePath, lastMeaningfulPosition);
+				if (catalogBootstrap.storageProtocolVersion() != STORAGE_PROTOCOL_VERSION) {
+					throw new StoredProtocolVersionNotSupportedException(
+						catalogBootstrap.storageProtocolVersion(), STORAGE_PROTOCOL_VERSION
+					);
+				}
+				return catalogBootstrap;
 			} catch (CorruptedRecordException ex) {
 				// corruption may signalize old format
 				final long lastMeaningfulOldPosition = CatalogBootstrap.getOldLastMeaningfulPosition(length);
@@ -1019,21 +1028,28 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 								rawRecord = StorageRecord.readOldRaw(input);
 								StorageRecord.writeRaw(output, rawRecord.control(), rawRecord.generationId(), rawRecord.rawData());
 								readTotal += rawRecord.location().recordLength();
-							} while (rawRecord.location().endPosition() < sourceFileSize);
+							} while (readTotal + WAL_TAIL_LENGTH < sourceFileSize);
 						} else {
-							RawRecord rawRecord;
-							do {
-								rawRecord = StorageRecord.readOldRaw(input);
-								StorageRecord.writeRaw(output, rawRecord.control(), rawRecord.generationId(), rawRecord.rawData());
-							} while (rawRecord.location().endPosition() < sourceFileSize);
+							try {
+								RawRecord rawRecord;
+								do {
+									rawRecord = StorageRecord.readOldRaw(input, sourceFileSize);
+									StorageRecord.writeRaw(output, rawRecord.control(), rawRecord.generationId(), rawRecord.rawData());
+								} while (rawRecord.location().endPosition() < sourceFileSize);
+							} catch (PrematureEndOfFileException ex) {
+								ConsoleWriter.writeLine("There is a dangling record at the end of the file: " + filePath + ". Catalog might me corrupted after migration if the record is referenced in current indexes.", ConsoleColor.BRIGHT_RED);
+							}
 							ConsoleWriter.writeLine("Migrated catalog `" + catalogName + "` file: " + filePath, ConsoleColor.DARK_BLUE);
 						}
 					} catch (FileNotFoundException e) {
 						throw new UnexpectedIOException(
-							"Failed to open catalog data file `" + filePath + "`!",
-							"Failed to open catalog data file!",
+							"Failed to open the catalog data file `" + filePath + "`!",
+							"Failed to open a catalog data file!",
 							e
 						);
+					} catch (RuntimeException e) {
+						log.error("Failed to migrate catalog `" + catalogName + "` file: " + filePath, e);
+						throw e;
 					}
 				});
 			// finally remove original directory and rename migrated one
@@ -1043,10 +1059,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			FileUtils.renameFolder(targetPath, catalogStoragePath);
 			ConsoleWriter.writeLine("Upgrade of catalog `" + catalogName + "` successfully finished.", ConsoleColor.BRIGHT_BLUE, ConsoleDecoration.BOLD);
 		} catch (IOException e) {
-			ConsoleWriter.writeLine("Upgrad of catalog `" + catalogName + "` failed!", ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD);
+			ConsoleWriter.writeLine("Upgrade of catalog `" + catalogName + "` failed!", ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD);
 			throw new UnexpectedIOException(
 				"Failed to migrate catalog `" + catalogName + "` data file!",
-				"Failed to migrate catalog data file!",
+				"Failed to migrate a catalog data file!",
 				e
 			);
 		} finally {

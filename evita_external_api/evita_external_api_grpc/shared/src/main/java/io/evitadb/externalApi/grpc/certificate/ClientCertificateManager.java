@@ -199,6 +199,7 @@ public class ClientCertificateManager {
 		boolean usingTrustedRootCaCertificate
 	) {
 		if (useGeneratedCertificate) {
+			Assert.isTrue(host != null, "Host must be provided when using generated certificate!");
 			this.certificateClientFolderPath = getCertificatesFromServer(
 				host, port, certificateClientFolderPath, Stream.concat(
 					Stream.of(CertificateType.SERVER),
@@ -209,7 +210,8 @@ public class ClientCertificateManager {
 			this.clientCertificateFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedClientCertificateFileName());
 			this.clientPrivateKeyFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
 		} else {
-			this.certificateClientFolderPath = serverName == null ?
+			Assert.isTrue(host != null || serverName != null, "Host or server name must be provided when using custom certificate!");
+				this.certificateClientFolderPath = serverName == null ?
 				identifyServerDirectory(host, port, certificateClientFolderPath) :
 				certificateClientFolderPath.resolve(serverName);
 			this.rootCaCertificateFilePath = serverCertificateFilePath;
@@ -418,13 +420,13 @@ public class ClientCertificateManager {
 	public static class Builder {
 		private Path certificateClientFolderPath = DEFAULT_CLIENT_CERTIFICATE_FOLDER_PATH;
 		private Path serverCertificatePath = Path.of(CertificateUtils.getGeneratedServerCertificateFileName());
-		private Path clientCertificateFilePath = null;
-		private Path clientPrivateKeyFilePath = null;
-		private String clientPrivateKeyPassword = null;
-		private String trustStorePassword = "trustStorePassword";
+		@Nullable private Path clientCertificateFilePath = null;
+		@Nullable private Path clientPrivateKeyFilePath = null;
+		@Nullable private String clientPrivateKeyPassword = null;
+		@Nullable private String trustStorePassword = "trustStorePassword";
 		private boolean isMtlsEnabled = false;
 		private boolean useGeneratedCertificate = true;
-		private String serverName;
+		@Nullable private String serverName;
 		private String host;
 		private int port;
 		private boolean usingTrustedRootCaCertificate = false;
@@ -440,16 +442,12 @@ public class ClientCertificateManager {
 		}
 
 		public Builder clientCertificateFilePath(@Nullable Path clientCertificateFilePath) {
-			this.clientCertificateFilePath = ofNullable(clientCertificateFilePath)
-				.map(it -> certificateClientFolderPath.resolve(it))
-				.orElse(null);
+			this.clientCertificateFilePath = clientCertificateFilePath;
 			return this;
 		}
 
 		public Builder clientPrivateKeyFilePath(@Nullable Path clientPrivateKeyFilePath) {
-			this.clientPrivateKeyFilePath = ofNullable(clientPrivateKeyFilePath)
-				.map(it -> certificateClientFolderPath.resolve(it))
-				.orElse(null);
+			this.clientPrivateKeyFilePath = clientPrivateKeyFilePath;
 			return this;
 		}
 
@@ -495,8 +493,12 @@ public class ClientCertificateManager {
 				trustStorePassword,
 				certificateClientFolderPath,
 				serverCertificatePath,
-				clientCertificateFilePath,
-				clientPrivateKeyFilePath,
+				ofNullable(clientCertificateFilePath)
+					.map(it -> certificateClientFolderPath.resolve(it))
+					.orElse(null),
+				ofNullable(clientPrivateKeyFilePath)
+					.map(it -> certificateClientFolderPath.resolve(it))
+					.orElse(null),
 				clientPrivateKeyPassword,
 				isMtlsEnabled,
 				useGeneratedCertificate,

@@ -26,12 +26,14 @@ package io.evitadb.externalApi.grpc.requestResponse.data.mutation.associatedData
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.AssociatedDataForm;
 import io.evitadb.externalApi.grpc.generated.GrpcUpsertAssociatedDataMutation;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * Converts between {@link UpsertAssociatedDataMutation} and {@link GrpcUpsertAssociatedDataMutation} in both directions.
@@ -56,10 +58,10 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 	public GrpcUpsertAssociatedDataMutation convert(@Nonnull UpsertAssociatedDataMutation mutation) {
 		final GrpcUpsertAssociatedDataMutation.Builder builder = GrpcUpsertAssociatedDataMutation.newBuilder()
 			.setAssociatedDataName(mutation.getAssociatedDataKey().associatedDataName())
-			.setAssociatedDataValue(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(mutation.getAssociatedDataValue()));
+			.setAssociatedDataValue(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(mutation.getAssociatedDataValue(), AssociatedDataForm.STRUCTURED_VALUE));
 
 		if (mutation.getAssociatedDataKey().localized()) {
-			builder.setAssociatedDataLocale(EvitaDataTypesConverter.toGrpcLocale(mutation.getAssociatedDataKey().locale()));
+			builder.setAssociatedDataLocale(EvitaDataTypesConverter.toGrpcLocale(Objects.requireNonNull(mutation.getAssociatedDataKey().locale())));
 		}
 
 		return builder.build();

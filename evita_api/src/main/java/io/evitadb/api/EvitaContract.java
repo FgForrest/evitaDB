@@ -136,6 +136,14 @@ public interface EvitaContract extends AutoCloseable {
 	Set<String> getCatalogNames();
 
 	/**
+	 * Returns the state of the catalog of particular name.
+	 *
+	 * @return {@link CatalogState} of the catalog or empty optional if the catalog doesn't exist
+	 */
+	@Nonnull
+	Optional<CatalogState> getCatalogState(@Nonnull String catalogName);
+
+	/**
 	 * Creates new catalog of particular name if it doesn't exist. The schema of the catalog (should it was created or
 	 * not) is returned to the response.
 	 *

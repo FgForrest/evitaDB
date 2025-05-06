@@ -24,8 +24,7 @@ POST /rest/evita/Product/query
   },
   "require" : {
     "priceHistogram" : {
-      "requestedBucketCount" : 10,
-      "behavior" : "STANDARD"
+      "requestedBucketCount" : 10
     }
   }
 }

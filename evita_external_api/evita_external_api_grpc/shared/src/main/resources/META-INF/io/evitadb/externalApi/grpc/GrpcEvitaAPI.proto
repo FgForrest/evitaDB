@@ -57,6 +57,18 @@ message GrpcCatalogNamesResponse {
   repeated string catalogNames = 1;
 }
 
+// Request to a get catalog state request.
+message GrpcGetCatalogStateRequest {
+  // Name of the catalog to be checked for state.
+  string catalogName = 1;
+}
+
+// Response to a get catalog state request.
+message GrpcGetCatalogStateResponse {
+  // State of the catalog.
+  optional GrpcCatalogState catalogState = 1;
+}
+
 // Request to define a new catalog.
 message GrpcDefineCatalogRequest {
   // Name of the catalog to be defined.
@@ -142,6 +154,8 @@ service EvitaService {
   rpc TerminateSession(GrpcEvitaSessionTerminationRequest) returns (GrpcEvitaSessionTerminationResponse);
   // Procedure used to get names of all existing catalogs.
   rpc GetCatalogNames(google.protobuf.Empty) returns (GrpcCatalogNamesResponse);
+  // Procedure used to get state of the catalog by its name.
+  rpc GetCatalogState(GrpcGetCatalogStateRequest) returns (GrpcGetCatalogStateResponse);
   // Procedure used to define a new catalog.
   rpc DefineCatalog(GrpcDefineCatalogRequest) returns (GrpcDefineCatalogResponse);
   // Procedure used to delete an existing catalog.

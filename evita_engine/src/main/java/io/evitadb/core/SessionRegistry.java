@@ -89,7 +89,6 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-@RequiredArgsConstructor
 final class SessionRegistry {
 	/**
 	 * Provides the tracing context for tracking the execution flow in the application.
@@ -106,20 +105,20 @@ final class SessionRegistry {
 	/**
 	 * Keeps information about currently active sessions.
 	 */
-	private final Map<UUID, EvitaSessionTuple> activeSessions = CollectionUtils.createConcurrentHashMap(512);
+	private final Map<UUID, EvitaSessionTuple> activeSessions;
 	/**
 	 * This field is used to keep track of the current suspend operation (if any).
 	 */
-	private final AtomicReference<InSuspension> activeSuspendOperation = new AtomicReference<>(null);
+	private final AtomicReference<InSuspension> activeSuspendOperation;
 	/**
 	 * Keeps information about sessions sorted according to date of creation.
 	 */
-	private final ConcurrentLinkedQueue<EvitaSessionTuple> sessionsFifoQueue = new ConcurrentLinkedQueue<>();
+	private final ConcurrentLinkedQueue<EvitaSessionTuple> sessionsFifoQueue;
 	/**
 	 * The catalogConsumedVersions variable is used to keep track of consumed versions along with number of sessions
 	 * tied to them indexed by catalog names.
 	 */
-	private final ConcurrentHashMap<String, VersionConsumingSessions> catalogConsumedVersions = CollectionUtils.createConcurrentHashMap(32);
+	private final ConcurrentHashMap<String, VersionConsumingSessions> catalogConsumedVersions;
 
 	/**
 	 * Created data store to be shared among all SessionRegistry instances.
@@ -128,6 +127,48 @@ final class SessionRegistry {
 	@Nonnull
 	public static SessionRegistryDataStore createDataStore() {
 		return new SessionRegistryDataStore();
+	}
+
+	public SessionRegistry(
+		@Nonnull TracingContext tracingContext,
+		@Nonnull Supplier<Catalog> catalog,
+		@Nonnull SessionRegistryDataStore sharedDataStore
+	) {
+		this.tracingContext = tracingContext;
+		this.catalog = catalog;
+		this.sharedDataStore = sharedDataStore;
+		this.activeSessions = CollectionUtils.createConcurrentHashMap(512);
+		this.activeSuspendOperation = new AtomicReference<>(null);
+		this.sessionsFifoQueue = new ConcurrentLinkedQueue<>();
+		this.catalogConsumedVersions = CollectionUtils.createConcurrentHashMap(32);
+	}
+
+	private SessionRegistry(
+		@Nonnull TracingContext tracingContext,
+		@Nonnull Supplier<Catalog> catalog,
+		@Nonnull SessionRegistryDataStore sharedDataStore,
+		@Nonnull Map<UUID, EvitaSessionTuple> activeSessions,
+		@Nonnull AtomicReference<InSuspension> activeSuspendOperation,
+		@Nonnull ConcurrentLinkedQueue<EvitaSessionTuple> sessionsFifoQueue,
+		@Nonnull ConcurrentHashMap<String, VersionConsumingSessions> catalogConsumedVersions
+	) {
+		this.tracingContext = tracingContext;
+		this.catalog = catalog;
+		this.sharedDataStore = sharedDataStore;
+		this.activeSessions = activeSessions;
+		this.activeSuspendOperation = activeSuspendOperation;
+		this.sessionsFifoQueue = sessionsFifoQueue;
+		this.catalogConsumedVersions = catalogConsumedVersions;
+	}
+
+	/**
+	 * Retrieves the catalog associated with the registry.
+	 *
+	 * @return the current catalog instance
+	 */
+	@Nonnull
+	public Catalog getCatalog() {
+		return this.catalog.get();
 	}
 
 	/**
@@ -292,6 +333,27 @@ final class SessionRegistry {
 	@Nonnull
 	public EvitaInternalSessionContract createSession(@Nonnull Function<SessionRegistry, EvitaInternalSessionContract> sessionFactory) {
 		return handleSuspension(() -> sessionFactory.apply(this));
+	}
+
+	/**
+	 * Creates a new instance of SessionRegistry using a different supplier for the catalog.
+	 * This method allows changing the catalog supplier while re-using the other existing settings
+	 * from the current SessionRegistry instance.
+	 *
+	 * @param catalogSupplier a non-null supplier of the catalog to be used in the new SessionRegistry
+	 * @return a new instance of SessionRegistry configured with the provided catalog supplier
+	 */
+	@Nonnull
+	public SessionRegistry withDifferentCatalogSupplier(@Nonnull Supplier<Catalog> catalogSupplier) {
+		return new SessionRegistry(
+			this.tracingContext,
+			catalogSupplier,
+			this.sharedDataStore,
+			this.activeSessions,
+			this.activeSuspendOperation,
+			this.sessionsFifoQueue,
+			this.catalogConsumedVersions
+		);
 	}
 
 	/**

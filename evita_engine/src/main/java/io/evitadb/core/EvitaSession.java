@@ -406,6 +406,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Traced
 	@Override
 	public boolean goLiveAndClose() {
+		// added read only check
+		isTrue(
+			!isReadOnly(),
+			ReadOnlyException::new
+		);
 		final CatalogContract theCatalog = getCatalog();
 		isTrue(!theCatalog.supportsTransaction(), "Catalog went live already and is currently in transactional mode!");
 		if (theCatalog.goLive()) {

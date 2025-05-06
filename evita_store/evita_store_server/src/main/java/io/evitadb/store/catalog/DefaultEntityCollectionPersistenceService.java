@@ -1297,7 +1297,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			catalogName,
 			this.entityCollectionFileReference.entityType(),
 			offsetIndexDescriptor.getFileSize(),
-			offsetIndexDescriptor.getActiveRecordShare(),
+			Math.round(offsetIndexDescriptor.getActiveRecordShare() * 100.0D),
 			this.getSizeOnDiskInBytes()
 		);
 		return newCollectionHeader;

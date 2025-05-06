@@ -292,7 +292,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 						Stream.of(
 							new CatalogHeader(
 								STORAGE_PROTOCOL_VERSION,
-								catalogHeader.version() + 1,
+								catalogHeader.version(),
 								catalogHeader.walFileReference(),
 								entityHeaders.values().stream()
 									.map(

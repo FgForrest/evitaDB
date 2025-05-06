@@ -5,7 +5,6 @@ module evita.store.core {
 
 	exports io.evitadb.store.compressor;
 	exports io.evitadb.store.dataType.serializer;
-	exports io.evitadb.store.dataType.exception;
 	exports io.evitadb.store.exception;
 	exports io.evitadb.store.service;
 	exports io.evitadb.store.model;

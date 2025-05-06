@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -251,11 +251,12 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 								.build(),
 							map()
 								.e("priceBetween", List.of(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)))
-								.e("facetBrandHaving", List.of(
+								.e(
+									"facetBrandHaving",
 									map()
 										.e("entityPrimaryKeyInSet",  List.of(10, 20, 30))
 										.build()
-								))
+								)
 								.build()
 						))
 						.e("referenceCategoryHaving", List.of(
@@ -313,11 +314,12 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 								.build(),
 							map()
 								.e("priceBetween", null)
-								.e("facetBrandHaving", List.of(
+								.e(
+									"facetBrandHaving",
 									map()
 										.e("entityPrimaryKeyInSet",  List.of(10, 20, 30))
 										.build()
-								))
+								)
 								.build()
 						))
 						.e("referenceCategoryHaving", List.of(

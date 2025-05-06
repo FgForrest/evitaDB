@@ -33,11 +33,17 @@ import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults;
 import io.evitadb.externalApi.grpc.generated.GrpcHistogram;
+import io.evitadb.utils.VersionUtils.SemVer;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.function.Supplier;
+
+import static io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor.getClientVersion;
 
 /**
  * This class is used for building {@link GrpcExtraResults} containing all of requested results in gRPC message types.
@@ -58,6 +64,7 @@ public class GrpcExtraResultsBuilder {
 	 */
 	@Nonnull
 	public static <T extends EntityClassifier> GrpcExtraResults buildExtraResults(@Nonnull EvitaResponse<T> evitaResponse) {
+		final Supplier<SemVer> clientVersion = ClientVersionSupplier.INSTANCE;
 		final GrpcExtraResults.Builder extraResults = GrpcExtraResults.newBuilder();
 		evitaResponse.getExtraResultTypes().forEach(extraResultType -> {
 			final EvitaResponseExtraResult extraResult = evitaResponse.getExtraResult(extraResultType);
@@ -67,9 +74,9 @@ public class GrpcExtraResultsBuilder {
 			} else if (extraResult instanceof PriceHistogram erHistogram) {
 				extraResults.setPriceHistogram(GrpcHistogramBuilder.buildPriceHistogram(erHistogram));
 			} else if (extraResult instanceof FacetSummary erFacetSummary) {
-				GrpcFacetSummaryBuilder.buildFacetSummary(extraResults, erFacetSummary);
+				GrpcFacetSummaryBuilder.buildFacetSummary(extraResults, erFacetSummary, clientVersion.get());
 			} else if (extraResult instanceof Hierarchy erHierarchy) {
-				GrpcHierarchyStatisticsBuilder.buildHierarchy(extraResults, erHierarchy);
+				GrpcHierarchyStatisticsBuilder.buildHierarchy(extraResults, erHierarchy, clientVersion.get());
 			} else if (extraResult instanceof QueryTelemetry erQueryTelemetry) {
 				extraResults.setQueryTelemetry(GrpcQueryTelemetryBuilder.buildQueryTelemetry(erQueryTelemetry));
 			}
@@ -77,4 +84,24 @@ public class GrpcExtraResultsBuilder {
 		return extraResults.build();
 	}
 
+	/**
+	 * A private implementation of the {@link Supplier} interface designed to supply the client version as a {@link SemVer} object.
+	 * This implementation is lazy-initialized, retrieving the client version metadata only when requested for the first time.
+	 */
+	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+	private static class ClientVersionSupplier implements Supplier<SemVer> {
+		public static final Supplier<SemVer> INSTANCE = new ClientVersionSupplier();
+		private boolean initialized = false;
+		@Nullable private SemVer clientVersion;
+
+		@Nullable
+		@Override
+		public SemVer get() {
+			if (!this.initialized) {
+				this.clientVersion = getClientVersion().orElse(null);
+				this.initialized = true;
+			}
+			return this.clientVersion;
+		}
+	}
 }

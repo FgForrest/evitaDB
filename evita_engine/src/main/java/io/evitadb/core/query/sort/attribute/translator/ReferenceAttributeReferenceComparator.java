@@ -113,18 +113,18 @@ public class ReferenceAttributeReferenceComparator implements ReferenceComparato
 	@Nonnull
 	@Override
 	public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-		return new ReferenceAttributeReferenceComparator(comparatorForUnknownRecords, attributeValueFetcher, comparator);
+		return new ReferenceAttributeReferenceComparator(comparatorForUnknownRecords, this.attributeValueFetcher, this.comparator);
 	}
 
 	@Nullable
 	@Override
 	public ReferenceComparator getNextComparator() {
-		return nextComparator;
+		return this.nextComparator;
 	}
 
 	@Override
 	public int getNonSortedReferenceCount() {
-		return ofNullable(nonSortedReferences)
+		return ofNullable(this.nonSortedReferences)
 			.map(IntHashSet::size)
 			.orElse(0);
 	}
@@ -134,7 +134,7 @@ public class ReferenceAttributeReferenceComparator implements ReferenceComparato
 		final Serializable attribute1 = o1 == null ? null : this.attributeValueFetcher.apply(o1);
 		final Serializable attribute2 = o2 == null ? null : this.attributeValueFetcher.apply(o2);
 		if (attribute1 != null && attribute2 != null) {
-			return comparator.compare(attribute1, attribute2);
+			return this.comparator.compare(attribute1, attribute2);
 		} else if (attribute1 == null && attribute2 != null) {
 			this.nonSortedReferences = ofNullable(this.nonSortedReferences)
 				.orElseGet(IntHashSet::new);

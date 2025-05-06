@@ -59,32 +59,62 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
 
   /**
    * <pre>
-   * JSON string value.
+   * JSON string value, this old approach led to data type loss and is deprecated.
    * </pre>
    *
-   * <code>string jsonValue = 2;</code>
+   * <code>string jsonValue = 2 [deprecated = true];</code>
+   * @deprecated
    * @return Whether the jsonValue field is set.
    */
-  boolean hasJsonValue();
+  @java.lang.Deprecated boolean hasJsonValue();
   /**
    * <pre>
-   * JSON string value.
+   * JSON string value, this old approach led to data type loss and is deprecated.
    * </pre>
    *
-   * <code>string jsonValue = 2;</code>
+   * <code>string jsonValue = 2 [deprecated = true];</code>
+   * @deprecated
    * @return The jsonValue.
    */
-  java.lang.String getJsonValue();
+  @java.lang.Deprecated java.lang.String getJsonValue();
   /**
    * <pre>
-   * JSON string value.
+   * JSON string value, this old approach led to data type loss and is deprecated.
    * </pre>
    *
-   * <code>string jsonValue = 2;</code>
+   * <code>string jsonValue = 2 [deprecated = true];</code>
+   * @deprecated
    * @return The bytes for jsonValue.
    */
-  com.google.protobuf.ByteString
+  @java.lang.Deprecated com.google.protobuf.ByteString
       getJsonValueBytes();
+
+  /**
+   * <pre>
+   * The array of values.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+   * @return Whether the root field is set.
+   */
+  boolean hasRoot();
+  /**
+   * <pre>
+   * The array of values.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+   * @return The root.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcDataItem getRoot();
+  /**
+   * <pre>
+   * The array of values.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder getRootOrBuilder();
 
   /**
    * <pre>
