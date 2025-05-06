@@ -592,7 +592,7 @@ public class EvitaServer {
 	public CompletableFuture<Void> stop() {
 		if (this.stopFuture == null && this.externalApiServer != null) {
 			this.stopFuture = this.externalApiServer.closeAsynchronously()
-				.thenAccept(unused -> ConsoleWriter.write("Server stopped, bye.\n\n"));
+				.thenAccept(unused -> ConsoleWriter.write("Server stopped, bye.\n"));
 		}
 		return this.stopFuture == null ?
 			CompletableFuture.completedFuture(null) : this.stopFuture;
@@ -747,7 +747,7 @@ public class EvitaServer {
 				ConsoleWriter.write("Failed to stop evita server in dedicated time (30 secs.).\n");
 			} finally {
 				evita.close();
-				ConsoleWriter.write("evitaDB instance closed, all files synced on disk.\n");
+				ConsoleWriter.write("evitaDB instance closed, all files synced on disk.\n\n");
 			}
 		}
 
