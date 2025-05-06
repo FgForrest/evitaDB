@@ -144,7 +144,7 @@ run evitaLab:
   the [https://your-server:5555/lab](https://your-server:5555/lab) URL
 - by visiting the [evitaDB demo website](https://demo.evitadb.io), where a read-only copy of evitaLab with a demo
   dataset is available for exploration
-- as a standalone evitaLab from [Docker image](https://github.com/lukashornych/evitalab#docker) (temporary solution for
+- as a standalone evitaLab from [Docker image](https://github.com/FgForrest/evitalab#docker) (temporary solution for
   desktop client)
 
 The first option is the easiest way to access evitaLab with your local data if you have a running local evitaDB
@@ -152,19 +152,26 @@ instance. You can even use this approach in your test environment to be able to 
 remote test environment. As mentioned above, evitaDB automatically passes a connection to itself to the served evitaLab,
 so you don't need to configure anything.
 
+<Note type="info">
+
+There is now a another way of accessing the evitaLab: [evitaLab Desktop](https://evitadb.io/blog/18-evitalab-desktop) application.
+It allows you to easily connect to different evitaDB servers without any effort. [And much more](https://evitadb.io/blog/18-evitalab-desktop)... 
+
+</Note>
+
 ## Future plans
 
 We have many ideas in mind for the future of evitaLab. The biggest ones at the moment are: GUI for extra results in
 consoles (should simulate some parts of an e-shop), and a standalone desktop application. Unfortunately, evitaLab is not
 the main product in our evitaDB family, so some features may take some time to be implemented. But if you feel
 confident, check out the [next section](#technical-info) and feel free to create an issue or a PR on
-our [GitHub](https://github.com/lukashornych/evitalab) with any improvements. Any input is greatly appreciated, even a
+our [GitHub](https://github.com/FgForrest/evitalab) with any improvements. Any input is greatly appreciated, even a
 small one, like fixing typos.
 
 ## Technical info
 
 For those who want to know more about how it works under the hood, go check out
-our [GitHub repository](https://github.com/lukashornych/evitalab). The whole evitaLab is
+our [GitHub repository](https://github.com/FgForrest/evitalab). The whole evitaLab is
 a [SPA](https://en.wikipedia.org/wiki/Single-page_application) written entirely
 in [TypeScript](https://www.typescriptlang.org/) using the [Vue framework](https://vuejs.org/). On top of that, we use
 the [Vuetify component framework](https://vuetifyjs.com), so we can quickly build new features for you without spending
@@ -174,7 +181,7 @@ too much time on building custom components.
 
 If you are interested in trying out evitaLab after reading this post, you can visit
 our [demo instance](https://demo.evitadb.io), [create your own instance of evitaDB](https://evitadb.io/documentation/get-started/run-evitadb)
-with [built-in local evitaLab](https://evitadb.io/documentation/operate/configure#evitalab-configuration) or install the [Docker image](https://github.com/lukashornych/evitalab#docker) with
+with [built-in local evitaLab](https://evitadb.io/documentation/operate/configure#evitalab-configuration) or install the [Docker image](https://github.com/FgForrest/evitalab#docker) with
 standalone evitaLab.
 
 If you already have an evitaDB instance running somewhere, chances are you already have the built-in evitaLab instance
