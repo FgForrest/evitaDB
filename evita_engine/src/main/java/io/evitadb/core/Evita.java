@@ -847,7 +847,10 @@ public final class Evita implements EvitaContract {
 				sessionRegistry.closeAllActiveSessionsAndSuspend(SuspendOperation.POSTPONE);
 				// immediately register the session registry under the new name to start accepting new sessions
 				// session creation will be postponed until the catalog is fully available
-				this.catalogSessionRegistries.put(catalogNameToBeReplaced, sessionRegistry);
+				this.catalogSessionRegistries.put(
+					catalogNameToBeReplaced,
+					sessionRegistry.withDifferentCatalogSupplier(() -> (Catalog) this.catalogs.get(catalogNameToBeReplaced))
+				);
 			});
 
 		try {
@@ -1091,9 +1094,10 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	private SessionRegistry createSessionNewRegistry(@Nonnull SessionTraits sessionTraits) {
+		final String catalogName = sessionTraits.catalogName();
 		return new SessionRegistry(
 			this.tracingContext,
-			() -> (Catalog) this.catalogs.get(sessionTraits.catalogName()),
+			() -> (Catalog) this.catalogs.get(catalogName),
 			this.sessionRegistryDataStore
 		);
 	}
