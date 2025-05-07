@@ -66,9 +66,6 @@ compatible evitaLab version. If a compatible evitaLab is found, the desktop appl
 done) from the evitaLab GitHub repository and saves it to the filesystem. Finally, it spawns a new WebView that runs the
 downloaded evitaLab locally from the filesystem in the driver mode.
 
-**TODO rozvest download process using Github API**
-**TODO vyzkouset evitalab offline s lokalni evitou**
-
 This way we can connect to any evitaDB version (from 2025.1 forward) without any complex bridges.
 
 When a user switches between individual connections using the GUI of the desktop application, the desktop application
@@ -235,7 +232,12 @@ the current index file from the metadata database, creates a sorted index groupe
 searches for the newest evitaDB version that is older than or equal to the connected server. Once found, it selects the
 latest known evitaLab driver version for that evitaDB version.
 
-**TODO how version are compared and backport patch  support**
+Since we use the [semantic calendar versioning](https://github.com/lukashornych/semantic-calendar-version) for both the evitaDB
+and the evitaLab projects, which is basically a variation of the [semantic versioning](https://semver.org/), we can easily compare
+the versions and choose the latest one. This also means, that we can backport some features to older evitaLab versions that require
+older evitaDB versions. And by incrementing only the PATCH part of the version, the desktop application would update the driver
+only to the newer patch version without breaking any compatibility that would occur by upgrading to a newer driver version
+that requires a newer evitaDB version.
 
 ### evitaLab driver
 
@@ -243,12 +245,25 @@ In order to support running the evitaLab core embedded in the evitaDB server as 
 now build the evitaLab in two modes: standalone and driver mode using the GitHub CI. Each of them has some small
 differences to fit its target area.
 
-When a specific driver version is resolved, the driver mode build for that version is downloaded from the GitHub
-Releases and unzipped to the user's filesystem. When a new `WebContentsView` instance is spawned, the evitaLab driver is
-loaded directly from the filesystem.
-
 The driver mode typically changes some GUI parts to make the transition from the desktop application to the evitaLab
 driver seamless. It also integrates evitaLab with the custom APIs provided by the preload script.
+
+After resolving a specific driver version, we first check if the driver source code is already present on the filesystem.
+If not, a temporary directory is created and an HTTP client is used to download the driver mode build archive from the following
+source URL
+```js
+`https://github.com/FgForrest/evitalab/releases/download/v${this.version}/Dist.Driver.zip`
+```
+into this temporary directory. The downloaded archive is then unzipped.
+Finally, the temporary directory is renamed to the driver version.
+We use the temporary directory to prevent any source code corruption during this process. For example, a scenario where
+the desktop application crashes in the middle of the download or during decompression. 
+If we used the driver version named directory directly and such corruption occurred, the desktop application would still 
+think that the driver was correctly downloaded and usable, which would lead to a runtime crash.
+Of course, proper checksum verification would be even better, but for now this will do. 
+
+When a new `WebContentsView` instance is spawned, the evitaLab driver is loaded directly from the filesystem from the
+driver directory.
 
 ### Autoupdates
 
