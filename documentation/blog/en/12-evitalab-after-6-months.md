@@ -340,14 +340,14 @@ There were many more small bug fixes along the way but these are the most import
 
 We still have a lot of ideas in mind, but we cannot do everything at once. Currently, we are planning to open these issues:
 
-- [status info screen for evitaDB servers](https://github.com/lukashornych/evitalab/issues/103)
-- [screen with keyboard shortcuts](https://github.com/lukashornych/evitalab/issues/110)
-- [quick access to explorer item actions](https://github.com/lukashornych/evitalab/issues/98)
-- [time machine for new upcoming evitaDB catalog versioning features](https://github.com/lukashornych/evitalab/issues/95)
+- [status info screen for evitaDB servers](https://github.com/FgForrest/evitalab/issues/103)
+- [screen with keyboard shortcuts](https://github.com/FgForrest/evitalab/issues/110)
+- [quick access to explorer item actions](https://github.com/FgForrest/evitalab/issues/98)
+- [time machine for new upcoming evitaDB catalog versioning features](https://github.com/FgForrest/evitalab/issues/95)
 
-And [many more](https://github.com/lukashornych/evitalab/issues).
+And [many more](https://github.com/FgForrest/evitalab/issues).
 
 ## Contribution
 
-Like the last time, if you feel confident, feel free to report a bug or submit a PR on our [GitHub](https://github.com/lukashornych/evitalab) with any 
+Like the last time, if you feel confident, feel free to report a bug or submit a PR on our [GitHub](https://github.com/FgForrest/evitalab) with any 
 improvements. Any input is greatly appreciated, even small things like fixing typos or writing new tests.
