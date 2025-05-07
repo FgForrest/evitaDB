@@ -50,8 +50,6 @@ import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
-import static java.util.Optional.ofNullable;
-
 /**
  * This implementation of the publisher is used to read mutations from the database and publish them to subscribers.
  * It works in two distinct modes (hence two constructors):
@@ -115,10 +113,6 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 	 */
 	private int sinceIndex;
 	/**
-	 * Temporary variable to store the last mutation read from the mutation stream.
-	 */
-	@Nullable private Mutation lastReadMutation;
-	/**
 	 * Temporary variable to store the current catalog version of the last mutation read from the mutation stream.
 	 */
 	private long currentCatalogVersion;
@@ -180,11 +174,14 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 		this.onDrop = (subscriber, ccc) -> {
 			//noinspection unchecked
 			final EmptyAwareSubscriber<Mutation, T> theSubscriber = ((EmptyAwareSubscriber<Mutation, T>) subscriber);
-			this.subscriberSaturated = true;
-			if (discardOnLagging != null) {
-				// cancel the subscription to prevent further events from being sent unless reattached to lagging publisher
-				Assert.isPremiseValid(this.subscribers.remove(theSubscriber), "Subscriber must be registered in the map!");
-				theSubscriber.cancelSubscriptionOnDepletion(discardOnLagging);
+			// Notify the subscriber about the number of items delivered so far
+			if (theSubscriber.emptyOnDepletion(this.delivered.get())) {
+				this.subscriberSaturated = true;
+				if (discardOnLagging != null) {
+					// cancel the subscription to prevent further events from being sent unless reattached to lagging publisher
+					Assert.isPremiseValid(this.subscribers.remove(theSubscriber), "Subscriber must be registered in the map!");
+					theSubscriber.cancelSubscriptionOnDepletion(discardOnLagging);
+				}
 			}
 			// never retry delivery
 			return false;
@@ -214,11 +211,7 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 
 			final AtomicReference<TransactionMutation> lastTransactionMutation = new AtomicReference<>();
 			final AtomicBoolean continueReading = new AtomicBoolean(true);
-			final long readItems = Stream.concat(
-					ofNullable(this.lastReadMutation).stream(),
-					this.mutationStream
-				)
-				.dropWhile(
+			final long readItems = this.mutationStream.dropWhile(
 					mutation -> {
 						// first mutation in the stream must always be transaction mutation
 						if (mutation instanceof TransactionMutation txMutation) {
@@ -232,26 +225,27 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 							this.currentCatalogVersion > 0,
 							"Catalog version must be greater than 0!"
 						);
-						this.lastReadMutation = mutation;
 						// drop all mutations that are older than the requested catalog version and index of the mutation in the transaction block
-						final boolean dropped = this.currentCatalogVersion < this.sinceCatalogVersion ||
+						return this.currentCatalogVersion < this.sinceCatalogVersion ||
 							(this.sinceCatalogVersion == this.currentCatalogVersion && this.currentIndex < this.sinceIndex);
-						return dropped;
 					}
 				)
 				.takeWhile(
 					mutation -> {
 						if (mutation instanceof TransactionMutation txMutation) {
 							lastTransactionMutation.set(txMutation);
-							this.currentIndex = 1;
-							this.currentCatalogVersion = txMutation.getCatalogVersion();
 							if (txMutation.getCatalogVersion() == this.versionSupplier.getAsLong() + 1) {
+								this.sinceCatalogVersion = txMutation.getCatalogVersion();
+								this.sinceIndex = 0;
 								// reader must never get ahead of the currently used catalog version
 								if (this.discardOnReachingCurrentVersion != null) {
 									discardSubscribers(this.discardOnReachingCurrentVersion);
 								}
 								continueReading.set(false);
 								return false;
+							} else {
+								this.currentCatalogVersion = txMutation.getCatalogVersion();
+								this.currentIndex = 1;
 							}
 						} else {
 							this.currentIndex++;
@@ -262,7 +256,6 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 						// return true, otherwise false to stop reading more records
 						if (!this.subscriberSaturated || this.continueOnSubscriberSaturation) {
 							// there is no pending mutation that needs to be published in the next read round
-							this.lastReadMutation = null;
 							this.sinceCatalogVersion = this.currentCatalogVersion;
 							this.sinceIndex = this.currentIndex;
 							continueReading.set(true);
@@ -275,9 +268,13 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 				).count();
 
 			// if we wanted to read more, but the stream ended, it means we reached the end of the stream
-			if (this.discardOnReachingCurrentVersion != null && continueReading.get()) {
+			if (continueReading.get()) {
 				if (this.currentIndex == lastTransactionMutation.get().getMutationCount() + 1) {
-					discardSubscribers(this.discardOnReachingCurrentVersion);
+					this.sinceCatalogVersion = this.sinceCatalogVersion + 1;
+					this.sinceIndex = 0;
+					if (this.discardOnReachingCurrentVersion != null) {
+						discardSubscribers(this.discardOnReachingCurrentVersion);
+					}
 				}
 			}
 
@@ -291,14 +288,8 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 				ex.getMessage(), ex
 			);
 		} finally {
-			// if we don't follow the current catalog version, we close publisher after finishing the read
-			// the lagging publishers have only one subscriber and we don't want to keep resources open for them
-			// the publisher following current catalog version has many subscribers and never stops reading, so it's
-			// possible to leave it open
-			if (this.discardOnReachingCurrentVersion != null) {
-				log.debug("Closing mutation stream - reading finished.");
-				closeMutationStream();
-			}
+			log.debug("Closing mutation stream - reading finished.");
+			closeMutationStream();
 			this.lock.unlock();
 		}
 	}
@@ -329,16 +320,7 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 	 */
 	@Override
 	public int offer(Mutation item, BiPredicate<Subscriber<? super Mutation>, ? super Mutation> onDrop) {
-		final int result = super.offer(
-			item,
-			(subscriber, mutation) -> {
-				// Notify the subscriber about the number of items delivered so far
-				if (subscriber instanceof EmptyAwareSubscriber<?, ?> eas) {
-					eas.emptyOnDepletion(this.delivered.get());
-				}
-				return onDrop.test(subscriber, mutation);
-			}
-		);
+		final int result = super.offer(item, onDrop);
 		if (!this.subscriberSaturated) {
 			this.delivered.incrementAndGet();
 		}
@@ -356,16 +338,7 @@ public class MutationReaderPublisher<T extends Flow.Subscriber<Mutation>> extend
 	 */
 	@Override
 	public int offer(Mutation item, long timeout, TimeUnit unit, BiPredicate<Subscriber<? super Mutation>, ? super Mutation> onDrop) {
-		final int result = super.offer(
-			item, timeout, unit,
-			(subscriber, mutation) -> {
-				// Notify the subscriber about the number of items delivered so far
-				if (subscriber instanceof EmptyAwareSubscriber<?, ?> eas) {
-					eas.emptyOnDepletion(this.delivered.get());
-				}
-				return onDrop.test(subscriber, mutation);
-			}
-		);
+		final int result = super.offer(item, timeout, unit, onDrop);
 		if (!this.subscriberSaturated) {
 			this.delivered.incrementAndGet();
 		}

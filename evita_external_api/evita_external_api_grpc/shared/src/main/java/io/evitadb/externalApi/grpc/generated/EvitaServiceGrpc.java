@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -255,6 +255,37 @@ public final class EvitaServiceGrpc {
       }
     }
     return getGetCatalogNamesMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse> getGetCatalogStateMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "GetCatalogState",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse> getGetCatalogStateMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest, io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse> getGetCatalogStateMethod;
+    if ((getGetCatalogStateMethod = EvitaServiceGrpc.getGetCatalogStateMethod) == null) {
+      synchronized (EvitaServiceGrpc.class) {
+        if ((getGetCatalogStateMethod = EvitaServiceGrpc.getGetCatalogStateMethod) == null) {
+          EvitaServiceGrpc.getGetCatalogStateMethod = getGetCatalogStateMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest, io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetCatalogState"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("GetCatalogState"))
+              .build();
+        }
+      }
+    }
+    return getGetCatalogStateMethod;
   }
 
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogRequest,
@@ -582,6 +613,16 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to get state of the catalog by its name.
+     * </pre>
+     */
+    default void getCatalogState(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetCatalogStateMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to define a new catalog.
      * </pre>
      */
@@ -632,7 +673,7 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * TODO JNO - document me 
+     * TODO JNO - document me
      * </pre>
      */
     default void registerSystemChangeCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest request,
@@ -755,6 +796,17 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to get state of the catalog by its name.
+     * </pre>
+     */
+    public void getCatalogState(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getGetCatalogStateMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to define a new catalog.
      * </pre>
      */
@@ -810,7 +862,7 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * TODO JNO - document me 
+     * TODO JNO - document me
      * </pre>
      */
     public void registerSystemChangeCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest request,
@@ -912,6 +964,16 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to get state of the catalog by its name.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse getCatalogState(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetCatalogStateMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to define a new catalog.
      * </pre>
      */
@@ -962,7 +1024,7 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * TODO JNO - document me 
+     * TODO JNO - document me
      * </pre>
      */
     @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
@@ -1065,6 +1127,16 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to get state of the catalog by its name.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse getCatalogState(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetCatalogStateMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to define a new catalog.
      * </pre>
      */
@@ -1115,7 +1187,7 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * TODO JNO - document me 
+     * TODO JNO - document me
      * </pre>
      */
     public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse> registerSystemChangeCapture(
@@ -1224,6 +1296,17 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to get state of the catalog by its name.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse> getCatalogState(
+        io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getGetCatalogStateMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to define a new catalog.
      * </pre>
      */
@@ -1285,12 +1368,13 @@ public final class EvitaServiceGrpc {
   private static final int METHODID_CREATE_BINARY_READ_WRITE_SESSION = 4;
   private static final int METHODID_TERMINATE_SESSION = 5;
   private static final int METHODID_GET_CATALOG_NAMES = 6;
-  private static final int METHODID_DEFINE_CATALOG = 7;
-  private static final int METHODID_DELETE_CATALOG_IF_EXISTS = 8;
-  private static final int METHODID_UPDATE = 9;
-  private static final int METHODID_RENAME_CATALOG = 10;
-  private static final int METHODID_REPLACE_CATALOG = 11;
-  private static final int METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE = 12;
+  private static final int METHODID_GET_CATALOG_STATE = 7;
+  private static final int METHODID_DEFINE_CATALOG = 8;
+  private static final int METHODID_DELETE_CATALOG_IF_EXISTS = 9;
+  private static final int METHODID_UPDATE = 10;
+  private static final int METHODID_RENAME_CATALOG = 11;
+  private static final int METHODID_REPLACE_CATALOG = 12;
+  private static final int METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE = 13;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -1336,6 +1420,10 @@ public final class EvitaServiceGrpc {
         case METHODID_GET_CATALOG_NAMES:
           serviceImpl.getCatalogNames((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse>) responseObserver);
+          break;
+        case METHODID_GET_CATALOG_STATE:
+          serviceImpl.getCatalogState((io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse>) responseObserver);
           break;
         case METHODID_DEFINE_CATALOG:
           serviceImpl.defineCatalog((io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogRequest) request,
@@ -1428,6 +1516,13 @@ public final class EvitaServiceGrpc {
               com.google.protobuf.Empty,
               io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse>(
                 service, METHODID_GET_CATALOG_NAMES)))
+        .addMethod(
+          getGetCatalogStateMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse>(
+                service, METHODID_GET_CATALOG_STATE)))
         .addMethod(
           getDefineCatalogMethod(),
           io.grpc.stub.ServerCalls.asyncUnaryCall(
@@ -1525,6 +1620,7 @@ public final class EvitaServiceGrpc {
               .addMethod(getCreateBinaryReadWriteSessionMethod())
               .addMethod(getTerminateSessionMethod())
               .addMethod(getGetCatalogNamesMethod())
+              .addMethod(getGetCatalogStateMethod())
               .addMethod(getDefineCatalogMethod())
               .addMethod(getDeleteCatalogIfExistsMethod())
               .addMethod(getUpdateMethod())

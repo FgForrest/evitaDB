@@ -24,6 +24,7 @@
 package io.evitadb.core;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.EvitaSessionTerminationCallback;
@@ -992,11 +993,6 @@ public final class Evita implements EvitaContract {
 
 		final EvitaInternalSessionContract newSession = catalogSessionRegistry.createSession(
 			sessionRegistry -> {
-				final Catalog catalog = sessionRegistry.getCatalog();
-				final NonTransactionalCatalogDescriptor nonTransactionalCatalogDescriptor =
-					catalog.getCatalogState() == CatalogState.WARMING_UP && sessionTraits.isReadWrite() && !sessionTraits.isDryRun() ?
-						new NonTransactionalCatalogDescriptor(catalog, this.structuralChangeObservers) : null;
-
 				if (this.readOnly) {
 					isTrue(!sessionTraits.isReadWrite() || sessionTraits.isDryRun(), ReadOnlyException::new);
 				}
@@ -1004,6 +1000,7 @@ public final class Evita implements EvitaContract {
 				final EvitaSessionTerminationCallback terminationCallback =
 					session -> sessionRegistry.removeSession((EvitaSession) session);
 
+				final Catalog catalog = sessionRegistry.getCatalog();
 				return sessionRegistry.addSession(
 					catalog.supportsTransaction(),
 					() -> new EvitaSession(

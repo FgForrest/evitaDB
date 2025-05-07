@@ -366,6 +366,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 			)
 		);
 
+		final long lastWrittenCatalogVersion = wal.getLastWrittenCatalogVersion();
 		OffsetDateTime timestamp = initialTimestamp == null ? OffsetDateTime.now() : initialTimestamp;
 		final Map<Long, List<Mutation>> txInMutations = CollectionUtils.createHashMap(transactionSizes.length);
 		for (int i = 0; i < transactionSizes.length; i++) {
@@ -376,14 +377,14 @@ public class CatalogWriteAheadLogIntegrationTest {
 						EntitySchemaBuilder::toInstance
 					),
 					(serializable, faker) -> null,
-					42
+					42 + lastWrittenCatalogVersion
 				)
 				.limit(txSize)
 				.map(EntityBuilder::toMutation)
 				.flatMap(Optional::stream)
 				.collect(Collectors.toCollection(LinkedList::new));
 
-			final long catalogVersion = i + 1;
+			final long catalogVersion = Math.max(0, lastWrittenCatalogVersion) + i + 1;
 			for (Mutation mutation : mutations) {
 				walPersistenceService.write(catalogVersion, mutation);
 			}

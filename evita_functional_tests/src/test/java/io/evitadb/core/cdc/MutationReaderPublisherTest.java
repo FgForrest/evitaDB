@@ -36,32 +36,31 @@ import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.FileUtils;
+import io.evitadb.utils.ImmediateExecutorService;
 import lombok.Getter;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
-import java.util.concurrent.CompletableFuture;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static io.evitadb.store.wal.CatalogWriteAheadLogIntegrationTest.writeWal;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies contract of {@link MutationReaderPublisher} and its ability to publish events.
@@ -92,7 +91,7 @@ public class MutationReaderPublisherTest {
 	 * Single-threaded executor service used for running the publisher's tasks.
 	 * Using a single thread ensures predictable execution order for tests.
 	 */
-	private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(1);
+	private static final ExecutorService EXECUTOR = new ImmediateExecutorService();
 
 	@BeforeAll
 	static void setUp() {
@@ -154,14 +153,6 @@ public class MutationReaderPublisherTest {
 			publisher.subscribe(mockSubscriber);
 			publisher.readAll();
 
-			try {
-				mockSubscriber.getFinished().get(1, TimeUnit.SECONDS);
-			} catch (TimeoutException ex) {
-				// timed out
-			} catch (InterruptedException | ExecutionException e) {
-				fail(e);
-			}
-
 			assertEquals(mutationCount, mockSubscriber.getCount());
 			assertTrue(isCompleted.get());
 			assertTrue(publisher.isClosed());
@@ -192,14 +183,6 @@ public class MutationReaderPublisherTest {
 		) {
 			publisher.subscribe(mockSubscriber);
 			publisher.readAll();
-
-			try {
-				mockSubscriber.getFinished().get(1, TimeUnit.SECONDS);
-			} catch (TimeoutException ex) {
-				// timed out
-			} catch (InterruptedException | ExecutionException e) {
-				fail(e);
-			}
 
 			assertEquals(mutationCount, mockSubscriber.getCount());
 			assertTrue(isCompleted.get());
@@ -233,14 +216,6 @@ public class MutationReaderPublisherTest {
 			publisher.subscribe(mockSubscriber);
 			publisher.readAll();
 
-			try {
-				mockSubscriber.getFinished().get(1, TimeUnit.SECONDS);
-			} catch (TimeoutException ex) {
-				// timed out
-			} catch (InterruptedException | ExecutionException e) {
-				fail(e);
-			}
-
 			assertEquals(mutationCount, mockSubscriber.getCount());
 			assertTrue(isCompleted.get());
 			assertTrue(publisher.isClosed());
@@ -271,13 +246,6 @@ public class MutationReaderPublisherTest {
 			publisher.subscribe(mockSubscriber);
 
 			publisher.readAll();
-			try {
-				mockSubscriber.getFinished().get(1, TimeUnit.MINUTES);
-			} catch (TimeoutException ex) {
-				// timed out
-			} catch (InterruptedException | ExecutionException e) {
-				fail(e);
-			}
 
 			assertEquals(mutationCount, mockSubscriber.getCount());
 			assertTrue(isCompleted.get());
@@ -287,46 +255,192 @@ public class MutationReaderPublisherTest {
 
 	@Test
 	void shouldDiscardSubscribersOnSaturation() {
-		// todo jno also verify that no other mutations are published to discarded subscribers
+		final AtomicBoolean isCompleted = new AtomicBoolean(false);
+		final int mutationCount = Arrays.stream(TX_SIZES)
+			.map(it -> it + 1)
+			.sum();
+		final List<MockMutationSubscriber> discardedSubscribers = new ArrayList<>();
+
+		final MockMutationSubscriber mockSubscriber = new MockMutationSubscriber(5, TimeUnit.MILLISECONDS, mutationCount);
+		try (
+			final MutationReaderPublisher<MockMutationSubscriber> publisher = new MutationReaderPublisher<>(
+				EXECUTOR, 5,
+				0L, 0,
+				() -> TX_SIZES.length + 1,
+				startVersion -> WAL.getCommittedMutationStream(startVersion),
+				discardedSubscribers::add,
+				subscriber -> {
+					assertSame(mockSubscriber, subscriber);
+					isCompleted.set(true);
+				}
+			)
+		) {
+			publisher.subscribe(mockSubscriber);
+
+			publisher.readAll();
+
+			// this would be true if we'd used a multithreaded executor
+			/*assertTrue(mockSubscriber.getCount() > 0);
+			assertTrue(mockSubscriber.getCount() < mutationCount);*/
+
+			// this is true for single threaded executor
+			assertEquals(mutationCount, mockSubscriber.getCount());
+			assertFalse(isCompleted.get());
+			assertFalse(publisher.isClosed());
+			assertEquals(1, discardedSubscribers.size());
+			assertSame(mockSubscriber, discardedSubscribers.get(0));
+		}
 	}
 
 	@Test
-	void shouldConsumeNewVersionsAsTheyAreIntroduced() {
+	void shouldConsumeNewVersionsAsTheyAreIntroduced() throws InterruptedException, ExecutionException {
+		final Path walDirectoryForAppending = Path.of(System.getProperty("java.io.tmpdir"))
+			.resolve("evita")
+			.resolve(MutationReaderPublisherTest.class.getSimpleName() + "_append");
 
+		// clear the WAL directory
+		FileUtils.deleteDirectory(walDirectoryForAppending);
+		assertTrue(walDirectoryForAppending.toFile().mkdirs());
+		final CatalogWriteAheadLog appendableWAL = new CatalogWriteAheadLog(
+			0L,
+			TEST_CATALOG,
+			walDirectoryForAppending,
+			CATALOG_KRYO_POOL,
+			StorageOptions.builder()
+				/* there are tests that rely on standard size of mutations on disk in this class */
+				.compress(false)
+				.build(),
+			TransactionOptions.builder().walFileSizeBytes(Long.MAX_VALUE).build(),
+			Mockito.mock(Scheduler.class),
+			value -> {
+			},
+			firstActiveCatalogVersion -> {
+			}
+		);
+
+		// start with empty WAL
+		final AtomicBoolean isCompleted = new AtomicBoolean(false);
+		final AtomicLong currentVersion = new AtomicLong(0L);
+		final MockMutationSubscriber mockSubscriber = new MockMutationSubscriber(5, TimeUnit.MILLISECONDS, Integer.MAX_VALUE);
+		try (
+			final MutationReaderPublisher<MockMutationSubscriber> publisher = new MutationReaderPublisher<>(
+				EXECUTOR, 256,
+				0L, 0,
+				currentVersion::get,
+				appendableWAL::getCommittedMutationStream,
+				subscriber -> fail("Subscriber should not be discarded!"),
+				null
+			)
+		) {
+			publisher.subscribe(mockSubscriber);
+
+			writeWal(
+				OFF_HEAP_MEMORY_MANAGER,
+				new int[] {5, 3},
+				null,
+				ISOLATED_WAL_FILE_PATH,
+				OBSERVABLE_OUTPUT_KEEPER,
+				appendableWAL
+			);
+
+			// this should not read anything, since the current version is still 0
+			publisher.readAll();
+			TimeUnit.SECONDS.sleep(1);
+			assertEquals(0, mockSubscriber.getCount());
+
+			// move the current version and read again
+			currentVersion.set(1L);
+			readMutations(mockSubscriber, publisher, 5 + 1);
+
+			// move the current version and read again
+			currentVersion.set(2L);
+			readMutations(mockSubscriber, publisher, 3 + 1);
+
+			// write new mutations to WAL
+			writeWal(
+				OFF_HEAP_MEMORY_MANAGER,
+				new int[] {10, 4},
+				null,
+				ISOLATED_WAL_FILE_PATH,
+				OBSERVABLE_OUTPUT_KEEPER,
+				appendableWAL
+			);
+
+			// this should not read anything, since the current version is still 0
+			final long startCount = mockSubscriber.getCount();
+			publisher.readAll();
+			TimeUnit.SECONDS.sleep(1);
+			assertEquals(startCount, mockSubscriber.getCount());
+
+			// move the current version and read again
+			currentVersion.set(3L);
+			readMutations(mockSubscriber, publisher, 10 + 1);
+
+			// move the current version and read again
+			currentVersion.set(4L);
+			readMutations(mockSubscriber, publisher, 4 + 1);
+
+			assertFalse(isCompleted.get());
+			assertFalse(publisher.isClosed());
+		}
 	}
 
+	/**
+	 * Reads mutations from the given publisher and verifies that the expected number of mutations have been processed
+	 * by the subscriber.
+	 *
+	 * @param mockSubscriber the mock subscriber that processes the mutations and tracks the count of received items.
+	 * @param publisher the mutation reader publisher that provides all mutations to be consumed by the subscriber.
+	 * @param mutationCount the expected number of mutations to be received by the subscriber.
+	 */
+	private static void readMutations(
+		@Nonnull MockMutationSubscriber mockSubscriber,
+		@Nonnull MutationReaderPublisher<MockMutationSubscriber> publisher,
+		int mutationCount
+	) {
+		final int startCount = mockSubscriber.getCount();
+		publisher.readAll();
+		assertEquals(
+			startCount + mutationCount, mockSubscriber.getCount(),
+			"Expected " + mutationCount + " mutations, but got " + (mockSubscriber.getCount() - startCount)
+		);
+	}
+
+	/**
+	 * MockMutationSubscriber is a testing utility class that implements the Reactive Streams
+	 * Subscriber interface to interact with a publisher of {@link Mutation} objects.
+	 * It is designed to simulate mutation subscriptions*/
 	private static class MockMutationSubscriber implements Subscriber<Mutation> {
 		private final long delay;
 		private final TimeUnit delayTimeUnit;
-		@Getter private final CompletableFuture<Void> finished = new CompletableFuture<>();
-		private final int finishOnReachingCount;
 		private Subscription subscription;
 		private final LinkedHashSet<Mutation> mutations = new LinkedHashSet<>();
+		@Getter private boolean completed;
 
 		public MockMutationSubscriber(int finishOnReachingCount) {
 			this.delay = 0L;
 			this.delayTimeUnit = TimeUnit.MILLISECONDS;
-			this.finishOnReachingCount = finishOnReachingCount;
 		}
 
 		public MockMutationSubscriber(long delay, TimeUnit delayTimeUnit, int finishOnReachingCount) {
 			this.delay = delay;
 			this.delayTimeUnit = delayTimeUnit;
-			this.finishOnReachingCount = finishOnReachingCount;
 		}
 
-		public long getCount() {
+		public int getCount() {
 			return this.mutations.size();
 		}
 
 		@Override
 		public void onSubscribe(Subscription subscription) {
+			assertFalse(this.completed, "Subscriber should not be completed yet!");
 			this.subscription = subscription;
 			this.subscription.request(1);
 		}
 
 		@Override
 		public void onNext(Mutation item) {
+			assertFalse(this.completed, "Subscriber should not be completed yet!");
 			if (!this.mutations.add(item)) {
 				throw new IllegalStateException("Duplicate mutation received: " + item);
 			}
@@ -338,19 +452,17 @@ public class MutationReaderPublisherTest {
 					Thread.currentThread().interrupt();
 				}
 			}
-			if (this.mutations.size() == this.finishOnReachingCount) {
-				this.finished.complete(null);
-			}
 		}
 
 		@Override
 		public void onError(Throwable throwable) {
-			this.finished.completeExceptionally(throwable);
+			fail(throwable);
 		}
 
 		@Override
 		public void onComplete() {
-			this.finished.complete(null);
+			this.completed = true;
 		}
 	}
+
 }

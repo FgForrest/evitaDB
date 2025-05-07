@@ -145,16 +145,20 @@ public class EmptyAwareSubscriber<T, S extends Subscriber<? super T>> implements
 
 	/**
 	 * Called when the publisher has delivered a certain number of items.
-	 * This allows the subscriber to know how many items to expect.
+	 * This allows the subscriber to know how many items to expect. When this method is called for multiple times,
+	 * it registers the depletion condition only for the first time and ignores the rest (returns false as a return
+	 * value). The depletion condition is reset when the depletion handler is executed.
 	 *
 	 * @param itemsProvisioned the total number of items that have been delivered so far
+	 * @return true if the depletion condition has been set; false otherwise.
 	 */
-	public void emptyOnDepletion(long itemsProvisioned) {
-		Assert.isPremiseValid(
-			this.itemsProvisioned == null,
-			"Depletion callback already set! This method should only be called once."
-		);
-		this.itemsProvisioned = itemsProvisioned;
+	public boolean emptyOnDepletion(long itemsProvisioned) {
+		if (this.itemsProvisioned == null) {
+			this.itemsProvisioned = itemsProvisioned;
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	/**
