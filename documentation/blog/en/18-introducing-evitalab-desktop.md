@@ -6,7 +6,7 @@ perex: |
   beginning we wanted a desktop version that could connect to any evitaDB server from a single place.
 date: '06.05.2025'
 author: 'Lukáš Hornych'
-motive: assets/images/18-evitalab-desktop.png
+motive: assets/images/18-introducing-evitalab-desktop.png
 proofreading: 'done'
 ---
 
@@ -17,8 +17,7 @@ core [evitaLab](https://github.com/FgForrest/evitalab) as well as a lot of addit
 
 - ✅ manage connections to multiple evitaDB instances
 - ✅ connect to any server version in one app
-    - *note: server version must be at least 2025.1, older versions of evitaLab were not yet backported to work in the
-      driver mode*
+    - *note: server version must be at least 2025.1, older versions of evitaLab are not and will never be backported to work in the driver mode*
 - ✅ receive evitaLab core updates as soon as they are released without waiting for server update
 - ✅ each connection stores its own tabs and history, even if each connection points to same server URL
     - *this is useful when you are using port forwarding for different server environments (prod, test, local) where
@@ -66,6 +65,9 @@ evitaDB server, the desktop application resolves the version of the connected to
 compatible evitaLab version. If a compatible evitaLab is found, the desktop application downloads it (if not already
 done) from the evitaLab GitHub repository and saves it to the filesystem. Finally, it spawns a new WebView that runs the
 downloaded evitaLab locally from the filesystem in the driver mode.
+
+**TODO rozvest download process using Github API**
+**TODO vyzkouset evitalab offline s lokalni evitou**
 
 This way we can connect to any evitaDB version (from 2025.1 forward) without any complex bridges.
 
@@ -232,6 +234,8 @@ Then, when a user tries to connect to a specific evitaDB server from the desktop
 the current index file from the metadata database, creates a sorted index grouped by the minimum evitaDB version, and
 searches for the newest evitaDB version that is older than or equal to the connected server. Once found, it selects the
 latest known evitaLab driver version for that evitaDB version.
+
+**TODO how version are compared and backport patch  support**
 
 ### evitaLab driver
 

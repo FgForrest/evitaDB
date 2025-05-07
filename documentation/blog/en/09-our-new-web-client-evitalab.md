@@ -154,8 +154,8 @@ so you don't need to configure anything.
 
 <Note type="info">
 
-There is now a another way of accessing the evitaLab: [evitaLab Desktop](https://evitadb.io/blog/18-evitalab-desktop) application.
-It allows you to easily connect to different evitaDB servers without any effort. [And much more](https://evitadb.io/blog/18-evitalab-desktop)... 
+There is now another way of accessing the evitaLab: [evitaLab Desktop](https://evitadb.io/blog/18-introducing-evitalab-desktop) application.
+It allows you to easily connect to different evitaDB servers without any effort. [And much more](https://evitadb.io/blog/18-introducing-evitalab-desktop)... 
 
 </Note>
 
