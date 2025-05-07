@@ -113,7 +113,7 @@ problem for frameworks other than Electron. So we were kind of forced to use Ele
 quite a good choice, as it comes with a large community and offers a wide range of useful tools and possibilities.
 
 Within the Electron application, we stuck to the same tech stack we use for the core
-evitaLab: [Vue](https://vuetifyjs.com/) + [Vuetify](https://vuetifyjs.com/) + [Typescript](https://www.typescriptlang.org/).
+evitaLab: [Vue](https://vuejs.org/) + [Vuetify](https://vuetifyjs.com/) + [Typescript](https://www.typescriptlang.org/).
 This gives us a low barrier to switch between both projects and allows us to share common frontend components like GUI
 styling. Ideally, this way a user won't know the difference between the actual desktop application and an evitaLab
 driver.
@@ -149,7 +149,7 @@ case the main component is written in Typescript and handles, among other things
 access, app config, etc.), the orchestration of the actual GUI, which consists of the desktop application's own GUI as
 well as the evitaLab driver GUIs.
 
-The preload component is responsible for providing custom `window.XY` browser APIs to the renderer components. We
+The preload component is responsible for providing custom `window.XYZ` browser APIs to the renderer components. We
 provide several custom APIs, for example: notifications API, connection manager API, modal manager API and many more.
 This way any frontend web application can communicate with the rest of the desktop application (such as modal windows or
 evitaLab drivers) or the OS itself.
@@ -299,7 +299,7 @@ about a new version and redirects them to the GitHub Releases for manual install
 So far, the Electron framework has proven to be a great tool and has allowed us to build an application that would be
 difficult to build with other frameworks for all major platforms.
 
-Feel free to [download](https://github.com/FgForrest/evitalab-desktop/releases/tag/v2025.1.3) the evitaLab Desktop
+Feel free to [download](https://github.com/FgForrest/evitalab-desktop/releases) the evitaLab Desktop
 application and try it out. If you find any problems, please report them to
 our [repository](https://github.com/FgForrest/evitalab-desktop/issues). If you want to explore the codebase and tinker
 with it, feel free
