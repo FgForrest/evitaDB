@@ -59,7 +59,7 @@ version. Instead, we have combined several separate ideas we had in mind and cam
 The desktop application is not just a simple evitaLab wrapped in WebView and bundled into a desktop application. That
 would not solve anything for us.
 
-Instead, the desktop application acts as a kind of manager of evitaLab instances of different versions. The desktop
+Instead, the desktop application acts as a kind of manager of separate evitaLab instances. The desktop
 application, among other things, has its own GUI for managing connections to evitaDB servers. When connected to an
 evitaDB server, the desktop application resolves the version of the connected to evitaDB server and finds the latest
 compatible evitaLab version. If a compatible evitaLab is found, the desktop application downloads it (if not already
