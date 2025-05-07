@@ -66,9 +66,6 @@ compatible evitaLab version. If a compatible evitaLab is found, the desktop appl
 done) from the evitaLab GitHub repository and saves it to the filesystem. Finally, it spawns a new WebView that runs the
 downloaded evitaLab locally from the filesystem in the driver mode.
 
-**TODO rozvest download process using Github API**
-**TODO vyzkouset evitalab offline s lokalni evitou**
-
 This way we can connect to any evitaDB version (from 2025.1 forward) without any complex bridges.
 
 When a user switches between individual connections using the GUI of the desktop application, the desktop application
@@ -116,7 +113,7 @@ problem for frameworks other than Electron. So we were kind of forced to use Ele
 quite a good choice, as it comes with a large community and offers a wide range of useful tools and possibilities.
 
 Within the Electron application, we stuck to the same tech stack we use for the core
-evitaLab: [Vue](https://vuetifyjs.com/) + [Vuetify](https://vuetifyjs.com/) + [Typescript](https://www.typescriptlang.org/).
+evitaLab: [Vue](https://vuejs.org/) + [Vuetify](https://vuetifyjs.com/) + [Typescript](https://www.typescriptlang.org/).
 This gives us a low barrier to switch between both projects and allows us to share common frontend components like GUI
 styling. Ideally, this way a user won't know the difference between the actual desktop application and an evitaLab
 driver.
@@ -152,7 +149,7 @@ case the main component is written in Typescript and handles, among other things
 access, app config, etc.), the orchestration of the actual GUI, which consists of the desktop application's own GUI as
 well as the evitaLab driver GUIs.
 
-The preload component is responsible for providing custom `window.XY` browser APIs to the renderer components. We
+The preload component is responsible for providing custom `window.XYZ` browser APIs to the renderer components. We
 provide several custom APIs, for example: notifications API, connection manager API, modal manager API and many more.
 This way any frontend web application can communicate with the rest of the desktop application (such as modal windows or
 evitaLab drivers) or the OS itself.
@@ -235,7 +232,12 @@ the current index file from the metadata database, creates a sorted index groupe
 searches for the newest evitaDB version that is older than or equal to the connected server. Once found, it selects the
 latest known evitaLab driver version for that evitaDB version.
 
-**TODO how version are compared and backport patch  support**
+Since we use the [semantic calendar versioning](https://github.com/lukashornych/semantic-calendar-version) for both the evitaDB
+and the evitaLab projects, which is basically a variation of the [semantic versioning](https://semver.org/), we can easily compare
+the versions and choose the latest one. This also means, that we can backport some features to older evitaLab versions that require
+older evitaDB versions. And by incrementing only the PATCH part of the version, the desktop application would update the driver
+only to the newer patch version without breaking any compatibility that would occur by upgrading to a newer driver version
+that requires a newer evitaDB version.
 
 ### evitaLab driver
 
@@ -243,12 +245,25 @@ In order to support running the evitaLab core embedded in the evitaDB server as 
 now build the evitaLab in two modes: standalone and driver mode using the GitHub CI. Each of them has some small
 differences to fit its target area.
 
-When a specific driver version is resolved, the driver mode build for that version is downloaded from the GitHub
-Releases and unzipped to the user's filesystem. When a new `WebContentsView` instance is spawned, the evitaLab driver is
-loaded directly from the filesystem.
-
 The driver mode typically changes some GUI parts to make the transition from the desktop application to the evitaLab
 driver seamless. It also integrates evitaLab with the custom APIs provided by the preload script.
+
+After resolving a specific driver version, we first check if the driver source code is already present on the filesystem.
+If not, a temporary directory is created and an HTTP client is used to download the driver mode build archive from the following
+source URL
+```js
+`https://github.com/FgForrest/evitalab/releases/download/v${this.version}/Dist.Driver.zip`
+```
+into this temporary directory. The downloaded archive is then unzipped.
+Finally, the temporary directory is renamed to the driver version.
+We use the temporary directory to prevent any source code corruption during this process. For example, a scenario where
+the desktop application crashes in the middle of the download or during decompression. 
+If we used the driver version named directory directly and such corruption occurred, the desktop application would still 
+think that the driver was correctly downloaded and usable, which would lead to a runtime crash.
+Of course, proper checksum verification would be even better, but for now this will do. 
+
+When a new `WebContentsView` instance is spawned, the evitaLab driver is loaded directly from the filesystem from the
+driver directory.
 
 ### Autoupdates
 
@@ -284,7 +299,7 @@ about a new version and redirects them to the GitHub Releases for manual install
 So far, the Electron framework has proven to be a great tool and has allowed us to build an application that would be
 difficult to build with other frameworks for all major platforms.
 
-Feel free to [download](https://github.com/FgForrest/evitalab-desktop/releases/tag/v2025.1.3) the evitaLab Desktop
+Feel free to [download](https://github.com/FgForrest/evitalab-desktop/releases) the evitaLab Desktop
 application and try it out. If you find any problems, please report them to
 our [repository](https://github.com/FgForrest/evitalab-desktop/issues). If you want to explore the codebase and tinker
 with it, feel free
