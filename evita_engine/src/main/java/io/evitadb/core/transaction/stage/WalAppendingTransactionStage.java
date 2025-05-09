@@ -88,7 +88,7 @@ public final class WalAppendingTransactionStage
 
 		final long lastWrittenCatalogVersion = this.transactionManager.getLastWrittenCatalogVersion();
 		Assert.isPremiseValid(
-			lastWrittenCatalogVersion == -1 || lastWrittenCatalogVersion == task.catalogVersion() - 1,
+			lastWrittenCatalogVersion <= 0 || lastWrittenCatalogVersion == task.catalogVersion() - 1,
 			"Transaction cannot be written to the WAL out of order. " +
 				"Expected version " + (lastWrittenCatalogVersion + 1) + ", got " + task.catalogVersion() + "."
 		);

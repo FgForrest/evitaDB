@@ -534,10 +534,11 @@ public class TransactionManager {
 	) {
 		try {
 			if (this.walAppendingLock.tryLock(0, TimeUnit.MILLISECONDS)) {
+				final long theLastWrittenCatalogVersion = this.lastWrittenCatalogVersion.get();
 				Assert.isPremiseValid(
-					this.lastWrittenCatalogVersion.get() + 1 == transactionMutation.getCatalogVersion(),
+					theLastWrittenCatalogVersion <= 0 || theLastWrittenCatalogVersion + 1 == transactionMutation.getCatalogVersion(),
 					"Transaction cannot be written to the WAL out of order. " +
-						"Expected version " + (this.lastWrittenCatalogVersion.get() + 1) + ", got " + transactionMutation.getCatalogVersion() + "."
+						"Expected version " + (theLastWrittenCatalogVersion + 1) + ", got " + transactionMutation.getCatalogVersion() + "."
 				);
 				return getLivingCatalog()
 					.appendWalAndDiscard(
