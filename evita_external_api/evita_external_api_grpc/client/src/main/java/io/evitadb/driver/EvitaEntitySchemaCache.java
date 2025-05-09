@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -289,7 +289,7 @@ class EvitaEntitySchemaCache {
 		final long now = System.currentTimeMillis();
 		// frequently apply obsolete check
 		executeObsoleteCheck(now);
-		SchemaIndexWrapper schemaIndexWrapper = schemaIndex.get();
+		SchemaIndexWrapper schemaIndexWrapper = this.schemaIndex.get();
 		if (schemaIndexWrapper == null || schemaIndexWrapper.isObsolete(now)) {
 			final Collection<String> entitySchemaNames = entitySchemaNamesAccessor.get();
 			final Map<String, EntitySchemaContract> newIndex = CollectionUtils.createHashMap(entitySchemaNames.size());
@@ -348,10 +348,10 @@ class EvitaEntitySchemaCache {
 	 * @param now current date and time
 	 */
 	private void executeObsoleteCheck(long now) {
-		final long lastCheck = lastObsoleteCheck.get();
-		if (now < lastCheck + 60 * 1000) {
-			if (lastObsoleteCheck.compareAndSet(lastCheck, now)) {
-				cachedSchemas.values().removeIf(entitySchemaWrapper -> entitySchemaWrapper.isObsolete(now));
+		final long lastCheck = this.lastObsoleteCheck.get();
+		if (lastCheck + 60 * 1000 < now) {
+			if (this.lastObsoleteCheck.compareAndSet(lastCheck, now)) {
+				this.cachedSchemas.values().removeIf(entitySchemaWrapper -> entitySchemaWrapper.isObsolete(now));
 			}
 		}
 	}
@@ -402,7 +402,7 @@ class EvitaEntitySchemaCache {
 		/**
 		 * The entity schema is considered obsolete after 4 hours since last usage.
 		 */
-		private static final long OBSOLETE_INTERVAL = 4L * 60L * 60L * 100L;
+		private static final long OBSOLETE_INTERVAL = 4L * 60L * 60L * 1000L;
 		/**
 		 * The entity schema fetched from the server.
 		 */
