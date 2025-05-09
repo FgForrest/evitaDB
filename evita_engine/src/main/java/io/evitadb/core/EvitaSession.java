@@ -1426,6 +1426,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return !this.sessionTraits.isReadWrite();
 	}
 
+	@Nonnull
+	@Override
+	public CommitBehavior getCommitBehavior() {
+		return this.commitBehaviour;
+	}
+
 	@Override
 	public boolean isBinaryFormat() {
 		return this.sessionTraits.isBinary();

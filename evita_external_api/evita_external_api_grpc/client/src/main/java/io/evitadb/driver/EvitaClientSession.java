@@ -1501,44 +1501,50 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public Optional<UUID> getOpenedTransactionId() {
 		assertActive();
-		return ofNullable(transactionAccessor.get())
+		return ofNullable(this.transactionAccessor.get())
 			.filter(EvitaClientTransaction::isClosed)
 			.map(EvitaClientTransaction::getTransactionId);
 	}
 
 	@Override
 	public boolean isRollbackOnly() {
-		return getOpenedTransactionId().isPresent() && transactionAccessor.get().isRollbackOnly();
+		return getOpenedTransactionId().isPresent() && this.transactionAccessor.get().isRollbackOnly();
 	}
 
 	@Override
 	public void setRollbackOnly() {
 		assertActive();
-		if (transactionAccessor.get() == null) {
+		if (this.transactionAccessor.get() == null) {
 			throw new UnexpectedTransactionStateException("No transaction has been opened!");
 		}
-		final EvitaClientTransaction transaction = transactionAccessor.get();
+		final EvitaClientTransaction transaction = this.transactionAccessor.get();
 		transaction.setRollbackOnly();
 	}
 
 	@Override
 	public boolean isReadOnly() {
-		return !sessionTraits.isReadWrite();
+		return !this.sessionTraits.isReadWrite();
+	}
+
+	@Nonnull
+	@Override
+	public CommitBehavior getCommitBehavior() {
+		return this.commitBehaviour;
 	}
 
 	@Override
 	public boolean isBinaryFormat() {
-		return sessionTraits.isBinary();
+		return this.sessionTraits.isBinary();
 	}
 
 	@Override
 	public boolean isDryRun() {
-		return sessionTraits.isDryRun();
+		return this.sessionTraits.isDryRun();
 	}
 
 	@Override
 	public long getInactivityDurationInSeconds() {
-		return (System.currentTimeMillis() - lastCall) / 1000;
+		return (System.currentTimeMillis() - this.lastCall) / 1000;
 	}
 
 	/**
@@ -1552,16 +1558,16 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	public SealedCatalogSchema getCatalogSchema(@Nonnull EvitaClient evita) {
 		assertActive();
-		return schemaCache.getLatestCatalogSchema(
+		return this.schemaCache.getLatestCatalogSchema(
 			() -> isActive() ?
 				this.fetchCatalogSchema() :
 				evita.queryCatalog(
-					catalogName,
+					this.catalogName,
 					session -> {
 						return ((EvitaClientSession) session).fetchCatalogSchema();
 					}
 				),
-			clientEntitySchemaAccessor
+			this.clientEntitySchemaAccessor
 		);
 	}
 
@@ -1575,7 +1581,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			// join both futures together and apply termination callback
 			this.closedFuture = closeFuture.whenComplete((newCatalogVersion, throwable) -> {
 				// then apply termination callbacks
-				ofNullable(onTerminationCallback)
+				ofNullable(this.onTerminationCallback)
 					.ifPresent(it -> it.accept(this));
 				if (throwable instanceof CancellationException cancellationException) {
 					throw cancellationException;

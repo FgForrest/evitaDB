@@ -195,7 +195,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 */
 	@Override
 	default void close() {
-		closeWhen(CommitBehavior.defaultBehaviour());
+		closeWhen(getCommitBehavior());
 	}
 
 	/**
@@ -1260,6 +1260,15 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @see io.evitadb.api.SessionTraits.SessionFlags#READ_WRITE
 	 */
 	boolean isReadOnly();
+
+	/**
+	 * Method returns {@link CommitBehavior} set when the session was created. This behavior can be changed when
+	 * the session is {@link #closeWhen(CommitBehavior) closed}, but is used when implicit {@link #close()} is called.
+	 *
+	 * @return commit behavior
+	 */
+	@Nonnull
+	CommitBehavior getCommitBehavior();
 
 	/**
 	 * Returns true if session is switched to binary format output.
