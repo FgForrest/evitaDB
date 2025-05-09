@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -107,7 +107,7 @@ public class TransactionManager {
 	 */
 	private final Consumer<Catalog> newCatalogVersionConsumer;
 	/**
-	 * Contains the latest version of the catalog written to WAL - this practically represents a sequence
+	 * Contains the latest version created for appending to the WAL - this practically represents a sequence
 	 * number increased with each committed transaction and denotes the next catalog version.
 	 */
 	private final AtomicLong lastAssignedCatalogVersion;
@@ -117,7 +117,8 @@ public class TransactionManager {
 	 */
 	private final AtomicReference<SubmissionPublisher<ConflictResolutionTransactionTask>> transactionalPipeline = new AtomicReference<>();
 	/**
-	 * Contains last catalog version appended successfully to the WAL.
+	 * Contains the last catalog version appended successfully to the WAL (i.e. {@link #lastAssignedCatalogVersion} that
+	 * finally arrived to WAL file).
 	 */
 	private final AtomicLong lastWrittenCatalogVersion;
 	/**
@@ -244,9 +245,17 @@ public class TransactionManager {
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastFinalizedCatalog = new AtomicReference<>(catalog);
 		this.livingCatalog = new AtomicReference<>(catalog);
-		this.lastAssignedCatalogVersion = new AtomicLong(catalog.getVersion());
-		this.lastWrittenCatalogVersion = new AtomicLong(catalog.getVersion());
+		// fetch from the persistence store initially - might be greater than current version
+		this.lastAssignedCatalogVersion = new AtomicLong(catalog.getLastCatalogVersionInMutationStream());
+		this.lastWrittenCatalogVersion = new AtomicLong(this.lastAssignedCatalogVersion.get());
+		// this is the catalog version really used (propagated in indexes)
 		this.lastFinalizedCatalogVersion = new AtomicLong(catalog.getVersion());
+
+		Assert.isPremiseValid(
+			this.lastWrittenCatalogVersion.get() >= this.lastAssignedCatalogVersion.get(),
+			"The last finalized catalog version must be greater or equal to last assigned catalog version!"
+		);
+
 		this.walDrainingTask = new DelayedAsyncTask(
 			catalog.getName(), "WAL draining task",
 			scheduler,
@@ -474,7 +483,7 @@ public class TransactionManager {
 		final Catalog theLivingCatalog = getLivingCatalog();
 		if (livingCatalog.getVersion() > 0L) {
 			Assert.isPremiseValid(
-				theLivingCatalog.getVersion() < livingCatalog.getVersion(),
+				theLivingCatalog.getVersion() < livingCatalog.getVersion() || (theLivingCatalog == livingCatalog),
 				"Catalog versions must be in order! " +
 					"Expected " + theLivingCatalog.getVersion() + ", got " + livingCatalog.getVersion() + "."
 			);

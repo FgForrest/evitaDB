@@ -520,6 +520,24 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	) throws TemporalDataNotAvailableException;
 
 	/**
+	 * Verifies the integrity of a system, component, or data structure.
+	 * This method performs an internal check to ensure that the state
+	 * or configuration adheres to expected standards or rules.
+	 *
+	 * The specific implementation of the integrity verification depends
+	 * on the context in which this method is used. It may include tasks
+	 * such as validating data consistency, ensuring correct initialization,
+	 * or detecting anomalies that could indicate corruption or unexpected
+	 * modifications.
+	 *
+	 * No inputs or return values are required. The method performs its
+	 * operations as a void execution.
+	 *
+	 * Potential exceptions may be thrown if integrity violations are detected.
+	 */
+	void verifyIntegrity();
+
+	/**
 	 * Returns size taken by all catalog data structures in bytes.
 	 *
 	 * @return size taken by all catalog data structures in bytes
