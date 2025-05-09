@@ -722,7 +722,12 @@ public final class Evita implements EvitaContract {
 				// this will be one day used in more clever way, when entire catalog loading will be split into
 				// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
 				theCatalog.processWriteAheadLog(
-					updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
+					updatedCatalog -> {
+						this.catalogs.put(catalogName, updatedCatalog);
+						if (updatedCatalog instanceof Catalog theUpdatedCatalog) {
+							theUpdatedCatalog.notifyCatalogPresentInLiveView();
+						}
+					}
 				);
 				this.emitCatalogStatistics(catalogName);
 			},

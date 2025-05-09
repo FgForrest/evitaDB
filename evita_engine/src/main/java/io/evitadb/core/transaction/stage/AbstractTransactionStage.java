@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -108,7 +108,12 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 			// delegate handling logic to the concrete implementation
 			handleNext(task);
 		} catch (Throwable ex) {
-			handleException(task, ex);
+			// if the handle exception throws an exception, we need to handle it, and go on
+			try {
+				handleException(task, ex);
+			} catch (Throwable e) {
+				log.error("Error while handling exception in " + getName() + " task for catalog `" + task.catalogName() + "`!", e);
+			}
 		}
 		this.subscription.request(1);
 	}
@@ -124,7 +129,7 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 		if (future != null) {
 			future.completeExceptionally(ex);
 		}
-		onException.accept(task, ex);
+		this.onException.accept(task, ex);
 	}
 
 	@Override

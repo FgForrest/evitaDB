@@ -877,6 +877,8 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				},
 				() -> updatedCatalogConsumer.accept(this)
 			);
+
+		this.persistenceService.verifyIntegrity();
 	}
 
 	@Nonnull
