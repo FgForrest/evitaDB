@@ -50,11 +50,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -359,9 +362,10 @@ public class MutationReaderPublisherTest {
 	 * In a multi-threaded environment, the completion callback would not be invoked for discarded subscribers.
 	 */
 	@Test
-	void shouldDiscardSubscribersOnSaturation() {
+	void shouldDiscardSubscribersOnSaturation() throws ExecutionException, InterruptedException, TimeoutException {
 		// Flag to track if the completion callback was invoked
 		final AtomicBoolean isCompleted = new AtomicBoolean(false);
+		final CompletableFuture<Void> isDiscarded = new CompletableFuture<>();
 		// Calculate total number of mutations (each transaction size + 1 for the transaction itself)
 		final int mutationCount = Arrays.stream(TX_SIZES)
 			.map(it -> it + 1)
@@ -373,11 +377,14 @@ public class MutationReaderPublisherTest {
 		final MockMutationSubscriber mockSubscriber = new MockMutationSubscriber(5, TimeUnit.MILLISECONDS, mutationCount);
 		try (
 			final MutationReaderPublisher<MockMutationSubscriber> publisher = new MutationReaderPublisher<>(
-				EXECUTOR, 5,
+				Executors.newFixedThreadPool(1), 5,
 				0L, 0,
 				() -> TX_SIZES.length + 1,
 				startVersion -> WAL.getCommittedMutationStream(startVersion),
-				discardedSubscribers::add,
+				subscriber -> {
+					discardedSubscribers.add(subscriber);
+					isDiscarded.complete(null);
+				},
 				subscriber -> {
 					assertSame(mockSubscriber, subscriber);
 					isCompleted.set(true);
@@ -389,15 +396,15 @@ public class MutationReaderPublisherTest {
 			publisher.readAll();
 
 			// this would be true if we'd used a multithreaded executor
-			/*assertTrue(mockSubscriber.getCount() > 0);
-			assertTrue(mockSubscriber.getCount() < mutationCount);*/
+			assertTrue(mockSubscriber.getCount() > 0);
+			assertTrue(mockSubscriber.getCount() < mutationCount);
 
-			// this is true for single threaded executor
-			assertEquals(mutationCount, mockSubscriber.getCount());
-			assertFalse(isCompleted.get());
-			assertFalse(publisher.isClosed());
+			isDiscarded.get(10, TimeUnit.SECONDS);
 			assertEquals(1, discardedSubscribers.size());
 			assertSame(mockSubscriber, discardedSubscribers.get(0));
+
+			assertFalse(isCompleted.get());
+			assertFalse(publisher.isClosed());
 		}
 	}
 

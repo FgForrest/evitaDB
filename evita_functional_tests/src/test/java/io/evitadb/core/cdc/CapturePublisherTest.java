@@ -40,6 +40,7 @@ import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
+import io.evitadb.utils.ImmediateExecutorService;
 import io.evitadb.utils.UUIDUtil;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -53,14 +54,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Flow.Subscriber;
-import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -102,7 +99,7 @@ class CapturePublisherTest {
 	 * Single-threaded executor service used for running the publisher's tasks.
 	 * Using a single thread ensures predictable execution order for tests.
 	 */
-	private final ExecutorService executor = Executors.newFixedThreadPool(1);
+	private final ExecutorService executor = new ImmediateExecutorService();
 
 	/**
 	 * Predicate that fails the test if a mutation is dropped due to backpressure.
@@ -730,146 +727,6 @@ class CapturePublisherTest {
 
 		// Close the publisher when all mutations have been published
 		mutationPublisher.close();
-	}
-
-	/**
-	 * A test implementation of {@link Subscriber} that collects received items and provides
-	 * methods to wait for completion or errors.
-	 *
-	 * This class is used in tests to:
-	 * 1. Subscribe to a CapturePublisher and collect the items it publishes
-	 * 2. Complete a future when a specified number of items have been received
-	 * 3. Track errors and completion signals
-	 * 4. Provide mechanisms to wait for errors or completion signals
-	 *
-	 * The subscriber implements a simple flow control strategy by requesting one item at a time,
-	 * which allows testing backpressure handling in the publisher.
-	 */
-	private static class MockSubscriber implements Subscriber<ChangeCatalogCapture> {
-		/**
-		 * The number of items to receive before completing the future and canceling the subscription.
-		 */
-		private final int completeAtCount;
-
-		/**
-		 * List of items received from the publisher.
-		 */
-		@Getter private final List<ChangeCatalogCapture> items;
-
-		/**
-		 * Future that completes when the expected number of items have been received.
-		 */
-		@Getter private final CompletableFuture<Void> future = new CompletableFuture<>();
-
-		/**
-		 * The error received from the publisher, if any.
-		 */
-		@Getter private Throwable error;
-
-		/**
-		 * Flag indicating whether the publisher has signaled completion.
-		 */
-		@Getter private boolean completed;
-
-		/**
-		 * The subscription to the publisher.
-		 */
-		private Subscription subscription;
-
-		/**
-		 * Latch that counts down when an error is received.
-		 */
-		private final CountDownLatch errorLatch = new CountDownLatch(1);
-
-		/**
-		 * Latch that counts down when completion is signaled.
-		 */
-		private final CountDownLatch completionLatch = new CountDownLatch(1);
-
-		/**
-		 * Creates a new MockSubscriber that will complete after receiving the specified number of items.
-		 *
-		 * @param completeAtCount the number of items to receive before completing
-		 */
-		public MockSubscriber(int completeAtCount) {
-			this.completeAtCount = completeAtCount;
-			this.items = new ArrayList<>(completeAtCount);
-		}
-
-		/**
-		 * Called when the Subscriber is subscribed to a Publisher.
-		 * Stores the subscription and requests the first item.
-		 *
-		 * @param subscription the subscription to the publisher
-		 */
-		@Override
-		public void onSubscribe(Subscription subscription) {
-			this.subscription = subscription;
-			subscription.request(1);  // Request the first item
-		}
-
-		/**
-		 * Called when a new item is received from the publisher.
-		 * Stores the item, requests the next item, and completes the future
-		 * if the expected number of items have been received.
-		 *
-		 * @param item the received item
-		 */
-		@Override
-		public void onNext(ChangeCatalogCapture item) {
-			this.items.add(item);
-			this.subscription.request(1);  // Request the next item
-			if (this.items.size() == this.completeAtCount) {
-				this.future.complete(null);  // Complete the future when all items are received
-				this.subscription.cancel();  // Cancel the subscription
-			}
-		}
-
-		/**
-		 * Called when an error occurs in the publisher.
-		 * Stores the error and counts down the error latch.
-		 *
-		 * @param throwable the error that occurred
-		 */
-		@Override
-		public void onError(Throwable throwable) {
-			this.error = throwable;
-			this.errorLatch.countDown();
-		}
-
-		/**
-		 * Called when the publisher signals completion.
-		 * Sets the completed flag and counts down the completion latch.
-		 */
-		@Override
-		public void onComplete() {
-			this.completed = true;
-			this.completionLatch.countDown();
-		}
-
-		/**
-		 * Waits for an error to be received by this subscriber.
-		 *
-		 * @param timeout the maximum time to wait
-		 * @param unit the time unit of the timeout argument
-		 * @return true if an error was received before the timeout, false otherwise
-		 * @throws InterruptedException if the current thread is interrupted while waiting
-		 */
-		public boolean awaitError(long timeout, TimeUnit unit) throws InterruptedException {
-			return this.errorLatch.await(timeout, unit);
-		}
-
-		/**
-		 * Waits for completion to be received by this subscriber.
-		 *
-		 * @param timeout the maximum time to wait
-		 * @param unit the time unit of the timeout argument
-		 * @return true if completion was received before the timeout, false otherwise
-		 * @throws InterruptedException if the current thread is interrupted while waiting
-		 */
-		public boolean awaitCompletion(long timeout, TimeUnit unit) throws InterruptedException {
-			return this.completionLatch.await(timeout, unit);
-		}
 	}
 
 	/**

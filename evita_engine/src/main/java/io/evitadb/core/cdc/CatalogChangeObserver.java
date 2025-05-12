@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.async.ObservableExecutorService;
 import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -36,6 +35,7 @@ import io.evitadb.utils.UUIDUtil;
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -55,7 +55,7 @@ public class CatalogChangeObserver {
 	/**
 	 * Executor to be used in new publishers.
 	 */
-	private final ObservableExecutorService executor;
+	private final ExecutorService executor;
 	/**
 	 * Lambda function that provides
 	 */
@@ -73,7 +73,7 @@ public class CatalogChangeObserver {
 	 */
 	private final ReentrantLock lock = new ReentrantLock();
 
-	public CatalogChangeObserver(@Nonnull ObservableExecutorService executor) {
+	public CatalogChangeObserver(@Nonnull ExecutorService executor) {
 		this.executor = executor;
 		this.currentCatalog = new AtomicReference<>();
 		this.catalogObservers = CollectionUtils.createConcurrentHashMap(32);
@@ -179,6 +179,17 @@ public class CatalogChangeObserver {
 		}
 	}
 
+	/**
+	 * Registers a {@link CapturePublisher} that lags behind the current catalog state
+	 * to process catalog changes and synchronize its state. This ensures that the lagging
+	 * publisher is initialized and begins receiving updates starting from a specified version
+	 * and index. The lagging publisher will read and process all mutations up to becoming
+	 * up-to-date and then will be managed accordingly.
+	 *
+	 * @param capturePublisher the instance of {@link CapturePublisher} representing a lagging publisher
+	 *                         that needs to start reading mutations and applying changes from a specific
+	 *                         version and index to synchronize with the current catalog state
+	 */
 	private void registerLaggingPublisher(@Nonnull CapturePublisher capturePublisher) {
 		final MutationReaderPublisher<CapturePublisher> newMutationReader = new MutationReaderPublisher<>(
 			this.executor,
