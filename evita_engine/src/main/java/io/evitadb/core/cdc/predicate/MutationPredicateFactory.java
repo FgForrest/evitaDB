@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,16 +49,16 @@ public interface MutationPredicateFactory {
 
 	/**
 	 * Method creates a predicate chain that filters out mutations that match the given {@link ChangeCatalogCaptureRequest}
-	 * criteria. The predicate chain is created in such a way that it captures only mutations that are older than
+	 * request. The predicate chain is created in such a way that it captures only mutations that are older than
 	 * the given version and index. Thus the method is named "reversed" as it is used to capture changes in the reversed
 	 * order.
 	 *
-	 * @param criteria criteria to be used for creating the predicate chain
-	 * @return predicate chain that filters out mutations that match the given criteria
+	 * @param request request to be used for creating the predicate chain
+	 * @return predicate chain that filters out mutations that match the given request
 	 */
 	@Nonnull
-	static MutationPredicate createChangeCatalogCapturePredicate(@Nonnull ChangeCatalogCaptureRequest criteria) {
-		return createPredicateUsingComparator(criteria, Comparator.naturalOrder(), Comparator.naturalOrder(), StreamDirection.FORWARD);
+	static MutationPredicate createChangeCatalogCapturePredicate(@Nonnull ChangeCatalogCaptureRequest request) {
+		return createPredicateUsingComparator(request, Comparator.naturalOrder(), Comparator.naturalOrder(), StreamDirection.FORWARD);
 	}
 
 	/**
@@ -153,6 +153,40 @@ public interface MutationPredicateFactory {
 		}
 
 		return mutationPredicate == null ? new TruePredicate(context) : mutationPredicate;
+	}
+
+	/**
+	 * Method creates a predicate chain that filters out mutations that match the given {@link ChangeCatalogCaptureCriteria}
+	 * array.
+	 *
+	 * @param criteria 		criteria to be used for creating the predicate chain
+	 * @return predicate chain that filters out mutations that match the given criteria array
+	 */
+	@Nonnull
+	static MutationPredicate createPredicateUsingComparator(
+		@Nullable ChangeCatalogCaptureCriteria[] criteria
+	) {
+		MutationPredicateContext context = new MutationPredicateContext(StreamDirection.FORWARD);
+
+		if (criteria != null) {
+			final MutationPredicate[] mutationPredicates = Arrays.stream(criteria)
+				.map(c -> createCriteriaPredicate(c, context))
+				.filter(Objects::nonNull)
+				.toArray(MutationPredicate[]::new);
+			final MutationPredicate predicateToAdd;
+			if (mutationPredicates.length == 1) {
+				predicateToAdd = mutationPredicates[0];
+			} else if (mutationPredicates.length > 1) {
+				predicateToAdd = MutationPredicate.or(mutationPredicates);
+			} else {
+				predicateToAdd = null;
+			}
+			if (predicateToAdd != null) {
+				return predicateToAdd;
+			}
+		}
+
+		return new TruePredicate(context);
 	}
 
 	/**

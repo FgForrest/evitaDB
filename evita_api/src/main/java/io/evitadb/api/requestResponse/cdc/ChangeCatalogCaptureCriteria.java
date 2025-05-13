@@ -40,8 +40,8 @@ import javax.annotation.Nullable;
  */
 public record ChangeCatalogCaptureCriteria(
 	@Nullable CaptureArea area,
-	@Nullable CaptureSite site
-) {
+	@Nullable CaptureSite<?> site
+) implements Comparable<ChangeCatalogCaptureCriteria> {
 
 	public ChangeCatalogCaptureCriteria {
 		if (area != null) {
@@ -51,6 +51,26 @@ public record ChangeCatalogCaptureCriteria(
 				case INFRASTRUCTURE -> throw new EvitaInvalidUsageException("Infrastructure area is not supported");
 			}
 		}
+	}
+
+	@Override
+	public int compareTo(@Nonnull ChangeCatalogCaptureCriteria other) {
+		int result = this.area == null ?
+			(other.area == null ? 0 : -1) :
+			(other.area == null ? 1 : this.area.compareTo(other.area));
+
+		if (result == 0) {
+			if (this.site == null || other.site == null) {
+				result = this.site == null ?
+					other.site == null ? 0 : -1 : 1;
+			} else if (this.site.getClass().equals(other.site.getClass())) {
+				//noinspection rawtypes,unchecked
+				return ((Comparable) this.site).compareTo(other.site);
+			} else {
+				return this.site.getClass().getName().compareTo(other.site.getClass().getName());
+			}
+		}
+		return result;
 	}
 
 	/**

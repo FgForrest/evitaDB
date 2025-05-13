@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.cdc;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.ContainerType;
+import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,9 +47,49 @@ public record DataSite(
 	@Nullable Operation[] operation,
 	@Nullable ContainerType[] containerType,
 	@Nullable String[] containerName
-) implements CaptureSite {
+) implements CaptureSite<DataSite> {
+	public static final DataSite ALL = new DataSite(null, null, null, null, null);
 
-	public static final CaptureSite ALL = new DataSite(null, null, null, null, null);
+	public DataSite {
+		if (operation != null) {
+			java.util.Arrays.sort(operation);
+		}
+		if (containerType != null) {
+			java.util.Arrays.sort(containerType);
+		}
+		if (containerName != null) {
+			java.util.Arrays.sort(containerName);
+		}
+	}
+
+	@Override
+	public int compareTo(@Nonnull DataSite other) {
+		if (this == other) return 0;
+		int result = this.entityType == null ?
+			(other.entityType == null ? 0 : -1) :
+			(other.entityType == null ? 1 : this.entityType.compareTo(other.entityType));
+		if (result == 0) {
+			result = this.entityPrimaryKey == null ?
+				(other.entityPrimaryKey == null ? 0 : -1) :
+				(other.entityPrimaryKey == null ? 1 : this.entityPrimaryKey.compareTo(other.entityPrimaryKey));
+		}
+		if (result == 0) {
+			result = this.operation == null ?
+				(other.operation == null ? 0 : -1) :
+				(other.operation == null ? 1 : ArrayUtils.compare(this.operation, other.operation));
+		}
+		if (result == 0) {
+			result = this.containerType == null ?
+				(other.containerType == null ? 0 : -1) :
+				(other.containerType == null ? 1 : ArrayUtils.compare(this.containerType, other.containerType));
+		}
+		if (result == 0) {
+			result = this.containerName == null ?
+				(other.containerName == null ? 0 : -1) :
+				(other.containerName == null ? 1 : ArrayUtils.compare(this.containerName, other.containerName));
+		}
+		return result;
+	}
 
 	/**
 	 * Creates builder object that helps you create DataSite record using builder pattern.

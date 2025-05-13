@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -624,6 +624,46 @@ class ArrayUtilsTest {
 		position = computeInsertPositionOfObjInOrderedArray("cde", sortedArray, comparator);
 		assertEquals(2, position.position());
 		assertTrue(position.alreadyPresent());
+	}
+
+	@Test
+	void shouldReturnZeroForEqualArrays() {
+		Integer[] array1 = {1, 2, 3};
+		Integer[] array2 = {1, 2, 3};
+
+		assertEquals(0, ArrayUtils.compare(array1, array2));
+	}
+
+	@Test
+	void shouldReturnZeroForEmptyArrays() {
+		Integer[] array1 = {};
+		Integer[] array2 = {};
+
+		assertEquals(0, ArrayUtils.compare(array1, array2));
+	}
+
+	@Test
+	void shouldReturnNegativeForFirstArrayLesser() {
+		Integer[] array1 = {1, 2, 3};
+		Integer[] array2 = {1, 2, 4};
+
+		assertTrue(ArrayUtils.compare(array1, array2) < 0);
+	}
+
+	@Test
+	void shouldReturnPositiveForSecondArrayLesser() {
+		Integer[] array1 = {1, 2, 4};
+		Integer[] array2 = {1, 2, 3};
+
+		assertTrue(ArrayUtils.compare(array1, array2) > 0);
+	}
+
+	@Test
+	void shouldCompareByLengthForArraysWithSameBeginning() {
+		Integer[] array1 = {1, 2, 3};
+		Integer[] array2 = {1, 2, 3, 4};
+
+		assertTrue(ArrayUtils.compare(array1, array2) < 0);
 	}
 
 }
