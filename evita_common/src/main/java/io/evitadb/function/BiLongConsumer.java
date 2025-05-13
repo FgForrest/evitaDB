@@ -21,23 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.exception;
+package io.evitadb.function;
 
-
-import io.evitadb.exception.EvitaInternalError;
-
-import java.io.Serial;
 
 /**
- * This exception is throw when method is called on {@link io.evitadb.core.cdc.ChangeCatalogCapturePublisher} which
- * has been already closed.
+ * Same as {@link java.util.function.LongConsumer} but for two long values.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class ChangeCatalogCapturePublisherClosedException extends EvitaInternalError {
-	@Serial private static final long serialVersionUID = 4013251726121370946L;
+@FunctionalInterface
+public interface BiLongConsumer {
 
-	public ChangeCatalogCapturePublisherClosedException() {
-		super("Publisher is already closed, cannot read WAL.");
-	}
+	/**
+	 * Performs this operation on the given argument.
+	 *
+	 * @param value1 the input argument
+	 * @param value2 the input argument
+	 */
+	void accept(long value1, long value2);
+
 }

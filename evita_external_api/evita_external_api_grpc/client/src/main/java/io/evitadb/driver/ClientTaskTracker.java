@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.driver;
 
 import io.evitadb.api.EvitaManagementContract;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -255,7 +256,7 @@ public class ClientTaskTracker implements Closeable {
 	 */
 	private void assertActive() {
 		if (this.closed.get()) {
-			throw new IllegalStateException("Client task tracker is closed.");
+			throw new InstanceTerminatedException("client task tracker");
 		}
 	}
 

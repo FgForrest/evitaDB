@@ -33,15 +33,18 @@ import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.dataType.ContainerType;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -60,6 +63,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@DisplayName("MutationPredicateFactory should")
 class MutationPredicateFactoryTest {
 
     /**
@@ -69,6 +73,7 @@ class MutationPredicateFactoryTest {
      * Verifies that the created predicate correctly filters mutations based on the specified version.
      */
     @Test
+    @DisplayName("create predicate that filters mutations by version")
     void shouldCreateChangeCatalogCapturePredicateWithVersion() {
         // Create a request with a specific version
         ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
@@ -106,6 +111,7 @@ class MutationPredicateFactoryTest {
      * Verifies that the created predicate correctly filters mutations based on both version and index.
      */
     @Test
+    @DisplayName("create predicate that filters mutations by version and index")
     void shouldCreateChangeCatalogCapturePredicateWithVersionAndIndex() {
         // Create a request with a specific version and index
         ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
@@ -171,6 +177,7 @@ class MutationPredicateFactoryTest {
 	 * Verifies that the created predicate correctly filters mutations in reverse order based on both version and index.
 	 */
 	@Test
+	@DisplayName("create reversed predicate that filters mutations by version and index")
 	void shouldCreateReversedChangeCatalogCapturePredicateWithVersionAndIndex() {
 		// Create a request with a specific version and index
 		ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
@@ -233,8 +240,9 @@ class MutationPredicateFactoryTest {
      *
      * Verifies that the created predicate correctly filters mutations in reverse order based on the specified version.
      */
-    @Test
-    void shouldCreateReversedChangeCatalogCapturePredicate() {
+   	@Test
+   	@DisplayName("create reversed predicate for catalog capture")
+   	void shouldCreateReversedChangeCatalogCapturePredicate() {
         // Create a request with a specific version
         ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
             .sinceVersion(100L)
@@ -271,6 +279,7 @@ class MutationPredicateFactoryTest {
      * Verifies that the created predicate correctly filters mutations based on the schema area.
      */
     @Test
+    @DisplayName("create criteria predicate for schema area")
     void shouldCreateCriteriaPredicateForSchemaArea() {
         // Create a context
         MutationPredicateContext context = new MutationPredicateContext(Mutation.StreamDirection.FORWARD);
@@ -321,6 +330,7 @@ class MutationPredicateFactoryTest {
      * Verifies that the created predicate correctly filters mutations based on the data area.
      */
     @Test
+    @DisplayName("create criteria predicate for data area")
     void shouldCreateCriteriaPredicateForDataArea() {
         // Create a context
         MutationPredicateContext context = new MutationPredicateContext(Mutation.StreamDirection.FORWARD);
@@ -359,12 +369,13 @@ class MutationPredicateFactoryTest {
     }
 
     /**
-     * Tests the {@link MutationPredicateFactory#createPredicateUsingComparator(ChangeCatalogCaptureCriteria[])} method
-     * with an array of criteria.
+     * Tests the {@link MutationPredicateFactory#createPredicateUsingComparator(Long, Integer, ChangeCatalogCaptureCriteria[], Comparator, Comparator, StreamDirection)}
+     * method with an array of criteria.
      *
      * Verifies that the created predicate correctly combines multiple criteria with OR logic.
      */
     @Test
+    @DisplayName("create predicate combining multiple criteria with OR logic")
     void shouldCreatePredicateUsingComparatorWithCriteriaArray() {
         // Create criteria for data area with PK 1
 	    ChangeCatalogCaptureCriteria dataCriteria1 = ChangeCatalogCaptureCriteria.builder()
@@ -388,7 +399,10 @@ class MutationPredicateFactoryTest {
 
         // Create the predicate with both criteria
         MutationPredicate predicate = MutationPredicateFactory.createPredicateUsingComparator(
-            new ChangeCatalogCaptureCriteria[]{dataCriteria2, dataCriteria1}
+			null, null,
+            new ChangeCatalogCaptureCriteria[]{dataCriteria2, dataCriteria1},
+            Comparator.naturalOrder(), Comparator.naturalOrder(),
+	        StreamDirection.FORWARD
         );
 
 	    // Create a matching data mutation 1
@@ -411,15 +425,20 @@ class MutationPredicateFactoryTest {
     }
 
     /**
-     * Tests the {@link MutationPredicateFactory#createPredicateUsingComparator(ChangeCatalogCaptureCriteria[])} method
-     * with null criteria.
+     * Tests the {@link MutationPredicateFactory#createPredicateUsingComparator(Long, Integer, ChangeCatalogCaptureCriteria[], Comparator, Comparator, StreamDirection)}
+     * method with null criteria.
      *
      * Verifies that the created predicate is a TruePredicate that accepts all mutations.
      */
     @Test
+    @DisplayName("create true predicate when criteria is null")
     void shouldCreatePredicateUsingComparatorWithNullCriteria() {
         // Create the predicate with null criteria
-        MutationPredicate predicate = MutationPredicateFactory.createPredicateUsingComparator(null);
+        MutationPredicate predicate = MutationPredicateFactory.createPredicateUsingComparator(
+			null, null, null,
+	        Comparator.naturalOrder(), Comparator.naturalOrder(),
+	        StreamDirection.FORWARD
+        );
 
         // Verify the predicate is not null
         assertNotNull(predicate);
@@ -440,6 +459,7 @@ class MutationPredicateFactoryTest {
      * Verifies that the created predicate correctly filters mutations based on the specified criteria.
      */
     @Test
+    @DisplayName("create predicate that filters mutations by criteria")
     void shouldCreateChangeCatalogCapturePredicateWithCriteria() {
         // Create criteria for schema area
         ChangeCatalogCaptureCriteria dataCriteria = ChangeCatalogCaptureCriteria.builder()

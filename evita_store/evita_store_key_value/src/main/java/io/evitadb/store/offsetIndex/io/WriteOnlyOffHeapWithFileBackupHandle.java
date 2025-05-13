@@ -52,6 +52,8 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static io.evitadb.function.Functions.noOpFunction;
+import static io.evitadb.function.Functions.noOpRunnable;
 import static io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle.getTargetFile;
 
 /**
@@ -189,7 +191,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	@Override
 	public ReadOnlyHandle toReadOnlyHandle() {
 		// sync to disk first
-		execute("flush", () -> {}, (o) -> null, true);
+		execute("flush", noOpRunnable(), noOpFunction(), true);
 
 		return new OffHeapWithFileBackupReadOnlyHandle(this);
 	}
@@ -221,7 +223,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	@Nonnull
 	public OffHeapWithFileBackupReference toReadOffHeapWithFileBackupReference() {
 		// sync to disk first
-		execute("flush", () -> {}, (o) -> null, true);
+		execute("flush", noOpRunnable(), noOpFunction(), true);
 
 		if (this.offHeapMemoryOutput != null) {
 			final ByteBuffer byteBuffer = this.offHeapMemoryOutput.getOutputStream().getByteBuffer();

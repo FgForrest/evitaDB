@@ -23,39 +23,39 @@
 
 package io.evitadb.core.cdc;
 
+import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
+import io.evitadb.core.async.DelayedAsyncTask;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
-import io.evitadb.utils.UUIDUtil;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * This observer is responsible for maintaining a list of active publishers that are interested in receiving updates
- * about changes in the catalog (capturing data changes). It allows for registering and unregistering observers, and
- * it manages the lifecycle of the publishers.
+ * TODO JNO - document me
  *
- * Observer is expected to be a singleton passed from one catalog instance (version) to the next one. All the publishers
- * whose subscribers can keep up with the changes in the current catalog versions are registered
- * to the {@link #getUpToDateMutationReaderPublisher(long)}, lagging publishers have their own instances of
- * {@link MutationReaderPublisher} and consume changes in their own pace.
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class CatalogChangeObserver {
+public class CatalogChangeObserver implements CatalogChangeObserverContract {
+	/**
+	 * Options for change data capture.
+	 */
+	private final ChangeDataCaptureOptions cdcOptions;
 	/**
 	 * Executor to be used in new publishers.
 	 */
-	private final ExecutorService executor;
+	private final ExecutorService cdcExecutor;
 	/**
 	 * Lambda function that provides
 	 */
@@ -63,199 +63,105 @@ public class CatalogChangeObserver {
 	/**
 	 * Map of all active publishers. A unique UUID identifies each publisher.
 	 */
-	private final Map<UUID, CapturePublisher> catalogObservers;
+	private final Map<ChangeCatalogCriteriaBundle, ChangeCatalogCaptureSharedPublisher> uniquePublishers;
 	/**
-	 * Subscribers following the up-to-date catalog version share a single publisher.
+	 * Cleaning task that removes inactive publishers from the list of unique publishers once a while.
 	 */
-	private final AtomicReference<MutationReaderPublisher<CapturePublisher>> mutationReader;
-	/**
-	 * Lock to synchronize creating & removing current state mutation reader.
-	 */
-	private final ReentrantLock lock = new ReentrantLock();
+	private final DelayedAsyncTask cleaner;
+	/* todo jno - METRIKY */
+	/* todo jno - sem přenést predikáty, paměťová matice */
 
-	public CatalogChangeObserver(@Nonnull ExecutorService executor) {
-		this.executor = executor;
-		this.currentCatalog = new AtomicReference<>();
-		this.catalogObservers = CollectionUtils.createConcurrentHashMap(32);
-		this.mutationReader = new AtomicReference<>();
+	public CatalogChangeObserver(
+		@Nonnull ChangeDataCaptureOptions cdcOptions,
+		@Nonnull ExecutorService cdcExecutor,
+		@Nonnull Scheduler scheduler,
+		@Nonnull Catalog currentCatalog
+	) {
+		this.cdcOptions = cdcOptions;
+		this.cdcExecutor = cdcExecutor;
+		this.currentCatalog = new AtomicReference<>(currentCatalog);
+		this.uniquePublishers = CollectionUtils.createConcurrentHashMap(32);
+		this.cleaner = new DelayedAsyncTask(
+			currentCatalog.getName(),
+			CatalogChangeObserver.class.getSimpleName(),
+			scheduler,
+			this::cleanInactivePublishers,
+			1, TimeUnit.MINUTES
+		);
 	}
 
-	/**
-	 * Registers a new observer for capturing catalog changes based on the specified request.
-	 * It creates a {@link ChangeCapturePublisher} that will multicast captured events to interested subscribers.
-	 * The publisher's lifecycle is tied to the observer registration and will handle changes starting from the requested
-	 * catalog version or the current catalog version if not specified.
-	 *
-	 * @param request the request specifying the configuration for what changes need to be captured
-	 *                (e.g., starting catalog version, content type, and filters on mutations)
-	 * @return an instance of {@link ChangeCapturePublisher} that can be used to subscribe and receive captured events
-	 */
+	@Override
+	public void notifyCatalogPresentInLiveView(@Nonnull Catalog catalog) {
+		this.currentCatalog.set(catalog);
+		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
+			sharedPublisher.notifyCatalogPresentInLiveView(catalog);
+		}
+	}
+
+	@Override
+	public void processMutation(@Nonnull Mutation mutation) {
+		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
+			sharedPublisher.processMutation(mutation);
+		}
+	}
+
+	@Override
+	public void forgetMutationsAfter(long catalogVersion) {
+		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
+			sharedPublisher.forgetMutationsAfter(catalogVersion);
+		}
+	}
+
 	@Nonnull
+	@Override
 	public ChangeCapturePublisher<ChangeCatalogCapture> registerObserver(@Nonnull ChangeCatalogCaptureRequest request) {
 		final Catalog theCatalog = this.currentCatalog.get();
 		Assert.isPremiseValid(
 			theCatalog != null,
 			"Catalog must be attached to the observer before registering a new publisher!"
 		);
-		final UUID uuid = UUIDUtil.randomUUID();
-		final long startCatalogVersion = request.sinceVersion() == null ? theCatalog.getVersion() : request.sinceVersion();
-		final int startIndex = request.sinceIndex() == null ? 0 : request.sinceIndex();
-		final CapturePublisher capturePublisher = new CapturePublisher(
-			uuid,
-			startCatalogVersion,
-			startIndex,
-			this.executor,
-			MutationPredicateFactory.createChangeCatalogCapturePredicate(request),
-			request.content(),
-			this::registerLaggingPublisher,
-			this.catalogObservers::remove
+		final ChangeCatalogCaptureCriteria[] requestedCriteria = request.criteria();
+		final ChangeCatalogCriteriaBundle criteriaBundle = requestedCriteria == null ?
+			ChangeCatalogCriteriaBundle.CATCH_ALL : new ChangeCatalogCriteriaBundle(requestedCriteria);
+
+		// create or reuse the shared publisher
+		final ChangeCatalogCaptureSharedPublisher sharedPublisher = this.uniquePublishers.computeIfAbsent(
+			criteriaBundle,
+			cb -> new ChangeCatalogCaptureSharedPublisher(
+				theCatalog, this.cdcExecutor,
+				this.cdcOptions.recentEventsCacheLimit(),
+				this.cdcOptions.subscriberBufferSize(),
+				cb
+			)
 		);
-		Assert.isPremiseValid(
-			this.catalogObservers.putIfAbsent(uuid, capturePublisher) == null,
-			"Generated UUID was not unique - unexpected in our spacetime plane."
-		);
-		if (startCatalogVersion == theCatalog.getVersion()) {
-			registerUpToDatePublisher(capturePublisher);
-		} else {
-			registerLaggingPublisher(capturePublisher);
-		}
-		return capturePublisher;
+
+		// Provide isolated publisher wrapping the shared one to the outside world.
+		// This way we can reuse predicate and caching logic for all subscribers with the same criteria.
+		// Specifics related to start version and index, and provided content are handled in the isolated publisher.
+		return new ChangeCatalogCapturePublisher(sharedPublisher, request);
 	}
 
-	/**
-	 * Unregisters an observer associated with the specified UUID from the list of catalog observers.
-	 * If the observer is successfully removed, any associated resources are released and any publishers
-	 * tied to the observer are closed. If the catalog observer list becomes empty after the removal,
-	 * the mutation reader publisher is also removed.
-	 *
-	 * @param uuid the unique identifier of the observer to be unregistered
-	 * @return {@code true} if the observer was successfully unregistered, {@code false} if no observer
-	 *         with the specified UUID was found
-	 */
+	@Override
 	public boolean unregisterObserver(@Nonnull UUID uuid) {
-		final CapturePublisher removedPublisher = this.catalogObservers.remove(uuid);
-		if (removedPublisher != null) {
-			removedPublisher.close();
-			if (this.catalogObservers.isEmpty()) {
-				removeMutationReaderPublisher();
-			}
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	/**
-	 * Notifies that the specified catalog is now present in the live view and updates the current catalog reference.
-	 * If a mutation reader publisher is available, it initiates reading all mutations.
-	 *
-	 * @param catalog the catalog object representing the current state to be set as present in the live view
-	 */
-	public void notifyCatalogPresentInLiveView(@Nonnull Catalog catalog) {
-		this.currentCatalog.set(catalog);
-		final MutationReaderPublisher<CapturePublisher> mutationReaderPublisher = this.mutationReader.get();
-		if (mutationReaderPublisher != null) {
-			mutationReaderPublisher.readAll();
-		}
-	}
-
-	/**
-	 * Registers a publisher that is up-to-date with the current catalog version. The publisher will not react when its
-	 * buffer is completely emptied and is subscribed to the mutation reader following the latest changes in the catalog.
-	 *
-	 * @param capturePublisher the instance of {@link CapturePublisher} to be registered and subscribed
-	 *                         to the mutation reader publisher for processing updates
-	 */
-	private void registerUpToDatePublisher(@Nonnull CapturePublisher capturePublisher) {
-		// we need to execute subscription in a locked block to avoid situation where the publisher is closed and removed
-		this.lock.lock();
-		try {
-			final MutationReaderPublisher<CapturePublisher> mutationReaderPublisher = getUpToDateMutationReaderPublisher(
-				capturePublisher.getContinueWithVersion()
-			);
-			mutationReaderPublisher.subscribe(capturePublisher);
-		} finally {
-			this.lock.unlock();
-		}
-	}
-
-	/**
-	 * Registers a {@link CapturePublisher} that lags behind the current catalog state
-	 * to process catalog changes and synchronize its state. This ensures that the lagging
-	 * publisher is initialized and begins receiving updates starting from a specified version
-	 * and index. The lagging publisher will read and process all mutations up to becoming
-	 * up-to-date and then will be managed accordingly.
-	 *
-	 * @param capturePublisher the instance of {@link CapturePublisher} representing a lagging publisher
-	 *                         that needs to start reading mutations and applying changes from a specific
-	 *                         version and index to synchronize with the current catalog state
-	 */
-	private void registerLaggingPublisher(@Nonnull CapturePublisher capturePublisher) {
-		final MutationReaderPublisher<CapturePublisher> newMutationReader = new MutationReaderPublisher<>(
-			this.executor,
-			capturePublisher.getContinueWithVersion(),
-			capturePublisher.getContinueWithIndex(),
-			() -> this.currentCatalog.get().getVersion(),
-			catalogVersion -> this.currentCatalog.get().getCommittedMutationStream(catalogVersion),
-			null,
-			this::registerUpToDatePublisher
-		);
-		newMutationReader.subscribe(capturePublisher);
-		// trigger initialization of the new publisher
-		newMutationReader.readAll();
-	}
-
-	/**
-	 * Retrieves or initializes a singleton instance of {@link MutationReaderPublisher} tied to the current version
-	 * and thread executor. If a publisher instance already exists, it reuses the existing instance; otherwise,
-	 * it creates and sets up a new one.
-	 *
-	 * @param sinceCatalogVersion the catalog version from which mutations will be read
-	 * @return the singleton instance of the {@link MutationReaderPublisher} bound to the specified parameters
-	 */
-	@Nonnull
-	private MutationReaderPublisher<CapturePublisher> getUpToDateMutationReaderPublisher(long sinceCatalogVersion) {
-		MutationReaderPublisher<CapturePublisher> mutationReaderPublisher = this.mutationReader.get();
-		if (mutationReaderPublisher == null) {
-			// create a new publisher
-			final MutationReaderPublisher<CapturePublisher> newMutationReaderPublisher = new MutationReaderPublisher<>(
-				this.executor,
-				sinceCatalogVersion + 1L,
-				0,
-				() -> this.currentCatalog.get().getVersion(),
-				catalogVersion -> this.currentCatalog.get().getCommittedMutationStream(catalogVersion),
-				this::registerLaggingPublisher,
-				null
-			);
-			Assert.isPremiseValid(
-				this.mutationReader.compareAndExchange(null, newMutationReaderPublisher) == null,
-				"Publisher was already created by another thread (unexpected situation, we're in a locked block)."
-			);
-			mutationReaderPublisher = newMutationReaderPublisher;
-		}
-		return mutationReaderPublisher;
-	}
-
-	/**
-	 * Releases and removes the currently active {@link MutationReaderPublisher} instance, ensuring proper cleanup
-	 * and thread-safe operation.
-	 *
-	 * This method is used to manage the lifecycle of the {@link MutationReaderPublisher} by removing the existing publisher
-	 * when it is no longer needed ensuring the resources are properly closed, avoiding potential memory leaks.
-	 */
-	private void removeMutationReaderPublisher() {
-		if (this.mutationReader.get() != null) {
-			this.lock.lock();
-			try {
-				final MutationReaderPublisher<CapturePublisher> mutationReaderPublisher = this.mutationReader.get();
-				if (mutationReaderPublisher != null && !mutationReaderPublisher.hasSubscribers()) {
-					mutationReaderPublisher.close();
-					this.mutationReader.set(null);
-				}
-			} finally {
-				this.lock.unlock();
+		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
+			if (sharedPublisher.unsubscribe(uuid)) {
+				 return true;
 			}
 		}
+		return false;
+	}
+
+	/**
+	 * Removes inactive publishers from the list of unique publishers by checking
+	 * if they have been closed. A publisher is considered inactive if its `isClosed`
+	 * method returns true. This method ensures that only active publishers remain in the
+	 * collection for further processing.
+	 *
+	 * @return the milliseconds deviation to the next scheduled run (always zero)
+	 */
+	private long cleanInactivePublishers() {
+		this.uniquePublishers.values().removeIf(ChangeCatalogCaptureSharedPublisher::isClosed);
+		return 0L;
 	}
 
 }

@@ -23,40 +23,33 @@
 
 package io.evitadb.core.cdc.predicate;
 
-import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
-import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
-import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 
 import javax.annotation.Nonnull;
 
 /**
- * Predicate filters out only mutations that are related to mutation related to a particular entity primary key.
- * The predicate is optimized for matching also {@link LocalMutation} mutations that are related to the same entity
- * by remembering the last entity primary key.
+ * This implementation is not really a predicate but rather a utility class that initializes the version and index
+ * in the {@link MutationPredicateContext} when processing a {@link TransactionMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class EntityPrimaryKeyPredicate extends MutationPredicate {
-	private final int primaryKey;
+public class VersionAndIndexInitializingPredicate extends MutationPredicate {
 
-	public EntityPrimaryKeyPredicate(@Nonnull MutationPredicateContext context, int primaryKey) {
+	public VersionAndIndexInitializingPredicate(@Nonnull MutationPredicateContext context) {
 		super(context);
-		this.primaryKey = primaryKey;
 	}
 
 	@Override
 	public boolean test(Mutation mutation) {
-		if (mutation instanceof EntityUpsertMutation dataMutation) {
-			this.context.setEntityPrimaryKey(dataMutation.getEntityPrimaryKey());
-		} else if (mutation instanceof EntityRemoveMutation dataMutation) {
-			this.context.setEntityPrimaryKey(dataMutation.getEntityPrimaryKey());
-		} else if (!(mutation instanceof LocalMutation<?, ?>)) {
-			this.context.resetPrimaryKey();
+		if (mutation instanceof TransactionMutation transactionMutation) {
+			this.context.setVersion(transactionMutation.getCatalogVersion(), transactionMutation.getMutationCount());
+		} else {
+			this.context.advance();
 		}
-		return this.context.matchPrimaryKey(this.primaryKey);
+		return true;
 	}
 
 }

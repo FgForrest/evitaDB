@@ -90,6 +90,14 @@ class MockSubscriber implements Subscriber<ChangeCatalogCapture> {
 	private final CountDownLatch completionLatch = new CountDownLatch(1);
 
 	/**
+	 * Creates a new MockSubscriber that never completes.
+	 */
+	public MockSubscriber() {
+		this.completeAtCount = Integer.MAX_VALUE;
+		this.items = new ArrayList<>(256);
+	}
+
+	/**
 	 * Creates a new MockSubscriber that will complete after receiving the specified number of items.
 	 *
 	 * @param completeAtCount the number of items to receive before completing

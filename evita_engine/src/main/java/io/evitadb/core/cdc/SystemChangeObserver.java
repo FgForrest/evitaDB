@@ -25,7 +25,6 @@ package io.evitadb.core.cdc;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InstanceTerminatedException;
-import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
@@ -34,13 +33,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Flow.Publisher;
-
-import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 
 /**
  * Main implementation class handling notification of all created {@link ChangeCapturePublisher}s.
@@ -50,17 +43,11 @@ import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 @RequiredArgsConstructor
 @Slf4j
 public class SystemChangeObserver implements AutoCloseable {
-	private final Executor executor;
 
 	/**
 	 * Whether this observer is still active and can fire new events.
 	 */
 	private boolean active = true;
-
-	/**
-	 * Index keeping all registered {@link DelegatingChangeCapturePublisher}s.
-	 */
-	private final Map<UUID, DelegatingChangeCapturePublisher<ChangeSystemCapture, ChangeSystemCaptureRequest>> systemObservers = createConcurrentHashMap(20);
 
 	/**
 	 * Registers a new subscriber with a first request.
@@ -70,12 +57,8 @@ public class SystemChangeObserver implements AutoCloseable {
 	 */
 	public ChangeCapturePublisher<ChangeSystemCapture> registerPublisher(@Nonnull ChangeSystemCaptureRequest request) {
 		assertActive();
-		final DelegatingChangeCapturePublisher<ChangeSystemCapture, ChangeSystemCaptureRequest> publisher = new DelegatingChangeCapturePublisher<>(
-			this.executor, request,
-			it -> this.systemObservers.remove(it.getId())
-		);
-		this.systemObservers.put(publisher.getId(), publisher);
-		return publisher;
+		// TODO JNO - implementovat
+		return null;
 	}
 
 	/**
@@ -86,39 +69,14 @@ public class SystemChangeObserver implements AutoCloseable {
 	 */
 	public void notifyPublishers(@Nonnull String catalog, @Nonnull Mutation mutation) {
 		assertActive();
-
-		ChangeSystemCapture captureHeader = null;
-		ChangeSystemCapture captureBody = null;
-		for (DelegatingChangeCapturePublisher<ChangeSystemCapture, ChangeSystemCaptureRequest> publisher : this.systemObservers.values()) {
-			final ChangeSystemCaptureRequest request = publisher.getRequest();
-			boolean offerFailed;
-			if (request.content() == ChangeCaptureContent.BODY) {
-				if (captureBody == null) {
-					captureBody = new ChangeSystemCapture(0, 0, catalog, mutation.operation(), mutation);
-				}
-				offerFailed = publisher.tryOffer(captureBody) < 0;
-			} else {
-				if (captureHeader == null) {
-					captureHeader = new ChangeSystemCapture(0, 0, catalog, mutation.operation(), null);
-				}
-				offerFailed = publisher.tryOffer(captureHeader) < 0;
-			}
-			if (offerFailed) {
-				log.warn("Publisher `" + publisher.getId() + "` is saturated, cannot accept more captures at the moment. Skipping this publisher...");
-			}
-		}
+		// TODO JNO - implementovat
 	}
 
 	@Override
 	public void close() {
 		if (this.active) {
 			this.active = false;
-			final Iterator<DelegatingChangeCapturePublisher<ChangeSystemCapture, ChangeSystemCaptureRequest>> publisherIterator = this.systemObservers.values().iterator();
-			while (publisherIterator.hasNext()) {
-				final DelegatingChangeCapturePublisher<ChangeSystemCapture, ChangeSystemCaptureRequest> publisher = publisherIterator.next();
-				publisher.close();
-				publisherIterator.remove();
-			}
+			// TODO JNO - implementovat
 		}
 	}
 

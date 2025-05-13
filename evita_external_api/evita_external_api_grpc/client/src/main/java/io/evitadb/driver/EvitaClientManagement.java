@@ -48,6 +48,7 @@ import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaMan
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
+import io.evitadb.function.Functions;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 
@@ -519,7 +520,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
 				e.getCause() == null ? e : e.getCause(),
-				() -> {}
+				Functions.noOpRunnable()
 			);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -549,7 +550,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
 				e.getCause() == null ? e : e.getCause(),
-				() -> {}
+				Functions.noOpRunnable()
 			);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();

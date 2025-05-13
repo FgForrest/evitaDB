@@ -24,206 +24,126 @@
 package io.evitadb.core.cdc;
 
 
-import com.esotericsoftware.kryo.util.Null;
-import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
-import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.mutation.MutationPredicate;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.core.Catalog;
-import io.evitadb.core.async.ObservableThreadExecutor;
-import io.evitadb.core.cdc.CatalogChangeCaptureRingBuffer.OutsideScopeException;
-import io.evitadb.core.exception.ChangeCatalogCapturePublisherClosedException;
+import io.evitadb.core.cdc.ChangeCatalogCaptureSharedPublisher.WalPointerWithContent;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.CollectionUtils;
-import io.evitadb.utils.UUIDUtil;
-import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.Map;
-import java.util.Queue;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
 
-import static io.evitadb.core.cdc.predicate.MutationPredicateFactory.createPredicateUsingComparator;
+import static java.util.Optional.ofNullable;
 
 /**
- * TODO JNO - document me
+ * Implementation of the {@link Flow.Publisher} interface that publishes {@link ChangeCatalogCapture} events
+ * to subscribers. This publisher acts as a facade for the {@link ChangeCatalogCaptureSharedPublisher} and
+ * is responsible for handling a specific {@link ChangeCatalogCaptureRequest}.
+ *
+ * When a subscriber subscribes to this publisher, it delegates the subscription to the shared publisher
+ * with the appropriate configuration derived from the request. The publisher determines the starting point
+ * for capturing changes based on the request parameters (sinceVersion and sinceIndex) and the requested
+ * content.
+ *
+ * If the request doesn't specify a version to start from, the publisher will use the current catalog
+ * version + 1, meaning it will capture changes starting from the next version. If the request doesn't
+ * specify an index, it will start from index 0 within the specified version.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ * @see ChangeCatalogCaptureSharedPublisher
+ * @see ChangeCatalogCaptureRequest
+ * @see ChangeCatalogCapture
  */
-@Slf4j
-public class ChangeCatalogCapturePublisher implements Flow.Publisher<ChangeCatalogCapture>, AutoCloseable {
-	private final AtomicBoolean closed = new AtomicBoolean(false);
-	private final ObservableThreadExecutor cdcExecutor;
-	private final Map<UUID, ChangeCatalogCaptureSubscription> subscribers = CollectionUtils.createConcurrentHashMap(64);
-	private final AtomicReference<Catalog> currentCatalog;
-	private final CatalogChangeCaptureRingBuffer lastCaptures;
-	private final int subscriberBufferSize;
-	private final ChangeCatalogCaptureCriteria[] criteria;
+public class ChangeCatalogCapturePublisher implements ChangeCapturePublisher<ChangeCatalogCapture> {
+	/**
+	 * The shared publisher that this publisher delegates to. It handles the actual publishing of events
+	 * to multiple subscribers and manages the underlying change capture mechanism.
+	 */
+	private final ChangeCatalogCaptureSharedPublisher sharedPublisher;
 
+	/**
+	 * The request that specifies what changes the subscriber is interested in, including the starting
+	 * version, index, and content types to capture.
+	 */
+	private final ChangeCatalogCaptureRequest request;
+
+	/**
+	 * Flag indicating whether this publisher has been closed. Once closed, the publisher will no longer
+	 * accept new subscribers and existing subscriptions will be terminated.
+	 */
+	private final AtomicBoolean closed = new AtomicBoolean(false);
+
+	/**
+	 * Set of subscriber IDs that are currently subscribed to this publisher. This is used to track
+	 * active subscriptions and to unsubscribe them when the publisher is closed.
+	 */
+	private final Set<UUID> subscribers = new ConcurrentSkipListSet<>();
+
+	/**
+	 * Creates a new instance of {@link ChangeCatalogCapturePublisher}.
+	 *
+	 * @param sharedPublisher the shared publisher that this publisher delegates to
+	 * @param request the request that specifies what changes the subscriber is interested in
+	 */
 	public ChangeCatalogCapturePublisher(
-		@Nonnull Catalog catalog,
-		@Nonnull ObservableThreadExecutor cdcExecutor,
-		int bufferSize,
-		int subscriberBufferSize,
-		// TODO JNO - cachovat pouze podle predikátu ... content a since version držet v subscription!
-		//  Tento request brát pouze jako default, když by při registraci subscriber požadovaná data nedoddal ... nebo možná nastavovat v subscription při on-subscribed?!
+		@Nonnull ChangeCatalogCaptureSharedPublisher sharedPublisher,
 		@Nonnull ChangeCatalogCaptureRequest request
 	) {
-		this.currentCatalog = new AtomicReference<>(catalog);
-		final long currentCatalogVersion = catalog.getVersion();
-		this.cdcExecutor = cdcExecutor;
-		this.lastCaptures = new CatalogChangeCaptureRingBuffer(
-			currentCatalogVersion, 0, currentCatalogVersion, bufferSize
-		);
-		this.subscriberBufferSize = subscriberBufferSize;
-		this.criteria = request.criteria();
+		this.sharedPublisher = sharedPublisher;
+		this.request = request;
 	}
 
 	/**
-	 * Notifies that the specified catalog is now present in the live view and updates the current catalog reference.
-	 * This method reads all mutations from the WAL and publishes them to all subscribers that keep up with the live view.
-	 * TODO JNO - tohle se musí volat v trunku, není thread safe
+	 * Subscribes the given subscriber to receive {@link ChangeCatalogCapture} events.
 	 *
-	 * WARNING: not thread safe - must be called from the same thread as {@link #processMutation(Mutation)}
+	 * This method delegates to the shared publisher with a {@link WalPointerWithContent} that
+	 * specifies the starting point for capturing changes based on the request parameters. If the
+	 * request doesn't specify a version, it uses the current catalog version + 1. If the request
+	 * doesn't specify an index, it uses 0.
 	 *
-	 * @param catalog the catalog that is now present in the live view
+	 * @param subscriber the subscriber to receive events
 	 */
-	public void notifyCatalogPresentInLiveView(@Nonnull Catalog catalog) {
-		// we don't actively check for non-closed condition here to speed up the process
-		this.currentCatalog.set(catalog);
-		this.lastCaptures.setEffectiveLastCatalogVersion(catalog.getVersion());
-		// TODO JNO - uvolnit buffer pokud tam jsou již nepoužívané události
-	}
-
-	public void processMutation(@Nonnull Mutation mutation) {
-		// we don't actively check for non-closed condition here to speed up the process
-		// TODO JNO - work with predicate somehow!
-		/*if (this.predicate.test(mutation)) {
-			mutation.toChangeCatalogCapture(this.predicate, this.content)
-				.forEach(this.lastCaptures::offer);
-		}*/
-	}
-
 	@Override
 	public void subscribe(Subscriber<? super ChangeCatalogCapture> subscriber) {
 		assertActive();
-		UUID subscriberId;
-		final AtomicBoolean created = new AtomicBoolean(false);
-		do {
-			subscriberId = UUIDUtil.randomUUID();
-			this.subscribers.computeIfAbsent(
-				subscriberId,
-				uuid -> {
-					created.set(true);
-					// this is a costly operation since it allocates a buffer
-					return new ChangeCatalogCaptureSubscription(
-						uuid,
-						this.subscriberBufferSize,
-						/* TODO JNO */
-						0L,
-						// this.sinceCatalogVersion,
-						subscriber,
-						this.cdcExecutor,
-						this::fillBuffer
-					);
-				}
-			);
-		} while (!created.get());
-	}
-
-	private void fillBuffer(@Nonnull WalPointer walPointer, @Nonnull Queue<ChangeCatalogCapture> changeCatalogCaptures) {
-		if (walPointer.version() < this.lastCaptures.getEffectiveStartCatalogVersion()) {
-			// we need to read the WAL from the disk and process manually
-			/* TODO content odněkud */
-			readWal(walPointer, changeCatalogCaptures, ChangeCaptureContent.BODY);
-		} else {
-			try {
-				// try to copy data from the ring buffer in synchronized block
-				this.lastCaptures.copyTo(walPointer, changeCatalogCaptures);
-			} catch (OutsideScopeException e) {
-				// ok, we detected that we're outside the ring buffer in the locked scope
-				/* TODO content odněkud */
-				readWal(walPointer, changeCatalogCaptures, ChangeCaptureContent.BODY);
-			}
-		}
+		final ChangeCatalogCaptureSubscription subscription = this.sharedPublisher.subscribe(
+			subscriber,
+			new WalPointerWithContent(
+				ofNullable(this.request.sinceVersion()).orElseGet(() -> this.sharedPublisher.getCatalog().getVersion() + 1),
+				ofNullable(this.request.sinceIndex()).orElse(0),
+				this.request.content()
+			)
+		);
+		this.subscribers.add(subscription.getSubscriberId());
 	}
 
 	@Override
 	public void close() {
+		// shared publisher is closed automatically when all subscribers are closed
 		if (this.closed.compareAndSet(false, true)) {
-			// cancel all subscriptions
-			for (ChangeCatalogCaptureSubscription subscription : this.subscribers.values()) {
-				subscription.cancel();
+			for (UUID subscriberId : this.subscribers) {
+				this.sharedPublisher.unsubscribe(subscriberId);
 			}
 		}
 	}
 
-	@Nonnull
-	private Stream<Mutation> getMutationStream(@Null WalPointer walPointer) {
-		assertActive();
-		final AtomicInteger index = new AtomicInteger(0);
-		return this.currentCatalog.get()
-			.getCommittedMutationStream(walPointer.version())
-			.dropWhile(mutation -> index.getAndIncrement() < walPointer.index());
-	}
-
-	private long readWal(
-		@Nonnull WalPointer walPointer,
-		@Nonnull Queue<ChangeCatalogCapture> changeCatalogCaptures,
-		@Nonnull ChangeCaptureContent content
-	) {
-		assertActive();
-		final Catalog catalog = this.currentCatalog.get();
-		final long lastPublishedCatalogVersion = catalog.getVersion();
-		log.debug(
-			"Reading all mutations from the catalog version {} and sending them to {} subscriber(s).",
-			lastPublishedCatalogVersion,
-			this.subscribers.size()
-		);
-		final MutationPredicate predicate = createPredicateUsingComparator(criteria);
-		try (
-			final Stream<Mutation> committedMutationStream = getMutationStream(walPointer)
-		) {
-			return committedMutationStream
-				// finish early when we reach mutation that is not yet visible in the live view
-				.takeWhile(
-					mutation -> !(mutation instanceof TransactionMutation txMutation) ||
-						txMutation.getCatalogVersion() <= lastPublishedCatalogVersion
-				)
-				// filter out mutations that are not relevant for this publisher
-				.filter(predicate)
-				// finish early when there is no more room in the queue
-				.takeWhile(
-					mutation -> mutation.toChangeCatalogCapture(predicate, content)
-						.filter(cdc -> cdc.version() < walPointer.version() || (cdc.version() == walPointer.version() && cdc.index() < walPointer.index()))
-						.map(changeCatalogCaptures::offer)
-						.reduce(Boolean::logicalAnd)
-						.orElse(true)
-				)
-				.count();
-		}
-	}
-
+	/**
+	 * Asserts that the publisher is active (not closed).
+	 *
+	 * @throws InstanceTerminatedException if the publisher is closed
+	 */
 	private void assertActive() {
-		Assert.isPremiseValid(
+		Assert.isTrue(
 			!this.closed.get(),
-			ChangeCatalogCapturePublisherClosedException::new
+			() -> new InstanceTerminatedException("CDC publisher")
 		);
-	}
-
-	record WalPointer(
-		long version,
-		int index
-	) {
+		this.sharedPublisher.assertActive();
 	}
 
 }

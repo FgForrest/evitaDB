@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,6 +47,6 @@ public sealed abstract class AreaPredicate extends MutationPredicate permits Sch
 	 * @return predicate that filters out mutations that match the given criteria
 	 */
 	@Nonnull
-	public abstract Optional<MutationPredicate> createSitePredicate(@Nonnull CaptureSite site);
+	public abstract Optional<MutationPredicate> createSitePredicate(@Nonnull CaptureSite<?> site);
 
 }

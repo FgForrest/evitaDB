@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,9 +24,13 @@
 package io.evitadb.core.transaction;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.TransactionTimedOutException;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
@@ -37,6 +41,8 @@ import io.evitadb.core.Transaction;
 import io.evitadb.core.async.DelayedAsyncTask;
 import io.evitadb.core.async.ObservableExecutorService;
 import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.cdc.CatalogChangeObserver;
+import io.evitadb.core.cdc.CatalogChangeObserverContract;
 import io.evitadb.core.transaction.stage.CatalogSnapshotPropagationTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
@@ -52,6 +58,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.utils.Assert;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -116,6 +123,11 @@ public class TransactionManager {
 	 * asynchronous reactive manner.
 	 */
 	private final AtomicReference<SubmissionPublisher<ConflictResolutionTransactionTask>> transactionalPipeline = new AtomicReference<>();
+	/**
+	 * Change observer that is used to notify all registered {@link io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher} about changes in the
+	 * catalog.
+	 */
+	@Getter private final CatalogChangeObserverContract changeObserver;
 	/**
 	 * Contains last catalog version appended successfully to the WAL.
 	 */
@@ -235,6 +247,7 @@ public class TransactionManager {
 		@Nonnull Catalog catalog,
 		@Nonnull EvitaConfiguration configuration,
 		@Nonnull Scheduler scheduler,
+		@Nonnull ObservableExecutorService requestExecutor,
 		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
 	) {
@@ -242,6 +255,16 @@ public class TransactionManager {
 		this.scheduler = scheduler;
 		this.transactionalExecutor = transactionalExecutor;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
+		final ChangeDataCaptureOptions cdcOptions = configuration.server().changeDataCapture();
+		this.changeObserver = cdcOptions.enabled() ?
+			new CatalogChangeObserver(
+				cdcOptions,
+				requestExecutor,
+				scheduler,
+				catalog
+			) :
+			CatalogChangeObserverContract.NOOP;
+
 		this.lastFinalizedCatalog = new AtomicReference<>(catalog);
 		this.livingCatalog = new AtomicReference<>(catalog);
 		this.lastAssignedCatalogVersion = new AtomicLong(catalog.getVersion());
@@ -471,12 +494,12 @@ public class TransactionManager {
 	 * This method is used to indicate that a catalog is currently available in the live view.
 	 */
 	public void notifyCatalogPresentInLiveView(@Nonnull Catalog livingCatalog) {
-		final Catalog theLivingCatalog = getLivingCatalog();
+		final Catalog previousLivingCatalog = getLivingCatalog();
 		if (livingCatalog.getVersion() > 0L) {
 			Assert.isPremiseValid(
-				theLivingCatalog.getVersion() < livingCatalog.getVersion(),
+				previousLivingCatalog.getVersion() < livingCatalog.getVersion(),
 				"Catalog versions must be in order! " +
-					"Expected " + theLivingCatalog.getVersion() + ", got " + livingCatalog.getVersion() + "."
+					"Expected " + previousLivingCatalog.getVersion() + ", got " + livingCatalog.getVersion() + "."
 			);
 			final long theLastFinalizedVersion = getLastFinalizedCatalogVersion();
 			Assert.isPremiseValid(
@@ -491,6 +514,8 @@ public class TransactionManager {
 		if (this.lastFinalizedCatalogVersion.getAndUpdate(current -> Math.max(current, livingCatalog.getVersion())) <= livingCatalog.getVersion()) {
 			this.lastFinalizedCatalog.set(livingCatalog);
 		}
+
+		this.changeObserver.notifyCatalogPresentInLiveView(livingCatalog);
 	}
 
 	/**
@@ -659,6 +684,7 @@ public class TransactionManager {
 				} catch (RuntimeException ex) {
 					// we need to forget about the data written to disk, but not yet propagated to indexes (volatile data)
 					latestCatalog.forgetVolatileData();
+					this.changeObserver.forgetMutationsAfter(this.lastFinalizedCatalog.get().getVersion());
 
 					// rethrow the exception - we will have to re-try the transaction
 					throw ex;
@@ -748,6 +774,17 @@ public class TransactionManager {
 	@Nonnull
 	public Catalog getLastFinalizedCatalog() {
 		return this.lastFinalizedCatalog.get();
+	}
+
+	/**
+	 * Registers an observer to capture changes based on the provided request.
+	 *
+	 * @param request the request containing the criteria and configuration for capturing changes
+	 * @return an instance of ChangeCapturePublisher that allows the caller to manage the registered observer
+	 */
+	@Nonnull
+	public ChangeCapturePublisher<ChangeCatalogCapture> registerObserver(@Nonnull ChangeCatalogCaptureRequest request) {
+		return this.changeObserver.registerObserver(request);
 	}
 
 	/**
@@ -850,6 +887,7 @@ public class TransactionManager {
 			() -> {
 				final Catalog lastFinalizedCatalog = getLastFinalizedCatalog();
 				lastFinalizedCatalog.setVersion(transactionMutation.getCatalogVersion());
+				this.changeObserver.processMutation(transactionMutation);
 				// init mutation counter
 				int atomicMutationCount = 0;
 				int localMutationCount = 0;
@@ -877,6 +915,8 @@ public class TransactionManager {
 						lastFinalizedCatalog.applyMutation(mutation);
 						localMutationCount++;
 					}
+
+					this.changeObserver.processMutation(mutation);
 				}
 				// we should have processed all the mutations by now and the mutation count should match
 				Assert.isPremiseValid(

@@ -84,7 +84,6 @@ import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
-import io.evitadb.core.cdc.CatalogChangeObserver;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.metric.event.transaction.CatalogGoesLiveEvent;
@@ -237,11 +236,6 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 */
 	private final SequenceService sequenceService = new SequenceService();
 	/**
-	 * Change observer that is used to notify all registered {@link io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher} about changes in the
-	 * catalog.
-	 */
-	private final CatalogChangeObserver changeObserver;
-	/**
 	 * Contains reference to the proxy factory that is used to create proxies for the entities.
 	 */
 	@Getter private final ProxyFactory proxyFactory;
@@ -269,7 +263,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	/**
 	 * Transaction manager used for processing the transactions.
 	 */
-	private final TransactionManager transactionManager;
+	@Getter private final TransactionManager transactionManager;
 	/**
 	 * Traffic recorder used for recording the traffic in the catalog.
 	 */
@@ -368,7 +362,9 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
 		this.transactionManager = new TransactionManager(
-			this, evitaConfiguration, scheduler, transactionalExecutor, newCatalogVersionConsumer
+			this, evitaConfiguration,
+			scheduler, requestExecutor, transactionalExecutor,
+			newCatalogVersionConsumer
 		);
 		this.trafficRecordingEngine = new TrafficRecordingEngine(
 			internalCatalogSchema.getName(),
@@ -378,7 +374,6 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			exportFileService,
 			scheduler
 		);
-		this.changeObserver = new CatalogChangeObserver(requestExecutor);
 
 		this.persistenceService.storeHeader(
 			this.catalogId, CatalogState.WARMING_UP, catalogVersion, 0, null,
@@ -522,9 +517,10 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 			this.lastPersistedSchemaVersion = this.schema.get().version();
 			this.transactionManager = new TransactionManager(
-				this, evitaConfiguration, scheduler, transactionalExecutor, newCatalogVersionConsumer
+				this, evitaConfiguration,
+				scheduler, requestExecutor, transactionalExecutor,
+				newCatalogVersionConsumer
 			);
-			this.changeObserver = new CatalogChangeObserver(requestExecutor);
 		} catch (RuntimeException ex) {
 			// clean opened resources before propagating exception
 			if (this.persistenceService != null) {
@@ -608,7 +604,6 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(newEntityCollectionsIndex, EntityCollection.class, Function.identity());
 		this.entitySchemaIndex = new TransactionalMap<>(newEntitySchemaIndex);
 		this.lastPersistedSchemaVersion = previousCatalogVersion.lastPersistedSchemaVersion;
-		this.changeObserver = previousCatalogVersion.changeObserver;
 		// finally attach every collection to this instance of the catalog
 		for (EntityCollection entityCollection : entityCollections) {
 			entityCollection.attachToCatalog(null, this);
@@ -1314,7 +1309,6 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 */
 	public void notifyCatalogPresentInLiveView() {
 		this.transactionManager.notifyCatalogPresentInLiveView(this);
-		this.changeObserver.notifyCatalogPresentInLiveView(this);
 	}
 
 	/**
@@ -1405,7 +1399,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			getCatalogState() == CatalogState.ALIVE,
 			() -> new CatalogNotAliveException(getInternalSchema().getName())
 		);
-		return this.changeObserver.registerObserver(request);
+		return this.transactionManager.registerObserver(request);
 	}
 
 	/*

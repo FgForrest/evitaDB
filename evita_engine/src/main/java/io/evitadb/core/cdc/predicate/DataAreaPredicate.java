@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ public final class DataAreaPredicate extends AreaPredicate {
 
 	@Nonnull
 	@Override
-	public Optional<MutationPredicate> createSitePredicate(@Nonnull CaptureSite site) {
+	public Optional<MutationPredicate> createSitePredicate(@Nonnull CaptureSite<?> site) {
 		final DataSite dataSite = (DataSite) site;
 		MutationPredicate dataPredicate = null;
 		if (!ArrayUtils.isEmpty(dataSite.operation())) {

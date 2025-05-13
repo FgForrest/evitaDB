@@ -385,8 +385,21 @@ public class ArrayUtils {
 	 * Method computes insertion point of an arbitrary record into the ordered array.
 	 * Result object contains information about the position and whether the record is already in the array.
 	 */
-	public static <T, U> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull T[] a, @Nonnull U b, @Nonnull ToIntBiFunction<T, U> comparator) {
+	public static <T, U> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull U b, @Nonnull T[] a, @Nonnull ToIntBiFunction<T, U> comparator) {
 		final int index = binarySearch(a, b, comparator);
+		if (index >= 0) {
+			return new InsertionPosition(index, true);
+		} else {
+			return new InsertionPosition(-1 * (index) - 1, false);
+		}
+	}
+
+	/**
+	 * Method computes insertion point of an arbitrary record into the ordered array.
+	 * Result object contains information about the position and whether the record is already in the array.
+	 */
+	public static <T, U> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull U b, @Nonnull T[] a, int fromIndex, int toIndex, @Nonnull ToIntBiFunction<T, U> comparator) {
+		final int index = binarySearch(a, b, fromIndex, toIndex, comparator);
 		if (index >= 0) {
 			return new InsertionPosition(index, true);
 		} else {

@@ -47,7 +47,7 @@ public class MutationPredicateContext {
 	@Getter private long version = 0L;
 	@Getter private int index = 0;
 	@Nullable @Getter private String entityType;
-	@Nullable private Integer primaryKey;
+	@Nullable private Integer entityPrimaryKey;
 	private int mutationCount = 0;
 
 	/**
@@ -56,33 +56,33 @@ public class MutationPredicateContext {
 	 * @return the primary key of the entity
 	 */
 	@Nonnull
-	public OptionalInt getPrimaryKey() {
-		return this.primaryKey == null ? OptionalInt.empty() : of(this.primaryKey);
+	public OptionalInt getEntityPrimaryKey() {
+		return this.entityPrimaryKey == null ? OptionalInt.empty() : of(this.entityPrimaryKey);
 	}
 
 	/**
 	 * Sets the primary key of the entity from entity mutation
 	 * @param entityPrimaryKey the primary key of the entity
 	 */
-	public void setPrimaryKey(@Nullable Integer entityPrimaryKey) {
-		this.primaryKey = entityPrimaryKey;
+	public void setEntityPrimaryKey(@Nullable Integer entityPrimaryKey) {
+		this.entityPrimaryKey = entityPrimaryKey;
 	}
 
 	/**
 	 * Resets the primary key of the entity - i.e. when we leave the entity mutation context.
 	 */
 	public void resetPrimaryKey() {
-		this.primaryKey = null;
+		this.entityPrimaryKey = null;
 	}
 
 	/**
-	 * Returns true if passed primary key equals to {@link #getPrimaryKey()} and the entity primary key is known in
+	 * Returns true if passed primary key equals to {@link #getEntityPrimaryKey()} and the entity primary key is known in
 	 * the context.
 	 * @param primaryKey the primary key to be matched
 	 * @return true if the primary key matches
 	 */
 	public boolean matchPrimaryKey(int primaryKey) {
-		return Objects.equals(this.primaryKey, primaryKey);
+		return Objects.equals(this.entityPrimaryKey, primaryKey);
 	}
 
 	/**
@@ -92,7 +92,7 @@ public class MutationPredicateContext {
 	 */
 	public void setEntityType(@Nonnull String entityType) {
 		this.entityType = entityType;
-		this.primaryKey = null;
+		this.entityPrimaryKey = null;
 	}
 
 	/**
@@ -118,7 +118,7 @@ public class MutationPredicateContext {
 	 */
 	public void setVersion(long version, int mutationCount) {
 		this.version = version;
-		this.primaryKey = null;
+		this.entityPrimaryKey = null;
 		this.entityType = null;
 		this.mutationCount = mutationCount;
 		this.index = 0;

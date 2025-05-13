@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.utils;
+package tool;
 
 
 import javax.annotation.Nonnull;

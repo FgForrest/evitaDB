@@ -24,9 +24,13 @@
 package io.evitadb.core.cdc;
 
 
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
-import io.evitadb.core.cdc.ChangeCatalogCapturePublisher.WalPointer;
+import io.evitadb.core.cdc.ChangeCatalogCaptureSharedPublisher.WalPointer;
+import io.evitadb.core.cdc.ChangeCatalogCaptureSharedPublisher.WalPointerWithContent;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.function.BiLongConsumer;
+import io.evitadb.function.TriConsumer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -40,7 +44,6 @@ import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.BiConsumer;
 
 /**
  * Implementation of {@link Flow.Subscription} that manages the subscription between a publisher and a subscriber
@@ -66,6 +69,11 @@ public class ChangeCatalogCaptureSubscription implements Flow.Subscription {
 	@Nonnull @Getter private final UUID subscriberId;
 
 	/**
+	 * Defines the content of the catalog change events.
+	 */
+	@Nonnull private final ChangeCaptureContent content;
+
+	/**
 	 * Executor service used for asynchronous processing of catalog change events.
 	 */
 	@Nonnull private final ExecutorService executorService;
@@ -73,7 +81,7 @@ public class ChangeCatalogCaptureSubscription implements Flow.Subscription {
 	/**
 	 * Function that fills the queue with catalog change events starting from a specific WAL pointer.
 	 */
-	@Nonnull private final BiConsumer<WalPointer, Queue<ChangeCatalogCapture>> queueFiller;
+	@Nonnull private final TriConsumer<WalPointer, ChangeCatalogCaptureSubscription, Queue<ChangeCatalogCapture>> queueFiller;
 
 	/**
 	 * The subscriber that receives catalog change events from this subscription.
@@ -101,6 +109,11 @@ public class ChangeCatalogCaptureSubscription implements Flow.Subscription {
 	@Nonnull private final ReentrantLock lock = new ReentrantLock();
 
 	/**
+	 * The catalog version used to track this subscriber in an external cache.
+	 */
+	private long trackedVersion;
+
+	/**
 	 * The catalog version of the last delivered event.
 	 */
 	private long lastVersion;
@@ -113,26 +126,28 @@ public class ChangeCatalogCaptureSubscription implements Flow.Subscription {
 	/**
 	 * Creates a new subscription for catalog change events.
 	 *
-	 * @param subscriberId     unique identifier for this subscription
-	 * @param bufferSize       size of the buffer queue for catalog change events
-	 * @param catalogVersion   initial catalog version to start capturing changes from
-	 * @param subscriber       the subscriber that will receive catalog change events
-	 * @param queueFiller      function that fills the queue with catalog change events
-	 * @param executorService  executor service for asynchronous processing
+	 * @param subscriberId    unique identifier for this subscription
+	 * @param bufferSize      size of the buffer queue for catalog change events
+	 * @param specification   specification containing the starting point for the subscription and the requested content
+	 * @param subscriber      the subscriber that will receive catalog change events
+	 * @param queueFiller     function that fills the queue with catalog change events
+	 * @param executorService executor service for asynchronous processing
 	 */
 	public ChangeCatalogCaptureSubscription(
 		@Nonnull UUID subscriberId,
 		int bufferSize,
-		long catalogVersion,
+		@Nonnull WalPointerWithContent specification,
 		@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber,
 		@Nonnull ExecutorService executorService,
-		@Nonnull BiConsumer<WalPointer, Queue<ChangeCatalogCapture>> queueFiller
+		@Nonnull TriConsumer<WalPointer, ChangeCatalogCaptureSubscription, Queue<ChangeCatalogCapture>> queueFiller
 	) {
 		this.subscriberId = subscriberId;
 		this.subscriber = subscriber;
 		this.queue = new ArrayBlockingQueue<>(bufferSize);
-		this.lastVersion = catalogVersion;
-		this.lastIndex = 0;
+		this.trackedVersion = specification.version();
+		this.lastVersion = specification.version();
+		this.lastIndex = specification.index() - 1;
+		this.content = specification.content();
 		this.queueFiller = queueFiller;
 		this.executorService = executorService;
 		// Register this subscription with the subscriber
@@ -177,60 +192,9 @@ public class ChangeCatalogCaptureSubscription implements Flow.Subscription {
 
 			// If the subscriber requests new CDC events, trigger processing
 			// But only if we're not already inside the onNext method (indicated by lock being held)
-			if (this.lock.isLocked()) {
+			if (!this.lock.isLocked()) {
 				consumeQueue();
 			}
-		}
-	}
-
-	/**
-	 * Processes the queue of catalog change events and delivers them to the subscriber.
-	 * This method is responsible for:
-	 * 1. Fetching events from the queue
-	 * 2. Filling the queue with new events when it's empty
-	 * 3. Delivering events to the subscriber
-	 * 4. Tracking the last processed version and index
-	 * 5. Handling errors during delivery
-	 */
-	private void consumeQueue() {
-		// Synchronize consumption to ensure thread safety
-		this.lock.lock();
-		try {
-			// Continue processing as long as there are requested items and the subscription is active
-			while (this.requested.get() > 0 && !this.finished.get()) {
-				// Try to get the next event from the queue
-				ChangeCatalogCapture capture = this.queue.poll();
-				if (capture == null) {
-					// If the queue is empty, fill it with new events starting from the last processed position
-					this.queueFiller.accept(new WalPointer(this.lastVersion, this.lastIndex), this.queue);
-
-					// Try again to get an event from the now-filled queue
-					capture = this.queue.poll();
-					if (capture == null) {
-						// If the queue is still empty, we've reached the end of available events
-						// and need to wait for more to be generated in the system
-						break;
-					}
-				}
-
-				// Decrement the requested count as we're about to deliver an event
-				this.requested.decrementAndGet();
-				try {
-					// Update tracking information for the last processed event
-					this.lastVersion = capture.version();
-					this.lastIndex = capture.index();
-
-					// Deliver the event to the subscriber
-					this.subscriber.onNext(capture);
-				} catch (Throwable onNextException) {
-					// If the subscriber throws an exception during onNext, propagate it and stop processing
-					onError(onNextException);
-					break;
-				}
-			}
-		} finally {
-			// Always release the lock, even if an exception occurs
-			this.lock.unlock();
 		}
 	}
 
@@ -293,6 +257,77 @@ public class ChangeCatalogCaptureSubscription implements Flow.Subscription {
 		} catch (Throwable onErrorException) {
 			// Log any errors that occur during error notification
 			log.error("Error while notifying the subscriber about the error.", onErrorException);
+		}
+	}
+
+	/**
+	 * Retrieves the version used for last pull of the data from the shared publisher.
+	 *
+	 * @return the version used for the last pull
+	 */
+	long getTrackedVersion() {
+		return this.trackedVersion;
+	}
+
+	/**
+	 * Updates the version used for the last pull of catalog data.
+	 *
+	 * @param trackedVersion the version number representing subscriber in external cache
+	 */
+	void setTrackedVersion(long trackedVersion, @Nonnull BiLongConsumer onChange) {
+		if (this.trackedVersion != trackedVersion) {
+			onChange.accept(this.trackedVersion, trackedVersion);
+			this.trackedVersion = trackedVersion;
+		}
+	}
+
+	/**
+	 * Processes the queue of catalog change events and delivers them to the subscriber.
+	 * This method is responsible for:
+	 * 1. Fetching events from the queue
+	 * 2. Filling the queue with new events when it's empty
+	 * 3. Delivering events to the subscriber
+	 * 4. Tracking the last processed version and index
+	 * 5. Handling errors during delivery
+	 */
+	private void consumeQueue() {
+		// Synchronize consumption to ensure thread safety
+		this.lock.lock();
+		try {
+			// Continue processing as long as there are requested items and the subscription is active
+			while (this.requested.get() > 0 && !this.finished.get()) {
+				// Try to get the next event from the queue
+				ChangeCatalogCapture capture = this.queue.poll();
+				if (capture == null) {
+					// If the queue is empty, fill it with new events starting from the last processed position
+					this.queueFiller.accept(new WalPointer(this.lastVersion, this.lastIndex + 1), this, this.queue);
+					// Try again to get an event from the now-filled queue
+					capture = this.queue.poll();
+					if (capture == null) {
+						// If the queue is still empty, we've reached the end of available events
+						// and need to wait for more to be generated in the system
+						break;
+					}
+				}
+
+				// Decrement the requested count as we're about to deliver an event
+				this.requested.decrementAndGet();
+				try {
+					// Update tracking information for the last processed event
+					this.lastVersion = capture.version();
+					this.lastIndex = capture.index();
+
+					// Deliver the event to the subscriber
+					this.subscriber.onNext(capture.as(this.content));
+				} catch (Throwable onNextException) {
+					// If the subscriber throws an exception during onNext, propagate it and stop processing
+					onError(onNextException);
+					break;
+				}
+			}
+		} finally {
+			// Always release the lock, even if an exception occurs
+			this.lock.unlock();
 		}
 	}
 

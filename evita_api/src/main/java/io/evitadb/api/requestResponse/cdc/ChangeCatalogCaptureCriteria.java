@@ -28,6 +28,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.Consumer;
 
 /**
  * Record for the criteria of the capture request allowing to limit mutations to specific area of interest an its
@@ -88,7 +89,7 @@ public record ChangeCatalogCaptureCriteria(
 	 */
 	public static class Builder {
 		@Nullable private CaptureArea area;
-		@Nullable private CaptureSite site;
+		@Nullable private CaptureSite<?> site;
 
 		/**
 		 * Sets the area of the capture.
@@ -103,13 +104,43 @@ public record ChangeCatalogCaptureCriteria(
 		}
 
 		/**
+		 * Configures the data area for the capture request by accepting a modifier for the {@link DataSite.Builder}.
+		 *
+		 * @param configurer a consumer that configures the {@link DataSite.Builder}
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public ChangeCatalogCaptureCriteria.Builder dataArea(@Nonnull Consumer<DataSite.Builder> configurer) {
+			final DataSite.Builder builder = DataSite.builder();
+			configurer.accept(builder);
+			this.area = CaptureArea.DATA;
+			this.site = builder.build();
+			return this;
+		}
+
+		/**
+		 * Configures the data area for the capture request by accepting a modifier for the {@link SchemaSite.Builder}.
+		 *
+		 * @param configurer a consumer that configures the {@link SchemaSite.Builder}
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public ChangeCatalogCaptureCriteria.Builder schemaArea(@Nonnull Consumer<SchemaSite.Builder> configurer) {
+			final SchemaSite.Builder builder = SchemaSite.builder();
+			configurer.accept(builder);
+			this.area = CaptureArea.SCHEMA;
+			this.site = builder.build();
+			return this;
+		}
+
+		/**
 		 * Sets the site of the capture.
 		 *
 		 * @param site the site of the capture
 		 * @return this builder
 		 */
 		@Nonnull
-		public ChangeCatalogCaptureCriteria.Builder site(@Nullable CaptureSite site) {
+		public <T extends CaptureSite<T>> ChangeCatalogCaptureCriteria.Builder site(@Nullable T site) {
 			this.site = site;
 			return this;
 		}

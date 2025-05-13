@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -209,7 +209,7 @@ public class EntityUpsertMutation implements EntityMutation {
 	) {
 		final MutationPredicateContext context = predicate.getContext();
 		context.setEntityType(this.entityType);
-		context.setPrimaryKey(this.entityPrimaryKey);
+		context.setEntityPrimaryKey(this.entityPrimaryKey);
 		context.advance();
 
 		final Stream<ChangeCatalogCapture> entityMutation;

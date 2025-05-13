@@ -59,13 +59,16 @@ message GrpcChangeCatalogCapture {
   // the name of the entity type or its schema that was affected by the operation
   // (if the operation is executed on catalog schema this field is null)
   google.protobuf.StringValue entityType = 4;
+  // the primary key of the entity that was affected by the operation
+  // (null for schema operations)
+  google.protobuf.Int32Value entityPrimaryKey = 5;
   // the operation that was performed
-  GrpcChangeCaptureOperation operation = 5;
+  GrpcChangeCaptureOperation operation = 6;
   // optional body of the operation when it is requested by the GrpcContent
   oneof body {
-    GrpcEntitySchemaMutation schemaMutation = 6;
-    GrpcEntityMutation entityMutation = 7;
-    GrpcLocalMutation localMutation = 8;
+    GrpcEntitySchemaMutation schemaMutation = 7;
+    GrpcEntityMutation entityMutation = 8;
+    GrpcLocalMutation localMutation = 9;
   }
 }
 

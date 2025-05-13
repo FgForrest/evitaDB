@@ -25,18 +25,24 @@ package io.evitadb.core.cdc;
 
 
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
-import io.evitadb.core.cdc.ChangeCatalogCapturePublisher.WalPointer;
+import io.evitadb.core.cdc.ChangeCatalogCaptureSharedPublisher.WalPointer;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import lombok.Getter;
 import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Arrays;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.ToIntBiFunction;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.ofNullable;
 
 /**
  * A ring buffer implementation for storing and retrieving {@link ChangeCatalogCapture} objects.
@@ -78,6 +84,11 @@ class CatalogChangeCaptureRingBuffer {
 	 * This is always one position ahead of the last inserted element.
 	 */
 	private int endIndex = 0;
+
+	/**
+	 * Flag indicating whether the buffer has wrapped around.
+	 */
+	private boolean wrappedAround;
 
 	/**
 	 * The index of the oldest capture in the buffer.
@@ -132,18 +143,16 @@ class CatalogChangeCaptureRingBuffer {
 			// wrap around the ring buffer
 			if (this.endIndex == this.workspace.length + 1) {
 				this.endIndex = 1;
+				this.wrappedAround = true;
 			}
 			// if the ring buffer is full, remove the oldest element
-			if (this.endIndex - 1 == this.startIndex) {
+			if (this.endIndex - 1 == this.startIndex && this.wrappedAround) {
 				// remove the oldest element
-				final ChangeCatalogCapture removedCapture = Objects.requireNonNull(this.workspace[this.startIndex]);
-				this.effectiveStartCatalogVersion = removedCapture.version();
-				this.effectiveStartIndex = removedCapture.index();
-				this.startIndex++;
-			}
-			// wrap around the ring buffer
-			if (this.startIndex == this.workspace.length) {
-				this.startIndex = 0;
+				final int newStartIndex = (this.startIndex + 1) % this.workspace.length;
+				final ChangeCatalogCapture startCapture = Objects.requireNonNull(this.workspace[newStartIndex]);
+				this.effectiveStartCatalogVersion = startCapture.version();
+				this.effectiveStartIndex = startCapture.index();
+				this.startIndex = newStartIndex;
 			}
 			// add the new element
 			this.workspace[this.endIndex - 1] = capture;
@@ -160,9 +169,11 @@ class CatalogChangeCaptureRingBuffer {
 	 *
 	 * @param walPointer the WAL pointer indicating where to start copying from, must not be null
 	 * @param changeCatalogCaptures the target queue to copy captures to, must not be null
+	 * @return last capture that was copied to the target queue
 	 * @throws OutsideScopeException if the WAL pointer is outside the scope of captures currently in the buffer
 	 */
-	public void copyTo(
+	@Nonnull
+	public Optional<ChangeCatalogCapture> copyTo(
 		@Nonnull WalPointer walPointer,
 		@Nonnull Queue<ChangeCatalogCapture> changeCatalogCaptures
 	) throws OutsideScopeException {
@@ -172,27 +183,183 @@ class CatalogChangeCaptureRingBuffer {
 			if (walPointer.version() < this.effectiveStartCatalogVersion || (walPointer.version() == this.effectiveStartCatalogVersion && walPointer.index() < this.effectiveStartIndex)) {
 				throw new OutsideScopeException();
 			}
-			if (this.startIndex >= this.endIndex) {
+			if (this.startIndex >= this.endIndex && this.wrappedAround) {
 				// The buffer has wrapped around, so we need to search in two segments
-				final int headIndex = ArrayUtils.binarySearch(this.workspace, walPointer, this.startIndex, this.workspace.length, WalPointerCaptureComparator.INSTANCE);
-				if (headIndex >= 0) {
+				final InsertionPosition headIndex = ArrayUtils.computeInsertPositionOfObjInOrderedArray(walPointer, this.workspace, this.startIndex, this.workspace.length, WalPointerCaptureComparator.INSTANCE);
+				if (headIndex.alreadyPresent() || headIndex.position() < this.workspace.length) {
 					// Found in the first segment, copy from there to the end, then from start to endIndex
-					copyTo(headIndex, this.workspace.length, changeCatalogCaptures);
-					copyTo(0, this.endIndex, changeCatalogCaptures);
-				} else {
+					final Optional<ChangeCatalogCapture> tailResult = copyTo(headIndex.position(), this.workspace.length, changeCatalogCaptures);
+					return copyTo(0, this.endIndex, changeCatalogCaptures).or(() -> tailResult);
+				} else  {
 					// Not found in the first segment, try the second segment
-					final int tailIndex = ArrayUtils.binarySearch(this.workspace, walPointer, 0, this.endIndex, WalPointerCaptureComparator.INSTANCE);
-					if (tailIndex >= 0) {
-						copyTo(tailIndex, this.endIndex, changeCatalogCaptures);
+					final InsertionPosition tailIndex = ArrayUtils.computeInsertPositionOfObjInOrderedArray(walPointer, this.workspace, 0, this.endIndex, WalPointerCaptureComparator.INSTANCE);
+					if (tailIndex.alreadyPresent() || tailIndex.position() < this.endIndex) {
+						return copyTo(tailIndex.position(), this.endIndex, changeCatalogCaptures);
+					} else {
+						return empty();
 					}
 				}
-			} else {
+			} else if (this.startIndex < this.endIndex) {
 				// The buffer hasn't wrapped around, so we can search in a single segment
-				final int index = ArrayUtils.binarySearch(this.workspace, walPointer, this.startIndex, this.endIndex, WalPointerCaptureComparator.INSTANCE);
-				if (index >= 0) {
-					copyTo(index, this.endIndex, changeCatalogCaptures);
+				final InsertionPosition index = ArrayUtils.computeInsertPositionOfObjInOrderedArray(walPointer, this.workspace, this.startIndex, this.endIndex, WalPointerCaptureComparator.INSTANCE);
+				if (index.alreadyPresent() || index.position() < this.endIndex) {
+					return copyTo(index.position(), this.endIndex, changeCatalogCaptures);
+				} else {
+					return empty();
 				}
+			} else {
+				return empty();
 			}
+		} finally {
+			this.lock.unlock();
+		}
+	}
+
+	/**
+	 * Clears all entries in the ring buffer up to (but not including) the specified catalog version.
+	 * Entries with versions less than the specified untilCatalogVersion are set to null, and the
+	 * starting index of the buffer is updated accordingly. If the buffer is wrapped around, it clears
+	 * entries in two segments: first clearing from the start index to the end of the array, then
+	 * clearing from the beginning of the array to the end index.
+	 *
+	 * This method acquires a lock to ensure thread safety during the operation.
+	 *
+	 * @param untilCatalogVersion the catalog version up to which entries in the buffer should be cleared
+	 */
+	public void clearAllUntil(long untilCatalogVersion) {
+		this.lock.lock();
+		try {
+			this.effectiveStartIndex = 0;
+			boolean finished = false;
+			if (this.startIndex >= this.endIndex && this.wrappedAround) {
+				// we've cleared the entire tail, now we need to clear the head
+				finished = clearSegmentUntil(this.startIndex, this.workspace.length, untilCatalogVersion);
+				if (!finished) {
+					this.startIndex = 0;
+					finished = clearSegmentUntil(0, this.endIndex, untilCatalogVersion);
+				}
+			} else if (this.startIndex < this.endIndex) {
+				finished = clearSegmentUntil(this.startIndex, this.endIndex, untilCatalogVersion);
+			}
+			if (finished) {
+				this.effectiveStartCatalogVersion = Objects.requireNonNull(this.workspace[this.startIndex]).version();
+			} else {
+				this.effectiveStartCatalogVersion = untilCatalogVersion;
+			}
+		} finally {
+			this.lock.unlock();
+		}
+	}
+
+	/**
+	 * Clears all entries in the ring buffer with versions greater than the specified catalog version.
+	 * Entries with versions greater than the specified catalogVersion are set to null, and the
+	 * end index of the buffer is updated accordingly. If the buffer is wrapped around, it clears
+	 * entries in two segments: first clearing from the start index to the end of the array, then
+	 * clearing from the beginning of the array to the end index.
+	 *
+	 * In fact this method doesn't clear the buffer, just sets the start and end indexes properly.
+	 *
+	 * This method acquires a lock to ensure thread safety during the operation.
+	 *
+	 * @param catalogVersion the catalog version after which entries in the buffer should be cleared
+	 */
+	public void clearAllAfter(long catalogVersion) {
+		this.lock.lock();
+		try {
+			if (this.startIndex >= this.endIndex && this.wrappedAround) {
+				// Buffer has wrapped around, clear in two segments
+				int lastValidEntry = findLastValidEntry(this.startIndex, this.workspace.length, catalogVersion);
+				if (lastValidEntry == this.workspace.length - 1) {
+					lastValidEntry = findLastValidEntry(0, this.endIndex, catalogVersion);
+					if (lastValidEntry == -1) {
+						this.endIndex = this.workspace.length;
+						this.wrappedAround = false;
+					} else {
+						this.endIndex = lastValidEntry + 1;
+					}
+				} else {
+					this.endIndex = lastValidEntry == -1 ? this.startIndex : lastValidEntry + 1;
+					this.wrappedAround = false;
+				}
+			} else if (this.startIndex < this.endIndex) {
+				// Buffer hasn't wrapped around, clear in a single segment
+				final int lastValidEntry = findLastValidEntry(this.startIndex, this.endIndex, catalogVersion);
+				this.endIndex = lastValidEntry == -1 ? this.startIndex : lastValidEntry + 1;
+			}
+			// If buffer is empty, nothing to clear
+		} finally {
+			this.lock.unlock();
+		}
+	}
+
+	/**
+	 * Finds the last valid entry in the specified segment of the ring buffer and returns its index.
+	 *
+	 * @param fromIndex the starting index of the segment to clear (inclusive)
+	 * @param toIndex the ending index of the segment to clear (exclusive)
+	 * @param catalogVersion the catalog version after which entries should be cleared
+	 * @return last cleared index
+	 */
+	private int findLastValidEntry(
+		int fromIndex,
+		int toIndex,
+		long catalogVersion
+	) {
+		int lastValidEntry = -1;
+		for (int i = fromIndex; i < toIndex; i++) {
+			if (this.workspace[i] != null && this.workspace[i].version() <= catalogVersion) {
+				lastValidEntry = i;
+			} else {
+				return lastValidEntry;
+			}
+		}
+		return lastValidEntry;
+	}
+
+	/**
+	 * Clears a segment of the ring buffer up to (but not including) the specified catalog version.
+	 * This method iterates through the specified range of the workspace array and clears entries
+	 * with versions less than the specified untilCatalogVersion.
+	 *
+	 * @param fromIndex the starting index of the segment to clear (inclusive)
+	 * @param toIndex the ending index of the segment to clear (exclusive)
+	 * @param untilCatalogVersion the catalog version up to which entries should be cleared
+	 * @return true if the clearing operation finished (i.e., reached the active catalog version),
+	 */
+	private boolean clearSegmentUntil(
+		int fromIndex,
+		int toIndex,
+		long untilCatalogVersion
+	) {
+		for (int i = fromIndex; i < toIndex; i++) {
+			if (this.workspace[i] != null && this.workspace[i].version() < untilCatalogVersion) {
+				this.workspace[i] = null;
+			} else if (this.workspace[i] != null) {
+				// we reached the active catalog version, finish
+				this.startIndex = i;
+				return true;
+			}
+		}
+		this.startIndex = toIndex % this.workspace.length;
+		return false;
+	}
+
+	/**
+	 * Resets the ring buffer by clearing all elements. This method
+	 * sets all positions in the workspace array to null, and
+	 * resets the startIndex and endIndex to zero. The wrappedAround
+	 * flag is also set to false, indicating the buffer is now empty
+	 * and has not wrapped around since being cleared.
+	 */
+	public void clearAll() {
+		this.lock.lock();
+		try {
+			// clear the workspace
+			Arrays.fill(this.workspace, null);
+			this.startIndex = 0;
+			this.endIndex = 0;
+			this.wrappedAround = false;
 		} finally {
 			this.lock.unlock();
 		}
@@ -211,15 +378,24 @@ class CatalogChangeCaptureRingBuffer {
 	 * @param from the starting index in the buffer (inclusive)
 	 * @param to the ending index in the buffer (exclusive)
 	 * @param target the target queue to copy captures to, must not be null
+	 * @return last capture that was copied to the target queue
 	 */
-	private void copyTo(int from, int to, @Nonnull Queue<ChangeCatalogCapture> target) {
+	@Nonnull
+	private Optional<ChangeCatalogCapture> copyTo(int from, int to, @Nonnull Queue<ChangeCatalogCapture> target) {
 		boolean continueCopy = true;
 		int index = from;
+		ChangeCatalogCapture currentCapture = null;
+		ChangeCatalogCapture lastCapture = null;
 		while (continueCopy) {
-			final ChangeCatalogCapture capture = this.workspace[index];
+			lastCapture = currentCapture;
+			currentCapture = this.workspace[index];
 			// stop if we reach `to` index or if the capture relates to a catalog version not yet visible in indexes
-			continueCopy = capture.version() <= this.effectiveLastCatalogVersion && target.offer(capture) && index++ < to;
+			continueCopy = index++ < to &&
+				currentCapture.version() <= this.effectiveLastCatalogVersion &&
+				target.offer(currentCapture) &&
+				index < this.workspace.length;
 		}
+		return ofNullable(lastCapture);
 	}
 
 	/**

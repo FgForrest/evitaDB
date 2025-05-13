@@ -275,7 +275,7 @@ public final class Evita implements EvitaContract {
 		this.reflectionLookup = new ReflectionLookup(configuration.cache().reflection());
 		this.tracingContext = TracingContextProvider.getContext();
 		final Path[] directories = FileUtils.listDirectories(configuration.storage().storageDirectory());
-		this.changeObserver = new SystemChangeObserver(getServiceExecutor());
+		this.changeObserver = new SystemChangeObserver();
 		this.catalogs = CollectionUtils.createConcurrentHashMap(directories.length);
 		this.management = new EvitaManagement(this);
 
@@ -1139,12 +1139,11 @@ public final class Evita implements EvitaContract {
 				.stream()
 				.map(catalog -> CompletableFuture.runAsync(catalog::terminate))
 				.toArray(CompletableFuture[]::new)
-		).thenCompose(__ -> {
+		).thenAccept(__ -> {
 			// clear map
 			this.catalogs.clear();
 			// release lock
 			IOUtils.closeQuietly(this.folderLock::close);
-			return null;
 		});
 	}
 

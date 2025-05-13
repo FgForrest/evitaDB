@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -151,6 +151,7 @@ public class ChangeCaptureConverter {
 			changeCatalogCapture.getIndex(),
 			EvitaEnumConverter.toCaptureArea(changeCatalogCapture.getArea()),
 			changeCatalogCapture.hasEntityType() ? changeCatalogCapture.getEntityType().getValue() : null,
+			changeCatalogCapture.hasEntityPrimaryKey() ? changeCatalogCapture.getEntityPrimaryKey().getValue() : null,
 			EvitaEnumConverter.toOperation(changeCatalogCapture.getOperation()),
 			mutation
 		);
@@ -171,6 +172,9 @@ public class ChangeCaptureConverter {
 			.setOperation(EvitaEnumConverter.toGrpcOperation(changeCatalogCapture.operation()));
 		if (changeCatalogCapture.entityType() != null) {
 			builder.setEntityType(StringValue.of(changeCatalogCapture.entityType()));
+		}
+		if (changeCatalogCapture.entityPrimaryKey() != null) {
+			builder.setEntityPrimaryKey(Int32Value.of(changeCatalogCapture.entityPrimaryKey()));
 		}
 		if (changeCatalogCapture.body() instanceof EntityMutation entityMutation) {
 			builder.setEntityMutation(DelegatingEntityMutationConverter.INSTANCE.convert(entityMutation));
