@@ -1318,4 +1318,18 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts a given CommitBehavior to its corresponding GrpcTransactionPhase.
+	 *
+	 * @param commitBehavior the commit behavior to be converted, must not be null
+	 * @return the corresponding GrpcTransactionPhase based on the provided commit behavior
+	 */
+	@Nonnull
+	public static GrpcTransactionPhase toGrpcCommitPhase(@Nonnull CommitBehavior commitBehavior) {
+		return switch (commitBehavior) {
+			case WAIT_FOR_CONFLICT_RESOLUTION -> GrpcTransactionPhase.CONFLICTS_RESOLVED;
+			case WAIT_FOR_WAL_PERSISTENCE -> GrpcTransactionPhase.WAL_PERSISTED;
+			case WAIT_FOR_INDEX_PROPAGATION -> GrpcTransactionPhase.CHANGES_VISIBLE;
+		};
+	}
 }

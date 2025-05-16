@@ -23,7 +23,8 @@
 
 package io.evitadb.core.transaction.stage;
 
-import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.CommitProgress.CommitVersions;
+import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.metric.event.transaction.TransactionAppendedToWalEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
@@ -36,11 +37,9 @@ import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.time.OffsetDateTime;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 
@@ -55,6 +54,7 @@ import java.util.function.BiConsumer;
 public final class WalAppendingTransactionStage
 	extends AbstractTransactionStage<WalAppendingTransactionTask, TrunkIncorporationTransactionTask> {
 	private int droppedCatalogVersions;
+	private int droppedCatalogSchemaVersionDelta;
 
 	public WalAppendingTransactionStage(
 		@Nonnull Executor executor,
@@ -68,7 +68,10 @@ public final class WalAppendingTransactionStage
 	@Override
 	protected void handleException(@Nonnull WalAppendingTransactionTask task, @Nonnull Throwable ex) {
 		try {
-			this.transactionManager.notifyCatalogVersionDropped(this.droppedCatalogVersions);
+			this.transactionManager.notifyCatalogVersionDropped(
+				this.droppedCatalogVersions,
+				this.droppedCatalogSchemaVersionDelta
+			);
 		} finally {
 			super.handleException(task, ex);
 		}
@@ -82,6 +85,7 @@ public final class WalAppendingTransactionStage
 	@Override
 	protected void handleNext(@Nonnull WalAppendingTransactionTask task) {
 		this.droppedCatalogVersions = 1;
+		this.droppedCatalogSchemaVersionDelta = task.catalogSchemaVersionDelta();
 
 		// emit queue event
 		task.transactionQueuedEvent().finish().commit();
@@ -115,11 +119,11 @@ public final class WalAppendingTransactionStage
 			log.error(
 				"Transaction mismatch between transaction manager and WAL {} vs. {} in catalog {}.",
 				ex.getCurrentTransactionVersion(),
-				transactionManager.getLastWrittenCatalogVersion(),
+				this.transactionManager.getLastWrittenCatalogVersion(),
 				task.catalogName(),
 				ex
 			);
-			this.droppedCatalogVersions = Math.toIntExact(ex.getCurrentTransactionVersion() - transactionManager.getLastWrittenCatalogVersion());
+			this.droppedCatalogVersions = Math.toIntExact(ex.getCurrentTransactionVersion() - this.transactionManager.getLastWrittenCatalogVersion());
 			throw ex;
 		}
 
@@ -132,9 +136,9 @@ public final class WalAppendingTransactionStage
 			new TrunkIncorporationTransactionTask(
 				task.catalogName(),
 				task.catalogVersion(),
+				task.catalogSchemaVersion(),
 				task.transactionId(),
-				task.commitBehaviour(),
-				task.commitBehaviour() != CommitBehavior.WAIT_FOR_WAL_PERSISTENCE ? task.future() : null
+				task.commitProgress()
 			)
 		);
 
@@ -147,44 +151,54 @@ public final class WalAppendingTransactionStage
 		this.transactionManager.updateLastWrittenCatalogVersion(task.catalogVersion());
 	}
 
+	@Override
+	protected void complete(@Nonnull CommitProgressRecord commitProgress, @Nonnull WalAppendingTransactionTask sourceTask, @Nonnull TrunkIncorporationTransactionTask targetTask) {
+		commitProgress.onWalAppended().complete(new CommitVersions(targetTask.catalogVersion(), targetTask.catalogSchemaVersion()));
+	}
+
 	/**
 	 * Represents a task for resolving conflicts during a transaction.
 	 *
 	 * @param catalogName     the name of the catalog the transaction is bound to
 	 * @param catalogVersion  assigned catalog version (the sequence number of the next catalog version)
+	 * @param catalogSchemaVersion  assigned catalog schema version (the sequence number of the next catalog schema version)
+	 * @param catalogSchemaVersionDelta  used delta to estimate catalog schema version
 	 * @param transactionId   the ID of the transaction
 	 * @param mutationCount   the number of mutations in the transaction (excluding the leading mutation)
 	 * @param walSizeInBytes  the size of the WAL file in bytes (size of the mutations excluding the leading mutation)
 	 * @param walReference    the reference to the WAL file
-	 * @param commitBehaviour requested stage to wait for during commit
-	 * @param future          the future to complete when the transaction propagates to requested stage
+	 * @param commitProgress the commit progress record for the transaction
+	 * @param transactionQueuedEvent the event to track the transaction
 	 */
 	@NonRepeatableTask
 	public record WalAppendingTransactionTask(
 		@Nonnull String catalogName,
 		long catalogVersion,
+		int catalogSchemaVersion,
+		int catalogSchemaVersionDelta,
 		@Nonnull UUID transactionId,
 		int mutationCount,
 		long walSizeInBytes,
 		@Nonnull OffHeapWithFileBackupReference walReference,
-		@Nonnull CommitBehavior commitBehaviour,
-		@Nullable CompletableFuture<Long> future,
+		@Nonnull CommitProgressRecord commitProgress,
 		@Nonnull TransactionQueuedEvent transactionQueuedEvent
 	) implements TransactionTask {
 
 		public WalAppendingTransactionTask(
 			@Nonnull String catalogName,
 			long catalogVersion,
+			int catalogSchemaVersion,
+			int catalogSchemaVersionDelta,
 			@Nonnull UUID transactionId,
 			int mutationCount,
 			long walSizeInBytes,
 			@Nonnull OffHeapWithFileBackupReference walReference,
-			@Nonnull CommitBehavior commitBehaviour,
-			@Nullable CompletableFuture<Long> future
+			@Nonnull CommitProgressRecord commitProgress
 		) {
 			this(
-				catalogName, catalogVersion, transactionId, mutationCount, walSizeInBytes, walReference,
-				commitBehaviour, future, new TransactionQueuedEvent(catalogName, "wal_appending")
+				catalogName, catalogVersion, catalogSchemaVersion, catalogSchemaVersionDelta,
+				transactionId, mutationCount, walSizeInBytes, walReference,
+				commitProgress, new TransactionQueuedEvent(catalogName, "wal_appending")
 			);
 		}
 	}

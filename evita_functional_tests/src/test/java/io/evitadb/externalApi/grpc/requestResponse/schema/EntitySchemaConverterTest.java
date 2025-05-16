@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,37 +24,19 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
 import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.grpc.generated.GrpcEntitySchema;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.Currency;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -67,24 +49,21 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class EntitySchemaConverterTest {
 
-	@Test
-	void shouldConvertSimpleEntitySchema() {
-		final EntitySchema entitySchema = EntitySchema._internalBuild(
-			"product"
-		);
-		assertEntitySchema(
-			entitySchema,
-			EntitySchemaConverter.convert(EntitySchemaConverter.convert(entitySchema, true))
-		);
-	}
+	@Nonnull
+	private static CatalogSchema createCatalogSchemaWithSingleEntitySchema(EntitySchema entitySchema) {
+		return CatalogSchema._internalBuild("test", Collections.emptyMap(), EnumSet.allOf(CatalogEvolutionMode.class), new EntitySchemaProvider() {
+			@Nonnull
+			@Override
+			public Collection<EntitySchemaContract> getEntitySchemas() {
+				return List.of(entitySchema);
+			}
 
-	@Test
-	void shouldConvertComplexEntitySchema() {
-		final EntitySchema entitySchema = createComplexEntitySchema();
-		assertEntitySchema(
-			entitySchema,
-			EntitySchemaConverter.convert(EntitySchemaConverter.convert(entitySchema, true))
-		);
+			@Nonnull
+			@Override
+			public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+				return entityType.equals(entitySchema.getName()) ? Optional.of(entitySchema) : Optional.empty();
+			}
+		});
 	}
 
 	@Nonnull
@@ -98,7 +77,7 @@ class EntitySchemaConverterTest {
 			false,
 			Scope.NO_SCOPE,
 			true,
-			new Scope[] { Scope.LIVE },
+			new Scope[]{Scope.LIVE},
 			2,
 			Set.of(Locale.ENGLISH, Locale.GERMAN),
 			Set.of(Currency.getInstance("EUR"), Currency.getInstance("USD")),
@@ -114,8 +93,8 @@ class EntitySchemaConverterTest {
 					new ScopedGlobalAttributeUniquenessType[]{
 						new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
 					},
-					new Scope[] { Scope.LIVE },
-					new Scope[] { Scope.LIVE },
+					new Scope[]{Scope.LIVE},
+					new Scope[]{Scope.LIVE},
 					true,
 					true,
 					false,
@@ -136,8 +115,8 @@ class EntitySchemaConverterTest {
 					Cardinality.ZERO_OR_MORE,
 					Entities.PARAMETER_GROUP,
 					false,
-					new Scope[] { Scope.LIVE },
-					new Scope[] { Scope.LIVE }
+					new Scope[]{Scope.LIVE},
+					new Scope[]{Scope.LIVE}
 				),
 				"test2", ReferenceSchema._internalBuild(
 					"test2",
@@ -148,8 +127,8 @@ class EntitySchemaConverterTest {
 					Cardinality.ONE_OR_MORE,
 					null,
 					false,
-					new Scope[] { Scope.LIVE },
-					new Scope[] { Scope.LIVE },
+					new Scope[]{Scope.LIVE},
+					new Scope[]{Scope.LIVE},
 					Map.of(
 						"code", EntityAttributeSchema._internalBuild(
 							"code",
@@ -158,8 +137,8 @@ class EntitySchemaConverterTest {
 							new ScopedAttributeUniquenessType[]{
 								new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 							},
-							new Scope[] { Scope.LIVE },
-							new Scope[] { Scope.LIVE },
+							new Scope[]{Scope.LIVE},
+							new Scope[]{Scope.LIVE},
 							true,
 							true,
 							true,
@@ -176,7 +155,7 @@ class EntitySchemaConverterTest {
 					Map.of(
 						"compound1",
 						SortableAttributeCompoundSchema._internalBuild(
-							"compound1", "This is compound 1", null, new Scope[] { Scope.LIVE },
+							"compound1", "This is compound 1", null, new Scope[]{Scope.LIVE},
 							Arrays.asList(
 								new AttributeElement("code", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 								new AttributeElement("name", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
@@ -184,7 +163,7 @@ class EntitySchemaConverterTest {
 						),
 						"compound2",
 						SortableAttributeCompoundSchema._internalBuild(
-							"compound2", "This is compound 2", null, new Scope[] { Scope.LIVE },
+							"compound2", "This is compound 2", null, new Scope[]{Scope.LIVE},
 							Arrays.asList(
 								new AttributeElement("name", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
 								new AttributeElement("age", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST)
@@ -197,7 +176,7 @@ class EntitySchemaConverterTest {
 			Map.of(
 				"compound1",
 				SortableAttributeCompoundSchema._internalBuild(
-					"compound1", "This is compound 1", null, new Scope[] { Scope.LIVE },
+					"compound1", "This is compound 1", null, new Scope[]{Scope.LIVE},
 					Arrays.asList(
 						new AttributeElement("code", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 						new AttributeElement("name", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
@@ -298,5 +277,29 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.getAttributes().size(), actual.getAttributes().size());
 		expected.getAttributes().forEach((attributeName, attribute) ->
 			assertAttributeSchema(attribute, actual.getAttribute(attributeName).orElseThrow()));
+	}
+
+	@Test
+	void shouldConvertSimpleEntitySchema() {
+		final EntitySchema entitySchema = EntitySchema._internalBuild("product");
+		final CatalogSchema catalogSchema = createCatalogSchemaWithSingleEntitySchema(entitySchema);
+		final GrpcEntitySchema grpcEntitySchema = EntitySchemaConverter.convert(catalogSchema, entitySchema, true);
+		assertEquals(catalogSchema.version(), grpcEntitySchema.getCatalogSchemaVersion());
+		assertEntitySchema(
+			entitySchema,
+			EntitySchemaConverter.convert(grpcEntitySchema)
+		);
+	}
+
+	@Test
+	void shouldConvertComplexEntitySchema() {
+		final EntitySchema entitySchema = createComplexEntitySchema();
+		final CatalogSchema catalogSchema = createCatalogSchemaWithSingleEntitySchema(entitySchema);
+		final GrpcEntitySchema grpcEntitySchema = EntitySchemaConverter.convert(catalogSchema, entitySchema, true);
+		assertEquals(catalogSchema.version(), grpcEntitySchema.getCatalogSchemaVersion());
+		assertEntitySchema(
+			entitySchema,
+			EntitySchemaConverter.convert(grpcEntitySchema)
+		);
 	}
 }

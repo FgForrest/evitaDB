@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,14 +23,14 @@
 
 package io.evitadb.core.transaction;
 
+import io.evitadb.api.CommitProgress.CommitVersions;
+import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.TransactionContract;
-import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -39,7 +39,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Closeable;
 import java.util.LinkedList;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 /**
@@ -60,16 +59,15 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	 */
 	@Nonnull private final UUID transactionId;
 	/**
-	 * Contains commit behaviour for this transaction.
-	 *
-	 * @see CommitBehavior
-	 */
-	@Getter private final CommitBehavior commitBehaviour;
-	/**
 	 * Contains reference to the {@link Catalog} which represents the SNAPSHOT version this transaction
 	 * builds on.
 	 */
 	@Nonnull private final Catalog catalog;
+	/**
+	 * Contains the catalog schema version at the start of the transaction. This is used to calculate the difference
+	 * between the version at the start and the end.
+	 */
+	private final int catalogSchemaVersionAtTransactionStart;
 	/**
 	 * The closeables list maintains a collection of objects that implement the {@link Closeable} interface
 	 * and are associated with this transaction. These objects are be closed in a deterministic order when
@@ -80,17 +78,13 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	 * Represents a factory for creating instances of {@link IsolatedWalPersistenceService} based on a given UUID
 	 * in lazy manner. If no mutation is recorded in the transaction, the factory is not called and no overhead
 	 * is incurred.
-	 *
-	 * @since Date of creation
 	 */
 	@Nonnull private final Function<UUID, IsolatedWalPersistenceService> walPersistenceServiceFactory;
 	/**
-	 * A CompletableFuture representing that needs to be "completed" when the transaction reaches the stage
-	 * requested by the {@link CommitBehavior} of this transaction.
-	 *
-	 * @see CompletableFuture
+	 * Contains a reference to the {@link CommitProgressRecord} that is used to track the progress of
+	 * the commit operation.
 	 */
-	@Nonnull private final CompletableFuture<Long> transactionFinalizationFuture;
+	@Nonnull private final CommitProgressRecord commitProgress;
 	/**
 	 * Represents a reference to the IsolatedWalPersistenceService, which is responsible for storing
 	 * and retrieving data using Write-Ahead Logging (WAL) in isolation from other transaction.
@@ -103,15 +97,14 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	public TransactionWalFinalizer(
 		@Nonnull Catalog catalog,
 		@Nonnull UUID transactionId,
-		@Nonnull CommitBehavior commitBehaviour,
 		@Nonnull Function<UUID, IsolatedWalPersistenceService> walPersistenceServiceFactory,
-		@Nonnull CompletableFuture<Long> transactionFinalizationFuture
+		@Nonnull CommitProgressRecord commitProgress
 	) {
 		this.catalog = catalog;
+		this.catalogSchemaVersionAtTransactionStart = catalog.getSchema().version();
 		this.transactionId = transactionId;
-		this.commitBehaviour = commitBehaviour;
 		this.walPersistenceServiceFactory = walPersistenceServiceFactory;
-		this.transactionFinalizationFuture = transactionFinalizationFuture;
+		this.commitProgress = commitProgress;
 	}
 
 	/**
@@ -120,7 +113,7 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	 * @param objectToClose the Closeable object to register
 	 */
 	public void registerCloseable(@Nonnull Closeable objectToClose) {
-		closeables.add(objectToClose);
+		this.closeables.add(objectToClose);
 	}
 
 	@Override
@@ -132,17 +125,22 @@ public class TransactionWalFinalizer implements TransactionHandler {
 			closeRegisteredCloseables();
 			// now we need to handle the isolated WAL - if there are any mutations, we need to issue instruction for
 			// copying them to the shared WAL
-			if (walPersistenceService != null) {
+			if (this.walPersistenceService != null) {
 				// this invokes the asynchronous action of copying the isolated WAL to the shared one
 				this.catalog.commitWal(
-					transactionId,
-					commitBehaviour,
-					walPersistenceService,
-					transactionFinalizationFuture
+					this.transactionId,
+					this.catalogSchemaVersionAtTransactionStart,
+					this.walPersistenceService,
+					this.commitProgress
 				);
 			} else {
 				// if there are no mutations, we can complete the future immediately
-				transactionFinalizationFuture.complete(catalog.getVersion());
+				this.commitProgress.complete(
+					new CommitVersions(
+						this.catalog.getVersion(),
+						this.catalog.getSchema().version()
+					)
+				);
 			}
 		} finally {
 			// discard the WAL persistence service
@@ -172,14 +170,19 @@ public class TransactionWalFinalizer implements TransactionHandler {
 			// we must complete the future with the exception or the original catalog version (if the rollback was
 			// not caused by an exception)
 			if (cause != null) {
-				this.transactionFinalizationFuture.completeExceptionally(
+				this.commitProgress.completeExceptionally(
 					new RollbackException(
 						"Transaction changes have been rolled back due to previous exception.",
 						cause
 					)
 				);
 			} else {
-				this.transactionFinalizationFuture.complete(catalog.getVersion());
+				this.commitProgress.complete(
+					new CommitVersions(
+						this.catalog.getVersion(),
+						this.catalog.getSchema().version()
+					)
+				);
 			}
 		}
 	}
@@ -187,16 +190,16 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	@Override
 	public void registerMutation(@Nonnull Mutation mutation) {
 		if (this.walPersistenceService == null) {
-			this.walPersistenceService = walPersistenceServiceFactory.apply(transactionId);
+			this.walPersistenceService = this.walPersistenceServiceFactory.apply(this.transactionId);
 		}
-		this.walPersistenceService.write(catalog.getVersion(), mutation);
+		this.walPersistenceService.write(this.catalog.getVersion(), mutation);
 	}
 
 	/**
 	 * Closes all registered Closeable objects.
 	 */
 	private void closeRegisteredCloseables() {
-		for (Closeable closeable : closeables) {
+		for (Closeable closeable : this.closeables) {
 			try {
 				closeable.close();
 			} catch (Exception ex) {

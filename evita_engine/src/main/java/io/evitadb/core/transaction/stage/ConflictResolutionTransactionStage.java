@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,8 @@
 
 package io.evitadb.core.transaction.stage;
 
-import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.CommitProgress.CommitVersions;
+import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.core.metric.event.transaction.TransactionAcceptedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionResolution;
@@ -37,7 +38,6 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 
@@ -77,7 +77,7 @@ public final class ConflictResolutionTransactionStage
 		task.transactionQueuedEvent().finish().commit();
 
 		Assert.isPremiseValid(
-			task.future() != null,
+			task.commitProgress() != null,
 			"Future is unexpectedly null on first stage!"
 		);
 
@@ -92,12 +92,13 @@ public final class ConflictResolutionTransactionStage
 			new WalAppendingTransactionTask(
 				task.catalogName(),
 				this.transactionManager.getNextCatalogVersionToAssign(),
+				this.transactionManager.addDeltaAndEstimateCatalogSchemaVersion(task.catalogSchemaVersionDelta),
+				task.catalogSchemaVersionDelta,
 				task.transactionId(),
 				task.mutationCount(),
 				task.walSizeInBytes(),
 				task.walReference(),
-				task.commitBehaviour(),
-				task.commitBehaviour() != CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION ? task.future() : null
+				task.commitProgress()
 			)
 		);
 
@@ -106,8 +107,13 @@ public final class ConflictResolutionTransactionStage
 
 	@Override
 	protected void handleException(@Nonnull ConflictResolutionTransactionTask task, @Nonnull Throwable ex) {
-		this.transactionManager.notifyCatalogVersionDropped(1);
+		this.transactionManager.notifyCatalogVersionDropped(1, task.catalogSchemaVersionDelta);
 		super.handleException(task, ex);
+	}
+
+	@Override
+	protected void complete(@Nonnull CommitProgressRecord commitProgress, @Nonnull ConflictResolutionTransactionTask sourceTask, @Nonnull WalAppendingTransactionTask targetTask) {
+		commitProgress.onConflictResolved().complete(new CommitVersions(targetTask.catalogVersion(), targetTask.catalogSchemaVersion()));
 	}
 
 	/**
@@ -117,9 +123,11 @@ public final class ConflictResolutionTransactionStage
 	 * @param transactionId the ID of the transaction
 	 * @param mutationCount the number of mutations in the transaction (excluding the leading mutation)
 	 * @param walSizeInBytes the size of the WAL file in bytes (size of the mutations excluding the leading mutation)
+	 * @param catalogSchemaVersionDelta the difference between catalog schema version at the start of transaction and
+	 *                                  the end of transaction
 	 * @param walReference the reference to the WAL file
-	 * @param commitBehaviour requested stage to wait for during commit
-	 * @param future the future to complete when the transaction propagates to requested stage
+	 * @param commitProgress the commit progress record for the transaction
+	 * @param transactionQueuedEvent the event to track the transaction
 	 */
 	@NonRepeatableTask
 	public record ConflictResolutionTransactionTask(
@@ -127,25 +135,40 @@ public final class ConflictResolutionTransactionStage
 		@Nonnull UUID transactionId,
 		int mutationCount,
 		long walSizeInBytes,
+		int catalogSchemaVersionDelta,
 		@Nonnull OffHeapWithFileBackupReference walReference,
-		@Nonnull CommitBehavior commitBehaviour,
-		@Nonnull CompletableFuture<Long> future,
+		@Nonnull CommitProgressRecord commitProgress,
 		@Nonnull TransactionQueuedEvent transactionQueuedEvent
 	) implements TransactionTask {
 
-		public ConflictResolutionTransactionTask {
-			Assert.isPremiseValid(
-				future != null,
-				"Future is unexpectedly null!"
+		public ConflictResolutionTransactionTask(
+			@Nonnull String catalogName,
+			@Nonnull UUID transactionId,
+			int mutationCount,
+			long walSizeInBytes,
+			int catalogSchemaVersionDelta,
+			@Nonnull OffHeapWithFileBackupReference walReference,
+			@Nonnull CommitProgressRecord commitProgress
+		) {
+			this(
+				catalogName,
+				transactionId,
+				mutationCount,
+				walSizeInBytes,
+				catalogSchemaVersionDelta,
+				walReference,
+				commitProgress,
+				new TransactionQueuedEvent(catalogName, "conflict_resolution")
 			);
-		}
-
-		public ConflictResolutionTransactionTask(@Nonnull String catalogName, @Nonnull UUID transactionId, int mutationCount, long walSizeInBytes, @Nonnull OffHeapWithFileBackupReference walReference, @Nonnull CommitBehavior commitBehaviour, @Nonnull CompletableFuture<Long> future) {
-			this(catalogName, transactionId, mutationCount, walSizeInBytes, walReference, commitBehaviour, future, new TransactionQueuedEvent(catalogName, "conflict_resolution"));
 		}
 
 		@Override
 		public long catalogVersion() {
+			throw new UnsupportedOperationException("No catalog version has been assigned yet!");
+		}
+
+		@Override
+		public int catalogSchemaVersion() {
 			throw new UnsupportedOperationException("No catalog version has been assigned yet!");
 		}
 	}

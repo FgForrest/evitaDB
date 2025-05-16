@@ -24,6 +24,7 @@
 package io.evitadb.core;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TrafficRecordingReader;
 import io.evitadb.api.TransactionContract.CommitBehavior;
@@ -52,7 +53,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -180,7 +180,7 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	 * @return completable future returning new catalog version introduced by this session
 	 */
 	@Nonnull
-	CompletableFuture<Long> getFinalizationFuture();
+	CommitProgressRecord getCommitProgress();
 
 	/**
 	 * Method registers RAW input query and assigns a unique identifier to it. All queries in this session that are

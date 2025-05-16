@@ -525,6 +525,17 @@ enum GrpcCommitBehavior {
 
 }
 
+// Contains set of all possible transaction phases each transaction goes through.
+enum GrpcTransactionPhase {
+  // All changes passed conflict resolution steps and are not in conflict with other transactions.
+  CONFLICTS_RESOLVED = 0;
+  // Changes are written to Write Ahead Log (WAL) and are safely persisted on disk. Client might rely on the fact
+  // that the changes will eventually be visible in the database.
+  WAL_PERSISTED = 1;
+  // Changes are visible in shared state of the database and are available to all newly created sessions.
+  CHANGES_VISIBLE = 2;
+}
+
 // Contains set of all supported/used naming conventions in evitaDB APIs.
 enum GrpcNamingConvention {
 

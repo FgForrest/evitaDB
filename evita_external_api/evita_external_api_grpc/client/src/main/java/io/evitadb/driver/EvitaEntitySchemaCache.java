@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -87,7 +88,11 @@ class EvitaEntitySchemaCache {
 	/**
 	 * Contains the last known catalog version on the server side.
 	 */
-	private final AtomicReference<Long> lastKnownCatalogVersion = new AtomicReference<>(0L);
+	private final AtomicLong lastKnownCatalogVersion = new AtomicLong(0L);
+	/**
+	 * Contains the last known catalog schema version on the server side.
+	 */
+	private final AtomicInteger lastKnownCatalogSchemaVersion = new AtomicInteger(0);
 	/**
 	 * Contains the references to entity schemas indexed by their {@link EntitySchema#getName()}.
 	 */
@@ -122,6 +127,16 @@ class EvitaEntitySchemaCache {
 	 */
 	public void updateLastKnownCatalogVersion(long version) {
 		this.lastKnownCatalogVersion.set(version);
+	}
+
+	/**
+	 * Updates the last known catalog version with the specified version.
+	 *
+	 * @param version the version to set as the last known catalog version
+	 */
+	public void updateLastKnownCatalogVersion(long version, int catalogSchemaVersion) {
+		this.lastKnownCatalogVersion.set(version);
+		this.lastKnownCatalogSchemaVersion.set(catalogSchemaVersion);
 	}
 
 	/**
@@ -164,7 +179,7 @@ class EvitaEntitySchemaCache {
 		executeObsoleteCheck(now);
 		// attempt to retrieve schema from the client side cache
 		final SchemaWrapper schemaWrapper = this.cachedSchemas.get(LatestCatalogSchema.INSTANCE);
-		if (schemaWrapper == null) {
+		if (schemaWrapper == null || schemaWrapper.getCatalogSchema().version() < this.lastKnownCatalogSchemaVersion.get()) {
 			// if not found or versions don't match - re-fetch the contents
 			final CatalogSchema schemaRelevantToSession = schemaAccessor.get();
 			final SchemaWrapper newCachedValue = new SchemaWrapper(schemaRelevantToSession, now);
@@ -440,14 +455,14 @@ class EvitaEntitySchemaCache {
 
 		@Nonnull
 		public CatalogSchema getCatalogSchema() {
-			Assert.isPremiseValid(catalogSchema != null, "Catalog schema is not present in the wrapper.");
-			return catalogSchema;
+			Assert.isPremiseValid(this.catalogSchema != null, "Catalog schema is not present in the wrapper.");
+			return this.catalogSchema;
 		}
 
 		@Nonnull
 		public EntitySchema getEntitySchema() {
-			Assert.isPremiseValid(entitySchema != null, "Entity schema is not present in the wrapper.");
-			return entitySchema;
+			Assert.isPremiseValid(this.entitySchema != null, "Entity schema is not present in the wrapper.");
+			return this.entitySchema;
 		}
 
 		/**

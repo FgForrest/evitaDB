@@ -23,6 +23,7 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
@@ -86,7 +87,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
@@ -207,14 +208,15 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * This method is idempotent and may be called multiple times. Only first call is really processed and others are
 	 * ignored.
 	 */
-	default long closeWhen(@Nonnull CommitBehavior commitBehaviour) {
-		return closeNow(commitBehaviour).join();
+	@Nonnull
+	default CommitVersions closeWhen(@Nonnull CommitBehavior commitBehaviour) {
+		return closeNow(commitBehaviour).toCompletableFuture().join();
 	}
 
 	/**
 	 * Method terminates Evita session and releases all used resources. This method renders the session unusable and
 	 * any further calls to this session should end up with {@link InstanceTerminatedException}. Method finishes
-	 * immediately returning a {@link CompletableFuture} that will be completed when:
+	 * immediately returning a {@link CompletionStage} that will be completed when:
 	 *
 	 * 1. catalog is in warm-up mode: immediately
 	 * 2. catalog is in transactional mode and no changes were made: immediately
@@ -223,7 +225,22 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * This method is idempotent and may be called multiple times, it always returns the same future.
 	 */
 	@Nonnull
-	CompletableFuture<Long> closeNow(@Nonnull CommitBehavior commitBehaviour);
+	CompletionStage<CommitVersions> closeNow(@Nonnull CommitBehavior commitBehaviour);
+
+	/**
+	 * Terminates the session and releases all resources, returning a {@link CommitProgress} object.
+	 * This object exposes {@link CompletionStage}s for each significant transaction commit milestone,
+	 * allowing callers to react asynchronously as the commit progresses (e.g. after conflict resolution,
+	 * WAL persistence, index updates, and global visibility). Method finishes immediately returning
+	 * an object with futures for each significant transaction commit milestone that a client might be
+	 * interested in.
+	 *
+	 * This method is idempotent; repeated calls return the same progress object.
+	 *
+	 * @return a {@link CommitProgress} for observing commit milestones
+	 */
+	@Nonnull
+	CommitProgress closeNowWithProgress();
 
 	/**
 	 * Method creates new a new entity schema and collection for it in the catalog this session is tied to. It returns

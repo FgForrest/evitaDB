@@ -29,6 +29,9 @@ import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.CommitProgress;
+import io.evitadb.api.CommitProgress.CommitVersions;
+import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
@@ -126,6 +129,7 @@ import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -223,6 +227,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	@Getter private final CommitBehavior commitBehaviour;
 	/**
+	 * Contains commit progress that is initialized only if the client session is closed with requesting transaction
+	 * progress updates.
+	 */
+	private CommitProgressRecord commitProgress;
+	/**
 	 * Callback that will be called when session is closed.
 	 */
 	private final Consumer<EvitaClientSession> onTerminationCallback;
@@ -246,7 +255,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Future that is instantiated when the session is closed. When initialized, subsequent calls of the close method
 	 * will return the same future. When the future is non-null any calls after {@link #close()} method has been called.
 	 */
-	private CompletableFuture<Long> closedFuture;
+	private CompletableFuture<CommitVersions> closedFuture;
 	/**
 	 * Timestamp of the last session activity (call).
 	 */
@@ -343,46 +352,46 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public UUID getId() {
-		return sessionId;
+		return this.sessionId;
 	}
 
 	@Nonnull
 	@Override
 	public UUID getCatalogId() {
-		return catalogId;
+		return this.catalogId;
 	}
 
 	@Nonnull
 	@Override
 	public SealedCatalogSchema getCatalogSchema() {
 		assertActive();
-		return schemaCache.getLatestCatalogSchema(
+		return this.schemaCache.getLatestCatalogSchema(
 			this::fetchCatalogSchema,
-			clientEntitySchemaAccessor
+			this.clientEntitySchemaAccessor
 		);
 	}
 
 	@Nonnull
 	@Override
 	public String getCatalogName() {
-		return catalogName;
+		return this.catalogName;
 	}
 
 	@Nonnull
 	@Override
 	public CatalogState getCatalogState() {
-		return catalogState;
+		return this.catalogState;
 	}
 
 	@Override
 	public long getCatalogVersion() {
 		assertActive();
-		return schemaCache.getLastKnownCatalogVersion();
+		return this.schemaCache.getLastKnownCatalogVersion();
 	}
 
 	@Override
 	public boolean isActive() {
-		return closedFuture == null;
+		return this.closedFuture == null;
 	}
 
 	@Override
@@ -393,23 +402,39 @@ public class EvitaClientSession implements EvitaSessionContract {
 		);
 		final boolean success = grpcResponse.getSuccess();
 		if (success) {
-			closeInternally().complete(grpcResponse.getCatalogVersion());
+			closeInternally().complete(
+				new CommitVersions(
+					grpcResponse.getCatalogVersion(),
+					grpcResponse.getCatalogSchemaVersion()
+				)
+			);
+			EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
+				grpcResponse.getCatalogVersion(),
+				grpcResponse.getCatalogSchemaVersion()
+			);
 		}
 		return success;
 	}
 
 	@Nonnull
 	@Override
-	public CompletableFuture<Long> closeNow(@Nonnull CommitBehavior commitBehaviour) {
+	public CompletionStage<CommitVersions> closeNow(@Nonnull CommitBehavior commitBehaviour) {
 		if (isActive()) {
-			final CompletableFuture<Long> result = closeInternally();
+			final CompletableFuture<CommitVersions> result = closeInternally();
 			executeWithAsyncEvitaSessionService(
 				evitaSessionService -> {
 					final StreamObserver<GrpcCloseResponse> observer = new StreamObserver<>() {
 						@Override
-						public void onNext(GrpcCloseResponse grpcCloseResponse) {
-							result.complete(grpcCloseResponse.getCatalogVersion());
-							schemaCache.updateLastKnownCatalogVersion(grpcCloseResponse.getCatalogVersion());
+						public void onNext(GrpcCloseResponse grpcResponse) {
+							result.complete(
+								new CommitVersions(
+									grpcResponse.getCatalogVersion(),
+									grpcResponse.getCatalogSchemaVersion()
+								)
+							);
+							EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
+								grpcResponse.getCatalogVersion(), grpcResponse.getCatalogSchemaVersion()
+							);
 						}
 
 						@Override
@@ -437,6 +462,55 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
+	public CommitProgress closeNowWithProgress() {
+		if (isActive()) {
+			final CompletableFuture<CommitVersions> result = closeInternally();
+			this.commitProgress = new CommitProgressRecord();
+			executeWithAsyncEvitaSessionService(
+				evitaSessionService -> {
+					final StreamObserver<GrpcCloseWithProgressResponse> observer = new StreamObserver<>() {
+						@Override
+						public void onNext(GrpcCloseWithProgressResponse grpcResponse) {
+							final CommitVersions commitVersions = new CommitVersions(
+								grpcResponse.getCatalogVersion(),
+								grpcResponse.getCatalogSchemaVersion()
+							);
+							final GrpcTransactionPhase finishedPhase = grpcResponse.getFinishedPhase();
+							switch (finishedPhase) {
+								case CONFLICTS_RESOLVED -> EvitaClientSession.this.commitProgress.onConflictResolved().complete(commitVersions);
+								case WAL_PERSISTED -> EvitaClientSession.this.commitProgress.onWalAppended().complete(commitVersions);
+								case CHANGES_VISIBLE -> {
+									EvitaClientSession.this.commitProgress.onChangesVisible().complete(commitVersions);
+									EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
+										grpcResponse.getCatalogVersion(), grpcResponse.getCatalogSchemaVersion()
+									);
+								}
+							}
+						}
+
+						@Override
+						public void onError(Throwable throwable) {
+							result.completeExceptionally(throwable);
+						}
+
+						@Override
+						public void onCompleted() {
+
+						}
+					};
+					evitaSessionService.closeWithProgress(
+						Empty.newBuilder().build(),
+						observer
+					);
+					return null;
+				}
+			);
+		}
+		return this.commitProgress;
+	}
+
+	@Nonnull
+	@Override
 	public EntitySchemaBuilder defineEntitySchema(@Nonnull String entityType) {
 		assertActive();
 		final SealedEntitySchema newEntitySchema = executeInTransactionIfPossible(session -> {
@@ -449,7 +523,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 
 			final EntitySchema theSchema = EntitySchemaConverter.convert(response.getEntitySchema());
-			schemaCache.setLatestEntitySchema(theSchema);
+			this.schemaCache.setLatestEntitySchema(theSchema);
 			return new EntitySchemaDecorator(this::getCatalogSchema, theSchema);
 		});
 		return newEntitySchema.openForWrite();
@@ -461,7 +535,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		assertActive();
 		return executeInTransactionIfPossible(
 			session -> {
-				final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup);
+				final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, this.reflectionLookup);
 				final CatalogSchemaEditor.CatalogSchemaBuilder catalogBuilder = session.getCatalogSchema().openForWrite();
 				final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this, catalogBuilder);
 				updateCatalogSchema(analysisResult.mutations());
@@ -476,7 +550,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		assertActive();
 		return executeInTransactionIfPossible(
 			session -> {
-				final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup, postProcessor);
+				final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, this.reflectionLookup, postProcessor);
 				final CatalogSchemaEditor.CatalogSchemaBuilder catalogBuilder = session.getCatalogSchema().openForWrite();
 				final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this, catalogBuilder);
 				if (postProcessor instanceof SchemaPostProcessorCapturingResult capturingResult) {
@@ -492,14 +566,14 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public Optional<SealedEntitySchema> getEntitySchema(@Nonnull String entityType) {
 		assertActive();
-		return schemaCache.getLatestEntitySchema(entityType, this::fetchEntitySchema, this::getCatalogSchema);
+		return this.schemaCache.getLatestEntitySchema(entityType, this::fetchEntitySchema, this::getCatalogSchema);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<SealedEntitySchema> getEntitySchema(@Nonnull Class<?> modelClass) throws EntityClassInvalidException {
 		return getEntitySchema(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass))
 		);
 	}
@@ -516,7 +590,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public SealedEntitySchema getEntitySchemaOrThrowException(@Nonnull Class<?> modelClass) throws CollectionNotFoundException, EntityClassInvalidException {
 		return getEntitySchemaOrThrowException(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass))
 		);
 	}
@@ -540,7 +614,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			query,
 			OffsetDateTime.now(),
 			expectedType,
-			extractEntityTypeFromClass(expectedType, reflectionLookup).orElse(null)
+			extractEntityTypeFromClass(expectedType, this.reflectionLookup).orElse(null)
 		);
 		return queryOneInternal(query, expectedType, evitaRequest, this::createEntityProxy);
 	}
@@ -552,7 +626,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			query,
 			OffsetDateTime.now(),
 			expectedType,
-			extractEntityTypeFromClass(expectedType, reflectionLookup).orElse(null)
+			extractEntityTypeFromClass(expectedType, this.reflectionLookup).orElse(null)
 		);
 		return queryListInternal(query, expectedType, evitaRequest, this::createEntityProxy);
 	}
@@ -561,7 +635,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public <S extends Serializable, T extends EvitaResponse<S>> T query(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, InstanceTerminatedException {
 		assertActive();
-		final Query finalQuery = assertRequestMakesSenseAndEntityTypeIsPresent(query, expectedType, reflectionLookup);
+		final Query finalQuery = assertRequestMakesSenseAndEntityTypeIsPresent(query, expectedType, this.reflectionLookup);
 		final StringWithParameters stringWithParameters = finalQuery.toStringWithParameterExtraction();
 		final GrpcQueryResponse grpcResponse = executeWithBlockingEvitaSessionService(
 			evitaSessionService ->
@@ -620,7 +694,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 							expectedType,
 							expectedEntityType
 						),
-						(entityType, schemaVersion) -> schemaCache.getEntitySchemaOrThrowException(
+						(entityType, schemaVersion) -> this.schemaCache.getEntitySchemaOrThrowException(
 							entityType, schemaVersion, this::fetchEntitySchema, this::getCatalogSchema
 						),
 						expectedType,
@@ -691,7 +765,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public <T extends Serializable> Optional<T> getEntity(@Nonnull Class<T> expectedType, int primaryKey, @Nonnull Scope[] scope, EntityContentRequire... require) throws EntityClassInvalidException {
-		final String entityType = extractEntityTypeFromClass(expectedType, reflectionLookup)
+		final String entityType = extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 			.orElseThrow(() -> new CollectionNotFoundException(expectedType));
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
@@ -728,7 +802,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			expectedType,
-			extractEntityTypeFromClass(expectedType, reflectionLookup)
+			extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 				.orElse(null)
 		);
 
@@ -756,7 +830,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			expectedType,
-			extractEntityTypeFromClass(expectedType, reflectionLookup)
+			extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 				.orElse(null)
 		);
 
@@ -781,7 +855,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				evitaSessionService -> evitaSessionService.updateCatalogSchema(request)
 			);
 
-			schemaCache.analyzeMutations(schemaMutation);
+			this.schemaCache.analyzeMutations(schemaMutation);
 			return response.getVersion();
 		});
 
@@ -805,11 +879,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 
 			final CatalogSchema updatedCatalogSchema = CatalogSchemaConverter.convert(
-				response.getCatalogSchema(), clientEntitySchemaAccessor
+				response.getCatalogSchema(), this.clientEntitySchemaAccessor
 			);
-			final SealedCatalogSchema updatedSchema = new ClientCatalogSchemaDecorator(updatedCatalogSchema, clientEntitySchemaAccessor);
-			schemaCache.analyzeMutations(schemaMutation);
-			schemaCache.setLatestCatalogSchema(updatedCatalogSchema);
+			final SealedCatalogSchema updatedSchema = new ClientCatalogSchemaDecorator(updatedCatalogSchema, this.clientEntitySchemaAccessor);
+			this.schemaCache.analyzeMutations(schemaMutation);
+			this.schemaCache.setLatestCatalogSchema(updatedCatalogSchema);
 			return updatedSchema;
 		});
 	}
@@ -825,7 +899,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			final GrpcUpdateEntitySchemaResponse response = executeWithBlockingEvitaSessionService(
 				evitaSessionService -> evitaSessionService.updateEntitySchema(request)
 			);
-			schemaCache.analyzeMutations(schemaMutation);
+			this.schemaCache.analyzeMutations(schemaMutation);
 			return response.getVersion();
 		});
 	}
@@ -845,8 +919,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 
 			final EntitySchema updatedSchema = EntitySchemaConverter.convert(response.getEntitySchema());
-			schemaCache.analyzeMutations(schemaMutation);
-			schemaCache.setLatestEntitySchema(updatedSchema);
+			this.schemaCache.analyzeMutations(schemaMutation);
+			this.schemaCache.setLatestEntitySchema(updatedSchema);
 			return new EntitySchemaDecorator(this::getCatalogSchema, updatedSchema);
 		});
 
@@ -864,7 +938,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 							.build()
 						)
 				);
-				schemaCache.removeLatestEntitySchema(entityType);
+				this.schemaCache.removeLatestEntitySchema(entityType);
 				return grpcResponse.getDeleted();
 			}
 		);
@@ -873,7 +947,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public boolean deleteCollection(@Nonnull Class<?> modelClass) throws EntityClassInvalidException {
 		return deleteCollection(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass))
 		);
 	}
@@ -892,7 +966,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 								.build()
 						)
 				);
-				schemaCache.removeLatestEntitySchema(entityType);
+				this.schemaCache.removeLatestEntitySchema(entityType);
 				return grpcResponse.getRenamed();
 			}
 		);
@@ -912,8 +986,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 								.build()
 						)
 				);
-				schemaCache.removeLatestEntitySchema(entityTypeToBeReplaced);
-				schemaCache.removeLatestEntitySchema(entityTypeToBeReplacedWith);
+				this.schemaCache.removeLatestEntitySchema(entityTypeToBeReplaced);
+				this.schemaCache.removeLatestEntitySchema(entityTypeToBeReplacedWith);
 				return grpcResponse.getReplaced();
 			}
 		);
@@ -958,7 +1032,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType) {
 		assertActive();
 		final EntityBuilder entityBuilder = createNewEntity(
-			extractEntityTypeFromClass(expectedType, reflectionLookup)
+			extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(expectedType))
 		);
 		return this.proxyFactory.createEntityProxy(expectedType, entityBuilder, getEntitySchemaIndex());
@@ -988,7 +1062,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType, int primaryKey) {
 		assertActive();
 		final EntityBuilder entityBuilder = createNewEntity(
-			extractEntityTypeFromClass(expectedType, reflectionLookup)
+			extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(expectedType)),
 			primaryKey
 		);
@@ -1143,7 +1217,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					)
 			);
 			return EntityConverter.toEntity(
-				entity -> schemaCache.getEntitySchemaOrThrowException(
+				entity -> this.schemaCache.getEntitySchemaOrThrowException(
 					entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 				),
 				new EvitaRequest(
@@ -1185,7 +1259,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public boolean deleteEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
 		return deleteEntity(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			primaryKey
 		);
@@ -1201,7 +1275,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
 		return deleteEntityInternal(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			modelClass, this::createEntityProxy, primaryKey, require
 		);
@@ -1235,7 +1309,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EvitaInvalidUsageException {
 		return deleteEntityHierarchyInternal(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			modelClass, this::createEntityProxy, primaryKey, require
 		);
@@ -1296,7 +1370,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				.stream()
 				.map(
 					it -> EntityConverter.toEntity(
-						entity -> schemaCache.getEntitySchemaOrThrowException(
+						entity -> this.schemaCache.getEntitySchemaOrThrowException(
 							entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 						),
 						evitaRequest,
@@ -1330,7 +1404,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public boolean archiveEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
 		return archiveEntity(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			primaryKey
 		);
@@ -1346,7 +1420,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public <T extends Serializable> Optional<T> archiveEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
 		return archiveEntityInternal(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			modelClass, this::createEntityProxy, primaryKey, require
 		);
@@ -1373,7 +1447,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public boolean restoreEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
 		return restoreEntity(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			primaryKey
 		);
@@ -1389,7 +1463,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public <T extends Serializable> Optional<T> restoreEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
 		return restoreEntityInternal(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			modelClass, this::createEntityProxy, primaryKey, require
 		);
@@ -1575,9 +1649,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Method internally closes the session
 	 */
 	@Nonnull
-	public CompletableFuture<Long> closeInternally() {
+	public CompletableFuture<CommitVersions> closeInternally() {
 		if (isActive()) {
-			final CompletableFuture<Long> closeFuture = new CompletableFuture<>();
+			final CompletableFuture<CommitVersions> closeFuture = new CompletableFuture<>();
 			// join both futures together and apply termination callback
 			this.closedFuture = closeFuture.whenComplete((newCatalogVersion, throwable) -> {
 				// then apply termination callbacks
@@ -1656,7 +1730,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	@Nonnull
 	private Map<String, EntitySchemaContract> getEntitySchemaIndex() {
-		return schemaCache.getLatestEntitySchemaIndex(
+		return this.schemaCache.getLatestEntitySchemaIndex(
 			this::getAllEntityTypes,
 			this::fetchEntitySchema,
 			this::getCatalogSchema
@@ -1706,7 +1780,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		return grpcResponse.hasEntity() ?
 			Optional.of(
 				EntityConverter.toEntity(
-					entity -> schemaCache.getEntitySchemaOrThrowException(
+					entity -> this.schemaCache.getEntitySchemaOrThrowException(
 						entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 					),
 					evitaRequest,
@@ -1725,7 +1799,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull TypeConverter<S> typeConverter
 	) {
 		assertActive();
-		final Query finalQuery = assertRequestMakesSenseAndEntityTypeIsPresent(query, expectedType, reflectionLookup);
+		final Query finalQuery = assertRequestMakesSenseAndEntityTypeIsPresent(query, expectedType, this.reflectionLookup);
 		final StringWithParameters stringWithParameters = finalQuery.toStringWithParameterExtraction();
 		final GrpcQueryListResponse grpcResponse = executeWithBlockingEvitaSessionService(
 			evitaSessionService ->
@@ -1751,7 +1825,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				return EntityConverter.toEntities(
 					grpcResponse.getSealedEntitiesList(),
 					evitaRequest,
-					(entityType, schemaVersion) -> schemaCache.getEntitySchemaOrThrowException(
+					(entityType, schemaVersion) -> this.schemaCache.getEntitySchemaOrThrowException(
 						entityType, schemaVersion, this::fetchEntitySchema, this::getCatalogSchema
 					),
 					expectedType,
@@ -1786,12 +1860,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 			return lambda.apply(this.evitaSessionServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
 				.get(timeout.timeout(), timeout.timeoutUnit());
 		} catch (ExecutionException e) {
+			final Throwable theException = e.getCause() == null ? e : e.getCause();
 			throw EvitaClient.transformException(
-				e.getCause() == null ? e : e.getCause(),
+				theException,
 				() -> {
 					// close session and rethrow
-					final CompletableFuture<Long> future = closeInternally();
-					future.complete(0L);
+					final CompletableFuture<CommitVersions> future = closeInternally();
+					future.completeExceptionally(theException);
 				}
 			);
 		} catch (InterruptedException e) {
@@ -1836,12 +1911,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 			SessionIdHolder.setSessionId(getId().toString());
 			return lambda.apply(this.evitaSessionServiceStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()));
 		} catch (ExecutionException e) {
+			final Throwable theException = e.getCause() == null ? e : e.getCause();
 			throw EvitaClient.transformException(
-				e.getCause() == null ? e : e.getCause(),
+				theException,
 				() -> {
 					// close session and rethrow
-					final CompletableFuture<Long> future = closeInternally();
-					future.complete(0L);
+					final CompletableFuture<CommitVersions> future = closeInternally();
+					future.completeExceptionally(theException);
 				}
 			);
 		} catch (InterruptedException e) {
@@ -1864,7 +1940,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull TypeConverter<S> typeConverter
 	) {
 		assertActive();
-		final Query finalQuery = assertRequestMakesSenseAndEntityTypeIsPresent(query, expectedType, reflectionLookup);
+		final Query finalQuery = assertRequestMakesSenseAndEntityTypeIsPresent(query, expectedType, this.reflectionLookup);
 		final StringWithParameters stringWithParameters = finalQuery.toStringWithParameterExtraction();
 		final GrpcQueryOneResponse grpcResponse = executeWithBlockingEvitaSessionService(
 			evitaSessionService ->
@@ -1901,7 +1977,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				// convert to Sealed entity
 				final GrpcSealedEntity sealedEntity = grpcResponse.getSealedEntity();
 				return of(EntityConverter.toEntity(
-					entity -> schemaCache.getEntitySchemaOrThrowException(
+					entity -> this.schemaCache.getEntitySchemaOrThrowException(
 						entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 					),
 					evitaRequest,
@@ -1944,7 +2020,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			return grpcResponse.hasEntity() ?
 				of(
 					EntityConverter.toEntity(
-						entity -> schemaCache.getEntitySchemaOrThrowException(
+						entity -> this.schemaCache.getEntitySchemaOrThrowException(
 							entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 						),
 						new EvitaRequest(
@@ -1956,7 +2032,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 							),
 							OffsetDateTime.now(),
 							expectedType,
-							extractEntityTypeFromClass(expectedType, reflectionLookup)
+							extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 								.orElse(null)
 						),
 						grpcResponse.getEntity(),
@@ -1998,7 +2074,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			return grpcResponse.hasEntity() ?
 				of(
 					EntityConverter.toEntity(
-						entity -> schemaCache.getEntitySchemaOrThrowException(
+						entity -> this.schemaCache.getEntitySchemaOrThrowException(
 							entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 						),
 						new EvitaRequest(
@@ -2010,7 +2086,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 							),
 							OffsetDateTime.now(),
 							expectedType,
-							extractEntityTypeFromClass(expectedType, reflectionLookup)
+							extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 								.orElse(null)
 						),
 						grpcResponse.getEntity(),
@@ -2052,7 +2128,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			return grpcResponse.hasEntity() ?
 				of(
 					EntityConverter.toEntity(
-						entity -> schemaCache.getEntitySchemaOrThrowException(
+						entity -> this.schemaCache.getEntitySchemaOrThrowException(
 							entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 						),
 						new EvitaRequest(
@@ -2064,7 +2140,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 							),
 							OffsetDateTime.now(),
 							expectedType,
-							extractEntityTypeFromClass(expectedType, reflectionLookup)
+							extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 								.orElse(null)
 						),
 						grpcResponse.getEntity(),
@@ -2108,7 +2184,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				grpcResponse.getDeletedEntityPrimaryKeysList().stream().mapToInt(Integer::intValue).toArray(),
 				grpcResponse.hasDeletedRootEntity() ?
 					EntityConverter.toEntity(
-						entity -> schemaCache.getEntitySchemaOrThrowException(
+						entity -> this.schemaCache.getEntitySchemaOrThrowException(
 							entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 						),
 						new EvitaRequest(
@@ -2120,7 +2196,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 							),
 							OffsetDateTime.now(),
 							expectedType,
-							extractEntityTypeFromClass(expectedType, reflectionLookup)
+							extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 								.orElse(null)
 						),
 						grpcResponse.getDeletedRootEntity(),
@@ -2138,7 +2214,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	) {
 		return grpcResponse.hasExtraResults() ?
 			ResponseConverter.toExtraResults(
-				(sealedEntity) -> schemaCache.getEntitySchemaOrThrowException(
+				(sealedEntity) -> this.schemaCache.getEntitySchemaOrThrowException(
 					sealedEntity.getEntityType(), sealedEntity.getSchemaVersion(),
 					this::fetchEntitySchema, this::getCatalogSchema
 				),
@@ -2159,7 +2235,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				)
 		);
 		return CatalogSchemaConverter.convert(
-			grpcResponse.getCatalogSchema(), clientEntitySchemaAccessor
+			grpcResponse.getCatalogSchema(), this.clientEntitySchemaAccessor
 		);
 	}
 
@@ -2199,7 +2275,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	@Nonnull
 	private EvitaClientTransaction createAndInitTransaction() {
-		if (!sessionTraits.isReadWrite()) {
+		if (!this.sessionTraits.isReadWrite()) {
 			throw new TransactionNotSupportedException("Transaction cannot be opened in read only session!");
 		}
 		if (getCatalogState() == CatalogState.WARMING_UP) {
@@ -2216,11 +2292,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 			grpcResponse.getCatalogVersion()
 		);
 
-		schemaCache.updateLastKnownCatalogVersion(grpcResponse.getCatalogVersion());
+		this.schemaCache.updateLastKnownCatalogVersion(grpcResponse.getCatalogVersion());
 
-		transactionAccessor.getAndUpdate(transaction -> {
+		this.transactionAccessor.getAndUpdate(transaction -> {
 			isPremiseValid(transaction == null, "Transaction unexpectedly found!");
-			if (sessionTraits.isDryRun()) {
+			if (this.sessionTraits.isDryRun()) {
 				tx.setRollbackOnly();
 			}
 			return tx;
@@ -2234,13 +2310,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * @throws UnexpectedTransactionStateException if transaction is not open
 	 */
 	private <T> T executeInTransactionIfPossible(Function<EvitaSessionContract, T> logic) {
-		if (transactionAccessor.get() == null && getCatalogState() == CatalogState.ALIVE) {
+		if (this.transactionAccessor.get() == null && getCatalogState() == CatalogState.ALIVE) {
 			//noinspection unused
 			try (final EvitaClientTransaction newTransaction = createAndInitTransaction()) {
 				try {
 					return logic.apply(this);
 				} catch (Throwable ex) {
-					ofNullable(transactionAccessor.get())
+					ofNullable(this.transactionAccessor.get())
 						.ifPresent(EvitaClientTransaction::setRollbackOnly);
 					throw ex;
 				}
@@ -2250,7 +2326,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			try {
 				return logic.apply(this);
 			} catch (Throwable ex) {
-				ofNullable(transactionAccessor.get())
+				ofNullable(this.transactionAccessor.get())
 					.ifPresent(EvitaClientTransaction::setRollbackOnly);
 				throw ex;
 			}
@@ -2274,7 +2350,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Override
 		public void onNext(GetMutationsHistoryResponse getMutationsHistoryResponse) {
 			// if we were canceled signalize it to the server side
-			if (completed.get()) {
+			if (this.completed.get()) {
 				throw new CancellationException("Stream has been completed!");
 			}
 			// Convert the response and add to the queue
@@ -2327,7 +2403,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		 * @return true if the stream has been completed
 		 */
 		public boolean isCompleted() {
-			return completed.get();
+			return this.completed.get();
 		}
 	}
 
@@ -2400,8 +2476,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 			return (
 				isActive() ?
 					EvitaClientSession.this.getAllEntityTypes() :
-					evita.queryCatalog(
-						catalogName,
+					EvitaClientSession.this.evita.queryCatalog(
+						EvitaClientSession.this.catalogName,
 						EvitaSessionContract::getAllEntityTypes
 					)
 			).stream()
@@ -2417,8 +2493,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 			return (
 				isActive() ?
 					EvitaClientSession.this.getEntitySchema(entityType) :
-					evita.queryCatalog(
-						catalogName,
+					EvitaClientSession.this.evita.queryCatalog(
+						EvitaClientSession.this.catalogName,
 						session -> {
 							return session.getEntitySchema(entityType);
 						}

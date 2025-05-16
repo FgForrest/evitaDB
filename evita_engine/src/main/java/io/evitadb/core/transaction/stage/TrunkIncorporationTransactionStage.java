@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,8 @@
 
 package io.evitadb.core.transaction.stage;
 
-import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.CommitProgress.CommitVersions;
+import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.metric.event.transaction.TransactionIncorporatedToTrunkEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
@@ -33,11 +34,9 @@ import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.Upda
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.time.OffsetDateTime;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 
@@ -82,11 +81,9 @@ public final class TrunkIncorporationTransactionStage
 	protected void handleNext(@Nonnull TrunkIncorporationTransactionTask task) {
 		if (task.catalogVersion() <= this.transactionManager.getLastFinalizedCatalogVersion()) {
 			// the transaction has been already processed
-			if (task.future() != null) {
-				// we can't mark transaction as processed until it's propagated to the "live view"
-				this.transactionManager.waitUntilLiveVersionReaches(task.catalogVersion());
-				task.future().complete(task.catalogVersion());
-			}
+			// but we can't mark transaction as processed until it's propagated to the "live view"
+			this.transactionManager.waitUntilLiveVersionReaches(task.catalogVersion());
+			task.commitProgress().onChangesVisible().complete(new CommitVersions(task.catalogVersion(), task.catalogSchemaVersion()));
 			log.info("Skipping version " + task.catalogVersion() + " as it has been already processed.");
 		} else {
 			// emit queue event
@@ -94,10 +91,10 @@ public final class TrunkIncorporationTransactionStage
 
 			final TransactionIncorporatedToTrunkEvent event = new TransactionIncorporatedToTrunkEvent(this.transactionManager.getCatalogName());
 			this.transactionManager.processTransactions(
-				task.catalogVersion(),
-				this.timeout,
-				true
-			)
+					task.catalogVersion(),
+					this.timeout,
+					true
+				)
 				.ifPresentOrElse(
 					result -> {
 						// and propagate it to the live view
@@ -106,8 +103,7 @@ public final class TrunkIncorporationTransactionStage
 							new UpdatedCatalogTransactionTask(
 								result.catalog(),
 								result.lastTransactionId(),
-								task.commitBehaviour(),
-								task.future(),
+								task.commitProgress(),
 								result.commitTimesOfProcessedTransactions()
 							)
 						);
@@ -121,13 +117,13 @@ public final class TrunkIncorporationTransactionStage
 					},
 					() -> {
 						// and terminate the task
-						terminate(
+						complete(
+							task.commitProgress(),
 							task,
 							new UpdatedCatalogTransactionTask(
 								this.transactionManager.getLastFinalizedCatalog(),
 								task.transactionId(),
-								task.commitBehaviour(),
-								task.future(),
+								task.commitProgress(),
 								new OffsetDateTime[0]
 							)
 						);
@@ -142,36 +138,41 @@ public final class TrunkIncorporationTransactionStage
 		}
 	}
 
+	@Override
+	protected void complete(@Nonnull CommitProgressRecord commitProgress, @Nonnull TrunkIncorporationTransactionTask sourceTask, @Nonnull UpdatedCatalogTransactionTask targetTask) {
+		// do nothing, this stage has no outside effects / guarantees
+	}
+
 	/**
 	 * Represents a task for trunk incorporation during a transaction.
 	 * Trunk incorporation is the process of incorporating changes from WAL into a trunk (shared) catalog snapshot.
 	 *
-	 * @param catalogName     The name of the catalog associated with the transaction.
-	 * @param catalogVersion  The version of the catalog associated with the transaction.
-	 * @param transactionId   The ID of the transaction.
-	 * @param commitBehaviour The commit behavior to use during trunk incorporation.
-	 * @param future          The CompletableFuture that can be used to obtain the long value representing the outcome of the task.
-	 *                        It may be null if the outcome is not available or not needed.
+	 * @param catalogName          The name of the catalog associated with the transaction.
+	 * @param catalogVersion       The version of the catalog associated with the transaction.
+	 * @param catalogSchemaVersion assigned catalog schema version (the sequence number of the next catalog schema version)
+	 * @param transactionId        The ID of the transaction.
+	 * @param commitProgress       The CompletableFuture that can be used to obtain the long value representing the outcome of the task.
+	 *                             It may be null if the outcome is not available or not needed.
 	 * @see TransactionTask
 	 */
 	public record TrunkIncorporationTransactionTask(
 		@Nonnull String catalogName,
 		long catalogVersion,
+		int catalogSchemaVersion,
 		@Nonnull UUID transactionId,
-		@Nonnull CommitBehavior commitBehaviour,
-		@Nullable CompletableFuture<Long> future,
+		@Nonnull CommitProgressRecord commitProgress,
 		@Nonnull TransactionQueuedEvent transactionQueuedEvent
 	) implements TransactionTask {
 
 		public TrunkIncorporationTransactionTask(
 			@Nonnull String catalogName,
 			long catalogVersion,
+			int catalogSchemaVersion,
 			@Nonnull UUID transactionId,
-			@Nonnull CommitBehavior commitBehaviour,
-			@Nullable CompletableFuture<Long> future
+			@Nonnull CommitProgressRecord commitProgress
 		) {
 			this(
-				catalogName, catalogVersion, transactionId, commitBehaviour, future,
+				catalogName, catalogVersion, catalogSchemaVersion, transactionId, commitProgress,
 				new TransactionQueuedEvent(catalogName, "trunk_incorporation")
 			);
 		}
@@ -185,8 +186,7 @@ public final class TrunkIncorporationTransactionStage
 	public record UpdatedCatalogTransactionTask(
 		@Nonnull Catalog catalog,
 		@Nonnull UUID transactionId,
-		@Nonnull CommitBehavior commitBehaviour,
-		@Nullable CompletableFuture<Long> future,
+		@Nonnull CommitProgressRecord commitProgress,
 		@Nonnull OffsetDateTime[] commitTimestamps,
 		@Nonnull TransactionQueuedEvent transactionQueuedEvent
 	) implements TransactionTask {
@@ -194,25 +194,33 @@ public final class TrunkIncorporationTransactionStage
 		public UpdatedCatalogTransactionTask(
 			@Nonnull Catalog catalog,
 			@Nonnull UUID transactionId,
-			@Nonnull CommitBehavior commitBehaviour,
-			@Nullable CompletableFuture<Long> future,
+			@Nonnull CommitProgressRecord commitProgress,
 			@Nonnull OffsetDateTime[] commitTimestamps
 		) {
-			this(catalog, transactionId, commitBehaviour, future, commitTimestamps, new TransactionQueuedEvent(catalog.getName(), "catalog_propagation"));
+			this(
+				catalog,
+				transactionId,
+				commitProgress,
+				commitTimestamps,
+				new TransactionQueuedEvent(catalog.getName(), "catalog_propagation")
+			);
 		}
 
 		@Nonnull
 		@Override
 		public String catalogName() {
-			return catalog.getName();
+			return this.catalog.getName();
 		}
 
 		@Override
 		public long catalogVersion() {
-			return catalog.getVersion();
+			return this.catalog.getVersion();
 		}
 
-
+		@Override
+		public int catalogSchemaVersion() {
+			return this.catalog.getSchema().version();
+		}
 	}
 
 }

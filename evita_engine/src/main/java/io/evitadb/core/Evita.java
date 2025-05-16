@@ -23,15 +23,7 @@
 
 package io.evitadb.core;
 
-import io.evitadb.api.CatalogContract;
-import io.evitadb.api.CatalogState;
-import io.evitadb.api.CatalogStructuralChangeObserver;
-import io.evitadb.api.CatalogStructuralChangeObserverWithEvitaContractCallback;
-import io.evitadb.api.EntityCollectionContract;
-import io.evitadb.api.EvitaContract;
-import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.EvitaSessionTerminationCallback;
-import io.evitadb.api.SessionTraits;
+import io.evitadb.api.*;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -383,7 +375,7 @@ public final class Evita implements EvitaContract {
 	 * Method for internal use. Can switch Evita from read-write to read-only one time only.
 	 */
 	public void setReadOnly() {
-		Assert.isTrue(!readOnly, "Only read-write evita can be switched to read-only instance!");
+		Assert.isTrue(!this.readOnly, "Only read-write evita can be switched to read-only instance!");
 		this.readOnly = true;
 	}
 
@@ -412,7 +404,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	public Collection<CatalogContract> getCatalogs() {
-		return catalogs.values();
+		return this.catalogs.values();
 	}
 
 	@Override
@@ -571,16 +563,18 @@ public final class Evita implements EvitaContract {
 			final T resultValue = createdSession.session().execute(updater);
 			// join the transaction future and return the result
 			final CompletableFuture<T> result = new CompletableFuture<>();
-			createdSession.closeFuture().whenComplete((txId, ex) -> {
-				if (ex != null) {
-					result.completeExceptionally(ex);
-				} else {
-					result.complete(resultValue);
-				}
-			});
+			createdSession.commitProgress()
+				.on(commitBehaviour)
+				.whenComplete((__, ex) -> {
+					if (ex != null) {
+						result.completeExceptionally(ex);
+					} else {
+						result.complete(resultValue);
+					}
+				});
 			return result;
 		} catch (RuntimeException ex) {
-			createdSession.closeFuture().completeExceptionally(ex);
+			createdSession.commitProgress().completeExceptionally(ex);
 			throw ex;
 		} finally {
 			createdSession.session().closeNow(commitBehaviour);
@@ -589,7 +583,7 @@ public final class Evita implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public CompletableFuture<Long> updateCatalogAsync(
+	public CommitProgress updateCatalogAsync(
 		@Nonnull String catalogName,
 		@Nonnull Consumer<EvitaSessionContract> updater,
 		@Nonnull CommitBehavior commitBehaviour,
@@ -611,10 +605,10 @@ public final class Evita implements EvitaContract {
 		try {
 			final EvitaInternalSessionContract theSession = createdSession.session();
 			theSession.execute(updater);
-			return createdSession.closeFuture();
+			return createdSession.commitProgress();
 		} catch (Throwable ex) {
-			createdSession.closeFuture().completeExceptionally(ex);
-			return createdSession.closeFuture();
+			createdSession.commitProgress().completeExceptionally(ex);
+			return createdSession.commitProgress();
 		} finally {
 			createdSession.session().closeNow(commitBehaviour);
 		}
@@ -737,7 +731,7 @@ public final class Evita implements EvitaContract {
 					catalogName,
 					new CorruptedCatalog(
 						catalogName,
-						configuration.storage().storageDirectory().resolve(catalogName),
+						this.configuration.storage().storageDirectory().resolve(catalogName),
 						exception
 					)
 				);
@@ -990,7 +984,7 @@ public final class Evita implements EvitaContract {
 	 * Verifies this instance is still active.
 	 */
 	void assertActive() {
-		if (!active) {
+		if (!this.active) {
 			throw new InstanceTerminatedException("instance");
 		}
 	}
@@ -1086,7 +1080,7 @@ public final class Evita implements EvitaContract {
 
 		return new CreatedSession(
 			newSession,
-			newSession.getFinalizationFuture()
+			newSession.getCommitProgress()
 		);
 	}
 
@@ -1226,24 +1220,24 @@ public final class Evita implements EvitaContract {
 		 * in case there is any key structural change identified.
 		 */
 		void notifyStructuralChangeObservers() {
-			final String catalogName = theCatalog.getName();
-			if (isCatalogSchemaModified(theCatalog)) {
-				structuralChangeObservers.forEach(it -> it.onCatalogSchemaUpdate(catalogName));
+			final String catalogName = this.theCatalog.getName();
+			if (isCatalogSchemaModified(this.theCatalog)) {
+				this.structuralChangeObservers.forEach(it -> it.onCatalogSchemaUpdate(catalogName));
 			}
 			// and examine catalog entity collection changes
 			this.entityCollectionSchemaVersions
 				.keySet()
 				.stream()
-				.filter(it -> isEntityCollectionSchemaModified(theCatalog, it))
-				.forEach(it -> structuralChangeObservers
+				.filter(it -> isEntityCollectionSchemaModified(this.theCatalog, it))
+				.forEach(it -> this.structuralChangeObservers
 					.forEach(observer -> observer.onEntitySchemaUpdate(catalogName, it))
 				);
-			getCreatedCollections(theCatalog)
-				.forEach(it -> structuralChangeObservers
+			getCreatedCollections(this.theCatalog)
+				.forEach(it -> this.structuralChangeObservers
 					.forEach(observer -> observer.onEntityCollectionCreate(catalogName, it))
 				);
-			getDeletedCollections(theCatalog)
-				.forEach(it -> structuralChangeObservers
+			getDeletedCollections(this.theCatalog)
+				.forEach(it -> this.structuralChangeObservers
 					.forEach(observer -> observer.onEntityCollectionDelete(catalogName, it))
 				);
 		}
@@ -1318,11 +1312,11 @@ public final class Evita implements EvitaContract {
 	 * This class is a record that encapsulates a session and a future for closing the session.
 	 *
 	 * @param session     reference to the created session itself
-	 * @param closeFuture future that gets completed when session is closed
+	 * @param commitProgress record containing futures related to a commit progression on session close
 	 */
 	private record CreatedSession(
 		@Nonnull EvitaInternalSessionContract session,
-		@Nonnull CompletableFuture<Long> closeFuture
+		@Nonnull CommitProgressRecord commitProgress
 	) implements Closeable {
 
 		@Override
