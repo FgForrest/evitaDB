@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ public final class GrpcEnums {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_fieldAccessorTable;
 
@@ -157,37 +157,40 @@ public final class GrpcEnums {
       "EXIST\020\002*t\n\022GrpcCommitBehavior\022 \n\034WAIT_FO" +
       "R_CONFLICT_RESOLUTION\020\000\022\034\n\030WAIT_FOR_LOG_" +
       "PERSISTENCE\020\001\022\036\n\032WAIT_FOR_INDEX_PROPAGAT" +
-      "ION\020\002*m\n\024GrpcNamingConvention\022\016\n\nCAMEL_C" +
-      "ASE\020\000\022\017\n\013PASCAL_CASE\020\001\022\016\n\nSNAKE_CASE\020\002\022\024" +
-      "\n\020UPPER_SNAKE_CASE\020\003\022\016\n\nKEBAB_CASE\020\004*}\n\021" +
-      "GrpcHealthProblem\022\023\n\017MEMORY_SHORTAGE\020\000\022\034" +
-      "\n\030EXTERNAL_API_UNAVAILABLE\020\001\022\033\n\027INPUT_QU" +
-      "EUES_OVERLOADED\020\002\022\030\n\024JAVA_INTERNAL_ERROR" +
-      "S\020\003*e\n\rGrpcReadiness\022\020\n\014API_STARTING\020\000\022\r" +
-      "\n\tAPI_READY\020\001\022\020\n\014API_STALLING\020\002\022\020\n\014API_S" +
-      "HUTDOWN\020\003\022\017\n\013API_UNKNOWN\020\004*\203\001\n\027GrpcTaskS" +
-      "implifiedState\022\017\n\013TASK_QUEUED\020\000\022\020\n\014TASK_" +
-      "RUNNING\020\001\022\021\n\rTASK_FINISHED\020\002\022\017\n\013TASK_FAI" +
-      "LED\020\003\022!\n\035TASK_WAITING_FOR_PRECONDITION\020\004" +
-      "*V\n GrpcAttributeInheritanceBehavior\022\026\n\022" +
-      "INHERIT_ALL_EXCEPT\020\000\022\032\n\026INHERIT_ONLY_SPE" +
-      "CIFIED\020\001*a\n\rGrpcTaskTrait\022\027\n\023TASK_CAN_BE" +
-      "_STARTED\020\000\022\031\n\025TASK_CAN_BE_CANCELLED\020\001\022\034\n" +
-      "\030TASK_NEEDS_TO_BE_STOPPED\020\002*\372\001\n\022GrpcClas" +
-      "sifierType\022\037\n\033CLASSIFIER_TYPE_SERVER_NAM" +
-      "E\020\000\022\033\n\027CLASSIFIER_TYPE_CATALOG\020\001\022\032\n\026CLAS" +
-      "SIFIER_TYPE_ENTITY\020\002\022\035\n\031CLASSIFIER_TYPE_" +
-      "ATTRIBUTE\020\003\022#\n\037CLASSIFIER_TYPE_ASSOCIATE" +
-      "D_DATA\020\004\022\035\n\031CLASSIFIER_TYPE_REFERENCE\020\005\022" +
-      "\'\n#CLASSIFIER_TYPE_REFERENCE_ATTRIBUTE\020\006" +
-      "*5\n\017GrpcEntityScope\022\016\n\nSCOPE_LIVE\020\000\022\022\n\016S" +
-      "COPE_ARCHIVED\020\001*X\n\025GrpcFacetRelationType" +
-      "\022\017\n\013DISJUNCTION\020\000\022\017\n\013CONJUNCTION\020\001\022\014\n\010NE" +
-      "GATION\020\002\022\017\n\013EXCLUSIVITY\020\003*\\\n\033GrpcFacetGr" +
-      "oupRelationLevel\022\"\n\036WITH_DIFFERENT_FACET" +
-      "S_IN_GROUP\020\000\022\031\n\025WITH_DIFFERENT_GROUPS\020\001*" +
-      "7\n\021GrpcTraversalMode\022\017\n\013DEPTH_FIRST\020\000\022\021\n" +
-      "\rBREADTH_FIRST\020\001B\014P\001\252\002\007EvitaDBb\006proto3"
+      "ION\020\002*V\n\024GrpcTransactionPhase\022\026\n\022CONFLIC" +
+      "TS_RESOLVED\020\000\022\021\n\rWAL_PERSISTED\020\001\022\023\n\017CHAN" +
+      "GES_VISIBLE\020\002*m\n\024GrpcNamingConvention\022\016\n" +
+      "\nCAMEL_CASE\020\000\022\017\n\013PASCAL_CASE\020\001\022\016\n\nSNAKE_" +
+      "CASE\020\002\022\024\n\020UPPER_SNAKE_CASE\020\003\022\016\n\nKEBAB_CA" +
+      "SE\020\004*}\n\021GrpcHealthProblem\022\023\n\017MEMORY_SHOR" +
+      "TAGE\020\000\022\034\n\030EXTERNAL_API_UNAVAILABLE\020\001\022\033\n\027" +
+      "INPUT_QUEUES_OVERLOADED\020\002\022\030\n\024JAVA_INTERN" +
+      "AL_ERRORS\020\003*e\n\rGrpcReadiness\022\020\n\014API_STAR" +
+      "TING\020\000\022\r\n\tAPI_READY\020\001\022\020\n\014API_STALLING\020\002\022" +
+      "\020\n\014API_SHUTDOWN\020\003\022\017\n\013API_UNKNOWN\020\004*\203\001\n\027G" +
+      "rpcTaskSimplifiedState\022\017\n\013TASK_QUEUED\020\000\022" +
+      "\020\n\014TASK_RUNNING\020\001\022\021\n\rTASK_FINISHED\020\002\022\017\n\013" +
+      "TASK_FAILED\020\003\022!\n\035TASK_WAITING_FOR_PRECON" +
+      "DITION\020\004*V\n GrpcAttributeInheritanceBeha" +
+      "vior\022\026\n\022INHERIT_ALL_EXCEPT\020\000\022\032\n\026INHERIT_" +
+      "ONLY_SPECIFIED\020\001*a\n\rGrpcTaskTrait\022\027\n\023TAS" +
+      "K_CAN_BE_STARTED\020\000\022\031\n\025TASK_CAN_BE_CANCEL" +
+      "LED\020\001\022\034\n\030TASK_NEEDS_TO_BE_STOPPED\020\002*\372\001\n\022" +
+      "GrpcClassifierType\022\037\n\033CLASSIFIER_TYPE_SE" +
+      "RVER_NAME\020\000\022\033\n\027CLASSIFIER_TYPE_CATALOG\020\001" +
+      "\022\032\n\026CLASSIFIER_TYPE_ENTITY\020\002\022\035\n\031CLASSIFI" +
+      "ER_TYPE_ATTRIBUTE\020\003\022#\n\037CLASSIFIER_TYPE_A" +
+      "SSOCIATED_DATA\020\004\022\035\n\031CLASSIFIER_TYPE_REFE" +
+      "RENCE\020\005\022\'\n#CLASSIFIER_TYPE_REFERENCE_ATT" +
+      "RIBUTE\020\006*5\n\017GrpcEntityScope\022\016\n\nSCOPE_LIV" +
+      "E\020\000\022\022\n\016SCOPE_ARCHIVED\020\001*X\n\025GrpcFacetRela" +
+      "tionType\022\017\n\013DISJUNCTION\020\000\022\017\n\013CONJUNCTION" +
+      "\020\001\022\014\n\010NEGATION\020\002\022\017\n\013EXCLUSIVITY\020\003*\\\n\033Grp" +
+      "cFacetGroupRelationLevel\022\"\n\036WITH_DIFFERE" +
+      "NT_FACETS_IN_GROUP\020\000\022\031\n\025WITH_DIFFERENT_G" +
+      "ROUPS\020\001*7\n\021GrpcTraversalMode\022\017\n\013DEPTH_FI" +
+      "RST\020\000\022\021\n\rBREADTH_FIRST\020\001B\014P\001\252\002\007EvitaDBb\006" +
+      "proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

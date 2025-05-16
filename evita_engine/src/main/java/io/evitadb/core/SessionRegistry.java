@@ -23,6 +23,7 @@
 
 package io.evitadb.core;
 
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
@@ -179,7 +180,7 @@ final class SessionRegistry {
 		if (this.activeSuspendOperation.compareAndSet(null, new InSuspension(suspendOperation))) {
 			final long start = System.currentTimeMillis();
 			do {
-				final List<CompletableFuture<Long>> futures = new ArrayList<>(this.activeSessions.size());
+				final List<CompletableFuture<CommitVersions>> futures = new ArrayList<>(this.activeSessions.size());
 				for (EvitaSessionTuple sessionTuple : this.activeSessions.values()) {
 					final EvitaSession plainSession = sessionTuple.plainSession();
 					final EvitaInternalSessionContract proxySession = sessionTuple.proxySession();
@@ -194,7 +195,10 @@ final class SessionRegistry {
 										}
 										final UUID sessionId = plainSession.getId();
 										log.info("There is still active session {} - terminating.", sessionId);
-										futures.add(plainSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE));
+										futures.add(
+											plainSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE)
+												.toCompletableFuture()
+										);
 									}
 								}
 							);
@@ -573,7 +577,7 @@ final class SessionRegistry {
 							try {
 								this.insideInvocation.incrementAndGet();
 								this.lastCall.set(System.currentTimeMillis());
-								return method.invoke(evitaSession, args);
+								return method.invoke(this.evitaSession, args);
 							} catch (InvocationTargetException ex) {
 								// handle the error
 								final Throwable targetException = ex.getTargetException() instanceof CompletionException completionException ?
@@ -634,7 +638,7 @@ final class SessionRegistry {
 							this.sessionClosedEvent.recordMutation();
 						}
 						if (method.isAnnotationPresent(Traced.class)) {
-							return tracingContext.executeWithinBlockIfParentContextAvailable(
+							return this.tracingContext.executeWithinBlockIfParentContextAvailable(
 								"session call - " + method.getName(),
 								invocation,
 								() -> {

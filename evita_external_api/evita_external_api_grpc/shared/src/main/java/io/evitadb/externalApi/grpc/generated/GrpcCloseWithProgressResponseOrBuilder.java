@@ -26,8 +26,8 @@
 
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcCloseResponseOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcCloseResponse)
+public interface GrpcCloseWithProgressResponseOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse)
     com.google.protobuf.MessageOrBuilder {
 
   /**
@@ -51,4 +51,23 @@ public interface GrpcCloseResponseOrBuilder extends
    * @return The catalogSchemaVersion.
    */
   int getCatalogSchemaVersion();
+
+  /**
+   * <pre>
+   * The successfully finished phase of the transaction.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase finishedPhase = 3;</code>
+   * @return The enum numeric value on the wire for finishedPhase.
+   */
+  int getFinishedPhaseValue();
+  /**
+   * <pre>
+   * The successfully finished phase of the transaction.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase finishedPhase = 3;</code>
+   * @return The finishedPhase.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase getFinishedPhase();
 }

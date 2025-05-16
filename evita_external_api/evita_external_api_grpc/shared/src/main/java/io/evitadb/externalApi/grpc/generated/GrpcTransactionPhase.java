@@ -28,106 +28,66 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Enum representing overall readiness state of the server API.
+ * Contains set of all possible transaction phases each transaction goes through.
  * </pre>
  *
- * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcReadiness}
+ * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase}
  */
-public enum GrpcReadiness
+public enum GrpcTransactionPhase
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
    * <pre>
-   **
-   * At least one API is not ready.
+   * All changes passed conflict resolution steps and are not in conflict with other transactions.
    * </pre>
    *
-   * <code>API_STARTING = 0;</code>
+   * <code>CONFLICTS_RESOLVED = 0;</code>
    */
-  API_STARTING(0),
+  CONFLICTS_RESOLVED(0),
   /**
    * <pre>
-   **
-   * All APIs are ready.
+   * Changes are written to Write Ahead Log (WAL) and are safely persisted on disk. Client might rely on the fact
+   * that the changes will eventually be visible in the database.
    * </pre>
    *
-   * <code>API_READY = 1;</code>
+   * <code>WAL_PERSISTED = 1;</code>
    */
-  API_READY(1),
+  WAL_PERSISTED(1),
   /**
    * <pre>
-   **
-   * At least one API that was ready is not ready anymore.
+   * Changes are visible in shared state of the database and are available to all newly created sessions.
    * </pre>
    *
-   * <code>API_STALLING = 2;</code>
+   * <code>CHANGES_VISIBLE = 2;</code>
    */
-  API_STALLING(2),
-  /**
-   * <pre>
-   **
-   * Server is shutting down. None of the APIs are ready.
-   * </pre>
-   *
-   * <code>API_SHUTDOWN = 3;</code>
-   */
-  API_SHUTDOWN(3),
-  /**
-   * <pre>
-   **
-   * Unknown state - cannot determine the state of the APIs (should not happen).
-   * </pre>
-   *
-   * <code>API_UNKNOWN = 4;</code>
-   */
-  API_UNKNOWN(4),
+  CHANGES_VISIBLE(2),
   UNRECOGNIZED(-1),
   ;
 
   /**
    * <pre>
-   **
-   * At least one API is not ready.
+   * All changes passed conflict resolution steps and are not in conflict with other transactions.
    * </pre>
    *
-   * <code>API_STARTING = 0;</code>
+   * <code>CONFLICTS_RESOLVED = 0;</code>
    */
-  public static final int API_STARTING_VALUE = 0;
+  public static final int CONFLICTS_RESOLVED_VALUE = 0;
   /**
    * <pre>
-   **
-   * All APIs are ready.
+   * Changes are written to Write Ahead Log (WAL) and are safely persisted on disk. Client might rely on the fact
+   * that the changes will eventually be visible in the database.
    * </pre>
    *
-   * <code>API_READY = 1;</code>
+   * <code>WAL_PERSISTED = 1;</code>
    */
-  public static final int API_READY_VALUE = 1;
+  public static final int WAL_PERSISTED_VALUE = 1;
   /**
    * <pre>
-   **
-   * At least one API that was ready is not ready anymore.
+   * Changes are visible in shared state of the database and are available to all newly created sessions.
    * </pre>
    *
-   * <code>API_STALLING = 2;</code>
+   * <code>CHANGES_VISIBLE = 2;</code>
    */
-  public static final int API_STALLING_VALUE = 2;
-  /**
-   * <pre>
-   **
-   * Server is shutting down. None of the APIs are ready.
-   * </pre>
-   *
-   * <code>API_SHUTDOWN = 3;</code>
-   */
-  public static final int API_SHUTDOWN_VALUE = 3;
-  /**
-   * <pre>
-   **
-   * Unknown state - cannot determine the state of the APIs (should not happen).
-   * </pre>
-   *
-   * <code>API_UNKNOWN = 4;</code>
-   */
-  public static final int API_UNKNOWN_VALUE = 4;
+  public static final int CHANGES_VISIBLE_VALUE = 2;
 
 
   public final int getNumber() {
@@ -144,7 +104,7 @@ public enum GrpcReadiness
    * @deprecated Use {@link #forNumber(int)} instead.
    */
   @java.lang.Deprecated
-  public static GrpcReadiness valueOf(int value) {
+  public static GrpcTransactionPhase valueOf(int value) {
     return forNumber(value);
   }
 
@@ -152,26 +112,24 @@ public enum GrpcReadiness
    * @param value The numeric wire value of the corresponding enum entry.
    * @return The enum associated with the given numeric wire value.
    */
-  public static GrpcReadiness forNumber(int value) {
+  public static GrpcTransactionPhase forNumber(int value) {
     switch (value) {
-      case 0: return API_STARTING;
-      case 1: return API_READY;
-      case 2: return API_STALLING;
-      case 3: return API_SHUTDOWN;
-      case 4: return API_UNKNOWN;
+      case 0: return CONFLICTS_RESOLVED;
+      case 1: return WAL_PERSISTED;
+      case 2: return CHANGES_VISIBLE;
       default: return null;
     }
   }
 
-  public static com.google.protobuf.Internal.EnumLiteMap<GrpcReadiness>
+  public static com.google.protobuf.Internal.EnumLiteMap<GrpcTransactionPhase>
       internalGetValueMap() {
     return internalValueMap;
   }
   private static final com.google.protobuf.Internal.EnumLiteMap<
-      GrpcReadiness> internalValueMap =
-        new com.google.protobuf.Internal.EnumLiteMap<GrpcReadiness>() {
-          public GrpcReadiness findValueByNumber(int number) {
-            return GrpcReadiness.forNumber(number);
+      GrpcTransactionPhase> internalValueMap =
+        new com.google.protobuf.Internal.EnumLiteMap<GrpcTransactionPhase>() {
+          public GrpcTransactionPhase findValueByNumber(int number) {
+            return GrpcTransactionPhase.forNumber(number);
           }
         };
 
@@ -189,12 +147,12 @@ public enum GrpcReadiness
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(27);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(24);
   }
 
-  private static final GrpcReadiness[] VALUES = values();
+  private static final GrpcTransactionPhase[] VALUES = values();
 
-  public static GrpcReadiness valueOf(
+  public static GrpcTransactionPhase valueOf(
       com.google.protobuf.Descriptors.EnumValueDescriptor desc) {
     if (desc.getType() != getDescriptor()) {
       throw new java.lang.IllegalArgumentException(
@@ -208,10 +166,10 @@ public enum GrpcReadiness
 
   private final int value;
 
-  private GrpcReadiness(int value) {
+  private GrpcTransactionPhase(int value) {
     this.value = value;
   }
 
-  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcReadiness)
+  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase)
 }
 

@@ -401,14 +401,14 @@ public final class Transaction implements TransactionContract {
 
 		try {
 			if (isRollbackOnly()) {
-				if (rollbackCause != null) {
-					log.debug("Rolling back transaction `" + transactionId + "` with exception.", rollbackCause);
+				if (this.rollbackCause != null) {
+					log.debug("Rolling back transaction `" + this.transactionId + "` with exception.", this.rollbackCause);
 				} else {
-					log.debug("Rolling back transaction `{}`.", transactionId);
+					log.debug("Rolling back transaction `{}`.", this.transactionId);
 				}
-				this.transactionalMemory.rollback(rollbackCause);
+				this.transactionalMemory.rollback(this.rollbackCause);
 			} else {
-				log.debug("Committing transaction `{}`.", transactionId);
+				log.debug("Committing transaction `{}`.", this.transactionId);
 				this.transactionalMemory.commit();
 			}
 		} finally {
@@ -472,7 +472,7 @@ public final class Transaction implements TransactionContract {
 
 	@Override
 	public String toString() {
-		return transactionId + " (replay=" + replay + ", rollbackOnly=" + rollbackOnly + '}';
+		return this.transactionId + " (replay=" + this.replay + ", rollbackOnly=" + this.rollbackOnly + '}';
 	}
 
 	/**
@@ -502,7 +502,7 @@ public final class Transaction implements TransactionContract {
 
 		@Override
 		public void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			this.committed = transactionalLayer.getStateCopyWithCommittedChanges(txRoot);
+			this.committed = transactionalLayer.getStateCopyWithCommittedChanges(this.txRoot);
 		}
 
 		@Override
