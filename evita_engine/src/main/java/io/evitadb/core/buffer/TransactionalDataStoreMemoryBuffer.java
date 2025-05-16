@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,9 +77,9 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(transactionalMemoryDataSource);
+		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this.transactionalMemoryDataSource);
 		if (layer == null) {
-			return dataStoreChanges.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
+			return this.dataStoreChanges.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
 		} else {
 			return layer.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
 		}
@@ -87,9 +87,9 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
+		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
 		if (layer == null) {
-			return dataStoreChanges.getIndexIfExists(entityIndexKey, accessorWhenMissing);
+			return this.dataStoreChanges.getIndexIfExists(entityIndexKey, accessorWhenMissing);
 		} else {
 			return layer.getIndexIfExists(entityIndexKey, accessorWhenMissing);
 		}
@@ -97,9 +97,9 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
-		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
+		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
 		if (layer == null) {
-			return dataStoreChanges.removeIndex(entityIndexKey, removalPropagation);
+			return this.dataStoreChanges.removeIndex(entityIndexKey, removalPropagation);
 		} else {
 			return layer.removeIndex(entityIndexKey, removalPropagation);
 		}
@@ -107,9 +107,9 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 
 	@Override
 	public int countStorageParts(long catalogVersion, @Nonnull Class<? extends StoragePart> containerType) {
-		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
+		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
 		if (layer == null) {
-			return persistenceService.countStorageParts(catalogVersion, containerType);
+			return this.persistenceService.countStorageParts(catalogVersion, containerType);
 		} else {
 			return layer.countStorageParts(catalogVersion, containerType);
 		}
@@ -118,9 +118,9 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 	@Override
 	@Nullable
 	public <T extends StoragePart> T fetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
+		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
 		if (layer == null) {
-			return persistenceService.getStoragePart(catalogVersion, primaryKey, containerType);
+			return this.persistenceService.getStoragePart(catalogVersion, primaryKey, containerType);
 		} else {
 			return layer.getStoragePart(catalogVersion, primaryKey, containerType);
 		}
@@ -129,9 +129,9 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 	@Override
 	@Nullable
 	public <T extends StoragePart> byte[] fetchBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
+		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
 		if (layer == null) {
-			return persistenceService.getStoragePartAsBinary(catalogVersion, primaryKey, containerType);
+			return this.persistenceService.getStoragePartAsBinary(catalogVersion, primaryKey, containerType);
 		} else {
 			return layer.getStoragePartAsBinary(catalogVersion, primaryKey, containerType);
 		}
@@ -158,7 +158,7 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 	@Override
 	@Nullable
 	public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
-		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
+		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
 		final OptionalLong storagePartId = compressedKeyComputer.apply(
 			layer == null ? this.persistenceService.getReadOnlyKeyCompressor() : layer.getReadOnlyKeyCompressor(),
 			originalKey
@@ -175,7 +175,7 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 
 	@Override
 	public <T extends StoragePart> boolean removeByPrimaryKey(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
-		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(transactionalMemoryDataSource);
+		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this.transactionalMemoryDataSource);
 		if (layer == null) {
 			return this.persistenceService.removeStoragePart(catalogVersion, primaryKey, entityClass);
 		} else {
@@ -185,7 +185,7 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 
 	@Override
 	public <T extends StoragePart> void update(long catalogVersion, @Nonnull T value) {
-		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(transactionalMemoryDataSource);
+		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this.transactionalMemoryDataSource);
 		if (layer == null) {
 			this.persistenceService.putStoragePart(catalogVersion, value);
 		} else {
@@ -195,7 +195,7 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 
 	@Override
 	public <T extends StoragePart> boolean trapRemoveByPrimaryKey(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
-		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(transactionalMemoryDataSource);
+		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this.transactionalMemoryDataSource);
 		if (layer == null) {
 			return this.dataStoreChanges.trapRemoveStoragePart(catalogVersion, primaryKey, entityClass);
 		} else {
@@ -205,7 +205,7 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 
 	@Override
 	public <T extends StoragePart> void trapUpdate(long catalogVersion, @Nonnull T value) {
-		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(transactionalMemoryDataSource);
+		final DataStoreChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this.transactionalMemoryDataSource);
 		if (layer == null) {
 			this.dataStoreChanges.trapPutStoragePart(value);
 		} else {
@@ -215,7 +215,7 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 
 	@Override
 	public DataStoreChanges getTrappedChanges() {
-		final DataStoreChanges layer = Transaction.getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
+		final DataStoreChanges layer = Transaction.getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
 		// return current transactional layer that contains trapped updates
 		// or fallback to shared memory buffer with trapped updates
 		return Objects.requireNonNullElse(layer, this.dataStoreChanges);

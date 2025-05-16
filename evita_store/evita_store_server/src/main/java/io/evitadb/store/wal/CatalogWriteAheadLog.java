@@ -905,7 +905,7 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 
 			//noinspection IOResourceOpenedButNotSafelyClosed
 			final ObservableOutput<ByteArrayOutputStream> theOutput = new ObservableOutput<>(
-				transactionMutationOutputStream,
+				this.transactionMutationOutputStream,
 				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				TRANSACTION_MUTATION_SIZE_WITH_RESERVE
@@ -976,7 +976,7 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 
 			//noinspection IOResourceOpenedButNotSafelyClosed
 			final ObservableOutput<ByteArrayOutputStream> theOutput = new ObservableOutput<>(
-				transactionMutationOutputStream,
+				this.transactionMutationOutputStream,
 				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				TRANSACTION_MUTATION_SIZE_WITH_RESERVE
@@ -989,7 +989,7 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 					-1,
 					walFilePath,
 					walFileChannel,
-					computeCRC32C ? theOutput.computeCRC32() : theOutput,
+					this.computeCRC32C ? theOutput.computeCRC32() : theOutput,
 					walFileChannel.size()
 				)
 			);
@@ -1093,7 +1093,7 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 			rotateWalFile();
 		}
 
-		final Kryo kryo = catalogKryoPool.obtain();
+		final Kryo kryo = this.catalogKryoPool.obtain();
 		try {
 			// write transaction mutation to memory buffer
 			this.transactionMutationOutputStream.reset();
@@ -1601,7 +1601,7 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 	 * @throws WriteAheadLogCorruptedException if an error occurs during the rotation process.
 	 */
 	private void rotateWalFile() {
-		final WalRotationEvent event = new WalRotationEvent(catalogName);
+		final WalRotationEvent event = new WalRotationEvent(this.catalogName);
 		final CurrentWalFile theCurrentWalFile = this.currentWalFile.get();
 		try {
 			// write information about last and first catalog version in this WAL file
@@ -1646,7 +1646,7 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 			);
 			//noinspection IOResourceOpenedButNotSafelyClosed
 			final ObservableOutput<ByteArrayOutputStream> theOutput = new ObservableOutput<>(
-				transactionMutationOutputStream,
+				this.transactionMutationOutputStream,
 				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
 				TRANSACTION_MUTATION_SIZE_WITH_RESERVE
@@ -1668,10 +1668,12 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 				(dir, name) -> name.endsWith(WAL_FILE_SUFFIX)
 			);
 			if (walFiles != null && walFiles.length > this.walFileCountKept) {
+				/* TODO JNO - check that all mutations are incorporated in current catalog version!!! */
+
 				// first sort the files from oldest to newest according to their index in the file name
 				Arrays.sort(
 					walFiles,
-					Comparator.comparingInt(f -> getIndexFromWalFileName(catalogName, f.getName()))
+					Comparator.comparingInt(f -> getIndexFromWalFileName(this.catalogName, f.getName()))
 				);
 
 				// assert that at least one file remains
@@ -1957,31 +1959,31 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 		@Nonnull
 		public Path getWalFilePath() {
 			assertOpen();
-			return walFilePath;
+			return this.walFilePath;
 		}
 
 		@Nonnull
 		public FileChannel getWalFileChannel() {
 			assertOpen();
-			return walFileChannel;
+			return this.walFileChannel;
 		}
 
 		@Nonnull
 		public ObservableOutput<ByteArrayOutputStream> getOutput() {
 			assertOpen();
-			return output;
+			return this.output;
 		}
 
 		public long getCurrentWalFileSize() {
-			return currentWalFileSize;
+			return this.currentWalFileSize;
 		}
 
 		public long getFirstCatalogVersionOfCurrentWalFile() {
-			return firstCatalogVersionOfCurrentWalFile.get();
+			return this.firstCatalogVersionOfCurrentWalFile.get();
 		}
 
 		public long getLastWrittenCatalogVersion() {
-			return lastWrittenCatalogVersion.get();
+			return this.lastWrittenCatalogVersion.get();
 		}
 
 		/**
@@ -2047,7 +2049,7 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 		 */
 		private void assertOpen() {
 			Assert.isPremiseValid(
-				!closed,
+				!this.closed,
 				"The current WAL file is already closed!"
 			);
 		}
@@ -2083,12 +2085,12 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 			if (o == null || getClass() != o.getClass()) return false;
 
 			PendingRemoval that = (PendingRemoval) o;
-			return catalogVersion == that.catalogVersion;
+			return this.catalogVersion == that.catalogVersion;
 		}
 
 		@Override
 		public int hashCode() {
-			return Long.hashCode(catalogVersion);
+			return Long.hashCode(this.catalogVersion);
 		}
 
 	}
