@@ -174,6 +174,14 @@ Once this generational test has run for a few minutes without any problems, we c
 
 ## Transactional data structures
 
+<Note type="warning">
+
+**Data structures are planned to be replaced**
+
+Most transactional data structures are suboptimal because they copy the entire contents to a new instance of the class at the moment of committing (the original instance must remain unchanged for other readers). Our primary focus was on read performance, so write performance was not a priority. We plan to improve the performance of these data structures in the future (see issue [#760](https://github.com/FgForrest/evitaDB/issues/760)), and to create Clojure data structures that are proven and work in an immutable-friendly fashion (for example [HAMT](https://en.wikipedia.org/wiki/Hash_array_mapped_trie)).
+
+</Note>
+
 ### Transactional array (ordered)
 
 The transactional array (e.g. <SourceClass>evita_engine/src/main/java/io/evitadb/index/array/TransactionalIntArray.java</SourceClass> and similar) mimics the behavior of a plain array, and there are multiple implementations of it.
@@ -264,7 +272,7 @@ This computational method clones the entire original `RoaringBitmap` twice and i
 
 ### B+ tree
 
-TODO: WILL BE ADDED
+This is a standard B+ tree implementation with a transactional diff layer. The implementation creates a diff layer for each modified leaf segment of the tree, as well as for the parent chain to the root, with new instances that refer to the underlying diff layers (and the original, non-modified leaves). The new B+ tree is materialized at the moment of commit. The entire process resembles copy-on-write data structures, but the copied blocks are quite small compared to the entire tree. The B+ tree is used for all indexes that require a sorted order of keys.
 
 ### Sequences
 
