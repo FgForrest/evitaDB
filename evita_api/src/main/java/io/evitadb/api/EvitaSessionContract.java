@@ -188,7 +188,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * calls to this session should end up with {@link InstanceTerminatedException}. In case there were any mutations
 	 * in read/write session and the catalog is in transactional mode, the method is finished when the changes are
 	 * propagated to indexes. The call is equivalent to calling {@link #closeWhen(CommitBehavior)} with
-	 * {@link CommitBehavior#WAIT_FOR_INDEX_PROPAGATION}. This method follows synchronous principles, which are
+	 * {@link CommitBehavior#WAIT_FOR_CHANGES_VISIBLE}. This method follows synchronous principles, which are
 	 * easier to understand and use.
 	 *
 	 * This method is idempotent and may be called multiple times. Only first call is really processed and others are

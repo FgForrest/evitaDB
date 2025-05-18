@@ -521,7 +521,7 @@ enum GrpcCommitBehavior {
   // to indexes. After that the transaction is marked as completed and commit is finished. This behaviour is
   // slowest but guarantees that the changes are persisted on disk and durable and that they are visible
   // immediately after the commit is marked as completed.
-  WAIT_FOR_INDEX_PROPAGATION = 2;
+  WAIT_FOR_CHANGES_VISIBLE = 2;
 
 }
 

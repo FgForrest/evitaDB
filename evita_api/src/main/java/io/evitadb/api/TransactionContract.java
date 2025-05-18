@@ -101,7 +101,7 @@ public interface TransactionContract extends AutoCloseable {
 		 *
 		 * This behaviour is default.
 		 */
-		WAIT_FOR_INDEX_PROPAGATION;
+		WAIT_FOR_CHANGES_VISIBLE;
 
 		/**
 		 * Returns default commit behaviour.
@@ -109,7 +109,7 @@ public interface TransactionContract extends AutoCloseable {
 		 */
 		@Nonnull
 		public static CommitBehavior defaultBehaviour() {
-			return WAIT_FOR_INDEX_PROPAGATION;
+			return WAIT_FOR_CHANGES_VISIBLE;
 		}
 
 	}

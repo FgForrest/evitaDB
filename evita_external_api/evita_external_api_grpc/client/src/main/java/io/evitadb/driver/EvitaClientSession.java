@@ -466,6 +466,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		if (isActive()) {
 			final CompletableFuture<CommitVersions> result = closeInternally();
 			this.commitProgress = new CommitProgressRecord();
+			this.commitProgress.on(this.commitBehaviour).thenAccept(result::complete);
 			executeWithAsyncEvitaSessionService(
 				evitaSessionService -> {
 					final StreamObserver<GrpcCloseWithProgressResponse> observer = new StreamObserver<>() {

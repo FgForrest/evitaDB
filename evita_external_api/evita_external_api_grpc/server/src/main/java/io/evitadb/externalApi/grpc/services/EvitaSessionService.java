@@ -864,7 +864,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						.whenComplete(
 							(result, throwable) -> {
 								sendTransactionUpdate(
-									responseObserver, result, throwable, CommitBehavior.WAIT_FOR_INDEX_PROPAGATION
+									responseObserver, result, throwable, CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
 								);
 								// transaction reached the final phase, we can close the stream
 								responseObserver.onCompleted();

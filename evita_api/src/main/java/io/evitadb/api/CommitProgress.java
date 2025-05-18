@@ -91,7 +91,7 @@ public interface CommitProgress {
 			case WAIT_FOR_WAL_PERSISTENCE -> {
 				return onWalAppended();
 			}
-			case WAIT_FOR_INDEX_PROPAGATION -> {
+			case WAIT_FOR_CHANGES_VISIBLE -> {
 				return onChangesVisible();
 			}
 			default -> throw new EvitaInvalidUsageException("Unsupported commit behavior: " + commitBehavior);

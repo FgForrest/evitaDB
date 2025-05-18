@@ -860,7 +860,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
 	void shouldAutomaticallyRollbackTheTransactionWhenExceptionIsThrownInManuallyOpenedSession(EvitaContract evita, SealedEntitySchema productSchema) {
-		final EvitaSessionContract session = evita.createSession(new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_INDEX_PROPAGATION, SessionFlags.READ_WRITE));
+		final EvitaSessionContract session = evita.createSession(new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, SessionFlags.READ_WRITE));
 
 		final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
 		final Optional<EntityMutation> entityMutation = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
@@ -1163,7 +1163,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	@Tag(LONG_RUNNING_TEST)
 	@Test
 	void shouldHandleLargeTransaction(EvitaContract evita, SealedEntitySchema productSchema) {
-		final EvitaSessionContract session = evita.createSession(new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_INDEX_PROPAGATION, SessionFlags.READ_WRITE));
+		final EvitaSessionContract session = evita.createSession(new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, SessionFlags.READ_WRITE));
 
 		final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
 		final int entityCount = 500;
