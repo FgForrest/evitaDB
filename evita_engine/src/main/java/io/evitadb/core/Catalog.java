@@ -306,6 +306,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportFileService exportFileService,
+		@Nonnull ObservableExecutorService requestExecutor,
 		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
@@ -356,7 +357,8 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
 		this.transactionManager = new TransactionManager(
-			this, evitaConfiguration, scheduler, transactionalExecutor, newCatalogVersionConsumer
+			this, evitaConfiguration, scheduler,
+			requestExecutor, transactionalExecutor, newCatalogVersionConsumer
 		);
 		this.trafficRecordingEngine = new TrafficRecordingEngine(
 			internalCatalogSchema.getName(),
@@ -381,6 +383,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportFileService exportFileService,
+		@Nonnull ObservableExecutorService requestExecutor,
 		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
@@ -508,7 +511,8 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 			this.lastPersistedSchemaVersion = this.schema.get().version();
 			this.transactionManager = new TransactionManager(
-				this, evitaConfiguration, scheduler, transactionalExecutor, newCatalogVersionConsumer
+				this, evitaConfiguration, scheduler,
+				requestExecutor, transactionalExecutor, newCatalogVersionConsumer
 			);
 		} catch (RuntimeException ex) {
 			// clean opened resources before propagating exception

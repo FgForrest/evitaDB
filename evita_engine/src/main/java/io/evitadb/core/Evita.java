@@ -708,6 +708,7 @@ public final class Evita implements EvitaContract {
 					this.reflectionLookup,
 					this.serviceExecutor,
 					this.management.exportFileService(),
+					this.requestExecutor,
 					this.transactionExecutor,
 					this::replaceCatalogReference,
 					this.tracingContext
@@ -790,6 +791,7 @@ public final class Evita implements EvitaContract {
 						this.reflectionLookup,
 						this.serviceExecutor,
 						this.management.exportFileService(),
+						this.requestExecutor,
 						this.transactionExecutor,
 						this::replaceCatalogReference,
 						this.tracingContext

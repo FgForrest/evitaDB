@@ -92,7 +92,10 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 			this.catalogName = task.catalogName();
 			this.transactionManager.propagateCatalogSnapshot(task.catalog());
 			log.debug("Snapshot propagating task for catalog `" + this.catalogName + "` completed (" + task.catalog().getEntityTypes() + ")!");
-			task.commitProgress().onChangesVisible().complete(new CommitVersions(task.catalogVersion(), task.catalogSchemaVersion()));
+			task.commitProgress().onChangesVisible().completeAsync(
+				() -> new CommitVersions(task.catalogVersion(), task.catalogSchemaVersion()),
+				this.transactionManager.getRequestExecutor()
+			);
 		} catch (Throwable ex) {
 			log.error("Error while processing snapshot propagating task for catalog `" + this.catalogName + "`!", ex);
 			task.commitProgress().completeExceptionally(ex);

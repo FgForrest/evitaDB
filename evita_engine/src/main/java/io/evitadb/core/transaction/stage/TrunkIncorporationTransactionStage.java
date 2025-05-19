@@ -83,7 +83,10 @@ public final class TrunkIncorporationTransactionStage
 			// the transaction has been already processed
 			// but we can't mark transaction as processed until it's propagated to the "live view"
 			this.transactionManager.waitUntilLiveVersionReaches(task.catalogVersion());
-			task.commitProgress().onChangesVisible().complete(new CommitVersions(task.catalogVersion(), task.catalogSchemaVersion()));
+			task.commitProgress().onChangesVisible().completeAsync(
+				() -> new CommitVersions(task.catalogVersion(), task.catalogSchemaVersion()),
+				this.transactionManager.getRequestExecutor()
+			);
 			log.info("Skipping version " + task.catalogVersion() + " as it has been already processed.");
 		} else {
 			// emit queue event

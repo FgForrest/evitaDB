@@ -52,6 +52,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.utils.Assert;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -99,6 +100,10 @@ public class TransactionManager {
 	 * The scheduler service used for scheduling tasks.
 	 */
 	private final Scheduler scheduler;
+	/**
+	 * The executor service used for notifying clients about transaction completion.
+	 */
+	@Getter private final ObservableExecutorService requestExecutor;
 	/**
 	 * The executor used for handling transactional tasks.
 	 */
@@ -252,11 +257,13 @@ public class TransactionManager {
 		@Nonnull Catalog catalog,
 		@Nonnull EvitaConfiguration configuration,
 		@Nonnull Scheduler scheduler,
+		@Nonnull ObservableExecutorService requestExecutor,
 		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
 	) {
 		this.configuration = configuration;
 		this.scheduler = scheduler;
+		this.requestExecutor = requestExecutor;
 		this.transactionalExecutor = transactionalExecutor;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastFinalizedCatalog = new AtomicReference<>(catalog);

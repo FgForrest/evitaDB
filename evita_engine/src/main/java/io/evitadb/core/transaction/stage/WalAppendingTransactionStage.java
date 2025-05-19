@@ -153,7 +153,11 @@ public final class WalAppendingTransactionStage
 
 	@Override
 	protected void complete(@Nonnull CommitProgressRecord commitProgress, @Nonnull WalAppendingTransactionTask sourceTask, @Nonnull TrunkIncorporationTransactionTask targetTask) {
-		commitProgress.onWalAppended().complete(new CommitVersions(targetTask.catalogVersion(), targetTask.catalogSchemaVersion()));
+		commitProgress.onWalAppended()
+			.completeAsync(
+				() -> new CommitVersions(targetTask.catalogVersion(), targetTask.catalogSchemaVersion()),
+				this.transactionManager.getRequestExecutor()
+			);
 	}
 
 	/**

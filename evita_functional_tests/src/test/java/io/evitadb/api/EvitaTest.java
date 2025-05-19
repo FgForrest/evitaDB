@@ -118,6 +118,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
@@ -2206,6 +2207,85 @@ class EvitaTest implements EvitaTestSupport {
 
 				assertTrue(someAttributeSchema.isLocalized());
 				assertTrue(someAttributeSchema.isFilterable());
+			}
+		);
+	}
+
+	@Test
+	void shouldThrowExceptionInOnWalAppendedAndVerifyChangesAreStillVisible() {
+		// create some initial state
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withAttribute("testAttribute", String.class)
+					.updateVia(session);
+				session.goLiveAndClose();
+			}
+		);
+
+		// create a session and make a change
+		final EvitaSessionContract session = this.evita.createSession(new SessionTraits(TEST_CATALOG, SessionFlags.READ_WRITE));
+
+		// create an entity
+		session.upsertEntity(
+			session.createNewEntity(Entities.PRODUCT, 1)
+				.setAttribute("testAttribute", "Test value")
+		);
+
+		// throw exception in onWalAppended completion stage
+		final CommitProgress commitProgress = session.closeNowWithProgress();
+		final Function<CommitVersions, Object> exceptionThrower = commitVersions -> {
+			throw new RuntimeException("Test exception in onWalAppended");
+		};
+		commitProgress.onConflictResolved().thenApply(exceptionThrower);
+		commitProgress.onWalAppended().thenApply(exceptionThrower);
+		commitProgress.onChangesVisible().thenApply(exceptionThrower);
+
+		// wait for the changes to be visible
+		// this should not throw an exception because the exception in onWalAppended should not stop transaction processing
+		final CommitVersions commitVersions = commitProgress.onChangesVisible().toCompletableFuture().join();
+		assertNotNull(commitVersions);
+
+		// verify that changes are visible in a new session
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session2 -> {
+				// verify entity was created
+				final EvitaResponse<EntityReference> response = session2.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(1)
+						)
+					),
+					EntityReference.class
+				);
+				assertEquals(1, response.getTotalRecordCount());
+			}
+		);
+
+		// restart evita engine
+		this.evita.close();
+		this.evita = new Evita(
+			getEvitaConfiguration()
+		);
+
+		// verify that changes are still visible after restart
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session3 -> {
+				// verify entity was created
+				final EvitaResponse<EntityReference> response = session3.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(1)
+						)
+					),
+					EntityReference.class
+				);
+				assertEquals(1, response.getTotalRecordCount());
 			}
 		);
 	}

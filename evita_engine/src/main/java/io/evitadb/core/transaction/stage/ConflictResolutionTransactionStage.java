@@ -113,7 +113,11 @@ public final class ConflictResolutionTransactionStage
 
 	@Override
 	protected void complete(@Nonnull CommitProgressRecord commitProgress, @Nonnull ConflictResolutionTransactionTask sourceTask, @Nonnull WalAppendingTransactionTask targetTask) {
-		commitProgress.onConflictResolved().complete(new CommitVersions(targetTask.catalogVersion(), targetTask.catalogSchemaVersion()));
+		commitProgress.onConflictResolved()
+			.completeAsync(
+				() -> new CommitVersions(targetTask.catalogVersion(), targetTask.catalogSchemaVersion()),
+				this.transactionManager.getRequestExecutor()
+			);
 	}
 
 	/**
