@@ -68,6 +68,11 @@ The enumeration <SourceClass>evita_api/src/main/java/io/evitadb/api/TransactionC
 
 As mentioned in the introduction, the most complex phase of the transaction process is merging changes into the shared database state. At the end of this phase, data [compaction](https://evitadb.io/documentation/deep-dive/storage-model#cleaning-up-the-clutter) may occur, requiring significant IOPS and thus potentially causing noticeable latency during data writes.
 
+It will make more sense when the newly planned stages are added to transaction processing:
+
+- **WAIT_FOR_CHANGES_VISIBLE_TO_MAJORITY**: This completes when the server confirms that the changes are visible on the majority of replicas. At this point, you can be sure that the changes are safe, even if the master node crashes.
+- **WAIT_FOR_CHANGES_VISIBLE_TO_ALL**: Completes when the server confirms that the changes are visible on all the replicas. At this point, you can be sure that you will always receive the latest data, regardless of which replica you land on.
+
 Most clients don't need immediate visibility of their changes after a transaction completes. Usually, it's enough to ensure changes are securely accepted and written to persistent storage without getting lost, avoiding the need to repeat operations due to write failures. Such clients only need to wait until the `WAIT_FOR_WAL_PERSISTENCE` phase, thus shortening their perceived transaction time.
 
 ## Issues with timeout in the gRPC protocol
