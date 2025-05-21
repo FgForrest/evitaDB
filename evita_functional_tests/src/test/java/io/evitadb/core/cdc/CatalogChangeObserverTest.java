@@ -25,6 +25,7 @@ package io.evitadb.core.cdc;
 
 import com.github.javafaker.Faker;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
@@ -51,6 +52,7 @@ import tool.ImmediateExecutorService;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.function.BiFunction;
 
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
@@ -374,7 +376,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 	@UseDataSet(value = CDC_TRANSACTIONS, destroyAfterTest = true)
 	@Test
 	@DisplayName("handle multiple subscribers with different capture conditions")
-	void shouldHandleMultipleSubscribersWithDifferentCaptureConditions(@Nonnull Evita evita, @Nonnull SealedEntitySchema brandSchema) {
+	void shouldHandleMultipleSubscribersWithDifferentCaptureConditions(@Nonnull Evita evita, @Nonnull SealedEntitySchema brandSchema) throws ExecutionException, InterruptedException {
 		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 
 		// Get and reconfigure the CatalogChangeObserver
@@ -422,24 +424,24 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 			assertEquals(40, entireWalSubscriber.getItems().size(), "Should receive 40 mutations (20 entities × 2 mutations each)");
 			assertEquals(20, partialWalSubscriber.getItems().size(), "Should receive 20 mutations (10 entities × 2 mutations each)");
 
-			// Store the current catalog version before creating new entities
-			final long currentVersion = catalog.getVersion();
-
 			// Create 10 new entities in the catalog
-			final long targetCatalogVersion = evita.updateCatalogAsync(
-				TEST_CATALOG,
-				session -> {
-					this.dataGenerator.generateEntities(
-							brandSchema,
-							this.noEntityPicker,
-							SEED
-						)
-						.skip(20)
-						.limit(10)
-						.forEach(session::upsertEntity);
-				},
-				CommitBehavior.WAIT_FOR_INDEX_PROPAGATION
-			).join();
+			final CommitVersions commitVersions = evita.updateCatalogAsync(
+					TEST_CATALOG,
+					session -> {
+						this.dataGenerator.generateEntities(
+								brandSchema,
+								this.noEntityPicker,
+								SEED
+							)
+							.skip(20)
+							.limit(10)
+							.forEach(session::upsertEntity);
+					},
+					CommitBehavior.WAIT_FOR_CHANGES_VISIBLE
+				)
+				.onChangesVisible()
+				.toCompletableFuture()
+				.get();
 
 			// 3. Subscriber that is registered after new mutations and consumes part of old WAL and all new mutations
 			final ChangeCatalogCaptureRequest partialOldAndNewRequest = ChangeCatalogCaptureRequest.builder()
@@ -451,7 +453,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 			// 4. Subscriber that is registered after new mutations and consumes only part of them
 			final ChangeCatalogCaptureRequest onlyNewPartialRequest = ChangeCatalogCaptureRequest.builder()
-				.sinceVersion(targetCatalogVersion)
+				.sinceVersion(commitVersions.catalogVersion())
 				.content(ChangeCaptureContent.BODY)
 				.criteria(sharedCriteria)
 				.build();

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -352,6 +352,37 @@ public final class EvitaSessionServiceGrpc {
       }
     }
     return getCloseMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse> getCloseWithProgressMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "CloseWithProgress",
+      requestType = com.google.protobuf.Empty.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+  public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse> getCloseWithProgressMethod() {
+    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse> getCloseWithProgressMethod;
+    if ((getCloseWithProgressMethod = EvitaSessionServiceGrpc.getCloseWithProgressMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getCloseWithProgressMethod = EvitaSessionServiceGrpc.getCloseWithProgressMethod) == null) {
+          EvitaSessionServiceGrpc.getCloseWithProgressMethod = getCloseWithProgressMethod =
+              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "CloseWithProgress"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  com.google.protobuf.Empty.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("CloseWithProgress"))
+              .build();
+        }
+      }
+    }
+    return getCloseWithProgressMethod;
   }
 
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcQueryRequest,
@@ -1271,6 +1302,16 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure that closes the session opening a stream that listens to transaction processing phases.
+     * </pre>
+     */
+    default void closeWithProgress(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getCloseWithProgressMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure that executes passed parametrised query and returns zero or one entity.
      * </pre>
      */
@@ -1664,6 +1705,17 @@ public final class EvitaSessionServiceGrpc {
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getCloseMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that closes the session opening a stream that listens to transaction processing phases.
+     * </pre>
+     */
+    public void closeWithProgress(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncServerStreamingCall(
+          getChannel().newCall(getCloseWithProgressMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -2062,6 +2114,18 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Procedure that closes the session opening a stream that listens to transaction processing phases.
+     * </pre>
+     */
+    @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
+    public io.grpc.stub.BlockingClientCall<?, io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse>
+        closeWithProgress(com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.blockingV2ServerStreamingCall(
+          getChannel(), getCloseWithProgressMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure that executes passed parametrised query and returns zero or one entity.
      * </pre>
      */
@@ -2429,6 +2493,17 @@ public final class EvitaSessionServiceGrpc {
     public io.evitadb.externalApi.grpc.generated.GrpcCloseResponse close(io.evitadb.externalApi.grpc.generated.GrpcCloseRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getCloseMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that closes the session opening a stream that listens to transaction processing phases.
+     * </pre>
+     */
+    public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse> closeWithProgress(
+        com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
+          getChannel(), getCloseWithProgressMethod(), getCallOptions(), request);
     }
 
     /**
@@ -3066,30 +3141,31 @@ public final class EvitaSessionServiceGrpc {
   private static final int METHODID_GO_LIVE_AND_CLOSE = 7;
   private static final int METHODID_BACKUP_CATALOG = 8;
   private static final int METHODID_CLOSE = 9;
-  private static final int METHODID_QUERY_ONE = 10;
-  private static final int METHODID_QUERY_LIST = 11;
-  private static final int METHODID_QUERY = 12;
-  private static final int METHODID_QUERY_ONE_UNSAFE = 13;
-  private static final int METHODID_QUERY_LIST_UNSAFE = 14;
-  private static final int METHODID_QUERY_UNSAFE = 15;
-  private static final int METHODID_GET_ENTITY = 16;
-  private static final int METHODID_UPDATE_CATALOG_SCHEMA = 17;
-  private static final int METHODID_UPDATE_AND_FETCH_CATALOG_SCHEMA = 18;
-  private static final int METHODID_DEFINE_ENTITY_SCHEMA = 19;
-  private static final int METHODID_UPDATE_ENTITY_SCHEMA = 20;
-  private static final int METHODID_UPDATE_AND_FETCH_ENTITY_SCHEMA = 21;
-  private static final int METHODID_DELETE_COLLECTION = 22;
-  private static final int METHODID_RENAME_COLLECTION = 23;
-  private static final int METHODID_REPLACE_COLLECTION = 24;
-  private static final int METHODID_GET_ENTITY_COLLECTION_SIZE = 25;
-  private static final int METHODID_UPSERT_ENTITY = 26;
-  private static final int METHODID_DELETE_ENTITY = 27;
-  private static final int METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY = 28;
-  private static final int METHODID_DELETE_ENTITIES = 29;
-  private static final int METHODID_ARCHIVE_ENTITY = 30;
-  private static final int METHODID_RESTORE_ENTITY = 31;
-  private static final int METHODID_GET_TRANSACTION_ID = 32;
-  private static final int METHODID_REGISTER_CHANGE_CATALOG_CAPTURE = 33;
+  private static final int METHODID_CLOSE_WITH_PROGRESS = 10;
+  private static final int METHODID_QUERY_ONE = 11;
+  private static final int METHODID_QUERY_LIST = 12;
+  private static final int METHODID_QUERY = 13;
+  private static final int METHODID_QUERY_ONE_UNSAFE = 14;
+  private static final int METHODID_QUERY_LIST_UNSAFE = 15;
+  private static final int METHODID_QUERY_UNSAFE = 16;
+  private static final int METHODID_GET_ENTITY = 17;
+  private static final int METHODID_UPDATE_CATALOG_SCHEMA = 18;
+  private static final int METHODID_UPDATE_AND_FETCH_CATALOG_SCHEMA = 19;
+  private static final int METHODID_DEFINE_ENTITY_SCHEMA = 20;
+  private static final int METHODID_UPDATE_ENTITY_SCHEMA = 21;
+  private static final int METHODID_UPDATE_AND_FETCH_ENTITY_SCHEMA = 22;
+  private static final int METHODID_DELETE_COLLECTION = 23;
+  private static final int METHODID_RENAME_COLLECTION = 24;
+  private static final int METHODID_REPLACE_COLLECTION = 25;
+  private static final int METHODID_GET_ENTITY_COLLECTION_SIZE = 26;
+  private static final int METHODID_UPSERT_ENTITY = 27;
+  private static final int METHODID_DELETE_ENTITY = 28;
+  private static final int METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY = 29;
+  private static final int METHODID_DELETE_ENTITIES = 30;
+  private static final int METHODID_ARCHIVE_ENTITY = 31;
+  private static final int METHODID_RESTORE_ENTITY = 32;
+  private static final int METHODID_GET_TRANSACTION_ID = 33;
+  private static final int METHODID_REGISTER_CHANGE_CATALOG_CAPTURE = 34;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -3147,6 +3223,10 @@ public final class EvitaSessionServiceGrpc {
         case METHODID_CLOSE:
           serviceImpl.close((io.evitadb.externalApi.grpc.generated.GrpcCloseRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseResponse>) responseObserver);
+          break;
+        case METHODID_CLOSE_WITH_PROGRESS:
+          serviceImpl.closeWithProgress((com.google.protobuf.Empty) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse>) responseObserver);
           break;
         case METHODID_QUERY_ONE:
           serviceImpl.queryOne((io.evitadb.externalApi.grpc.generated.GrpcQueryRequest) request,
@@ -3332,6 +3412,13 @@ public final class EvitaSessionServiceGrpc {
               io.evitadb.externalApi.grpc.generated.GrpcCloseRequest,
               io.evitadb.externalApi.grpc.generated.GrpcCloseResponse>(
                 service, METHODID_CLOSE)))
+        .addMethod(
+          getCloseWithProgressMethod(),
+          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+            new MethodHandlers<
+              com.google.protobuf.Empty,
+              io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse>(
+                service, METHODID_CLOSE_WITH_PROGRESS)))
         .addMethod(
           getQueryOneMethod(),
           io.grpc.stub.ServerCalls.asyncUnaryCall(
@@ -3558,6 +3645,7 @@ public final class EvitaSessionServiceGrpc {
               .addMethod(getGoLiveAndCloseMethod())
               .addMethod(getBackupCatalogMethod())
               .addMethod(getCloseMethod())
+              .addMethod(getCloseWithProgressMethod())
               .addMethod(getQueryOneMethod())
               .addMethod(getQueryListMethod())
               .addMethod(getQueryMethod())
