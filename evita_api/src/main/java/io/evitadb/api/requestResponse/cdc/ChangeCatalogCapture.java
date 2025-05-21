@@ -179,13 +179,13 @@ public record ChangeCatalogCapture(
 
 	@Override
 	public int hashCode() {
-		int result = Long.hashCode(version);
-		result = 31 * result + index;
-		result = 31 * result + area.hashCode();
-		result = 31 * result + Objects.hashCode(entityType);
-		result = 31 * result + Objects.hashCode(entityPrimaryKey);
-		result = 31 * result + operation.hashCode();
-		result = 31 * result + Objects.hashCode(body);
+		int result = Long.hashCode(this.version);
+		result = 31 * result + this.index;
+		result = 31 * result + this.area.hashCode();
+		result = 31 * result + Objects.hashCode(this.entityType);
+		result = 31 * result + Objects.hashCode(this.entityPrimaryKey);
+		result = 31 * result + this.operation.hashCode();
+		result = 31 * result + Objects.hashCode(this.body);
 		return result;
 	}
 }

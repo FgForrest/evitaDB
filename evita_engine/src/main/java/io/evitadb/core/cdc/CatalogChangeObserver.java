@@ -24,6 +24,7 @@
 package io.evitadb.core.cdc;
 
 import io.evitadb.api.configuration.ChangeDataCaptureOptions;
+import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
@@ -31,14 +32,19 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.async.DelayedAsyncTask;
 import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.metric.event.cdc.ChangeCaptureStatisticsEvent;
+import io.evitadb.core.metric.event.cdc.ChangeCaptureStatisticsPerAreaEvent;
+import io.evitadb.core.metric.event.cdc.ChangeCaptureStatisticsPerEntityTypeEvent;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import jdk.jfr.FlightRecorder;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -88,7 +94,18 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 	 */
 	@SuppressWarnings("FieldCanBeLocal")
 	private final DelayedAsyncTask cleaner;
-	/* todo jno - METRIKY */
+	/**
+	 * Counter for the total number of events sent to subscribers. This is used for monitoring and performance analysis.
+	 */
+	private final AtomicLong sentEvents = new AtomicLong(0);
+	/**
+	 * Counter for the number of events sent to subscribers, categorized by capture area.
+	 */
+	private final Map<CaptureArea, AtomicLong> sentEventsByArea = CollectionUtils.createConcurrentHashMap(CaptureArea.values().length);
+	/**
+	 * Counter for the number of events sent to subscribers, categorized by entity type.
+	 */
+	private final Map<String, AtomicLong> sentEventsByEntityType = CollectionUtils.createConcurrentHashMap(32);
 
 	public CatalogChangeObserver(
 		@Nonnull ChangeDataCaptureOptions cdcOptions,
@@ -106,6 +123,10 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 			scheduler,
 			this::cleanInactivePublishers,
 			1, TimeUnit.MINUTES
+		);
+		FlightRecorder.addPeriodicEvent(
+			ChangeCaptureStatisticsEvent.class,
+			this::emitChangeCaptureStatistics
 		);
 	}
 
@@ -151,7 +172,8 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 					theCatalog, this.cdcExecutor,
 					this.cdcOptions.recentEventsCacheLimit(),
 					this.cdcOptions.subscriberBufferSize(),
-					cb
+					cb,
+					this::updateStatistics
 				)
 			),
 			request
@@ -171,7 +193,7 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 	public boolean unregisterObserver(@Nonnull UUID uuid) {
 		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
 			if (sharedPublisher.unsubscribe(uuid)) {
-				 return true;
+				return true;
 			}
 		}
 		return false;
@@ -192,6 +214,70 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 				return publisher.isClosed();
 			});
 		return 0L;
+	}
+
+	/**
+	 * Collects and emits statistics related to change data capture (CDC) operations.
+	 * This method creates a new instance of {@link ChangeCaptureStatisticsEvent} and populates
+	 * it with the current catalog name, the count of unique publishers, the total number
+	 * of subscribers, the count of lagging subscribers, and the total number of events published.
+	 * After initializing the event with these metrics, it commits the event for further processing or logging.
+	 *
+	 * The statistical data are derived as follows:
+	 * - The catalog name is retrieved from the current catalog instance.
+	 * - The total number of unique publishers is calculated by determining the size of the unique publishers map.
+	 * - The total subscriber count is computed by aggregating the subscriber counts of all shared publishers.
+	 * - The total lagging subscriber count is computed by aggregating the lagging subscriber counts of all shared publishers.
+	 * - The total number of events published is computed by summing the event counts from all shared publishers.
+	 */
+	void emitChangeCaptureStatistics() {
+		int subscriberCount = 0;
+		int laggingSubscriberCount = 0;
+		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
+			subscriberCount += sharedPublisher.getSubscribersCount();
+			laggingSubscriberCount += sharedPublisher.getLaggingSubscribersCount();
+		}
+		final String catalogName = this.currentCatalog.get().getName();
+		new ChangeCaptureStatisticsEvent(
+			catalogName,
+			this.uniquePublishers.size(),
+			subscriberCount,
+			laggingSubscriberCount,
+			this.sentEvents.get()
+		).commit();
+
+		this.sentEventsByArea
+			.forEach(
+				(key, value) -> new ChangeCaptureStatisticsPerAreaEvent(
+					catalogName, key, value.get()
+				).commit()
+			);
+
+		this.sentEventsByEntityType
+			.forEach(
+				(key, value) -> new ChangeCaptureStatisticsPerEntityTypeEvent(
+					catalogName, key, value.get()
+				).commit()
+			);
+	}
+
+	/**
+	 * Updates the internal statistics related to the processing of change catalog captures.
+	 * This includes incrementing the total number of sent events, as well as updating
+	 * counters for the events by specific areas and entity types.
+	 *
+	 * @param capture the change catalog capture being processed; must not be null
+	 */
+	private void updateStatistics(@Nonnull ChangeCatalogCapture capture) {
+		this.sentEvents.incrementAndGet();
+		this.sentEventsByArea.computeIfAbsent(
+			capture.area(),
+			area -> new AtomicLong(0)
+		).incrementAndGet();
+		this.sentEventsByEntityType.computeIfAbsent(
+			capture.entityType(),
+			entityType -> new AtomicLong(0)
+		).incrementAndGet();
 	}
 
 }

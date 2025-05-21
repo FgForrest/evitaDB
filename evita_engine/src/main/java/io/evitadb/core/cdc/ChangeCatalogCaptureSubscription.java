@@ -45,6 +45,7 @@ import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 
 /**
  * Implementation of {@link Flow.Subscription} that manages the subscription between a publisher and a subscriber
@@ -88,6 +89,11 @@ public class ChangeCatalogCaptureSubscription implements ChangeCaptureSubscripti
 	 * The subscriber that receives catalog change events from this subscription.
 	 */
 	@Nonnull private final Subscriber<? super ChangeCatalogCapture> subscriber;
+
+	/**
+	 * Consumer that updates statistics of captures sent to the subscriber.
+	 */
+	@Nonnull private final Consumer<ChangeCatalogCapture> onNextConsumer;
 
 	/**
 	 * Queue that buffers catalog change events before they are delivered to the subscriber.
@@ -140,7 +146,8 @@ public class ChangeCatalogCaptureSubscription implements ChangeCaptureSubscripti
 		@Nonnull WalPointerWithContent specification,
 		@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber,
 		@Nonnull ExecutorService executorService,
-		@Nonnull TriConsumer<WalPointer, ChangeCatalogCaptureSubscription, Queue<ChangeCatalogCapture>> queueFiller
+		@Nonnull TriConsumer<WalPointer, ChangeCatalogCaptureSubscription, Queue<ChangeCatalogCapture>> queueFiller,
+		@Nonnull Consumer<ChangeCatalogCapture> onNextConsumer
 	) {
 		this.subscriptionId = subscriptionId;
 		this.subscriber = subscriber;
@@ -150,6 +157,7 @@ public class ChangeCatalogCaptureSubscription implements ChangeCaptureSubscripti
 		this.lastIndex = specification.index() - 1;
 		this.content = specification.content();
 		this.queueFiller = queueFiller;
+		this.onNextConsumer = onNextConsumer;
 		this.executorService = executorService;
 		// Register this subscription with the subscriber
 		this.subscriber.onSubscribe(this);
@@ -320,7 +328,9 @@ public class ChangeCatalogCaptureSubscription implements ChangeCaptureSubscripti
 					this.lastIndex = capture.index();
 
 					// Deliver the event to the subscriber
-					this.subscriber.onNext(capture.as(this.content));
+					final ChangeCatalogCapture finalCapture = capture.as(this.content);
+					this.onNextConsumer.accept(finalCapture);
+					this.subscriber.onNext(finalCapture);
 				} catch (Throwable onNextException) {
 					// If the subscriber throws an exception during onNext, propagate it and stop processing
 					onError(onNextException);

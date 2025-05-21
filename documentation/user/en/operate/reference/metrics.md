@@ -5,6 +5,8 @@
   <dl>
     <dt>api</dt>
     <dd><strong>API type</strong>: The identification of the API being probed.</dd>
+    <dt>area</dt>
+    <dd><strong>Area</strong>: Area for which events are published.</dd>
     <dt>buildType</dt>
     <dd><strong>Build type</strong>: Type of the instance build: NEW or REFRESH</dd>
     <dt>catalogName</dt>
@@ -101,6 +103,23 @@ duration of the probe.</dd>
   <dd>gRPC session procedure called duration<br/><br/><strong>Labels:</strong> <Term>grpcResponseStatus</Term>, <Term>initiator</Term>, <Term>procedureName</Term>, <Term>serviceName</Term><br/></dd>
   <dt><code>io_evitadb_api_grpc_session_procedure_called_total</code> (COUNTER)</dt>
   <dd>gRPC session procedure called total<br/><br/><strong>Labels:</strong> <Term>grpcResponseStatus</Term>, <Term>initiator</Term>, <Term>procedureName</Term>, <Term>serviceName</Term><br/></dd>
+</dl>
+
+#### CDC
+
+<dl>
+  <dt><code>io_evitadb_cdc_change_capture_statistics_events_published_total</code> (COUNTER)</dt>
+  <dd><strong>Published events</strong>: The number of events published to all subscribers.</dd>
+  <dt><code>io_evitadb_cdc_change_capture_statistics_lagging_subscribers_total</code> (GAUGE)</dt>
+  <dd><strong>Lagging subscribers</strong>: The number of subscribers fetching the WAL records.</dd>
+  <dt><code>io_evitadb_cdc_change_capture_statistics_per_area_events_published_total</code> (COUNTER)</dt>
+  <dd><strong>Published events</strong>: The number of events published to all subscribers.<br/><br/><strong>Labels:</strong> <Term>area</Term><br/></dd>
+  <dt><code>io_evitadb_cdc_change_capture_statistics_per_entity_type_events_published_total</code> (COUNTER)</dt>
+  <dd><strong>Published events</strong>: The number of events published to all subscribers.<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
+  <dt><code>io_evitadb_cdc_change_capture_statistics_shared_publishers_total</code> (GAUGE)</dt>
+  <dd><strong>Publisher count</strong>: The number of shared publishers active in the system.</dd>
+  <dt><code>io_evitadb_cdc_change_capture_statistics_subscribers_total</code> (GAUGE)</dt>
+  <dd><strong>Subscriber count</strong>: The number of subscribers active in the system.</dd>
 </dl>
 
 #### Cache

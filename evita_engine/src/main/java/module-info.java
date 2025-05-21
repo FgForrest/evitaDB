@@ -102,9 +102,11 @@ module evita.engine {
 	requires java.sql;
 	requires jdk.jdi;
 	requires proxycian.bytebuddy;
+	requires jdk.xml.dom;
 
 	opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
 	opens io.evitadb.core.metric.event.storage to jdk.jfr;
+	exports io.evitadb.core.metric.event.cdc;
 
 }

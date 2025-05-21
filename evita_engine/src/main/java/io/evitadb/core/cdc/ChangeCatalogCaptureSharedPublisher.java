@@ -51,6 +51,7 @@ import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
@@ -87,6 +88,11 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * change catalog captures and deliver them to subscribers.
 	 */
 	private final ExecutorService cdcExecutor;
+
+	/**
+	 * Consumer that updates statistics of captures sent to the subscriber.
+	 */
+	@Nonnull private final Consumer<ChangeCatalogCapture> onNextConsumer;
 
 	/**
 	 * Map of active subscriptions, keyed by their unique identifier. This allows
@@ -144,11 +150,13 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		@Nonnull ExecutorService cdcExecutor,
 		int bufferSize,
 		int subscriberBufferSize,
-		@Nonnull ChangeCatalogCriteriaBundle criteria
+		@Nonnull ChangeCatalogCriteriaBundle criteria,
+		@Nonnull Consumer<ChangeCatalogCapture> onNextConsumer
 	) {
 		this.currentCatalog = new AtomicReference<>(catalog);
 		final long currentCatalogVersion = catalog.getVersion();
 		this.cdcExecutor = cdcExecutor;
+		this.onNextConsumer = onNextConsumer;
 		// Initialize the ring buffer with the current catalog version
 		this.lastCaptures = new CatalogChangeCaptureRingBuffer(
 			// we need to use current catalog version plus one, because the current catalog version mutations will not
@@ -229,7 +237,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 */
 	@Override
 	public void subscribe(Subscriber<? super ChangeCatalogCapture> subscriber) {
-		lock.lock();
+		this.lock.lock();
 		try {
 			assertActive();
 			final long version = getCatalog().getVersion();
@@ -239,7 +247,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 				new WalPointerWithContent(version + 1, 0, ChangeCaptureContent.BODY)
 			);
 		} finally {
-			lock.unlock();
+			this.lock.unlock();
 		}
 	}
 
@@ -277,7 +285,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 */
 	@Override
 	public void close() {
-		lock.lock();
+		this.lock.lock();
 		try {
 			// Atomically set closed flag to true if it was false
 			if (this.closed.compareAndSet(false, true)) {
@@ -289,7 +297,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 				}
 			}
 		} finally {
-			lock.unlock();
+			this.lock.unlock();
 		}
 	}
 
@@ -300,6 +308,35 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 */
 	public boolean isClosed() {
 		return this.closed.get();
+	}
+
+	/**
+	 * Retrieves the total number of active subscribers currently registered in the publisher.
+	 *
+	 * @return the count of active subscribers
+	 */
+	public int getSubscribersCount() {
+		return this.subscribers.size();
+	}
+
+	/**
+	 * Calculates and returns the count of lagging subscribers whose tracked catalog versions
+	 * are less than the effective start catalog version.
+	 *
+	 * The method determines the count of such lagging subscribers by summing up
+	 * their counts from the version subscriber mapping where the catalog version
+	 * is smaller than the effective start catalog version.
+	 *
+	 * @return the total count of lagging subscribers
+	 */
+	public int getLaggingSubscribersCount() {
+		final long startCatalogVersion = this.lastCaptures.getEffectiveStartCatalogVersion();
+		// this method is not precise because it does not take index into the account, but is good enough and fast
+		return this.versionSubscribersCount.entrySet()
+			.stream()
+			.takeWhile(it -> it.getKey() < startCatalogVersion)
+			.mapToInt(Entry::getValue)
+			.sum();
 	}
 
 	/**
@@ -346,7 +383,8 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 						specification,
 						subscriber,
 						this.cdcExecutor,
-						this::fillBuffer
+						this::fillBuffer,
+						this.onNextConsumer
 					);
 				}
 			);
@@ -515,12 +553,10 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 
 		// Update the subscriber count for the new version that the subscriber is now at
 		lastCapture.ifPresentOrElse(
-			capture -> {
-				subscription.setTrackedVersion(
-					capture.version(),
-					this::moveTrackedVersionsInCache
-				);
-			},
+			capture -> subscription.setTrackedVersion(
+				capture.version(),
+				this::moveTrackedVersionsInCache
+			),
 			() -> {
 				// Decrement the subscriber count for the previous version
 				subscription.setTrackedVersion(
