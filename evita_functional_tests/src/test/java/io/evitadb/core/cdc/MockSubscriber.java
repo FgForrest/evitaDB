@@ -24,11 +24,15 @@
 package io.evitadb.core.cdc;
 
 
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureSubscription;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import lombok.Getter;
+import org.junit.jupiter.api.Assertions;
 
+import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow.Subscriber;
@@ -77,7 +81,7 @@ class MockSubscriber implements Subscriber<ChangeCatalogCapture> {
 	/**
 	 * The subscription to the publisher.
 	 */
-	private Subscription subscription;
+	private ChangeCaptureSubscription subscription;
 
 	/**
 	 * Latch that counts down when an error is received.
@@ -108,6 +112,17 @@ class MockSubscriber implements Subscriber<ChangeCatalogCapture> {
 	}
 
 	/**
+	 * Retrieves the unique identifier of the subscription associated with this subscriber.
+	 *
+	 * @return the unique identifier of the subscription
+	 */
+	@Nonnull
+	UUID getSubscriptionId() {
+		Assertions.assertNotNull(this.subscription);
+		return this.subscription.getSubscriptionId();
+	}
+
+	/**
 	 * Called when the Subscriber is subscribed to a Publisher.
 	 * Stores the subscription and requests the first item.
 	 *
@@ -115,7 +130,7 @@ class MockSubscriber implements Subscriber<ChangeCatalogCapture> {
 	 */
 	@Override
 	public void onSubscribe(Subscription subscription) {
-		this.subscription = subscription;
+		this.subscription = (ChangeCaptureSubscription) subscription;
 		subscription.request(1);  // Request the first item
 	}
 

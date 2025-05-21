@@ -52,14 +52,12 @@ import tool.ImmediateExecutorService;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiFunction;
 
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static tool.ReflectionUtils.getNonnullFieldValue;
 import static tool.ReflectionUtils.setFieldValue;
 
@@ -519,6 +517,201 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Tests that the {@link CatalogChangeObserver} correctly unregisters an observer.
+	 *
+	 * This test:
+	 * 1. Creates a new {@link CatalogChangeObserver} with an immediate executor service
+	 * 2. Notifies the observer about the catalog being present in the live view
+	 * 3. Registers an observer to capture all mutations
+	 * 4. Verifies the observer receives mutations when entities are created
+	 * 5. Unregisters the observer using its UUID
+	 * 6. Creates more entities
+	 * 7. Verifies the unregistered observer doesn't receive new mutations
+	 *
+	 * @param evita       the Evita database instance with the test dataset already loaded
+	 * @param brandSchema the brand schema created during test setup
+	 */
+	@UseDataSet(value = CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("unregister an observer correctly")
+	void shouldUnregisterObserverCorrectly(@Nonnull Evita evita, @Nonnull SealedEntitySchema brandSchema) {
+		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+
+		// Get and reconfigure the CatalogChangeObserver
+		final CatalogChangeObserverContract tested = catalog.getTransactionManager().getChangeObserver();
+		setFieldValue(tested, "cdcExecutor", new ImmediateExecutorService());
+
+		// Notify the observer about the catalog being present in the live view
+		tested.notifyCatalogPresentInLiveView(catalog);
+
+		// Create a request to capture mutations
+		final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+			.sinceVersion(catalog.getVersion() + 1)
+			.content(ChangeCaptureContent.BODY)
+			.criteria(
+				ChangeCatalogCaptureCriteria.builder()
+					.dataArea(builder -> builder.containerType(ContainerType.ENTITY).operation(Operation.UPSERT))
+					.build()
+			)
+			.build();
+
+		// Register an observer
+		final ChangeCapturePublisher<ChangeCatalogCapture> publisher = tested.registerObserver(request);
+		final MockSubscriber subscriber = new MockSubscriber();
+		publisher.subscribe(subscriber);
+
+		// Create 5 new entities
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				return this.dataGenerator.generateEntities(
+						brandSchema,
+						this.noEntityPicker,
+						SEED
+					)
+					.skip(20)
+					.limit(5)
+					.map(session::upsertEntity)
+					.toList();
+			}
+		);
+
+		// Verify the subscriber received mutations
+		// For each upserted entity there are 2 mutations - entity creation and attribute update
+		assertEquals(10, subscriber.getItems().size(), "Should receive 10 mutations (5 entities × 2 mutations each)");
+
+		// Close the publisher, which will unregister the observer
+		assertTrue(tested.unregisterObserver(subscriber.getSubscriptionId()));
+
+		// The subscription should be completed
+		assertTrue(subscriber.isCompleted());
+
+		// Try to unregister with a random UUID (should fail since the observer is already unregistered)
+		assertFalse(tested.unregisterObserver(UUID.randomUUID()), "Unregistering a non-existent observer should return false");
+
+		// Create 5 more entities
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				return this.dataGenerator.generateEntities(
+						brandSchema,
+						this.noEntityPicker,
+						SEED
+					)
+					.skip(25)
+					.limit(5)
+					.map(session::upsertEntity)
+					.toList();
+			}
+		);
+
+		// Verify the subscriber still has only the original mutations
+		assertEquals(10, subscriber.getItems().size(), "Should still have only 10 mutations after unregistering");
+	}
+
+	/**
+	 * Tests that the {@link CatalogChangeObserver} correctly cleans inactive publishers.
+	 *
+	 * This test:
+	 * 1. Creates a new {@link CatalogChangeObserver} with an immediate executor service
+	 * 2. Notifies the observer about the catalog being present in the live view
+	 * 3. Registers multiple observers
+	 * 4. Closes some of the publishers to make them inactive
+	 * 5. Calls the cleanInactivePublishers method
+	 * 6. Verifies that inactive publishers are removed from the uniquePublishers map
+	 *
+	 * @param evita the Evita database instance with the test dataset already loaded
+	 */
+	@UseDataSet(value = CDC_TRANSACTIONS)
+	@Test
+	@DisplayName("clean inactive publishers")
+	void shouldCleanInactivePublishers(Evita evita) {
+		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+
+		// Get and reconfigure the CatalogChangeObserver
+		final CatalogChangeObserver tested = (CatalogChangeObserver) catalog.getTransactionManager().getChangeObserver();
+		setFieldValue(tested, "cdcExecutor", new ImmediateExecutorService());
+
+		// Get the uniquePublishers map
+		final Map<ChangeCatalogCriteriaBundle, ChangeCatalogCaptureSharedPublisher> uniquePublishers =
+			getNonnullFieldValue(tested, "uniquePublishers");
+
+		// Check initial size
+		final int initialSize = uniquePublishers.size();
+
+		// Notify the observer about the catalog being present in the live view
+		tested.notifyCatalogPresentInLiveView(catalog);
+
+		// Register multiple observers with different requests
+		final ChangeCapturePublisher<ChangeCatalogCapture> publisher1 = tested.registerObserver(
+			ChangeCatalogCaptureRequest.builder()
+				.content(ChangeCaptureContent.BODY)
+				.criteria(
+					ChangeCatalogCaptureCriteria.builder()
+						.dataArea(builder -> builder.containerType(ContainerType.ENTITY).operation(Operation.UPSERT))
+						.build()
+				)
+				.build()
+		);
+
+		final ChangeCapturePublisher<ChangeCatalogCapture> publisher2 = tested.registerObserver(
+			ChangeCatalogCaptureRequest.builder()
+				.content(ChangeCaptureContent.BODY)
+				.criteria(
+					ChangeCatalogCaptureCriteria.builder()
+						.dataArea(builder -> builder.containerType(ContainerType.ENTITY).operation(Operation.REMOVE))
+						.build()
+				)
+				.build()
+		);
+
+		final ChangeCapturePublisher<ChangeCatalogCapture> publisher3 = tested.registerObserver(
+			ChangeCatalogCaptureRequest.builder()
+				.content(ChangeCaptureContent.BODY)
+				.criteria(
+					ChangeCatalogCaptureCriteria.builder()
+						.dataArea(builder -> builder.containerType(ContainerType.ATTRIBUTE).operation(Operation.UPSERT))
+						.build()
+				)
+				.build()
+		);
+
+		// Create subscribers for each publisher
+		final MockSubscriber subscriber1 = new MockSubscriber();
+		final MockSubscriber subscriber2 = new MockSubscriber();
+		final MockSubscriber subscriber3 = new MockSubscriber();
+
+		// Subscribe them to the publishers
+		publisher1.subscribe(subscriber1);
+		publisher2.subscribe(subscriber2);
+		publisher3.subscribe(subscriber3);
+
+		// Check size after registration
+		final int sizeAfterRegistration = uniquePublishers.size();
+		assertEquals(initialSize + 3, sizeAfterRegistration, "Should have at least three publishers");
+
+		// Close some publishers to make them inactive
+		publisher1.close();
+		publisher2.close();
+
+		// Call cleanInactivePublishers
+		tested.cleanInactivePublishers();
+
+		// Verify that inactive publishers are removed
+		final int finalSize = uniquePublishers.size();
+		assertEquals((sizeAfterRegistration - initialSize) - 2, finalSize, "Number of publishers should decrease after cleaning");
+
+		// Close the last publisher
+		publisher3.close();
+
+		// Clean again
+		tested.cleanInactivePublishers();
+
+		// Verify all publishers are removed
+		assertEquals(finalSize - 1, uniquePublishers.size(), "All publishers should be removed after cleaning");
 	}
 
 	/**

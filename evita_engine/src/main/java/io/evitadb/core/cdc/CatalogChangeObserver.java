@@ -26,7 +26,6 @@ package io.evitadb.core.cdc;
 import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.Catalog;
@@ -43,9 +42,29 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * TODO JNO - document me
+ * Implementation of the {@link CatalogChangeObserverContract} that observes and captures changes to a catalog
+ * in the evitaDB system. This class is responsible for managing the Change Data Capture (CDC) mechanism that
+ * allows clients to subscribe to and receive notifications about catalog mutations.
+ *
+ * The observer maintains a collection of shared publishers, each associated with specific criteria for
+ * filtering catalog changes. When a mutation occurs in the catalog, the observer notifies all registered
+ * publishers, which in turn notify their subscribers based on the filtering criteria.
+ *
+ * Key responsibilities:
+ * - Tracking the current catalog state
+ * - Processing mutations and notifying publishers
+ * - Managing the lifecycle of publishers (creation, reuse, and cleanup)
+ * - Registering and unregistering observers
+ *
+ * The observer implements an optimization strategy where publishers with identical criteria are shared
+ * among multiple subscribers to reduce resource usage and improve performance.
+ *
+ * TOBEDONE #879 - potential performance optimization if current one is slow
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ * @see CatalogChangeObserverContract
+ * @see ChangeCatalogCapturePublisher
+ * @see ChangeCatalogCaptureSharedPublisher
  */
 public class CatalogChangeObserver implements CatalogChangeObserverContract {
 	/**
@@ -67,9 +86,9 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 	/**
 	 * Cleaning task that removes inactive publishers from the list of unique publishers once a while.
 	 */
+	@SuppressWarnings("FieldCanBeLocal")
 	private final DelayedAsyncTask cleaner;
 	/* todo jno - METRIKY */
-	/* todo jno - sem přenést predikáty, paměťová matice */
 
 	public CatalogChangeObserver(
 		@Nonnull ChangeDataCaptureOptions cdcOptions,
@@ -120,27 +139,34 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 			theCatalog != null,
 			"Catalog must be attached to the observer before registering a new publisher!"
 		);
-		final ChangeCatalogCaptureCriteria[] requestedCriteria = request.criteria();
-		final ChangeCatalogCriteriaBundle criteriaBundle = requestedCriteria == null ?
-			ChangeCatalogCriteriaBundle.CATCH_ALL : new ChangeCatalogCriteriaBundle(requestedCriteria);
-
-		// create or reuse the shared publisher
-		final ChangeCatalogCaptureSharedPublisher sharedPublisher = this.uniquePublishers.computeIfAbsent(
-			criteriaBundle,
-			cb -> new ChangeCatalogCaptureSharedPublisher(
-				theCatalog, this.cdcExecutor,
-				this.cdcOptions.recentEventsCacheLimit(),
-				this.cdcOptions.subscriberBufferSize(),
-				cb
-			)
-		);
 
 		// Provide isolated publisher wrapping the shared one to the outside world.
 		// This way we can reuse predicate and caching logic for all subscribers with the same criteria.
 		// Specifics related to start version and index, and provided content are handled in the isolated publisher.
-		return new ChangeCatalogCapturePublisher(sharedPublisher, request);
+		return new ChangeCatalogCapturePublisher(
+			// create or reuse the shared publisher
+			criteriaBundle -> this.uniquePublishers.computeIfAbsent(
+				criteriaBundle,
+				cb -> new ChangeCatalogCaptureSharedPublisher(
+					theCatalog, this.cdcExecutor,
+					this.cdcOptions.recentEventsCacheLimit(),
+					this.cdcOptions.subscriberBufferSize(),
+					cb
+				)
+			),
+			request
+		);
 	}
 
+	/**
+	 * Unregisters an observer with the specified UUID from all shared publishers.
+	 * This method iterates through all shared publishers and attempts to unsubscribe
+	 * the observer with the given UUID. If the observer is found and successfully
+	 * unsubscribed from any publisher, the method returns true. Otherwise, it returns false.
+	 *
+	 * @param uuid the unique identifier of the observer to unregister
+	 * @return true if the observer was found and unregistered, false otherwise
+	 */
 	@Override
 	public boolean unregisterObserver(@Nonnull UUID uuid) {
 		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
@@ -159,8 +185,12 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 	 *
 	 * @return the milliseconds deviation to the next scheduled run (always zero)
 	 */
-	private long cleanInactivePublishers() {
-		this.uniquePublishers.values().removeIf(ChangeCatalogCaptureSharedPublisher::isClosed);
+	long cleanInactivePublishers() {
+		this.uniquePublishers.values().removeIf(
+			publisher -> {
+				publisher.checkSubscribersLeft();
+				return publisher.isClosed();
+			});
 		return 0L;
 	}
 

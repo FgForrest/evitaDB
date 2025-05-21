@@ -25,6 +25,7 @@ package io.evitadb.core.cdc;
 
 
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureSubscription;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.core.cdc.ChangeCatalogCaptureSharedPublisher.WalPointer;
 import io.evitadb.core.cdc.ChangeCatalogCaptureSharedPublisher.WalPointerWithContent;
@@ -62,11 +63,11 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @Slf4j
-public class ChangeCatalogCaptureSubscription implements Flow.Subscription {
+public class ChangeCatalogCaptureSubscription implements ChangeCaptureSubscription {
 	/**
 	 * Unique identifier for this subscription.
 	 */
-	@Nonnull @Getter private final UUID subscriberId;
+	@Nonnull @Getter private final UUID subscriptionId;
 
 	/**
 	 * Defines the content of the catalog change events.
@@ -126,7 +127,7 @@ public class ChangeCatalogCaptureSubscription implements Flow.Subscription {
 	/**
 	 * Creates a new subscription for catalog change events.
 	 *
-	 * @param subscriberId    unique identifier for this subscription
+	 * @param subscriptionId    unique identifier for this subscription
 	 * @param bufferSize      size of the buffer queue for catalog change events
 	 * @param specification   specification containing the starting point for the subscription and the requested content
 	 * @param subscriber      the subscriber that will receive catalog change events
@@ -134,14 +135,14 @@ public class ChangeCatalogCaptureSubscription implements Flow.Subscription {
 	 * @param executorService executor service for asynchronous processing
 	 */
 	public ChangeCatalogCaptureSubscription(
-		@Nonnull UUID subscriberId,
+		@Nonnull UUID subscriptionId,
 		int bufferSize,
 		@Nonnull WalPointerWithContent specification,
 		@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber,
 		@Nonnull ExecutorService executorService,
 		@Nonnull TriConsumer<WalPointer, ChangeCatalogCaptureSubscription, Queue<ChangeCatalogCapture>> queueFiller
 	) {
-		this.subscriberId = subscriberId;
+		this.subscriptionId = subscriptionId;
 		this.subscriber = subscriber;
 		this.queue = new ArrayBlockingQueue<>(bufferSize);
 		this.trackedVersion = specification.version();
@@ -208,6 +209,7 @@ public class ChangeCatalogCaptureSubscription implements Flow.Subscription {
 		if (this.finished.compareAndSet(false, true)) {
 			// Clear the queue to release memory
 			this.queue.clear();
+			this.subscriber.onComplete();
 		}
 	}
 

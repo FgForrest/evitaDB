@@ -27,17 +27,20 @@ package io.evitadb.core.cdc;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.core.cdc.ChangeCatalogCaptureSharedPublisher.WalPointerWithContent;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.lang.ref.WeakReference;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 import static java.util.Optional.ofNullable;
 
@@ -62,11 +65,10 @@ import static java.util.Optional.ofNullable;
  */
 public class ChangeCatalogCapturePublisher implements ChangeCapturePublisher<ChangeCatalogCapture> {
 	/**
-	 * The shared publisher that this publisher delegates to. It handles the actual publishing of events
-	 * to multiple subscribers and manages the underlying change capture mechanism.
+	 * The shared publisher factory that creates instances of {@link ChangeCatalogCaptureSharedPublisher} when first
+	 * subscriber is registered. This factory is used to create a new shared publisher if the current one is closed.
 	 */
-	private final ChangeCatalogCaptureSharedPublisher sharedPublisher;
-
+	private final Function<ChangeCatalogCriteriaBundle, ChangeCatalogCaptureSharedPublisher> sharedPublisherFactory;
 	/**
 	 * The request that specifies what changes the subscriber is interested in, including the starting
 	 * version, index, and content types to capture.
@@ -84,18 +86,24 @@ public class ChangeCatalogCapturePublisher implements ChangeCapturePublisher<Cha
 	 * active subscriptions and to unsubscribe them when the publisher is closed.
 	 */
 	private final Set<UUID> subscribers = new ConcurrentSkipListSet<>();
+	/**
+	 * The shared publisher that this publisher delegates to. It handles the actual publishing of events
+	 * to multiple subscribers and manages the underlying change capture mechanism.
+	 */
+	private WeakReference<ChangeCatalogCaptureSharedPublisher> sharedPublisher;
 
 	/**
 	 * Creates a new instance of {@link ChangeCatalogCapturePublisher}.
 	 *
-	 * @param sharedPublisher the shared publisher that this publisher delegates to
+	 * @param sharedPublisherFactory the factory that creates or fetches the shared publisher
 	 * @param request the request that specifies what changes the subscriber is interested in
 	 */
 	public ChangeCatalogCapturePublisher(
-		@Nonnull ChangeCatalogCaptureSharedPublisher sharedPublisher,
+		@Nonnull Function<ChangeCatalogCriteriaBundle, ChangeCatalogCaptureSharedPublisher> sharedPublisherFactory,
 		@Nonnull ChangeCatalogCaptureRequest request
 	) {
-		this.sharedPublisher = sharedPublisher;
+		this.sharedPublisherFactory = sharedPublisherFactory;
+		this.sharedPublisher = new WeakReference<>(null);
 		this.request = request;
 	}
 
@@ -112,23 +120,36 @@ public class ChangeCatalogCapturePublisher implements ChangeCapturePublisher<Cha
 	@Override
 	public void subscribe(Subscriber<? super ChangeCatalogCapture> subscriber) {
 		assertActive();
-		final ChangeCatalogCaptureSubscription subscription = this.sharedPublisher.subscribe(
+		ChangeCatalogCaptureSharedPublisher theSharedPublisher = this.sharedPublisher.get();
+		if (theSharedPublisher == null || theSharedPublisher.isClosed()) {
+			// the shared publisher has been closed in the meantime - we need to renew it
+			final ChangeCatalogCaptureCriteria[] requestedCriteria = this.request.criteria();
+			final ChangeCatalogCriteriaBundle criteriaBundle = requestedCriteria == null ?
+				ChangeCatalogCriteriaBundle.CATCH_ALL : new ChangeCatalogCriteriaBundle(requestedCriteria);
+			theSharedPublisher = this.sharedPublisherFactory.apply(criteriaBundle);
+			this.sharedPublisher = new WeakReference<>(theSharedPublisher);
+		}
+		final ChangeCatalogCaptureSubscription subscription = theSharedPublisher.subscribe(
 			subscriber,
 			new WalPointerWithContent(
-				ofNullable(this.request.sinceVersion()).orElseGet(() -> this.sharedPublisher.getCatalog().getVersion() + 1),
+				ofNullable(this.request.sinceVersion()).orElse(theSharedPublisher.getCatalog().getVersion() + 1),
 				ofNullable(this.request.sinceIndex()).orElse(0),
 				this.request.content()
 			)
 		);
-		this.subscribers.add(subscription.getSubscriberId());
+		this.subscribers.add(subscription.getSubscriptionId());
 	}
 
 	@Override
 	public void close() {
-		// shared publisher is closed automatically when all subscribers are closed
 		if (this.closed.compareAndSet(false, true)) {
-			for (UUID subscriberId : this.subscribers) {
-				this.sharedPublisher.unsubscribe(subscriberId);
+			if (!this.subscribers.isEmpty()) {
+				final ChangeCatalogCaptureSharedPublisher theSharedPublisher = this.sharedPublisher.get();
+				if (theSharedPublisher != null && !theSharedPublisher.isClosed()) {
+					for (UUID subscriberId : this.subscribers) {
+						theSharedPublisher.unsubscribe(subscriberId);
+					}
+				}
 			}
 		}
 	}
@@ -143,7 +164,6 @@ public class ChangeCatalogCapturePublisher implements ChangeCapturePublisher<Cha
 			!this.closed.get(),
 			() -> new InstanceTerminatedException("CDC publisher")
 		);
-		this.sharedPublisher.assertActive();
 	}
 
 }
