@@ -26,6 +26,7 @@ package io.evitadb.api;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import com.github.javafaker.Faker;
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -295,7 +296,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						.map(it -> {
 							assertFalse(Transaction.getTransaction().isPresent());
 							final AtomicReference<EntityReference> createdReference = new AtomicReference<>();
-							final CompletableFuture<Long> targetCatalogVersion = evita.updateCatalogAsync(
+							final CompletableFuture<CommitVersions> targetCatalogVersion = evita.updateCatalogAsync(
 								TEST_CATALOG,
 								session -> {
 									final long currentCatalogVersion = session.getCatalogVersion();
@@ -316,10 +317,12 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 											);
 										}
 									}
-								}, CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, SessionFlags.READ_WRITE
-							);
+								}, SessionFlags.READ_WRITE
+							)
+								.onWalAppended()
+								.toCompletableFuture();
 							try {
-								final Long catalogVersion = targetCatalogVersion.get();
+								final long catalogVersion = targetCatalogVersion.get().catalogVersion();
 								final PkWithCatalogVersion pkWithCatalogVersion = new PkWithCatalogVersion(createdReference.get(), catalogVersion);
 								primaryKeysWithTxIds.add(pkWithCatalogVersion);
 								return pkWithCatalogVersion;
@@ -469,32 +472,32 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			);
 
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleBrandSchema(session),
+			this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleBrandSchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(5)
 				.forEach(session::upsertEntity);
 
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleCategorySchema(session),
+			this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleCategorySchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(10)
 				.forEach(session::upsertEntity);
 
-			dataGenerator.generateEntities(
-					dataGenerator.getSamplePriceListSchema(session),
+			this.dataGenerator.generateEntities(
+					this.dataGenerator.getSamplePriceListSchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(4)
 				.forEach(session::upsertEntity);
 
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleStoreSchema(session),
+			this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleStoreSchema(session),
 					randomEntityPicker,
 					SEED
 				)
@@ -502,7 +505,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.forEach(session::upsertEntity);
 
 			// create product schema
-			return dataGenerator.getSampleProductSchema(
+			return this.dataGenerator.getSampleProductSchema(
 				session, schemaBuilder -> {
 					return schemaBuilder
 						.withoutGeneratedPrimaryKey()
@@ -514,7 +517,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 	@AfterEach
 	void tearDown() {
-		observableOutputKeeper.close();
+		this.observableOutputKeeper.close();
 	}
 
 	@DisplayName("Catalog should be automatically updated after a load with existing WAL contents.")
@@ -532,7 +535,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			0L,
 			TEST_CATALOG,
 			catalogDirectory,
-			catalogKryoPool,
+			this.catalogKryoPool,
 			StorageOptions.builder().build(),
 			TransactionOptions.builder().build(),
 			Mockito.mock(Scheduler.class),
@@ -543,7 +546,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		// create WAL file with a few contents first
 		final Map<Long, List<EntityContract>> generatedEntities = appendWal(
-			1L, offHeapMemoryManager, wal, new int[]{3, 4, 2}, catalogSchema, productSchema
+			1L, this.offHeapMemoryManager, wal, new int[]{3, 4, 2}, catalogSchema, productSchema
 		);
 
 		// start evita again and wait for the WAL to be processed
@@ -558,7 +561,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		// append a few additional WAL entries
 		final Map<Long, List<EntityContract>> additionalGeneratedEntities = appendWal(
-			4L, offHeapMemoryManager, wal, new int[]{5, 7}, catalogSchema, productSchema
+			4L, this.offHeapMemoryManager, wal, new int[]{5, 7}, catalogSchema, productSchema
 		);
 
 		// start evitaDB again and wait for the WAL to be processed
@@ -588,7 +591,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				0L,
 				TEST_CATALOG,
 				catalogDirectory,
-				catalogKryoPool,
+				this.catalogKryoPool,
 				StorageOptions.builder().build(),
 				TransactionOptions.builder().build(),
 				Mockito.mock(Scheduler.class),
@@ -620,7 +623,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			for (int[] transactionSize : transactionSizes) {
 				// create WAL file with a few contents first
 				appendWal(
-					catalogVersion, offHeapMemoryManager, wal, transactionSize, catalogSchema, productSchema
+					catalogVersion, this.offHeapMemoryManager, wal, transactionSize, catalogSchema, productSchema
 				);
 				catalogVersion += transactionSize.length;
 
@@ -796,7 +799,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
-				final Optional<SealedEntity> upsertedEntity = dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
 					.limit(1)
 					.map(session::upsertAndFetchEntity)
 					.findFirst();
@@ -823,7 +826,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
-				final Optional<SealedEntity> upsertedEntity = dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
 					.limit(1)
 					.map(session::upsertAndFetchEntity)
 					.findFirst();
@@ -831,7 +834,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				return upsertedEntity.get();
 			},
 			CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION
-		);
+		).toCompletableFuture();
 
 		while (!addedEntity.isDone()) {
 			Thread.onSpinWait();
@@ -857,10 +860,10 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
 	void shouldAutomaticallyRollbackTheTransactionWhenExceptionIsThrownInManuallyOpenedSession(EvitaContract evita, SealedEntitySchema productSchema) {
-		final EvitaSessionContract session = evita.createSession(new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_INDEX_PROPAGATION, SessionFlags.READ_WRITE));
+		final EvitaSessionContract session = evita.createSession(new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, SessionFlags.READ_WRITE));
 
 		final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
-		final Optional<EntityMutation> entityMutation = dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+		final Optional<EntityMutation> entityMutation = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
 			.findFirst()
 			.flatMap(InstanceEditor::toMutation);
 		assertTrue(entityMutation.isPresent());
@@ -900,7 +903,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
-					final Optional<EntityMutation> entityMutation = dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+					final Optional<EntityMutation> entityMutation = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
 						.findFirst()
 						.flatMap(InstanceEditor::toMutation);
 					assertTrue(entityMutation.isPresent());
@@ -932,7 +935,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
-				final Optional<EntityMutation> entityMutation = dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+				final Optional<EntityMutation> entityMutation = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
 					.findFirst()
 					.flatMap(InstanceEditor::toMutation);
 				assertTrue(entityMutation.isPresent());
@@ -953,7 +956,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey());
+				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntity.getPrimaryKeyOrThrowException());
 				assertTrue(fetchedEntity.isPresent());
 				assertEquals(addedEntity, fetchedEntity.get());
 			}
@@ -969,7 +972,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
-				final Optional<SealedEntity> upsertedEntity = dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
 					.limit(1)
 					.map(session::upsertAndFetchEntity)
 					.findFirst();
@@ -993,27 +996,29 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
 	void shouldUpdateCatalogWithAnotherProductAsynchronouslyUsingRunnable(EvitaContract evita, SealedEntitySchema productSchema) {
+		final CommitVersions nonSenseValue = new CommitVersions(Long.MIN_VALUE, Integer.MIN_VALUE);
 		final AtomicReference<SealedEntity> addedEntity = new AtomicReference<>();
-		final CompletableFuture<Long> nextCatalogVersion = evita.updateCatalogAsync(
+		final CompletableFuture<CommitVersions> nextCatalogVersion = evita.updateCatalogAsync(
 			TEST_CATALOG,
 			session -> {
 				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
-				final Optional<SealedEntity> upsertedEntity = dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
 					.limit(1)
 					.map(session::upsertAndFetchEntity)
 					.findFirst();
 				assertTrue(upsertedEntity.isPresent());
 				addedEntity.set(upsertedEntity.get());
-			},
-			CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION
-		);
+			}
+		)
+			.onConflictResolved()
+			.toCompletableFuture();
 
-		final Integer addedEntityPrimaryKey = addedEntity.get().getPrimaryKey();
+		final int addedEntityPrimaryKey = addedEntity.get().getPrimaryKeyOrThrowException();
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final long catalogVersion = session.getCatalogVersion();
-				if (nextCatalogVersion.isDone() && nextCatalogVersion.getNow(Long.MIN_VALUE) == catalogVersion) {
+				if (nextCatalogVersion.isDone() && nextCatalogVersion.getNow(nonSenseValue).catalogVersion() == catalogVersion) {
 					// the entity is already propagated to indexes
 					final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
 					assertTrue(fetchedEntity.isPresent());
@@ -1033,7 +1038,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				session -> {
 					final Optional<SealedEntity> entityFetchedAgain = session.getEntity(productSchema.getName(), addedEntityPrimaryKey);
 					final long catalogVersion = session.getCatalogVersion();
-					final long expectedCatalogVersion = nextCatalogVersion.getNow(Long.MIN_VALUE);
+					final long expectedCatalogVersion = nextCatalogVersion.getNow(nonSenseValue).catalogVersion();
 					if (entityFetchedAgain.isPresent()) {
 						assertEquals(expectedCatalogVersion, catalogVersion);
 						return true;
@@ -1090,7 +1095,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					final int bulkSize = 16;
-					dataGenerator.generateEntities(
+					this.dataGenerator.generateEntities(
 							productSchema,
 							(entityType, faker) -> {
 								try (EvitaSessionContract readOnlySession = evita.createReadOnlySession(TEST_CATALOG)) {
@@ -1158,11 +1163,11 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	@Tag(LONG_RUNNING_TEST)
 	@Test
 	void shouldHandleLargeTransaction(EvitaContract evita, SealedEntitySchema productSchema) {
-		final EvitaSessionContract session = evita.createSession(new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_INDEX_PROPAGATION, SessionFlags.READ_WRITE));
+		final EvitaSessionContract session = evita.createSession(new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, SessionFlags.READ_WRITE));
 
 		final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
 		final int entityCount = 500;
-		dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+		this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
 			.limit(entityCount)
 			.map(InstanceEditor::toMutation)
 			.flatMap(Optional::stream)
@@ -1494,10 +1499,13 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 								.setAttribute(attributePrice, BigDecimal.valueOf(faker.number().randomDouble(2, 1, 1000)));
 							theEntityRef.set(entityBuilder.toInstance());
 							entityBuilder.upsertVia(session);
-						},
+						}
+					)
 						// fast track - we don't wait for anything (to cause as much "churn" as we can)
-						CommitBehavior.WAIT_FOR_WAL_PERSISTENCE
-					).get();
+						.onWalAppended()
+						.toCompletableFuture()
+						.get()
+						.catalogVersion();
 
 					final SealedEntity theEntity = theEntityRef.get();
 					if (theEntity != null) {
@@ -1659,7 +1667,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final Map<Long, List<EntityContract>> entitiesInMutations = CollectionUtils.createHashMap(transactionSizes.length);
 		for (int i = 0; i < transactionSizes.length; i++) {
 			int txSize = transactionSizes[i];
-			final LinkedList<InstanceWithMutation> entities = dataGenerator.generateEntities(
+			final LinkedList<InstanceWithMutation> entities = this.dataGenerator.generateEntities(
 					productSchema,
 					(serializable, faker) -> null,
 					42
@@ -1703,16 +1711,16 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		@Override
 		public int compareTo(PkWithCatalogVersion o) {
-			final int first = entityReference.compareTo(o.entityReference);
-			return first == 0 ? Long.compare(catalogVersion, o.catalogVersion) : first;
+			final int first = this.entityReference.compareTo(o.entityReference);
+			return first == 0 ? Long.compare(this.catalogVersion, o.catalogVersion) : first;
 		}
 
 		public String getType() {
-			return entityReference.getType();
+			return this.entityReference.getType();
 		}
 
 		public int getPrimaryKey() {
-			return entityReference.getPrimaryKey();
+			return this.entityReference.getPrimaryKey();
 		}
 	}
 

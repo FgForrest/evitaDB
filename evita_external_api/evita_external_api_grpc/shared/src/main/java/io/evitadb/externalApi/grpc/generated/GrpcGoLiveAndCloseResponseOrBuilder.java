@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,4 +49,16 @@ public interface GrpcGoLiveAndCloseResponseOrBuilder extends
    * @return The catalogVersion.
    */
   long getCatalogVersion();
+
+  /**
+   * <pre>
+   * Contains the version of the catalog schema that will be valid at the moment of closing the session.
+   * If session relates to a writable transaction, this schema version becomes valid at the moment the next catalog
+   * version (i.e. the one that is returned in the response) becomes visible.
+   * </pre>
+   *
+   * <code>int32 catalogSchemaVersion = 3;</code>
+   * @return The catalogSchemaVersion.
+   */
+  int getCatalogSchemaVersion();
 }

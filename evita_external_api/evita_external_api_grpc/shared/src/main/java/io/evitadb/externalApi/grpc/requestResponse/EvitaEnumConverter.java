@@ -881,7 +881,7 @@ public class EvitaEnumConverter {
 		return switch (commitBehavior) {
 			case WAIT_FOR_CONFLICT_RESOLUTION -> GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION;
 			case WAIT_FOR_WAL_PERSISTENCE -> GrpcCommitBehavior.WAIT_FOR_LOG_PERSISTENCE;
-			case WAIT_FOR_INDEX_PROPAGATION -> GrpcCommitBehavior.WAIT_FOR_INDEX_PROPAGATION;
+			case WAIT_FOR_CHANGES_VISIBLE -> GrpcCommitBehavior.WAIT_FOR_CHANGES_VISIBLE;
 		};
 	}
 
@@ -897,7 +897,7 @@ public class EvitaEnumConverter {
 		return switch (commitBehaviour) {
 			case WAIT_FOR_CONFLICT_RESOLUTION -> CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION;
 			case WAIT_FOR_LOG_PERSISTENCE -> CommitBehavior.WAIT_FOR_WAL_PERSISTENCE;
-			case WAIT_FOR_INDEX_PROPAGATION -> CommitBehavior.WAIT_FOR_INDEX_PROPAGATION;
+			case WAIT_FOR_CHANGES_VISIBLE -> CommitBehavior.WAIT_FOR_CHANGES_VISIBLE;
 			default -> throw new GenericEvitaInternalError("Unrecognized remote commit behavior: " + commitBehaviour);
 		};
 	}
@@ -1318,4 +1318,18 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts a given CommitBehavior to its corresponding GrpcTransactionPhase.
+	 *
+	 * @param commitBehavior the commit behavior to be converted, must not be null
+	 * @return the corresponding GrpcTransactionPhase based on the provided commit behavior
+	 */
+	@Nonnull
+	public static GrpcTransactionPhase toGrpcCommitPhase(@Nonnull CommitBehavior commitBehavior) {
+		return switch (commitBehavior) {
+			case WAIT_FOR_CONFLICT_RESOLUTION -> GrpcTransactionPhase.CONFLICTS_RESOLVED;
+			case WAIT_FOR_WAL_PERSISTENCE -> GrpcTransactionPhase.WAL_PERSISTED;
+			case WAIT_FOR_CHANGES_VISIBLE -> GrpcTransactionPhase.CHANGES_VISIBLE;
+		};
+	}
 }

@@ -1653,7 +1653,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		final Executable executable = () -> evitaSessionBlockingStub.close(
 			GrpcCloseRequest.newBuilder()
-				.setCommitBehaviour(GrpcCommitBehavior.WAIT_FOR_INDEX_PROPAGATION)
+				.setCommitBehaviour(GrpcCommitBehavior.WAIT_FOR_CHANGES_VISIBLE)
 				.build()
 		);
 

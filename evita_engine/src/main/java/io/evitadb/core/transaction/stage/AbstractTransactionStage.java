@@ -23,6 +23,7 @@
 
 package io.evitadb.core.transaction.stage;
 
+import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.utils.Assert;
@@ -31,7 +32,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
@@ -108,7 +108,12 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 			// delegate handling logic to the concrete implementation
 			handleNext(task);
 		} catch (Throwable ex) {
-			handleException(task, ex);
+			// if the handle exception throws an exception, we need to handle it, and go on
+			try {
+				handleException(task, ex);
+			} catch (Throwable e) {
+				log.error("Error while handling exception in " + getName() + " task for catalog `" + task.catalogName() + "`!", e);
+			}
 		}
 		this.subscription.request(1);
 	}
@@ -120,11 +125,8 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	 */
 	protected void handleException(@Nonnull T task, @Nonnull Throwable ex) {
 		log.error("Error while processing " + getName() + " task for catalog `" + task.catalogName() + "`!", ex);
-		final CompletableFuture<Long> future = task.future();
-		if (future != null) {
-			future.completeExceptionally(ex);
-		}
-		onException.accept(task, ex);
+		completeExceptionally(task.commitProgress(), ex);
+		this.onException.accept(task, ex);
 	}
 
 	@Override
@@ -170,40 +172,36 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 			(subscriber, theTask) -> {
 				final String text = targetTask.getClass().isAnnotationPresent(NonRepeatableTask.class) ?
 					" - some committed data will be lost" : "";
-				final TransactionException exception;
-				if (sourceTask.future() != null && targetTask.future() == null) {
-					exception = new TransactionException(
+				handleException(
+					sourceTask,
+					new TransactionException(
 						"The task " + getName() + " is completed, but cannot push " + targetTask.getClass().getSimpleName() +
 							" to next stage" + text + ".",
 						new RejectedExecutionException()
-					);
-				} else {
-					exception = new TransactionException(
-						"The task " + getName() + " is completed, but cannot push " + targetTask.getClass().getSimpleName() +
-							text + " to next stage and no one will be informed about it!",
-						new RejectedExecutionException()
-					);
-				}
-				handleException(sourceTask, exception);
+					)
+				);
 				return false;
 			}
 		);
 
-		if (sourceTask.future() != null && targetTask.future() == null) {
-			sourceTask.future().complete(targetTask.catalogVersion());
-		}
+		complete(sourceTask.commitProgress(), sourceTask, targetTask);
 	}
 
 	/**
-	 * Terminates the task and avoid propagation to next stage.
+	 * Marks particular stage of the transaction as completed.
 	 *
-	 * @param sourceTask The source task to be pushed.
-	 * @param targetTask The target task to be created.
+	 * @param commitProgress the commit progress record for the transaction
 	 */
-	protected void terminate(@Nonnull T sourceTask, @Nonnull F targetTask) {
-		if (sourceTask.future() != null && targetTask.future() == null) {
-			sourceTask.future().complete(targetTask.catalogVersion());
-		}
+	protected abstract void complete(@Nonnull CommitProgressRecord commitProgress, @Nonnull T sourceTask, @Nonnull F targetTask);
+
+	/**
+	 * Marks particular stage of the transaction as completed with exception.
+	 *
+	 * @param commitProgress the commit progress record for the transaction
+	 */
+	protected void completeExceptionally(@Nonnull CommitProgressRecord commitProgress, @Nonnull Throwable exception) {
+		// this method will complete all non-completed futures with exception
+		commitProgress.completeExceptionally(exception);
 	}
 
 }

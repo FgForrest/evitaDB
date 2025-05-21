@@ -2236,6 +2236,20 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
+	public void verifyIntegrity() {
+		Assert.isPremiseValid(
+			getCatalogHeader(this.bootstrapUsed.catalogVersion()).version() == this.bootstrapUsed.catalogVersion(),
+			"Catalog version mismatch! Expected `" + this.bootstrapUsed.catalogVersion() + "` but found `" + getCatalogHeader(this.bootstrapUsed.catalogVersion()).version() + "`!"
+		);
+		if (this.catalogWal != null) {
+			Assert.isPremiseValid(
+				this.catalogWal.getLastWrittenCatalogVersion() == this.bootstrapUsed.catalogVersion(),
+				"Catalog WAL version mismatch! Expected `" + this.bootstrapUsed.catalogVersion() + "` but found `" + this.catalogWal.getLastWrittenCatalogVersion() + "`!"
+			);
+		}
+	}
+
+	@Override
 	public long getSizeOnDiskInBytes() {
 		return FileUtils.getDirectorySize(this.catalogStoragePath);
 	}

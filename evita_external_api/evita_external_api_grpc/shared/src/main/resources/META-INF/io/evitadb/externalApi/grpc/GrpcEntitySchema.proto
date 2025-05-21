@@ -136,6 +136,8 @@ message GrpcEntitySchema {
 	//
 	// Prices can be also set as non-indexed individually by setting {@link PriceContract#indexed()} to false.
   repeated GrpcEntityScope priceIndexedInScopes = 18;
+  // Contains current version of the catalog schema this entity schema belongs to.
+  int64 catalogSchemaVersion = 19;
 }
 
 // This is the definition object for attributes that are stored along with

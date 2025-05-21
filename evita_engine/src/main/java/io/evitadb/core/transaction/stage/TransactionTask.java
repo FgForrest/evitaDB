@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,13 +23,11 @@
 
 package io.evitadb.core.transaction.stage;
 
-import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * This interface represents a transaction task, which is a unit of work performed within a transaction. It provides
@@ -52,11 +50,20 @@ public interface TransactionTask {
 	String catalogName();
 
 	/**
-	 * Returns the version of the catalog the transaction is bound to.
+	 * Returns the version of the catalog that will be valid in the catalog after the transaction is
+	 * committed.
 	 *
 	 * @return The catalog version assigned to the transaction task
 	 */
 	long catalogVersion();
+
+	/**
+	 * Returns the version of the catalog schema that will be valid in the catalog after the transaction is
+	 * committed.
+	 *
+	 * @return The catalog schema version assigned to the transaction task
+	 */
+	int catalogSchemaVersion();
 
 	/**
 	 * Retrieves the unique ID of the transaction that carries the changes to the database.
@@ -67,23 +74,14 @@ public interface TransactionTask {
 	UUID transactionId();
 
 	/**
-	 * Retrieves the commit behavior of the transaction task. Commit behavior defines the moment the transaction is
-	 * considered as committed from the client point of view.
-	 *
-	 * @return The commit behavior of the transaction task
-	 */
-	@Nonnull
-	CommitBehavior commitBehaviour();
-
-	/**
-	 * Retrieves the future associated with this transaction task. The future represents the completion of the task
-	 * execution and returns a new catalog version when completed. It's non-null ony if the client still waits for
-	 * the transaction to reach the requested processing stage.
+	 * Retrieves the {@link CommitProgressRecord} associated with this transaction task. The this record contains
+	 * future objects that represents the completion of the task execution and returns a new catalog version when
+	 * completed.
 	 *
 	 * @return The future associated with the transaction task
 	 */
-	@Nullable
-	CompletableFuture<Long> future();
+	@Nonnull
+	CommitProgressRecord commitProgress();
 
 	/**
 	 * Contains the event generated when the task was created.

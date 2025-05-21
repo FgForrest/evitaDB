@@ -26,6 +26,7 @@ package io.evitadb.driver;
 import com.github.javafaker.Faker;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
+import io.evitadb.api.CommitProgress;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
@@ -141,6 +142,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@SuppressWarnings("DataFlowIssue")
 @Slf4j
 @ExtendWith(EvitaParameterResolver.class)
 class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
@@ -1358,7 +1360,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 					.withGlobalAttribute(ATTRIBUTE_CODE)
 					.updateVia(session);
 				assertTrue(session.getAllEntityTypes().contains(newCollection));
-				productSchemaVersion.set(session.getEntitySchemaOrThrow(Entities.PRODUCT).version());
+				productSchemaVersion.set(session.getEntitySchemaOrThrowException(Entities.PRODUCT).version());
 				productCount.set(session.getEntityCollectionSize(Entities.PRODUCT));
 			}
 		);
@@ -1376,7 +1378,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			session -> {
 				assertFalse(session.getAllEntityTypes().contains(Entities.PRODUCT));
 				assertTrue(session.getAllEntityTypes().contains(newCollection));
-				assertEquals(productSchemaVersion.get() + 1, session.getEntitySchemaOrThrow(newCollection).version());
+				assertEquals(productSchemaVersion.get() + 1, session.getEntitySchemaOrThrowException(newCollection).version());
 				assertEquals(productCount.get(), session.getEntityCollectionSize(newCollection));
 			}
 		);
@@ -1394,7 +1396,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			session -> {
 				assertTrue(session.getAllEntityTypes().contains(Entities.PRODUCT));
 				assertFalse(session.getAllEntityTypes().contains(newCollection));
-				productSchemaVersion.set(session.getEntitySchemaOrThrow(Entities.PRODUCT).version());
+				productSchemaVersion.set(session.getEntitySchemaOrThrowException(Entities.PRODUCT).version());
 				productCount.set(session.getEntityCollectionSize(Entities.PRODUCT));
 			}
 		);
@@ -1455,7 +1457,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	@Test
 	void shouldUpdateCatalogWithAnotherProductAsynchronously(EvitaContract evita, SealedEntitySchema productSchema) {
 		final AtomicInteger addedEntityPrimaryKey = new AtomicInteger();
-		final CompletableFuture<SealedEntity> addedEntity = evita.updateCatalogAsync(
+		final CommitProgress commitProgress = evita.updateCatalogAsync(
 			TEST_CATALOG,
 			session -> {
 				final Optional<SealedEntity> upsertedEntity = DATA_GENERATOR.generateEntities(productSchema, RANDOM_ENTITY_PICKER, SEED)
@@ -1464,20 +1466,30 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 					.findFirst();
 				assertTrue(upsertedEntity.isPresent());
 				addedEntityPrimaryKey.set(upsertedEntity.get().getPrimaryKey());
-				return upsertedEntity.get();
 			},
 			CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION
 		);
 
-		final int expectedEntityPrimaryKey = addedEntityPrimaryKey.get();
-		while (!addedEntity.isDone()) {
-			Thread.onSpinWait();
-		}
+		List<String> worklog = new ArrayList<>();
+		commitProgress.onConflictResolved().thenAccept(it -> worklog.add("Conflict resolved!"));
+		commitProgress.onWalAppended().thenAccept(it -> worklog.add("WAL appended!"));
+		commitProgress.onChangesVisible().thenAccept(it -> worklog.add("Changes visible!"));
+
+		commitProgress.onChangesVisible().toCompletableFuture().join();
+
+		assertArrayEquals(
+			new String[] {
+				"Conflict resolved!",
+				"WAL appended!",
+				"Changes visible!"
+			},
+			worklog.toArray(new String[0])
+		);
 
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Optional<SealedEntity> entityFetchedAgain = session.getEntity(productSchema.getName(), expectedEntityPrimaryKey, entityFetchAllContent());
+				final Optional<SealedEntity> entityFetchedAgain = session.getEntity(productSchema.getName(), addedEntityPrimaryKey.get(), entityFetchAllContent());
 				assertTrue(entityFetchedAgain.isPresent(), "Entity not found in catalog!");
 			}
 		);
@@ -1770,11 +1782,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				final SealedEntity updatedEntity = session.upsertAndFetchEntity(
 					entityMutation, entityFetchAll().getRequirements()
 				);
-				newProductId.set(updatedEntity.getPrimaryKey());
+				newProductId.set(updatedEntity.getPrimaryKeyOrThrowException());
 				theEntity.set(updatedEntity);
 
 				final ProductInterface archivedEntity = session.archiveEntity(
-					ProductInterface.class, updatedEntity.getPrimaryKey(), entityFetchAllContent()
+					ProductInterface.class, updatedEntity.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertProduct(updatedEntity, archivedEntity, originalCategories);

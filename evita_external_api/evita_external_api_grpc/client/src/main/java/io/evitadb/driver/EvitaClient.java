@@ -31,6 +31,8 @@ import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.CommitProgress;
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
@@ -97,6 +99,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -495,7 +498,7 @@ public class EvitaClient implements EvitaContract {
 
 	@Override
 	public boolean isActive() {
-		return active.get();
+		return this.active.get();
 	}
 
 	@Nonnull
@@ -749,7 +752,7 @@ public class EvitaClient implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public <T> CompletableFuture<T> updateCatalogAsync(
+	public <T> CompletionStage<T> updateCatalogAsync(
 		@Nonnull String catalogName,
 		@Nonnull Function<EvitaSessionContract, T> updater,
 		@Nonnull CommitBehavior commitBehaviour,
@@ -764,7 +767,7 @@ public class EvitaClient implements EvitaContract {
 				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		final EvitaSessionContract session = this.createSession(traits);
-		final CompletableFuture<Long> closeFuture;
+		final CompletionStage<CommitVersions> closeFuture;
 		final T resultValue;
 		try {
 			resultValue = updater.apply(session);
@@ -801,7 +804,7 @@ public class EvitaClient implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public CompletableFuture<Long> updateCatalogAsync(
+	public CommitProgress updateCatalogAsync(
 		@Nonnull String catalogName,
 		@Nonnull Consumer<EvitaSessionContract> updater,
 		@Nonnull CommitBehavior commitBehaviour,
@@ -816,14 +819,14 @@ public class EvitaClient implements EvitaContract {
 				ArrayUtils.insertRecordIntoArrayOnIndex(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		final EvitaSessionContract session = this.createSession(traits);
-		final CompletableFuture<Long> closeFuture;
+		final CommitProgress commitProgress;
 		try {
 			updater.accept(session);
 		} finally {
-			closeFuture = session.closeNow(commitBehaviour);
+			commitProgress = session.closeNowWithProgress();
 		}
 
-		return closeFuture;
+		return commitProgress;
 	}
 
 	@Nonnull
@@ -834,7 +837,7 @@ public class EvitaClient implements EvitaContract {
 
 	@Override
 	public void close() {
-		if (active.compareAndSet(true, false)) {
+		if (this.active.compareAndSet(true, false)) {
 			this.activeSessions.values().forEach(EvitaSessionContract::close);
 			this.activeSessions.clear();
 			// todo jno: reimplement to publishers
@@ -898,7 +901,7 @@ public class EvitaClient implements EvitaContract {
 	 * Verifies this instance is still active.
 	 */
 	protected void assertActive() {
-		if (!active.get()) {
+		if (!this.active.get()) {
 			throw new InstanceTerminatedException("client instance");
 		}
 	}

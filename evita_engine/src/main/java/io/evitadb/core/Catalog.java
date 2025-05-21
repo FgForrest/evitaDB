@@ -29,9 +29,9 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
+import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CatalogNotAliveException;
@@ -139,7 +139,6 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -349,7 +348,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		this.entityCollections = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
 		this.entitySchemaIndex = new TransactionalMap<>(createHashMap(0));
-		this.entityTypeSequence = sequenceService.getOrCreateSequence(
+		this.entityTypeSequence = this.sequenceService.getOrCreateSequence(
 			catalogName, SequenceType.ENTITY_COLLECTION, 0
 		);
 		this.catalogIndex = new CatalogIndex(Scope.LIVE);
@@ -480,7 +479,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				catalogName, SequenceType.ENTITY_COLLECTION, catalogHeader.lastEntityCollectionPrimaryKey()
 			);
 			this.entityCollectionsByPrimaryKey = new TransactionalMap<>(
-				entityCollections.values()
+				this.entityCollections.values()
 					.stream()
 					.collect(
 						Collectors.toMap(
@@ -622,7 +621,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Override
 	@Nonnull
 	public SealedCatalogSchema getSchema() {
-		return schema.get();
+		return this.schema.get();
 	}
 
 	@Nonnull
@@ -643,7 +642,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Override
 	@Nonnull
 	public String getName() {
-		return schema.get().getName();
+		return this.schema.get().getName();
 	}
 
 	@Override
@@ -664,13 +663,13 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Override
 	public boolean supportsTransaction() {
-		return state == CatalogState.ALIVE;
+		return this.state == CatalogState.ALIVE;
 	}
 
 	@Override
 	@Nonnull
 	public Set<String> getEntityTypes() {
-		return entityCollections.keySet();
+		return this.entityCollections.keySet();
 	}
 
 	@Override
@@ -705,13 +704,13 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Override
 	@Nonnull
 	public Optional<EntityCollectionContract> getCollectionForEntity(@Nonnull String entityType) {
-		return ofNullable(entityCollections.get(entityType));
+		return ofNullable(this.entityCollections.get(entityType));
 	}
 
 	@Override
 	@Nonnull
 	public EntityCollection getCollectionForEntityOrThrowException(@Nonnull String entityType) throws CollectionNotFoundException {
-		return ofNullable(entityCollections.get(entityType))
+		return ofNullable(this.entityCollections.get(entityType))
 			.orElseThrow(() -> new CollectionNotFoundException(entityType));
 	}
 
@@ -725,13 +724,13 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Override
 	@Nonnull
 	public EntityCollection getOrCreateCollectionForEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType) {
-		return ofNullable(entityCollections.get(entityType))
+		return ofNullable(this.entityCollections.get(entityType))
 			.orElseGet(() -> {
 				if (!getSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
 					throw new InvalidSchemaMutationException(entityType, CatalogEvolutionMode.ADDING_ENTITY_TYPES);
 				}
 				updateSchema(session, new CreateEntitySchemaMutation(entityType));
-				return Objects.requireNonNull(entityCollections.get(entityType));
+				return Objects.requireNonNull(this.entityCollections.get(entityType));
 			});
 	}
 
@@ -820,13 +819,13 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Nonnull
 	@Override
 	public Map<String, EntitySchemaContract> getEntitySchemaIndex() {
-		return entitySchemaIndex;
+		return this.entitySchemaIndex;
 	}
 
 	@Override
 	@Nonnull
 	public Optional<SealedEntitySchema> getEntitySchema(@Nonnull String entityType) {
-		return ofNullable(entityCollections.get(entityType))
+		return ofNullable(this.entityCollections.get(entityType))
 			.map(EntityCollection::getSchema);
 	}
 
@@ -887,6 +886,8 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				},
 				() -> updatedCatalogConsumer.accept(this)
 			);
+
+		this.persistenceService.verifyIntegrity();
 	}
 
 	@Nonnull
@@ -996,7 +997,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Nonnull
 	public Optional<EntityCollection> getCollectionForEntityInternal(@Nonnull String entityType) {
-		return ofNullable(entityCollections.get(entityType));
+		return ofNullable(this.entityCollections.get(entityType));
 	}
 
 	/**
@@ -1193,21 +1194,24 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	/**
 	 * Commits a Write-Ahead Log (WAL) for and processes the transaction.
 	 *
-	 * @param transactionId         The ID of the transaction to commit.
-	 * @param commitBehaviour       The requested stage the transaction needs to reach in order the returned future
-	 *                              is completed.
-	 * @param walPersistenceService The Write-Ahead Log persistence service.
+	 * @param transactionId                          The ID of the transaction to commit.
+	 * @param catalogSchemaVersionAtTransactionStart catalog schema version valid at transaction start
+	 * @param walPersistenceService                  The Write-Ahead Log persistence service.
+	 * @param commitProgress                         The record that allows tracking the commit progress.
 	 * @throws TransactionException If an unknown exception occurs while processing the transaction.
 	 */
 	public void commitWal(
 		@Nonnull UUID transactionId,
-		@Nonnull CommitBehavior commitBehaviour,
+		int catalogSchemaVersionAtTransactionStart,
 		@Nonnull IsolatedWalPersistenceService walPersistenceService,
-		@Nonnull CompletableFuture<Long> transactionFinalizationFuture
+		@Nonnull CommitProgressRecord commitProgress
 	) {
 		try {
 			this.transactionManager.commit(
-				transactionId, commitBehaviour, walPersistenceService, transactionFinalizationFuture
+				transactionId,
+				this.getSchema().version() - catalogSchemaVersionAtTransactionStart,
+				walPersistenceService,
+				commitProgress
 			);
 		} catch (Exception e) {
 			this.transactionManager.invalidateTransactionalPublisher();
@@ -1413,10 +1417,10 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 * mutations with an active transaction if available, applies schema modifications, and ensures persistence
 	 * and proper rollback in the event of an error.
 	 *
-	 * @param session         an optional {@link EvitaSessionContract} that may be used to record schema mutations,
-	 *                        if present
-	 * @param schemaMutation  an array of {@link LocalCatalogSchemaMutation} objects that specify the mutations
-	 *                        to apply to the catalog schema
+	 * @param session        an optional {@link EvitaSessionContract} that may be used to record schema mutations,
+	 *                       if present
+	 * @param schemaMutation an array of {@link LocalCatalogSchemaMutation} objects that specify the mutations
+	 *                       to apply to the catalog schema
 	 * @return the updated {@link SealedCatalogSchema} reflecting all applied mutations
 	 */
 	@Nonnull
@@ -1601,7 +1605,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		@Nullable Transaction transactionRef,
 		@Nonnull CatalogSchemaContract catalogSchema
 	) {
-		if (renameEntitySchemaMutation.isOverwriteTarget() && entityCollections.containsKey(renameEntitySchemaMutation.getNewName())) {
+		if (renameEntitySchemaMutation.isOverwriteTarget() && this.entityCollections.containsKey(renameEntitySchemaMutation.getNewName())) {
 			replaceEntityCollectionInternal(transactionRef != null, renameEntitySchemaMutation);
 		} else {
 			renameEntityCollectionInternal(transactionRef != null, renameEntitySchemaMutation);
@@ -1732,7 +1736,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			session, evitaRequest,
 			evitaRequest.isQueryTelemetryRequested() ? new QueryTelemetry(QueryPhase.OVERALL) : null,
 			Collections.emptyMap(),
-			cacheSupervisor
+			this.cacheSupervisor
 		);
 	}
 

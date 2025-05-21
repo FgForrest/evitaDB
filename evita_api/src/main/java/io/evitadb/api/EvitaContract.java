@@ -43,7 +43,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -235,7 +235,7 @@ public interface EvitaContract extends AutoCloseable {
 	 * @return future that is completed when the query finishes
 	 */
 	@Nonnull
-	<T> CompletableFuture<T> queryCatalogAsync(
+	<T> CompletionStage<T> queryCatalogAsync(
 		@Nonnull String catalogName,
 		@Nonnull Function<EvitaSessionContract, T> queryLogic,
 		@Nullable SessionFlags... flags
@@ -290,7 +290,7 @@ public interface EvitaContract extends AutoCloseable {
 		@Nullable SessionFlags... flags
 	) {
 		try {
-			return updateCatalogAsync(catalogName, updater, commitBehaviour, flags).join();
+			return updateCatalogAsync(catalogName, updater, commitBehaviour, flags).toCompletableFuture().join();
 		} catch (EvitaInvalidUsageException | EvitaInternalError e) {
 			throw e;
 		} catch (Exception e) {
@@ -320,7 +320,7 @@ public interface EvitaContract extends AutoCloseable {
 	 * @return future that is completed when the transaction reaches the processing stage defined by the `commitBehaviour`
 	 */
 	@Nonnull
-	<T> CompletableFuture<T> updateCatalogAsync(
+	<T> CompletionStage<T> updateCatalogAsync(
 		@Nonnull String catalogName,
 		@Nonnull Function<EvitaSessionContract, T> updater,
 		@Nonnull CommitBehavior commitBehaviour,
@@ -342,7 +342,10 @@ public interface EvitaContract extends AutoCloseable {
 		@Nullable SessionFlags... flags
 	) {
 		try {
-			updateCatalogAsync(catalogName, updater, commitBehaviour, flags).join();
+			updateCatalogAsync(catalogName, updater, commitBehaviour, flags)
+				.on(commitBehaviour)
+				.toCompletableFuture()
+				.join();
 		} catch (EvitaInvalidUsageException | EvitaInternalError e) {
 			throw e;
 		} catch (Exception e) {
@@ -358,16 +361,40 @@ public interface EvitaContract extends AutoCloseable {
 
 	/**
 	 * Overloaded method {@link #updateCatalogAsync(String, Function, CommitBehavior, SessionFlags...)} that returns
-	 * future that is completed when the transaction reaches the processing stage defined by the `commitBehaviour`
-	 * argument.
+	 * object containing futures that refer to all transaction processing phases that are completed when the transaction
+	 * processing finishes the particular processing stage.
 	 *
-	 * @return future that is completed when the transaction reaches the processing stage defined by the `commitBehaviour`
-	 * argument. Long represents catalog version where the transaction changes will be visible.
+	 * @param catalogName     name of the catalog
+	 * @param updater         application logic that reads and writes data
+	 * @param flags           optional flags that can be passed to the session and affect its behavior
+	 * @return object containing futures that refer to all transaction processing phases
 	 * @throws TransactionException when transaction fails
 	 * @see #updateCatalog(String, Function, CommitBehavior, SessionFlags[])
 	 */
 	@Nonnull
-	CompletableFuture<Long> updateCatalogAsync(
+	default CommitProgress updateCatalogAsync(
+		@Nonnull String catalogName,
+		@Nonnull Consumer<EvitaSessionContract> updater,
+		@Nullable SessionFlags... flags
+	) throws TransactionException {
+		return updateCatalogAsync(catalogName, updater, CommitBehavior.defaultBehaviour(), flags);
+	}
+
+	/**
+	 * Overloaded method {@link #updateCatalogAsync(String, Function, CommitBehavior, SessionFlags...)} that returns
+	 * object containing futures that refer to all transaction processing phases that are completed when the transaction
+	 * processing finishes the particular processing stage.
+	 *
+	 * @param catalogName     name of the catalog
+	 * @param updater         application logic that reads and writes data
+	 * @param commitBehaviour defines the commit processing stage at which the session is considered to be finished
+	 * @param flags           optional flags that can be passed to the session and affect its behavior
+	 * @return object containing futures that refer to all transaction processing phases
+	 * @throws TransactionException when transaction fails
+	 * @see #updateCatalog(String, Function, CommitBehavior, SessionFlags[])
+	 */
+	@Nonnull
+	CommitProgress updateCatalogAsync(
 		@Nonnull String catalogName,
 		@Nonnull Consumer<EvitaSessionContract> updater,
 		@Nonnull CommitBehavior commitBehaviour,

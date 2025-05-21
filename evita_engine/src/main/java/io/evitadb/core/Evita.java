@@ -23,12 +23,7 @@
 
 package io.evitadb.core;
 
-import io.evitadb.api.CatalogContract;
-import io.evitadb.api.CatalogState;
-import io.evitadb.api.EvitaContract;
-import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.EvitaSessionTerminationCallback;
-import io.evitadb.api.SessionTraits;
+import io.evitadb.api.*;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -372,7 +367,7 @@ public final class Evita implements EvitaContract {
 	 * Method for internal use. Can switch Evita from read-write to read-only one time only.
 	 */
 	public void setReadOnly() {
-		Assert.isTrue(!readOnly, "Only read-write evita can be switched to read-only instance!");
+		Assert.isTrue(!this.readOnly, "Only read-write evita can be switched to read-only instance!");
 		this.readOnly = true;
 	}
 
@@ -382,7 +377,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	public Collection<CatalogContract> getCatalogs() {
-		return catalogs.values();
+		return this.catalogs.values();
 	}
 
 	@Override
@@ -541,16 +536,18 @@ public final class Evita implements EvitaContract {
 			final T resultValue = createdSession.session().execute(updater);
 			// join the transaction future and return the result
 			final CompletableFuture<T> result = new CompletableFuture<>();
-			createdSession.closeFuture().whenComplete((txId, ex) -> {
-				if (ex != null) {
-					result.completeExceptionally(ex);
-				} else {
-					result.complete(resultValue);
-				}
-			});
+			createdSession.commitProgress()
+				.on(commitBehaviour)
+				.whenComplete((__, ex) -> {
+					if (ex != null) {
+						result.completeExceptionally(ex);
+					} else {
+						result.complete(resultValue);
+					}
+				});
 			return result;
 		} catch (RuntimeException ex) {
-			createdSession.closeFuture().completeExceptionally(ex);
+			createdSession.commitProgress().completeExceptionally(ex);
 			throw ex;
 		} finally {
 			createdSession.session().closeNow(commitBehaviour);
@@ -559,7 +556,7 @@ public final class Evita implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public CompletableFuture<Long> updateCatalogAsync(
+	public CommitProgress updateCatalogAsync(
 		@Nonnull String catalogName,
 		@Nonnull Consumer<EvitaSessionContract> updater,
 		@Nonnull CommitBehavior commitBehaviour,
@@ -581,10 +578,10 @@ public final class Evita implements EvitaContract {
 		try {
 			final EvitaInternalSessionContract theSession = createdSession.session();
 			theSession.execute(updater);
-			return createdSession.closeFuture();
+			return createdSession.commitProgress();
 		} catch (Throwable ex) {
-			createdSession.closeFuture().completeExceptionally(ex);
-			return createdSession.closeFuture();
+			createdSession.commitProgress().completeExceptionally(ex);
+			return createdSession.commitProgress();
 		} finally {
 			createdSession.session().closeNow(commitBehaviour);
 		}
@@ -693,7 +690,12 @@ public final class Evita implements EvitaContract {
 				// this will be one day used in more clever way, when entire catalog loading will be split into
 				// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
 				theCatalog.processWriteAheadLog(
-					updatedCatalog -> this.catalogs.put(catalogName, updatedCatalog)
+					updatedCatalog -> {
+						this.catalogs.put(catalogName, updatedCatalog);
+						if (updatedCatalog instanceof Catalog theUpdatedCatalog) {
+							theUpdatedCatalog.notifyCatalogPresentInLiveView();
+						}
+					}
 				);
 				this.emitCatalogStatistics(catalogName);
 			},
@@ -703,7 +705,7 @@ public final class Evita implements EvitaContract {
 					catalogName,
 					new CorruptedCatalog(
 						catalogName,
-						configuration.storage().storageDirectory().resolve(catalogName),
+						this.configuration.storage().storageDirectory().resolve(catalogName),
 						exception
 					)
 				);
@@ -959,7 +961,7 @@ public final class Evita implements EvitaContract {
 	 * Verifies this instance is still active.
 	 */
 	void assertActive() {
-		if (!active) {
+		if (!this.active) {
 			throw new InstanceTerminatedException("instance");
 		}
 	}
@@ -1016,7 +1018,7 @@ public final class Evita implements EvitaContract {
 
 		return new CreatedSession(
 			newSession,
-			newSession.getFinalizationFuture()
+			newSession.getCommitProgress()
 		);
 	}
 
@@ -1176,11 +1178,11 @@ public final class Evita implements EvitaContract {
 	 * This class is a record that encapsulates a session and a future for closing the session.
 	 *
 	 * @param session     reference to the created session itself
-	 * @param closeFuture future that gets completed when session is closed
+	 * @param commitProgress record containing futures related to a commit progression on session close
 	 */
 	private record CreatedSession(
 		@Nonnull EvitaInternalSessionContract session,
-		@Nonnull CompletableFuture<Long> closeFuture
+		@Nonnull CommitProgressRecord commitProgress
 	) implements Closeable {
 
 		@Override

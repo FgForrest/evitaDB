@@ -666,7 +666,7 @@ This section contains configuration options for the storage layer of the databas
         <p>**Default:** `1s`</p>
         <p>The frequency of flushing the transactional data to the disk when they are sequentially processed.
             If database process the (small) transaction very quickly, it may decide to process next transaction before 
-            flushing changes to the disk. If the client waits for `WAIT_FOR_INDEX_PROPAGATION` he may wait entire 
+            flushing changes to the disk. If the client waits for `WAIT_FOR_CHANGES_VISIBLE` he may wait entire 
             `flushFrequencyInMillis` milliseconds before he gets the response.</p>
     </dd>
 </dl>

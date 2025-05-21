@@ -338,7 +338,7 @@ public final class EntityCollection implements
 						this.dataStoreBuffer.update(catalogVersion, new EntitySchemaStoragePart(newEntitySchema));
 						return newEntitySchema;
 					} else {
-						throw new SchemaNotFoundException(catalog.getName(), entityHeader.entityType());
+						throw new SchemaNotFoundException(this.catalog.getName(), entityHeader.entityType());
 					}
 				});
 			// init entity indexes
@@ -349,8 +349,8 @@ public final class EntityCollection implements
 						entityHeader.usedEntityIndexIds().size() + " reduced indexes!"
 				);
 				this.indexes = new TransactionalMap<>(
-					new HashMap<>(),
-					it -> (EntityIndex) it
+					CollectionUtils.createHashMap(64),
+					EntityIndex.class::cast
 				);
 			} else {
 				this.indexes = loadIndexes(catalogVersion, entityHeader);
@@ -406,7 +406,7 @@ public final class EntityCollection implements
 			this::getIndexByKeyIfExists,
 			this::getInternalSchema
 		);
-		this.indexes = new TransactionalMap<>(indexes, it -> (EntityIndex) it);
+		this.indexes = new TransactionalMap<>(indexes, EntityIndex.class::cast);
 		this.cacheSupervisor = cacheSupervisor;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
 		this.defaultMinimalQuery = new EvitaRequest(
@@ -752,18 +752,18 @@ public final class EntityCollection implements
 
 	@Override
 	public boolean isEmpty() {
-		return this.persistenceService.isEmpty(catalog.getVersion(), this.dataStoreReader);
+		return this.persistenceService.isEmpty(this.catalog.getVersion(), this.dataStoreReader);
 	}
 
 	@Override
 	public int size() {
-		return this.persistenceService.countEntities(catalog.getVersion(), this.dataStoreReader);
+		return this.persistenceService.countEntities(this.catalog.getVersion(), this.dataStoreReader);
 	}
 
 	@Override
 	@Nonnull
 	public SealedEntitySchema getSchema() {
-		return schema.get();
+		return this.schema.get();
 	}
 
 	/**
@@ -1008,8 +1008,8 @@ public final class EntityCollection implements
 	 */
 	@Nonnull
 	public Optional<BinaryEntity> fetchBinaryEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final long catalogVersion = catalog.getVersion();
-		final Optional<BinaryEntity> entity = cacheSupervisor.analyse(
+		final long catalogVersion = this.catalog.getVersion();
+		final Optional<BinaryEntity> entity = this.cacheSupervisor.analyse(
 				session,
 				primaryKey,
 				getSchema().getName(),
@@ -1103,7 +1103,7 @@ public final class EntityCollection implements
 		@Nonnull EvitaSessionContract session
 	) {
 		final SealedEntitySchema theSchema = getSchema();
-		return cacheSupervisor.analyse(
+		return this.cacheSupervisor.analyse(
 			session,
 			primaryKey,
 			theSchema.getName(),
@@ -1910,7 +1910,7 @@ public final class EntityCollection implements
 	 */
 	private int getNextPrimaryKey() {
 		// atomic integer takes care of concurrent access and producing unique monotonic sequence of numbers
-		return pkSequence.incrementAndGet();
+		return this.pkSequence.incrementAndGet();
 	}
 
 	/**
@@ -1945,7 +1945,7 @@ public final class EntityCollection implements
 		if (!fetchedIndexes.containsKey(globalIndexKey)) {
 			fetchedIndexes.put(globalIndexKey, globalIndex);
 		}
-		return new TransactionalMap<>(fetchedIndexes, it -> (EntityIndex) it);
+		return new TransactionalMap<>(fetchedIndexes, EntityIndex.class::cast);
 	}
 
 	/**
@@ -2015,7 +2015,7 @@ public final class EntityCollection implements
 		final EntityClassifierWithParent parentEntity;
 		final EntitySchema internalSchema = getInternalSchema();
 		if (internalSchema.isWithHierarchy() && sealedEntity.getHierarchyPredicate().isRequiresHierarchy()) {
-			if (sealedEntity.getParentEntityWithoutCheckingPredicate().map(it -> it instanceof SealedEntity).orElse(false)) {
+			if (sealedEntity.getParentEntityWithoutCheckingPredicate().map(SealedEntity.class::isInstance).orElse(false)) {
 				parentEntity = sealedEntity.getParentEntityWithoutCheckingPredicate().get();
 			} else {
 				final OptionalInt theParent = sealedEntity.getDelegate().getParent();
@@ -2255,7 +2255,7 @@ public final class EntityCollection implements
 			.distinct()
 			.forEach(it -> {
 				Assert.isTrue(
-					catalog.getCollectionForEntity(it).isPresent(),
+					this.catalog.getCollectionForEntity(it).isPresent(),
 					() -> new InvalidMutationException(
 						"Entity schema `" + newSchema.getName() + "` references entity `" + it + "`," +
 							" but such entity is not known in catalog `" + this.catalog.getName() + "`."
@@ -2349,7 +2349,7 @@ public final class EntityCollection implements
 					// we need first to fall-back on index search in this collection index
 					if (ik instanceof EntityIndexKey eik) {
 						//noinspection unchecked
-						final I index = (I) indexAccessor.apply(eik);
+						final I index = (I) this.indexAccessor.apply(eik);
 						// and apply accessor when missing only if no index in collection is found
 						return index == null ? accessorWhenMissing.apply(ik) : index;
 					} else {
@@ -2384,7 +2384,7 @@ public final class EntityCollection implements
 							final EntityIndex entityIndex;
 							// if index doesn't exist even there create new one
 							if (eikAgain.type() == EntityIndexType.GLOBAL) {
-								entityIndex = new GlobalEntityIndex(indexPkSequence.incrementAndGet(), entityType, eikAgain);
+								entityIndex = new GlobalEntityIndex(EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.entityType, eikAgain);
 							} else {
 								final EntityIndex globalIndex = getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 								Assert.isPremiseValid(
@@ -2393,11 +2393,11 @@ public final class EntityCollection implements
 								);
 								if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
 									entityIndex = new ReferencedTypeEntityIndex(
-										indexPkSequence.incrementAndGet(), entityType, eikAgain
+										EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.entityType, eikAgain
 									);
 								} else {
 									entityIndex = new ReducedEntityIndex(
-										indexPkSequence.incrementAndGet(), entityType, eikAgain
+										EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.entityType, eikAgain
 									);
 								}
 							}

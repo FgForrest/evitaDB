@@ -664,9 +664,9 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.expectedPayloadLength = this.expectedLength - (this.payloadPrefixLength + this.accumulatedLength + TAIL_MANDATORY_SPACE);
 		this.payloadReadLength = 0;
 		this.compressed = BitUtils.isBitSet(controlByte, StorageRecord.COMPRESSION_BIT);
-		Assert.isTrue(
+		Assert.isPremiseValid(
 			!this.compressed || this.inflater != null,
-			"Record is compressed and ObservableInput has compression support disabled!"
+			() -> new CorruptedRecordException("Record is compressed and ObservableInput has compression support disabled!")
 		);
 		this.readingPayload = true;
 		if (this.crc32C != null) {
@@ -720,7 +720,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 					if (!this.inflater.finished()) {
 						Assert.isPremiseValid(
 							fill(this.buffer, this.position, this.expectedPayloadLength - Math.toIntExact(this.inflater.getBytesRead())) == -1,
-							"Some meaningful data were extracted in the buffer, but they were not read!"
+							() -> new CorruptedRecordException("Some meaningful data were extracted in the buffer, but they were not read!")
 						);
 					}
 					// if payload was compressed, switch to standard - non-compressed mode,

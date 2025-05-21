@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -80,6 +80,11 @@ private static final long serialVersionUID = 0L;
             catalogVersion_ = input.readInt64();
             break;
           }
+          case 16: {
+
+            catalogSchemaVersion_ = input.readInt32();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -127,6 +132,23 @@ private static final long serialVersionUID = 0L;
     return catalogVersion_;
   }
 
+  public static final int CATALOGSCHEMAVERSION_FIELD_NUMBER = 2;
+  private int catalogSchemaVersion_;
+  /**
+   * <pre>
+   * Contains the version of the catalog schema that will be valid at the moment of closing the session.
+   * If session relates to a writable transaction, this schema version becomes valid at the moment the next catalog
+   * version (i.e. the one that is returned in the response) becomes visible.
+   * </pre>
+   *
+   * <code>int32 catalogSchemaVersion = 2;</code>
+   * @return The catalogSchemaVersion.
+   */
+  @java.lang.Override
+  public int getCatalogSchemaVersion() {
+    return catalogSchemaVersion_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -144,6 +166,9 @@ private static final long serialVersionUID = 0L;
     if (catalogVersion_ != 0L) {
       output.writeInt64(1, catalogVersion_);
     }
+    if (catalogSchemaVersion_ != 0) {
+      output.writeInt32(2, catalogSchemaVersion_);
+    }
     unknownFields.writeTo(output);
   }
 
@@ -156,6 +181,10 @@ private static final long serialVersionUID = 0L;
     if (catalogVersion_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
         .computeInt64Size(1, catalogVersion_);
+    }
+    if (catalogSchemaVersion_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(2, catalogSchemaVersion_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -174,6 +203,8 @@ private static final long serialVersionUID = 0L;
 
     if (getCatalogVersion()
         != other.getCatalogVersion()) return false;
+    if (getCatalogSchemaVersion()
+        != other.getCatalogSchemaVersion()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -188,6 +219,8 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + CATALOGVERSION_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getCatalogVersion());
+    hash = (37 * hash) + CATALOGSCHEMAVERSION_FIELD_NUMBER;
+    hash = (53 * hash) + getCatalogSchemaVersion();
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -327,6 +360,8 @@ private static final long serialVersionUID = 0L;
       super.clear();
       catalogVersion_ = 0L;
 
+      catalogSchemaVersion_ = 0;
+
       return this;
     }
 
@@ -354,6 +389,7 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcCloseResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcCloseResponse result = new io.evitadb.externalApi.grpc.generated.GrpcCloseResponse(this);
       result.catalogVersion_ = catalogVersion_;
+      result.catalogSchemaVersion_ = catalogSchemaVersion_;
       onBuilt();
       return result;
     }
@@ -404,6 +440,9 @@ private static final long serialVersionUID = 0L;
       if (other == io.evitadb.externalApi.grpc.generated.GrpcCloseResponse.getDefaultInstance()) return this;
       if (other.getCatalogVersion() != 0L) {
         setCatalogVersion(other.getCatalogVersion());
+      }
+      if (other.getCatalogSchemaVersion() != 0) {
+        setCatalogSchemaVersion(other.getCatalogSchemaVersion());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -457,7 +496,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogVersion(long value) {
-      
+
       catalogVersion_ = value;
       onChanged();
       return this;
@@ -471,8 +510,57 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogVersion() {
-      
+
       catalogVersion_ = 0L;
+      onChanged();
+      return this;
+    }
+
+    private int catalogSchemaVersion_ ;
+    /**
+     * <pre>
+     * Contains the version of the catalog schema that will be valid at the moment of closing the session.
+     * If session relates to a writable transaction, this schema version becomes valid at the moment the next catalog
+     * version (i.e. the one that is returned in the response) becomes visible.
+     * </pre>
+     *
+     * <code>int32 catalogSchemaVersion = 2;</code>
+     * @return The catalogSchemaVersion.
+     */
+    @java.lang.Override
+    public int getCatalogSchemaVersion() {
+      return catalogSchemaVersion_;
+    }
+    /**
+     * <pre>
+     * Contains the version of the catalog schema that will be valid at the moment of closing the session.
+     * If session relates to a writable transaction, this schema version becomes valid at the moment the next catalog
+     * version (i.e. the one that is returned in the response) becomes visible.
+     * </pre>
+     *
+     * <code>int32 catalogSchemaVersion = 2;</code>
+     * @param value The catalogSchemaVersion to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogSchemaVersion(int value) {
+
+      catalogSchemaVersion_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains the version of the catalog schema that will be valid at the moment of closing the session.
+     * If session relates to a writable transaction, this schema version becomes valid at the moment the next catalog
+     * version (i.e. the one that is returned in the response) becomes visible.
+     * </pre>
+     *
+     * <code>int32 catalogSchemaVersion = 2;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCatalogSchemaVersion() {
+
+      catalogSchemaVersion_ = 0;
       onChanged();
       return this;
     }
