@@ -92,7 +92,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 						}
 					}
 					// read content length and next leading transaction mutation
-					this.transactionMutation = readAndRecordTransactionMutation();
+					this.transactionMutation = readAndRecordTransactionMutation(0, currentFileLength).orElse(null);
 
 					// check the entire transaction was written and there are another data that would fully fill the buffer of the observable input
 					// Note: there must be some bug in our observable input implementation that is revealed by filling the buffer incompletely with
@@ -103,20 +103,25 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 					// nevertheless, the condition is here to prevent the observable input from reading the next transaction mutation
 					// if there is not enough data already written is actually ok for real-world scenarios - we want to fast play transactions
 					// in the WAL only when there is a lot of them to be read and processed
-					final long requiredLength = this.filePosition + this.transactionMutation.getTransactionSpan().recordLength();
-					if (
-						this.avoidPartiallyFilledBuffer ?
-							// for partially filled buffer we stop reading the transaction mutation when the requested catalog version is reached
-							this.transactionMutation.getCatalogVersion() <= this.requestedCatalogVersion && currentFileLength >= requiredLength :
-							// otherwise we require just the entire transaction to be written
-							currentFileLength >= requiredLength
-					) {
-						this.transactionMutationRead = 1;
-						// return the transaction mutation
-						return this.transactionMutation;
-					} else {
+					if (this.transactionMutation == null) {
 						// we've reached EOF or the tx mutation hasn't been yet completely written
 						return null;
+					} else {
+						final long requiredLength = this.filePosition + this.transactionMutation.getTransactionSpan().recordLength();
+						if (
+							this.avoidPartiallyFilledBuffer ?
+								// for partially filled buffer we stop reading the transaction mutation when the requested catalog version is reached
+								this.transactionMutation.getCatalogVersion() <= this.requestedCatalogVersion && currentFileLength >= requiredLength :
+								// otherwise we require just the entire transaction to be written
+								currentFileLength >= requiredLength
+						) {
+							this.transactionMutationRead = 1;
+							// return the transaction mutation
+							return this.transactionMutation;
+						} else {
+							// we've reached EOF or the tx mutation hasn't been yet completely written
+							return null;
+						}
 					}
 				} catch (Exception ex) {
 					// we've reached EOF or the tx mutation hasn't been yet completely written

@@ -46,10 +46,13 @@ import java.io.RandomAccessFile;
 import java.nio.BufferUnderflowException;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 import static io.evitadb.store.spi.CatalogPersistenceService.getWalFileName;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -165,7 +168,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 					this.observableInput.compress();
 				}
 				// fast path if the record is found in cache
-				TransactionMutationWithLocation initialTransactionMutation;
+				Optional<TransactionMutationWithLocation> initialTransactionMutation;
 				do {
 					this.filePosition = ofNullable(this.transactionLocationsCache.get(this.walFileIndex))
 						.map(it -> it.findNearestLocation(catalogVersion))
@@ -173,27 +176,28 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 
 					this.observableInput.seekWithUnknownLength(this.filePosition);
 
-					initialTransactionMutation = readAndRecordTransactionMutation();
+					final long walFileLength = this.walFile.length();
+					initialTransactionMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
 					// move cursor to the end of the lead mutation
-					while (initialTransactionMutation.getCatalogVersion() < catalogVersion) {
+					while (initialTransactionMutation.map(it -> it.getCatalogVersion() < catalogVersion).orElse(false)) {
 						// move cursor to the next transaction mutation
-						this.filePosition += initialTransactionMutation.getTransactionSpan().recordLength();
+						this.filePosition += initialTransactionMutation.get().getTransactionSpan().recordLength();
 						this.observableInput.seekWithUnknownLength(this.filePosition);
 						// read content length and leading transaction mutation
-						initialTransactionMutation = readAndRecordTransactionMutation();
+						initialTransactionMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
 						// if the file is shorter than the expected size of the transaction mutation, we've reached EOF
-						if (this.walFile.length() < this.filePosition + initialTransactionMutation.getTransactionSpan().recordLength()) {
-							initialTransactionMutation = null;
+						if (initialTransactionMutation.map(it -> walFileLength < this.filePosition + it.getTransactionSpan().recordLength()).orElse(true)) {
+							initialTransactionMutation = empty();
 							break;
 						}
 					}
 				} while (
-					initialTransactionMutation == null &&
+					initialTransactionMutation.isPresent() &&
 						// if we've reached EOF, check whether there is file with next WAL index
 						moveToNextWalFile(1)
 				);
-				// we've reached the first transaction mutation with catalog version >= requested catalog version
-				this.transactionMutation = initialTransactionMutation;
+				// we've reached the first transaction mutation with the catalog version >= requested catalog version
+				this.transactionMutation = initialTransactionMutation.orElse(null);
 			} catch (BufferUnderflowException e) {
 				// we've reached EOF or the tx mutation hasn't been yet completely written
 				if (this.observableInput != null) {
@@ -276,17 +280,28 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 	 * @return the transaction mutation read from the input stream
 	 */
 	@Nonnull
-	protected TransactionMutationWithLocation readAndRecordTransactionMutation() {
+	protected Optional<TransactionMutationWithLocation> readAndRecordTransactionMutation(long startPosition, long fileSize) {
 		final ObservableInput<RandomAccessFileInputStream> theObservableInput = this.observableInput;
 		Assert.isPremiseValid(
 			this.observableInput != null,
 			"Observable input is not initialized!"
 		);
 
+		if (startPosition + 4 > fileSize) {
+			// we've reached EOF
+			return empty();
+		}
+
 		// read content length and leading transaction mutation
 		final long totalBefore = theObservableInput.total();
 		// the expected total length of current transaction (leading mutation plus all other mutations)
 		final int contentLength = theObservableInput.simpleIntRead();
+
+		if (startPosition + 4 + contentLength > fileSize) {
+			// we've reached EOF
+			return empty();
+		}
+
 		final TransactionMutation transactionMutation = Objects.requireNonNull(
 			StorageRecord.read(
 				theObservableInput, (stream, length) -> (TransactionMutation) kryo.readClassAndObject(stream)
@@ -303,10 +318,12 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 		).register(this.filePosition, transactionMutation);
 
 		this.transactionsRead++;
-		return new TransactionMutationWithLocation(
-			transactionMutation,
-			new FileLocation(this.filePosition, contentLength + 4),
-			this.walFileIndex
+		return of(
+			new TransactionMutationWithLocation(
+				transactionMutation,
+				new FileLocation(this.filePosition, contentLength + 4),
+				this.walFileIndex
+			)
 		);
 	}
 

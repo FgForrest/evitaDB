@@ -36,6 +36,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -82,7 +83,8 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 				// transaction is fully mapped - we could read it backwards
 				final FileLocation currentLocation = mappedPositions[this.mutationIndex--];
 				final StorageRecord<Mutation> storageRecord = StorageRecord.read(
-					this.observableInput, currentLocation, (stream, length, control) -> (Mutation) kryo.readClassAndObject(stream)
+					this.observableInput, currentLocation,
+					(stream, length, control) -> (Mutation) this.kryo.readClassAndObject(stream)
 				);
 				return storageRecord.payload();
 			} else {
@@ -168,23 +170,30 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 		// move forward, until we reach EOL or current tx mutation
 		this.observableInput.seekWithUnknownLength(this.filePosition);
 
-		TransactionMutationWithLocation examinedTxMutation = readAndRecordTransactionMutation();
+		final long walFileLength = this.walFile.length();
+		Optional<TransactionMutationWithLocation> examinedTxMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
 		// move cursor to the end of the lead mutation
 		while (
-			examinedTxMutation.getCatalogVersion() < previousCatalogVersion &&
-			this.filePosition + examinedTxMutation.getTransactionSpan().recordLength() + CatalogWriteAheadLog.WAL_TAIL_LENGTH < this.walFile.length()
+			examinedTxMutation
+				.map(
+					it -> it.getCatalogVersion() < previousCatalogVersion &&
+						this.filePosition + it.getTransactionSpan().recordLength() + CatalogWriteAheadLog.WAL_TAIL_LENGTH < walFileLength)
+				.orElse(false)
 		) {
 			// move cursor to the next transaction mutation
-			this.filePosition += examinedTxMutation.getTransactionSpan().recordLength();
+			final FileLocation transactionSpan = examinedTxMutation.get().getTransactionSpan();
+			this.filePosition += transactionSpan.recordLength();
 			this.observableInput.seekWithUnknownLength(this.filePosition);
 			// read content length and leading transaction mutation
-			examinedTxMutation = readAndRecordTransactionMutation();
+			examinedTxMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
 			// if the file is shorter than the expected size of the transaction mutation, we've reached EOF
-			if (this.walFile.length() < this.filePosition + examinedTxMutation.getTransactionSpan().recordLength() + CatalogWriteAheadLog.WAL_TAIL_LENGTH) {
+			if (walFileLength < this.filePosition + transactionSpan.recordLength() + CatalogWriteAheadLog.WAL_TAIL_LENGTH) {
 				break;
 			}
 		}
-		return examinedTxMutation.getCatalogVersion() == previousCatalogVersion ? examinedTxMutation : null;
+		return examinedTxMutation
+			.filter(it -> it.getCatalogVersion() == previousCatalogVersion)
+			.orElse(null);
 	}
 
 }
