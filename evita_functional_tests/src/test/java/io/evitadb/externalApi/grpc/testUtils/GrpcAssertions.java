@@ -56,6 +56,7 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.AssociatedDataForm;
 import io.evitadb.externalApi.grpc.generated.*;
 
 import javax.annotation.Nonnull;
@@ -543,7 +544,6 @@ public class GrpcAssertions {
 				),
 				locales
 			);
-			//TOBEDONE #45: LATER HANDLE SWITCH BETWEEN REFERENCE AND WHOLE ENTITY
 		}
 	}
 
@@ -553,7 +553,11 @@ public class GrpcAssertions {
 	}
 
 	public static void assertAssociatedData(@Nonnull AssociatedDataContract.AssociatedDataValue expectedAssociatedDataValue, @Nonnull GrpcEvitaAssociatedDataValue actualAssociatedDataValue) {
-		final GrpcEvitaAssociatedDataValue expectedValue = EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(expectedAssociatedDataValue.value(), expectedAssociatedDataValue.version());
+		final GrpcEvitaAssociatedDataValue expectedValue = EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(
+			expectedAssociatedDataValue.value(),
+			expectedAssociatedDataValue.version(),
+			AssociatedDataForm.STRUCTURED_VALUE
+		);
 		assertEquals(expectedValue, actualAssociatedDataValue);
 	}
 

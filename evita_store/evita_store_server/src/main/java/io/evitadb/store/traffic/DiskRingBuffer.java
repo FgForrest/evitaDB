@@ -156,12 +156,15 @@ public class DiskRingBuffer {
 	 */
 	@Getter(AccessLevel.PROTECTED)
 	private long ringBufferTail = 0L;
-
 	/**
 	 * Last real sampling rate to be propagated to the sink.
 	 */
 	@Setter
 	private int lastRealSamplingRate = 0;
+	/**
+	 * Reference to the input stream that has been passed to the session sink.
+	 */
+	private RandomAccessFileInputStream sessionSinkInputStream;
 
 	/**
 	 * Determines if two file segments overlap based on their starting and ending positions.
@@ -232,12 +235,13 @@ public class DiskRingBuffer {
 	 */
 	public void setSessionSink(@Nullable SessionSink sessionSink) {
 		if (sessionSink != null) {
+			if (this.sessionSinkInputStream != null) {
+				IOUtils.closeQuietly(this.sessionSinkInputStream::close);
+			}
 			try {
-				sessionSink.initSourceInputStream(
-					new RandomAccessFileInputStream(
-						new RandomAccessFile(this.diskBufferFilePath.toFile(), "r"),
-						true
-					)
+				this.sessionSinkInputStream = new RandomAccessFileInputStream(
+					new RandomAccessFile(this.diskBufferFilePath.toFile(), "r"),
+					true
 				);
 			} catch (FileNotFoundException e) {
 				throw new UnexpectedIOException(
@@ -246,6 +250,7 @@ public class DiskRingBuffer {
 					e
 				);
 			}
+			sessionSink.initSourceInputStream(this.sessionSinkInputStream);
 		} else {
 			final SessionSink currentSessionSing = this.sessionSink.get();
 			if (currentSessionSing != null) {
@@ -605,6 +610,11 @@ public class DiskRingBuffer {
 					"Failed to close traffic recording buffer file: " + this.diskBufferFilePath.toString(),
 					"Failed to close traffic recording buffer file."
 				),
+				() -> {
+					if (this.sessionSinkInputStream != null) {
+						this.sessionSinkInputStream.close();
+					}
+				},
 				this.fileChannel::close,
 				this.diskBufferFile::close
 			);

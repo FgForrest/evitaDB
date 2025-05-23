@@ -55,7 +55,7 @@ public class PathHandlingService implements HttpService {
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
 		PathMatcher.PathMatch<HttpService> match = null;
 		boolean hit = false;
-		final String path = req.uri().getPath();
+		final String path = URLUtils.normalizeSlashes(req.uri().getPath());
 		if(cache != null) {
 			match = cache.get(path);
 			hit = true;

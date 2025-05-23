@@ -347,7 +347,7 @@ by category `order` attribute first:
 
 <LS to="e,j">
 
-<MDInclude sourceVariable="recordData.0">[Result of listing products by order in category in breadth first category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordData">[Result of listing products by order in category in breadth first category order](/documentation/user/en/query/ordering/examples/reference/reference-traverse-by.evitaql.json.md)</MDInclude>
 
 </LS>
 

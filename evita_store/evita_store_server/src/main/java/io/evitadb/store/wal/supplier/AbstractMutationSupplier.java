@@ -25,6 +25,7 @@ package io.evitadb.store.wal.supplier;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
+import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.exception.UnexpectedIOException;
@@ -44,6 +45,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.BufferUnderflowException;
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
@@ -75,6 +77,10 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 	 */
 	protected final Path catalogStoragePath;
 	/**
+	 * The storage options from evita configuration.
+	 */
+	protected final StorageOptions storageOptions;
+	/**
 	 * The cache of already scanned WAL files. The locations might not be complete, but they will be always cover
 	 * the start of the particular WAL file, but they may be later appended with new records that are not yet scanned
 	 * or gradually added to the working WAL file. The index key in this map is the {@link #walFileIndex} of the WAL file.
@@ -96,11 +102,11 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 	/**
 	 * The ObservableInput for reading {@link TransactionMutation} from the WAL file.
 	 */
-	protected ObservableInput<RandomAccessFileInputStream> observableInput;
+	@Nullable protected ObservableInput<RandomAccessFileInputStream> observableInput;
 	/**
 	 * The current {@link TransactionMutation} being read from the WAL file.
 	 */
-	protected TransactionMutationWithLocation transactionMutation;
+	@Nullable protected TransactionMutationWithLocation transactionMutation;
 	/**
 	 * The current position in the WAL file.
 	 */
@@ -122,6 +128,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 		long catalogVersion,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
+		@Nonnull StorageOptions storageOptions,
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
@@ -132,6 +139,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 		this.walFileIndex = walFileIndex;
 		this.catalogName = catalogName;
 		this.catalogStoragePath = catalogStoragePath;
+		this.storageOptions = storageOptions;
 		this.transactionLocationsCache = transactionLocationsCache;
 		this.avoidPartiallyFilledBuffer = avoidPartiallyFilledBuffer;
 		this.onClose = onClose;
@@ -144,12 +152,18 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 			this.catalogKryoPool = catalogKryoPool;
 			this.kryo = catalogKryoPool.obtain();
 			try {
-				final RandomAccessFile randomWalFile = new RandomAccessFile(walFile, "r");
+				final RandomAccessFile randomWalFile = new RandomAccessFile(this.walFile, "r");
 				this.observableInput = new ObservableInput<>(
 					new RandomAccessFileInputStream(
-						randomWalFile
+						randomWalFile, true
 					)
 				);
+				if (this.storageOptions.computeCRC32C()) {
+					this.observableInput.computeCRC32();
+				}
+				if (this.storageOptions.compress()) {
+					this.observableInput.compress();
+				}
 				// fast path if the record is found in cache
 				TransactionMutationWithLocation initialTransactionMutation;
 				do {
@@ -182,11 +196,14 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 				this.transactionMutation = initialTransactionMutation;
 			} catch (BufferUnderflowException e) {
 				// we've reached EOF or the tx mutation hasn't been yet completely written
+				if (this.observableInput != null) {
+					this.observableInput.close();
+				}
 				this.transactionMutation = null;
 				this.observableInput = null;
 			} catch (IOException e) {
 				throw new UnexpectedIOException(
-					"Failed to read WAL file `" + walFile.getName() + "`!",
+					"Failed to read WAL file `" + this.walFile.getName() + "`!",
 					"Failed to read WAL file!",
 					e
 				);
@@ -194,6 +211,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 		}
 	}
 
+	@Nullable
 	@Override
 	public abstract Mutation get();
 
@@ -202,7 +220,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 		if (this.kryo != null) {
 			this.catalogKryoPool.free(this.kryo);
 		}
-		if (observableInput != null) {
+		if (this.observableInput != null) {
 			this.observableInput.close();
 		}
 		if (this.onClose != null) {
@@ -215,7 +233,9 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 	 * @param delta The delta that should be applied to index to move to the next/prev WAL file
 	 */
 	protected boolean moveToNextWalFile(int delta) {
-		this.observableInput.close();
+		if (this.observableInput != null) {
+			this.observableInput.close();
+		}
 
 		final File nextWalFile = this.catalogStoragePath.resolve(
 			getWalFileName(this.catalogName, this.walFileIndex + delta)
@@ -228,9 +248,17 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 				this.filePosition = 0L;
 				this.observableInput = new ObservableInput<>(
 					new RandomAccessFileInputStream(
-						new RandomAccessFile(nextWalFile, "r")
+						new RandomAccessFile(nextWalFile, "r"),
+						true
 					)
 				);
+				if (this.storageOptions.computeCRC32C()) {
+					this.observableInput.computeCRC32();
+				}
+				if (this.storageOptions.compress()) {
+					this.observableInput.compress();
+				}
+
 				return true;
 			} catch (FileNotFoundException ignored) {
 				// this should not happen when we checked before that the file exists
@@ -250,13 +278,20 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 	@Nonnull
 	protected TransactionMutationWithLocation readAndRecordTransactionMutation() {
 		final ObservableInput<RandomAccessFileInputStream> theObservableInput = this.observableInput;
+		Assert.isPremiseValid(
+			this.observableInput != null,
+			"Observable input is not initialized!"
+		);
+
 		// read content length and leading transaction mutation
 		final long totalBefore = theObservableInput.total();
 		// the expected total length of current transaction (leading mutation plus all other mutations)
-		int contentLength = theObservableInput.simpleIntRead();
-		TransactionMutation transactionMutation = StorageRecord.read(
-			theObservableInput, (stream, length) -> (TransactionMutation) kryo.readClassAndObject(stream)
-		).payload();
+		final int contentLength = theObservableInput.simpleIntRead();
+		final TransactionMutation transactionMutation = Objects.requireNonNull(
+			StorageRecord.read(
+				theObservableInput, (stream, length) -> (TransactionMutation) kryo.readClassAndObject(stream)
+			).payload()
+		);
 		// measure the lead mutation size + verify the content length
 		final int leadTransactionMutationSize = Math.toIntExact(theObservableInput.total() - totalBefore);
 		Assert.isPremiseValid(

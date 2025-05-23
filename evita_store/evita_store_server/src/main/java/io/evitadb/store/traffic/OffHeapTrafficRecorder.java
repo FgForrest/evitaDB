@@ -593,6 +593,8 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		}
 		// remove the session from the tracked sessions index
 		this.trackedSessionsIndex.remove(sessionTraffic.getSessionId());
+		// schedule memory cleaning
+		this.freeMemoryTask.schedule();
 	}
 
 	/**

@@ -74,7 +74,7 @@ public record VersionedValue(
 		int result = 1;
 		result = 31 * result + Long.hashCode(primaryKey);
 		result = 31 * result + Byte.hashCode(recordType < 0 ? (byte) (recordType * -1) : recordType);
-		result = 31 * result + (fileLocation == null ? 0 : fileLocation.hashCode());
+		result = 31 * result + fileLocation.hashCode();
 		return result;
 	}
 }

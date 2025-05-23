@@ -1,0 +1,26 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeUrlEquals: "/example-product",
+      entityLocaleEquals: en
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          name
+        }
+        stocksPage(
+          filterBy: {
+            attributeQuantityOnStockGreaterThan: "1"
+          },
+          number: 1
+          size: 0
+        ) {
+          empty
+        }
+      }
+    }
+  }
+}

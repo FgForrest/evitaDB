@@ -23,14 +23,8 @@
 
 package io.evitadb.core;
 
-import io.evitadb.api.CatalogContract;
-import io.evitadb.api.CatalogState;
-import io.evitadb.api.EntityCollectionContract;
-import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.EvitaSessionTerminationCallback;
-import io.evitadb.api.SchemaPostProcessor;
-import io.evitadb.api.SchemaPostProcessorCapturingResult;
-import io.evitadb.api.SessionTraits;
+import io.evitadb.api.*;
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.*;
 import io.evitadb.api.file.FileForFetch;
@@ -105,11 +99,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
+import java.lang.ref.WeakReference;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -200,16 +197,25 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	@Getter private final ProxyFactory proxyFactory;
 	/**
-	 * CompletableFuture representing the finalization of the session that conforms to requested
-	 * {@link CommitBehavior} bound to the current transaction (if any).
+	 * Object that tracks commit progress of the transaction.
 	 */
-	@Nonnull private final CompletableFuture<Long> finalizationFuture;
+	@Nonnull private final CommitProgressRecord commitProgress;
+	/**
+	 * This future is created when closing sequence is initiated and is completed when the {@link #closedFuture} is
+	 * finally created.
+	 */
+	private final AtomicReference<CompletableFuture<CompletionStage<CommitVersions>>> closingSequenceFuture = new AtomicReference<>();
+	/**
+	 * Flag is set to true, when the session is being closed and only termination callback is executing. The session
+	 * should still be operative until the termination callback is finished.
+	 */
+	private final AtomicBoolean beingClosed = new AtomicBoolean(false);
 	/**
 	 * Future that is instantiated when the session is closed.
 	 * When initialized, subsequent calls of the close method will return the same future.
 	 * When the future is non-null any calls after {@link #close()} method has been called.
 	 */
-	private volatile CompletableFuture<Long> closedFuture;
+	private volatile CompletionStage<CommitVersions> closedFuture;
 	/**
 	 * Timestamp of the last session activity (call).
 	 */
@@ -219,10 +225,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	private int nestLevel;
 	/**
-	 * Flag is set to true, when the session is being closed and only termination callback is executing. The session
-	 * should still be operative until the termination callback is finished.
+	 * Contains a number of streams that were returned by the {@link #getMutationsHistory(ChangeCatalogCaptureRequest)},
+	 * {@link #getRecordings(TrafficRecordingCaptureRequest)}, {@link #getRecordingsReversed(TrafficRecordingCaptureRequest)}
+	 * to check whether they have been closed at the end of the session.
 	 */
-	private boolean beingClosed;
+	private Set<WeakReference<Stream<?>>> returnedStreams;
 
 	/**
 	 * Method creates implicit filtering constraint that contains price filtering constraints for price in case
@@ -232,7 +239,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nullable
 	private static FilterConstraint createQueryForFetchAfterUpsert(@Nonnull EntityMutation entityMutation, @Nullable EntityContentRequire[] require) {
 		final boolean shouldPricesRespectFilter = require != null && Arrays.stream(require)
-			.filter(it -> it instanceof PriceContent)
+			.filter(PriceContent.class::isInstance)
 			.map(it -> ((PriceContent) it).getFetchMode() == PriceContentMode.RESPECTING_FILTER)
 			.findFirst()
 			.orElse(false);
@@ -240,7 +247,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		if (shouldPricesRespectFilter) {
 			usedPriceKeys = entityMutation.getLocalMutations()
 				.stream()
-				.filter(it -> it instanceof PriceMutation)
+				.filter(PriceMutation.class::isInstance)
 				.map(it -> ((PriceMutation) it).getPriceKey())
 				.collect(Collectors.toSet());
 		} else {
@@ -293,19 +300,17 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		@Nonnull EntityContentRequire... require
 	) {
 		return Arrays.stream(require).anyMatch(DataInLocales.class::isInstance) ?
-			(locales, requestedClass) -> {
-				return new EvitaRequest(
-					Query.query(
-						collection(entityType),
-						require(
-							entityFetch(require)
-						)
-					),
-					OffsetDateTime.now(),
-					requestedClass,
-					entityType
-				);
-			} :
+			(locales, requestedClass) -> new EvitaRequest(
+				Query.query(
+					collection(entityType),
+					require(
+						entityFetch(require)
+					)
+				),
+				OffsetDateTime.now(),
+				requestedClass,
+				entityType
+			) :
 			(originalLocales, requestedClass) -> new EvitaRequest(
 				Query.query(
 					collection(entityType),
@@ -343,7 +348,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		this.commitBehaviour = commitBehaviour;
 		this.sessionTraits = sessionTraits;
 		this.terminationCallback = terminationCallback;
-		this.finalizationFuture = new CompletableFuture<>();
+		this.commitProgress = new CommitProgressRecord();
 		this.catalogConsumerControl = catalogConsumerControl;
 		if (catalog.supportsTransaction() && sessionTraits.isReadWrite()) {
 			this.transactionAccessor.set(createAndInitTransaction());
@@ -355,7 +360,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public UUID getId() {
-		return id;
+		return this.id;
 	}
 
 	@Nonnull
@@ -388,12 +393,17 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Override
 	public boolean isActive() {
-		return closedFuture == null || beingClosed;
+		return this.closedFuture == null || this.beingClosed.get();
 	}
 
 	@Traced
 	@Override
 	public boolean goLiveAndClose() {
+		// added read only check
+		isTrue(
+			!isReadOnly(),
+			ReadOnlyException::new
+		);
 		final CatalogContract theCatalog = getCatalog();
 		isTrue(!theCatalog.supportsTransaction(), "Catalog went live already and is currently in transactional mode!");
 		if (theCatalog.goLive()) {
@@ -405,76 +415,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
-	public CompletableFuture<Long> closeNow(@Nonnull CommitBehavior commitBehaviour) {
-		if (this.closedFuture == null) {
-			// flush changes if we're not in transactional mode
-			final Catalog theCatalog = this.catalog.get();
-			if (theCatalog.getCatalogState() == CatalogState.WARMING_UP) {
-				isPremiseValid(
-					this.transactionAccessor.get() == null,
-					"In warming-up mode no transaction is expected to be opened!"
-				);
-				theCatalog.flush();
-				// immediately complete future
-				if (!this.finalizationFuture.isCompletedExceptionally()) {
-					try {
-						validateCatalogSchema(theCatalog);
-						this.finalizationFuture.complete(getCatalogVersion());
-					} catch (Exception ex) {
-						this.finalizationFuture.completeExceptionally(ex);
-					}
-				}
-			} else {
-				if (this.transactionAccessor.get() != null) {
-					try {
-						if (!this.transactionAccessor.get().isRollbackOnly()) {
-							validateCatalogSchema(theCatalog);
-						}
-					} catch (Exception ex) {
-						this.finalizationFuture.completeExceptionally(ex);
-					} finally {
-						// close transaction
-						this.transactionAccessor.get().close();
-					}
-				} else {
-					// immediately complete future
-					this.finalizationFuture.complete(getCatalogVersion());
-				}
-			}
-			// join both futures together and apply termination callback
-			this.closedFuture = this.finalizationFuture.whenComplete((aLong, throwable) -> {
-				// then apply termination callbacks
-				String finishedWithError = null;
-				try {
-					this.beingClosed = true;
-					ofNullable(this.terminationCallback)
-						.ifPresent(it -> it.onTermination(this));
-				} catch (Throwable tcException) {
-					finishedWithError = tcException.getClass().getName() + ": " + (tcException.getMessage() == null ? "no message" : tcException.getMessage());
-					log.error("Error occurred while executing termination callback!", tcException);
-					if (throwable == null) {
-						throw new TransactionException("Error occurred while executing termination callback!", tcException);
-					} else {
-						throwable.addSuppressed(tcException);
-					}
-				} finally {
-					theCatalog.getTrafficRecordingEngine().closeSession(this.id, finishedWithError);
-					this.beingClosed = false;
-				}
-				if (throwable instanceof CancellationException cancellationException) {
-					throw cancellationException;
-				} else if (throwable instanceof TransactionException transactionException) {
-					throw transactionException;
-				} else if (throwable instanceof EvitaInvalidUsageException invalidUsageException) {
-					throw invalidUsageException;
-				} else if (throwable instanceof EvitaInternalError internalError) {
-					throw internalError;
-				} else if (throwable != null) {
-					throw new TransactionException("Unexpected exception occurred while executing transaction!", throwable);
-				}
-			});
-		}
-		return this.closedFuture;
+	public CompletionStage<CommitVersions> closeNow(@Nonnull CommitBehavior commitBehaviour) {
+		return closeInternal(commitBehaviour).on(commitBehaviour);
+	}
+
+	@Nonnull
+	@Override
+	public CommitProgress closeNowWithProgress() {
+		return closeInternal(this.commitBehaviour);
 	}
 
 	@Interruptible
@@ -501,7 +449,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public SealedEntitySchema defineEntitySchemaFromModelClass(@Nonnull Class<?> modelClass) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
-			final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup);
+			final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, this.reflectionLookup);
 			final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this);
 			updateCatalogSchema(analysisResult.mutations());
 			return getEntitySchemaOrThrowException(analysisResult.entityType());
@@ -515,7 +463,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public SealedEntitySchema defineEntitySchemaFromModelClass(@Nonnull Class<?> modelClass, @Nonnull SchemaPostProcessor postProcessor) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
-			final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup, postProcessor);
+			final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, this.reflectionLookup, postProcessor);
 			final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this);
 			if (postProcessor instanceof SchemaPostProcessorCapturingResult capturingResult) {
 				capturingResult.captureResult(analysisResult.mutations());
@@ -541,7 +489,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public Optional<SealedEntitySchema> getEntitySchema(@Nonnull Class<?> modelClass) throws EntityClassInvalidException {
 		return getEntitySchema(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass))
 		);
 	}
@@ -561,7 +509,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public SealedEntitySchema getEntitySchemaOrThrowException(@Nonnull Class<?> modelClass) throws CollectionNotFoundException, EntityClassInvalidException {
 		return getEntitySchemaOrThrowException(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass))
 		);
 	}
@@ -583,7 +531,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				query.normalizeQuery(),
 				OffsetDateTime.now(),
 				expectedType,
-				extractEntityTypeFromClass(expectedType, reflectionLookup).orElse(null)
+				extractEntityTypeFromClass(expectedType, this.reflectionLookup).orElse(null)
 			)
 		);
 	}
@@ -644,7 +592,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public <T extends Serializable> Optional<T> getEntity(@Nonnull Class<T> expectedType, int primaryKey, @Nonnull Scope[] scopes, EntityContentRequire... require) {
-		final String entityType = extractEntityTypeFromClass(expectedType, reflectionLookup)
+		final String entityType = extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 			.orElseThrow(() -> new CollectionNotFoundException(expectedType));
 		return getEntityInternal(
 			entityType,
@@ -726,7 +674,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public <T extends Serializable> T enrichOrLimitEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
 		assertActive();
-		final String entityType = getEntityTypeFromEntity(partiallyLoadedEntity, reflectionLookup);
+		final String entityType = getEntityTypeFromEntity(partiallyLoadedEntity, this.reflectionLookup);
 		final EntityEnrichEvent enrichEvent = new EntityEnrichEvent(getCatalogName(), entityType);
 
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntity(entityType)
@@ -844,7 +792,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public boolean deleteCollection(@Nonnull Class<?> modelClass) throws EntityClassInvalidException {
 		return deleteCollection(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass))
 		);
 	}
@@ -891,10 +839,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType) {
-		return proxyFactory.createEntityProxy(
+		return this.proxyFactory.createEntityProxy(
 			expectedType,
 			createNewEntity(
-				extractEntityTypeFromClass(expectedType, reflectionLookup)
+				extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 					.orElseThrow(() -> new CollectionNotFoundException(expectedType))
 			),
 			getEntitySchemaIndex()
@@ -914,10 +862,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType, int primaryKey) {
-		return proxyFactory.createEntityProxy(
+		return this.proxyFactory.createEntityProxy(
 			expectedType,
 			createNewEntity(
-				extractEntityTypeFromClass(expectedType, reflectionLookup)
+				extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 					.orElseThrow(() -> new CollectionNotFoundException(expectedType)),
 				primaryKey
 			),
@@ -1101,7 +1049,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public boolean deleteEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
 		return deleteEntity(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			primaryKey
 		);
@@ -1125,7 +1073,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
 		return deleteEntityInternal(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			modelClass, primaryKey, require
 		);
@@ -1159,7 +1107,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EvitaInvalidUsageException {
 		return deleteEntityAndItsHierarchyInternal(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			modelClass, primaryKey, require
 		);
@@ -1223,7 +1171,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public boolean archiveEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
 		return archiveEntity(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			primaryKey
 		);
@@ -1245,7 +1193,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public <T extends Serializable> Optional<T> archiveEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
 		return archiveEntityInternal(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			modelClass, primaryKey, require
 		);
@@ -1269,7 +1217,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public boolean restoreEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
 		return restoreEntity(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			primaryKey
 		);
@@ -1291,7 +1239,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public <T extends Serializable> Optional<T> restoreEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
 		return restoreEntityInternal(
-			extractEntityTypeFromClass(modelClass, reflectionLookup)
+			extractEntityTypeFromClass(modelClass, this.reflectionLookup)
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			modelClass, primaryKey, require
 		);
@@ -1308,16 +1256,22 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public Stream<ChangeCatalogCapture> getMutationsHistory(@Nonnull ChangeCatalogCaptureRequest criteria) {
 		final MutationPredicate mutationPredicate = MutationPredicateFactory.createReversedChangeCatalogCapturePredicate(criteria);
-		return getCatalog()
-			.getReversedCommittedMutationStream(criteria.sinceVersion())
-			.flatMap(it -> it.toChangeCatalogCapture(mutationPredicate, criteria.content()));
+		return registerStreamAndReturnCloseableStream(
+			getCatalog()
+				.getReversedCommittedMutationStream(criteria.sinceVersion())
+				.flatMap(it -> it.toChangeCatalogCapture(mutationPredicate, criteria.content()))
+		);
 	}
 
 	@Interruptible
 	@Traced
 	@Nonnull
 	@Override
-	public Task<?, FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException {
+	public Task<?, FileForFetch> backupCatalog(
+		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
+		boolean includingWAL
+	) throws TemporalDataNotAvailableException {
 		// added read only check
 		isTrue(
 			!isReadOnly(),
@@ -1326,9 +1280,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final CatalogContract theCatalog = getCatalog();
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
 		return theCatalog.backup(
-			pastMoment, includingWAL,
-			cv -> ccControl.registerConsumerOfCatalogInVersion(cv),
-			cv -> ccControl.unregisterConsumerOfCatalogInVersion(cv)
+			pastMoment, catalogVersion, includingWAL,
+			ccControl::registerConsumerOfCatalogInVersion,
+			ccControl::unregisterConsumerOfCatalogInVersion
 		);
 	}
 
@@ -1363,6 +1317,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return !this.sessionTraits.isReadWrite();
 	}
 
+	@Nonnull
+	@Override
+	public CommitBehavior getCommitBehavior() {
+		return this.commitBehaviour;
+	}
+
 	@Override
 	public boolean isBinaryFormat() {
 		return this.sessionTraits.isBinary();
@@ -1384,7 +1344,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		assertActive();
 		final CatalogContract currentCatalog = getCatalog();
 		if (currentCatalog instanceof Catalog theCatalog) {
-			return theCatalog.getTrafficRecordingEngine().getRecordings(request);
+			return registerStreamAndReturnCloseableStream(
+				theCatalog.getTrafficRecordingEngine().getRecordings(request)
+			);
 		} else {
 			throw new CatalogCorruptedException((CorruptedCatalog) currentCatalog);
 		}
@@ -1396,7 +1358,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		assertActive();
 		final CatalogContract currentCatalog = getCatalog();
 		if (currentCatalog instanceof Catalog theCatalog) {
-			return theCatalog.getTrafficRecordingEngine().getRecordingsReversed(request);
+			return registerStreamAndReturnCloseableStream(
+				theCatalog.getTrafficRecordingEngine().getRecordingsReversed(request)
+			);
 		} else {
 			throw new CatalogCorruptedException((CorruptedCatalog) currentCatalog);
 		}
@@ -1482,13 +1446,19 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Override
 	public boolean methodIsRunning() {
-		return false;
+		// method invocation should be handled on session proxy level
+		throw new UnsupportedOperationException("This method is not supported in this session!");
+	}
+
+	@Override
+	public void executeWhenMethodIsNotRunning(@Nonnull Runnable lambda) {
+		// method invocation should be handled on session proxy level
+		throw new UnsupportedOperationException("This method is not supported in this session!");
 	}
 
 	@Nonnull
-	@Override
-	public CompletableFuture<Long> getFinalizationFuture() {
-		return this.finalizationFuture;
+	public CommitProgressRecord getCommitProgress() {
+		return this.commitProgress;
 	}
 
 	@Nonnull
@@ -1500,14 +1470,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	) {
 		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecordingEngine();
 		final UUID sourceQueryId = UUIDUtil.randomUUID();
-		trafficRecorder.setupSourceQuery(id, sourceQueryId, sourceQuery, queryType, finishedWithError);
+		trafficRecorder.setupSourceQuery(this.id, sourceQueryId, sourceQuery, queryType, finishedWithError);
 		return sourceQueryId;
 	}
 
 	@Override
 	public void finalizeSourceQuery(@Nonnull UUID sourceQueryId, @Nullable String finishedWithError) {
 		final TrafficRecordingEngine trafficRecorder = this.catalog.get().getTrafficRecordingEngine();
-		trafficRecorder.closeSourceQuery(id, sourceQueryId, finishedWithError);
+		trafficRecorder.closeSourceQuery(this.id, sourceQueryId, finishedWithError);
 	}
 
 	@Nonnull
@@ -1584,7 +1554,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	@Nonnull
 	public Optional<Transaction> getTransaction() {
-		return ofNullable(transactionAccessor.get());
+		return ofNullable(this.transactionAccessor.get());
 	}
 
 	/**
@@ -1594,7 +1564,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	@Nonnull
 	public Optional<Transaction> getOpenedTransaction() {
-		return ofNullable(transactionAccessor.get())
+		return ofNullable(this.transactionAccessor.get())
 			.filter(it -> !it.isClosed());
 	}
 
@@ -1603,7 +1573,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return (isReadOnly() ?
 			"Read-only session: " :
 			(getOpenedTransactionId().map(txId -> "Read-write session (tx `" + txId + "` opened): ").orElse("Read-write session: ")))
-			+ id + (isActive() ? "" : " (terminated)");
+			+ this.id + (isActive() ? "" : " (terminated)");
 	}
 
 	/**
@@ -1625,7 +1595,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * @return {@code true} if the execution is at the root level, {@code false} otherwise.
 	 */
 	boolean isRootLevelExecution() {
-		return nestLevel == 1;
+		return this.nestLevel == 1;
 	}
 
 	/**
@@ -1634,7 +1604,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * @return the incremented nest level
 	 */
 	int increaseNestLevel() {
-		return nestLevel++;
+		return this.nestLevel++;
 	}
 
 	/**
@@ -1643,7 +1613,146 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * @return The updated nest level.
 	 */
 	int decreaseNestLevel() {
-		return nestLevel--;
+		return this.nestLevel--;
+	}
+
+	/**
+	 * Safely closes internal resources, commits or rolls back transactions, and handles
+	 * termination callbacks. Ensures that the closing operation is executed only once
+	 * and performs cleanup, validation, and transaction operations if applicable.
+	 *
+	 * @param commitBehavior determines in which commit stage the session should be considered as closed
+	 * @return A {@code CommitProgress} instance, representing the progress and
+	 * completion status of the closure operation. It encapsulates version
+	 * information and any issues that might occur during the process.
+	 */
+	@Nonnull
+	private CommitProgress closeInternal(@Nonnull CommitBehavior commitBehavior) {
+		if (this.closedFuture == null && this.closingSequenceFuture.get() == null) {
+			if (this.closingSequenceFuture.compareAndSet(null, new CompletableFuture<>())) {
+				// forcefully close all opened stateful streams
+				if (this.returnedStreams != null) {
+					// rewrap collection so that we don't get concurrent modification exception
+					new ArrayList<>(this.returnedStreams)
+						.forEach(weakReference -> {
+							final Stream<?> stream = weakReference.get();
+							if (stream != null) {
+								stream.close();
+							}
+						});
+				}
+				// flush changes if we're not in transactional mode
+				final Catalog theCatalog = this.catalog.get();
+				final Transaction transaction = this.transactionAccessor.get();
+				if (theCatalog.getCatalogState() == CatalogState.WARMING_UP) {
+					isPremiseValid(
+						transaction == null,
+						"In warming-up mode no transaction is expected to be opened!"
+					);
+					theCatalog.flush();
+					// immediately complete future
+					if (!this.commitProgress.isCompletedExceptionally()) {
+						try {
+							validateCatalogSchema(theCatalog);
+							this.commitProgress.complete(
+								new CommitVersions(
+									theCatalog.getVersion(),
+									theCatalog.getSchema().version()
+								)
+							);
+						} catch (Exception ex) {
+							this.commitProgress.completeExceptionally(ex);
+						}
+					}
+				} else {
+					if (transaction != null) {
+						try {
+							if (!transaction.isRollbackOnly()) {
+								validateCatalogSchema(theCatalog);
+							}
+						} catch (Exception ex) {
+							this.commitProgress.completeExceptionally(ex);
+						} finally {
+							// close transaction
+							transaction.close();
+						}
+					} else {
+						// immediately complete future
+						this.commitProgress.complete(
+							new CommitVersions(
+								theCatalog.getVersion(),
+								theCatalog.getSchema().version()
+							)
+						);
+					}
+				}
+				// join both futures together and apply termination callback
+				this.closedFuture = this.commitProgress
+					// complete session on desired commit behaviour
+					.on(commitBehavior)
+					.whenComplete((aLong, throwable) -> {
+						// then apply termination callbacks
+						String finishedWithError = null;
+						try {
+							Assert.isPremiseValid(
+								this.beingClosed.compareAndSet(false, true),
+								"Expectation failed!"
+							);
+							ofNullable(this.terminationCallback)
+								.ifPresent(it -> it.onTermination(this));
+						} catch (Throwable tcException) {
+							finishedWithError = tcException.getClass().getName() + ": " + (tcException.getMessage() == null ? "no message" : tcException.getMessage());
+							log.error("Error occurred while executing termination callback!", tcException);
+							if (throwable == null) {
+								throw new TransactionException("Error occurred while executing termination callback!", tcException);
+							} else {
+								throwable.addSuppressed(tcException);
+							}
+						} finally {
+							theCatalog.getTrafficRecordingEngine().closeSession(this.id, finishedWithError);
+							Assert.isPremiseValid(
+								this.beingClosed.compareAndSet(true, false),
+								"Expectation failed!"
+							);
+						}
+						if (throwable instanceof CancellationException cancellationException) {
+							throw cancellationException;
+						} else if (throwable instanceof TransactionException transactionException) {
+							throw transactionException;
+						} else if (throwable instanceof EvitaInvalidUsageException invalidUsageException) {
+							throw invalidUsageException;
+						} else if (throwable instanceof EvitaInternalError internalError) {
+							throw internalError;
+						} else if (throwable != null) {
+							throw new TransactionException("Unexpected exception occurred while executing transaction!", throwable);
+						}
+					});
+
+				this.closingSequenceFuture.get().complete(this.closedFuture);
+			} else {
+				// wait until the closed future is finally created
+				this.closingSequenceFuture.get().join();
+				return this.commitProgress;
+			}
+		}
+		return this.commitProgress;
+	}
+
+	/**
+	 * Registers a stream and ensures its closure is tracked. When the stream is closed,
+	 * it automatically unregisters itself from the tracked streams.
+	 *
+	 * @param stream the stream to be registered and tracked; must not be null
+	 * @return the same stream passed as input with an added close behavior; never null
+	 */
+	@Nonnull
+	private <T> Stream<T> registerStreamAndReturnCloseableStream(@Nonnull Stream<T> stream) {
+		if (this.returnedStreams == null) {
+			this.returnedStreams = new HashSet<>(32);
+		}
+		final WeakReference<Stream<?>> theStream = new WeakReference<>(stream);
+		this.returnedStreams.add(theStream);
+		return stream.onClose(() -> this.returnedStreams.remove(theStream));
 	}
 
 	/**
@@ -1676,7 +1785,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	@Nonnull
 	private Map<String, EntitySchemaContract> getEntitySchemaIndex() {
-		return catalog.get().getEntitySchemaIndex();
+		return this.catalog.get().getEntitySchemaIndex();
 	}
 
 	/**
@@ -1773,7 +1882,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					),
 					OffsetDateTime.now(),
 					expectedType,
-					extractEntityTypeFromClass(expectedType, reflectionLookup)
+					extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 						.orElse(null)
 				)
 			);
@@ -1813,7 +1922,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					),
 					OffsetDateTime.now(),
 					expectedType,
-					extractEntityTypeFromClass(expectedType, reflectionLookup)
+					extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 						.orElse(null)
 				),
 				this
@@ -1849,7 +1958,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					),
 					OffsetDateTime.now(),
 					expectedType,
-					extractEntityTypeFromClass(expectedType, reflectionLookup)
+					extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 						.orElse(null)
 				)
 			);
@@ -1884,7 +1993,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					),
 					OffsetDateTime.now(),
 					expectedType,
-					extractEntityTypeFromClass(expectedType, reflectionLookup)
+					extractEntityTypeFromClass(expectedType, this.reflectionLookup)
 						.orElse(null)
 				)
 			);
@@ -1895,12 +2004,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Returns the catalog instance this session refers to.
 	 */
 	private CatalogContract getCatalog() {
-		return catalog.get();
+		return this.catalog.get();
 	}
 
 	/**
 	 * Creates new transaction a wraps it into carrier object.
 	 */
+	@Nonnull
 	private Transaction createTransaction(@Nonnull CommitBehavior commitBehaviour) {
 		isTrue(
 			!isReadOnly(),
@@ -1913,14 +2023,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				new TransactionWalFinalizer(
 					theCatalog,
 					getId(),
-					commitBehaviour,
 					theCatalog::createIsolatedWalService,
-					this.finalizationFuture
+					this.commitProgress
 				),
 				false
 			);
 			// when the session is marked as "dry run" we never commit the transaction but always roll-back
-			if (sessionTraits.isDryRun()) {
+			if (this.sessionTraits.isDryRun()) {
 				transaction.setRollbackOnly();
 			}
 			return transaction;
@@ -1945,14 +2054,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	@Nonnull
 	private Transaction createAndInitTransaction() {
-		if (!sessionTraits.isReadWrite()) {
+		if (!this.sessionTraits.isReadWrite()) {
 			throw new TransactionNotSupportedException("Transaction cannot be opened in read only session!");
 		}
 		if (!getCatalog().supportsTransaction()) {
 			throw new TransactionNotSupportedException("Catalog " + getCatalog().getName() + " doesn't support transaction yet. Call `goLiveAndClose()` method first!");
 		}
-		final Transaction tx = createTransaction(commitBehaviour);
-		transactionAccessor.getAndUpdate(transaction -> {
+		final Transaction tx = createTransaction(this.commitBehaviour);
+		this.transactionAccessor.getAndUpdate(transaction -> {
 			isPremiseValid(transaction == null, "Transaction unexpectedly found!");
 			return tx;
 		});
@@ -1965,17 +2074,17 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * @throws UnexpectedTransactionStateException if transaction is not open
 	 */
 	private <T> T executeInTransactionIfPossible(@Nonnull Function<EvitaSessionContract, T> logic) {
-		if (transactionAccessor.get() == null && getCatalog().supportsTransaction()) {
-			try (final Transaction newTransaction = createTransaction(commitBehaviour)) {
+		if (this.transactionAccessor.get() == null && getCatalog().supportsTransaction()) {
+			try (final Transaction newTransaction = createTransaction(this.commitBehaviour)) {
 				increaseNestLevel();
-				transactionAccessor.set(newTransaction);
+				this.transactionAccessor.set(newTransaction);
 				return Transaction.executeInTransactionIfProvided(
 					newTransaction,
 					() -> logic.apply(this),
 					isRootLevelExecution()
 				);
 			} catch (Throwable ex) {
-				ofNullable(transactionAccessor.get())
+				ofNullable(this.transactionAccessor.get())
 					.ifPresent(tx -> {
 						if (isRootLevelExecution()) {
 							tx.setRollbackOnlyWithException(ex);
@@ -1984,23 +2093,23 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				throw ex;
 			} finally {
 				decreaseNestLevel();
-				transactionAccessor.set(null);
+				this.transactionAccessor.set(null);
 			}
 		} else {
 			// the transaction might already exist
 			try {
 				increaseNestLevel();
 				return Transaction.executeInTransactionIfProvided(
-					transactionAccessor.get(),
+					this.transactionAccessor.get(),
 					() -> logic.apply(this),
 					isRootLevelExecution()
 				);
 			} catch (Throwable ex) {
 				if (isRootLevelExecution()) {
-					ofNullable(transactionAccessor.get())
+					ofNullable(this.transactionAccessor.get())
 						.ifPresentOrElse(
 							tx -> tx.setRollbackOnlyWithException(ex),
-							() -> this.finalizationFuture.completeExceptionally(ex)
+							() -> this.commitProgress.completeExceptionally(ex)
 						);
 				}
 				throw ex;

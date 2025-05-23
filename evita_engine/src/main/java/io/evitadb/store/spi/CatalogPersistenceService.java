@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Scope;
@@ -80,7 +81,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 *
 	 * This means that the data needs to be converted from old to new protocol version first.
 	 */
-	int STORAGE_PROTOCOL_VERSION = 2;
+	int STORAGE_PROTOCOL_VERSION = 3;
 	String BOOT_FILE_SUFFIX = ".boot";
 	String CATALOG_FILE_SUFFIX = ".catalog";
 	String ENTITY_COLLECTION_FILE_SUFFIX = ".collection";
@@ -329,9 +330,9 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	IsolatedWalPersistenceService createIsolatedWalPersistenceService(@Nonnull UUID transactionId);
 
 	/**
-	 * Method deletes entire catalog persistent storage.
+	 * Method deletes entire catalog persistent storage and closes the persistence factory.
 	 */
-	void delete();
+	void closeAndDelete();
 
 	/**
 	 * Appends the given transaction mutation to the write-ahead log (WAL) and appends its mutation chain taken from
@@ -498,22 +499,43 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
 	 *
-	 * @param pastMoment   leave null for creating backup for actual dataset, or specify past moment to create backup for
-	 *                     the dataset as it was at that moment
-	 * @param includingWAL if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
-	 *                     restored, it'll replay the WAL contents locally to bring the catalog to the current state
-	 * @param onStart      callback that is called before the backup starts
-	 * @param onComplete   callback that is called when the backup is finished (either successfully or with an error)
+	 * @param pastMoment     leave null for creating backup for actual dataset, or specify past moment to create backup for
+	 *                       the dataset as it was at that moment
+	 * @param catalogVersion precise catalog version to create backup for, or null to create backup for the latest version,
+	 *                       when set not null, the pastMoment parameter is ignored
+	 * @param includingWAL   if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
+	 *                       restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @param onStart        callback that is called before the backup starts
+	 * @param onComplete     callback that is called when the backup is finished (either successfully or with an error)
 	 * @return path to the file where the backup was created
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
 	@Nonnull
 	ServerTask<?, FileForFetch> createBackupTask(
 		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
 		boolean includingWAL,
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
 	) throws TemporalDataNotAvailableException;
+
+	/**
+	 * Verifies the integrity of a system, component, or data structure.
+	 * This method performs an internal check to ensure that the state
+	 * or configuration adheres to expected standards or rules.
+	 *
+	 * The specific implementation of the integrity verification depends
+	 * on the context in which this method is used. It may include tasks
+	 * such as validating data consistency, ensuring correct initialization,
+	 * or detecting anomalies that could indicate corruption or unexpected
+	 * modifications.
+	 *
+	 * No inputs or return values are required. The method performs its
+	 * operations as a void execution.
+	 *
+	 * Potential exceptions may be thrown if integrity violations are detected.
+	 */
+	void verifyIntegrity();
 
 	/**
 	 * Returns size taken by all catalog data structures in bytes.
@@ -527,7 +549,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * via. {@link #getOrCreateEntityCollectionPersistenceService(long, String, int)}.
 	 *
 	 * You need to call {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}
-	 * or {@link #flushTrappedUpdates(long, DataStoreIndexChanges)} before this method is called, or you will lose your
+	 * or {@link #flushTrappedUpdates(long, DataStoreChanges)} before this method is called, or you will lose your
 	 * data in memory buffers.
 	 */
 	@Override

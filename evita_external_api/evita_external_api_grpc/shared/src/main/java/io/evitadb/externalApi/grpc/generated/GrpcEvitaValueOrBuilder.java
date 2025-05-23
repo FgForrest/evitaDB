@@ -759,7 +759,7 @@ public interface GrpcEvitaValueOrBuilder extends
   /**
    * <pre>
    * Contains version of this value and gets increased with any entity type update. Allows to execute
-   *			optimistic locking i.e. avoiding parallel modifications.
+   * optimistic locking i.e. avoiding parallel modifications. May be null if value is used within larger complex object.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value version = 101;</code>
@@ -769,7 +769,7 @@ public interface GrpcEvitaValueOrBuilder extends
   /**
    * <pre>
    * Contains version of this value and gets increased with any entity type update. Allows to execute
-   *			optimistic locking i.e. avoiding parallel modifications.
+   * optimistic locking i.e. avoiding parallel modifications. May be null if value is used within larger complex object.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value version = 101;</code>
@@ -779,7 +779,7 @@ public interface GrpcEvitaValueOrBuilder extends
   /**
    * <pre>
    * Contains version of this value and gets increased with any entity type update. Allows to execute
-   *			optimistic locking i.e. avoiding parallel modifications.
+   * optimistic locking i.e. avoiding parallel modifications. May be null if value is used within larger complex object.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value version = 101;</code>

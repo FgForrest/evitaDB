@@ -39,6 +39,7 @@ import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
@@ -55,6 +56,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCommitBehavior;
 
 /**
  * This service contains methods that could be called by gRPC clients on {@link EvitaContract}.
@@ -211,9 +213,9 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	public void terminateSession(GrpcEvitaSessionTerminationRequest request, StreamObserver<GrpcEvitaSessionTerminationResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				final boolean terminated = evita.getSessionById(UUIDUtil.uuid(request.getSessionId()))
+				final boolean terminated = this.evita.getSessionById(UUIDUtil.uuid(request.getSessionId()))
 					.map(session -> {
-						evita.terminateSession(session);
+						this.evita.terminateSession(session);
 						return true;
 					})
 					.orElse(false);
@@ -241,8 +243,30 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		executeWithClientContext(
 			() -> {
 				responseObserver.onNext(GrpcCatalogNamesResponse.newBuilder()
-					.addAllCatalogNames(evita.getCatalogNames())
+					.addAllCatalogNames(this.evita.getCatalogNames())
 					.build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Retrieves the state of a specified catalog and sends it back to the client through the provided response observer.
+	 *
+	 * @param request           The gRPC request containing the catalog name for which the state is requested.
+	 * @param responseObserver  The stream observer used to send the response containing the catalog state back to the client.
+	 */
+	@Override
+	public void getCatalogState(GrpcGetCatalogStateRequest request, StreamObserver<GrpcGetCatalogStateResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				final Builder builder = GrpcGetCatalogStateResponse.newBuilder();
+				this.evita.getCatalogState(request.getCatalogName())
+					.ifPresent(catalogState -> builder.setCatalogState(toGrpcCatalogState(catalogState)));
+				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),
@@ -284,7 +308,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		                                  request, StreamObserver<GrpcDeleteCatalogIfExistsResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				boolean success = evita.deleteCatalogIfExists(request.getCatalogName());
+				boolean success = this.evita.deleteCatalogIfExists(request.getCatalogName());
 				responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(success).build());
 				responseObserver.onCompleted();
 			},
@@ -375,11 +399,12 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		executeWithClientContext(
 			() -> {
 				final SessionFlags[] flags = getSessionFlags(sessionType, rollbackTransactions);
-				final EvitaSessionContract session = evita.createSession(new SessionTraits(catalogName, flags));
+				final EvitaSessionContract session = this.evita.createSession(new SessionTraits(catalogName, flags));
 				responseObserver.onNext(GrpcEvitaSessionResponse.newBuilder()
 					.setCatalogId(session.getCatalogId().toString())
 					.setSessionId(session.getId().toString())
 					.setCatalogState(toGrpcCatalogState(session.getCatalogState()))
+					.setCommitBehaviour(toGrpcCommitBehavior(session.getCommitBehavior()))
 					.setSessionType(sessionType)
 					.build());
 				responseObserver.onCompleted();

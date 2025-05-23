@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ import static java.util.Optional.ofNullable;
  * @param collectionFileIndex            contains the mapping of entity type to {@link CollectionFileReference} that
  *                                       contains the information about the entity collection file
  * @param compressedKeys                 contains mapping of certain parts of {@link StoragePartKey} to an integer id
- *                                       that is used for compression of the original storage key
+ *                                       that is used for compress of the original storage key
  * @param catalogId                      contains the unique identifier of the catalog that doesn't change with catalog rename
  * @param catalogName                    contains name of the catalog that originates in {@link CatalogSchema#getName()}
  * @param catalogState                   contains the state of the catalog that originates in {@link Catalog#getCatalogState()}

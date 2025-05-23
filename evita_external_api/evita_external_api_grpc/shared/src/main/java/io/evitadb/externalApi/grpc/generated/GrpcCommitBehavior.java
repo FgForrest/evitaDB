@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,9 +70,9 @@ public enum GrpcCommitBehavior
    * immediately after the commit is marked as completed.
    * </pre>
    *
-   * <code>WAIT_FOR_INDEX_PROPAGATION = 2;</code>
+   * <code>WAIT_FOR_CHANGES_VISIBLE = 2;</code>
    */
-  WAIT_FOR_INDEX_PROPAGATION(2),
+  WAIT_FOR_CHANGES_VISIBLE(2),
   UNRECOGNIZED(-1),
   ;
 
@@ -111,9 +111,9 @@ public enum GrpcCommitBehavior
    * immediately after the commit is marked as completed.
    * </pre>
    *
-   * <code>WAIT_FOR_INDEX_PROPAGATION = 2;</code>
+   * <code>WAIT_FOR_CHANGES_VISIBLE = 2;</code>
    */
-  public static final int WAIT_FOR_INDEX_PROPAGATION_VALUE = 2;
+  public static final int WAIT_FOR_CHANGES_VISIBLE_VALUE = 2;
 
 
   public final int getNumber() {
@@ -142,7 +142,7 @@ public enum GrpcCommitBehavior
     switch (value) {
       case 0: return WAIT_FOR_CONFLICT_RESOLUTION;
       case 1: return WAIT_FOR_LOG_PERSISTENCE;
-      case 2: return WAIT_FOR_INDEX_PROPAGATION;
+      case 2: return WAIT_FOR_CHANGES_VISIBLE;
       default: return null;
     }
   }

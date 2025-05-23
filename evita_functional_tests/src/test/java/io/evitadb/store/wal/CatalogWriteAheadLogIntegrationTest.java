@@ -64,7 +64,6 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
@@ -102,7 +101,10 @@ class CatalogWriteAheadLogIntegrationTest {
 	private final Path isolatedWalFilePath = walDirectory.resolve("isolatedWal.tmp");
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
 		TEST_CATALOG,
-		StorageOptions.builder().build(),
+		StorageOptions.builder()
+			/* there are tests that rely on standard size of mutations on disk in this class */
+			.compress(false)
+			.build(),
 		Mockito.mock(Scheduler.class)
 	);
 	private final OffHeapMemoryManager noOffHeapMemoryManager = new OffHeapMemoryManager(TEST_CATALOG, 0, 0);
@@ -141,8 +143,9 @@ class CatalogWriteAheadLogIntegrationTest {
 	}
 
 	@Test
-	void shouldWriteAndReadWalOverMultipleFiles() {
-		wal = createCatalogWriteAheadLogOfSmallSize();
+	void shouldWriteAndReadWalOverMultipleFiles() throws IOException {
+		this.wal.close();
+		this.wal = createCatalogWriteAheadLogOfSmallSize();
 
 		final int[] transactionSizes = {10, 15, 20, 15, 10};
 		final Map<Long, List<Mutation>> txInMutations = writeWal(bigOffHeapMemoryManager, transactionSizes);
@@ -156,7 +159,8 @@ class CatalogWriteAheadLogIntegrationTest {
 	}
 
 	@Test
-	void shouldReadFirstAndLastCatalogVersionOfPreviousWalFiles() throws FileNotFoundException {
+	void shouldReadFirstAndLastCatalogVersionOfPreviousWalFiles() throws IOException {
+		this.wal.close();
 		wal = createCatalogWriteAheadLogOfSmallSize();
 
 		final int[] transactionSizes = {10, 15, 20, 15, 10};
@@ -183,7 +187,8 @@ class CatalogWriteAheadLogIntegrationTest {
 	}
 
 	@Test
-	void shouldWriteAndReadWalOverMultipleFilesInReversedOrder() {
+	void shouldWriteAndReadWalOverMultipleFilesInReversedOrder() throws IOException {
+		this.wal.close();
 		wal = createCatalogWriteAheadLogOfSmallSize();
 
 		final int[] transactionSizes = {10, 15, 20, 15, 10};
@@ -239,8 +244,9 @@ class CatalogWriteAheadLogIntegrationTest {
 	}
 
 	@Test
-	void shouldCorrectlyReportFirstAvailableTimestamp() {
-		wal = createCatalogWriteAheadLogOfSmallSize();
+	void shouldCorrectlyReportFirstAvailableTimestamp() throws IOException {
+		this.wal.close();
+		this.wal = createCatalogWriteAheadLogOfSmallSize();
 
 		final int justEnoughSize = 20;
 		final int[] transactionSizes = new int[7];
@@ -263,7 +269,10 @@ class CatalogWriteAheadLogIntegrationTest {
 			TEST_CATALOG,
 			walDirectory,
 			catalogKryoPool,
-			StorageOptions.builder().build(),
+			StorageOptions.builder()
+				/* there are tests that rely on standard size of mutations on disk in this class */
+				.compress(false)
+				.build(),
 			TransactionOptions.builder()
 				.walFileCountKept(5)
 				.walFileSizeBytes(16_384)
@@ -281,7 +290,10 @@ class CatalogWriteAheadLogIntegrationTest {
 			TEST_CATALOG,
 			walDirectory,
 			catalogKryoPool,
-			StorageOptions.builder().build(),
+			StorageOptions.builder()
+				/* there are tests that rely on standard size of mutations on disk in this class */
+				.compress(false)
+				.build(),
 			TransactionOptions.builder().walFileSizeBytes(Long.MAX_VALUE).build(),
 			Mockito.mock(Scheduler.class),
 			offsetConsumer,
@@ -290,9 +302,10 @@ class CatalogWriteAheadLogIntegrationTest {
 	}
 
 	private void createCachedSupplierReadAndVerifyFrom(Map<Long, List<Mutation>> txInMutations, int[] aFewTransactions, int index) {
-		final MutationSupplier supplier = wal.createSupplier(index + 1, null);
-		assertEquals(1, supplier.getTransactionsRead());
-		readAndVerifyWal(txInMutations, aFewTransactions, index);
+		try (final MutationSupplier supplier = wal.createSupplier(index + 1, null)) {
+			assertEquals(1, supplier.getTransactionsRead());
+			readAndVerifyWal(txInMutations, aFewTransactions, index);
+		}
 	}
 
 	/**
@@ -333,7 +346,13 @@ class CatalogWriteAheadLogIntegrationTest {
 			UUID.randomUUID(),
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(
-				isolatedWalFilePath, false, observableOutputKeeper, offHeapMemoryManager
+				isolatedWalFilePath,
+				StorageOptions.builder(StorageOptions.temporary())
+					/* there are tests that rely on standard size of mutations on disk in this class */
+					.compress(false)
+					.build(),
+				observableOutputKeeper,
+				offHeapMemoryManager
 			)
 		);
 

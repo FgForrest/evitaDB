@@ -93,6 +93,19 @@ private static final long serialVersionUID = 0L;
             includingWAL_ = input.readBool();
             break;
           }
+          case 26: {
+            com.google.protobuf.Int64Value.Builder subBuilder = null;
+            if (catalogVersion_ != null) {
+              subBuilder = catalogVersion_.toBuilder();
+            }
+            catalogVersion_ = input.readMessage(com.google.protobuf.Int64Value.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(catalogVersion_);
+              catalogVersion_ = subBuilder.buildPartial();
+            }
+
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -179,6 +192,47 @@ private static final long serialVersionUID = 0L;
     return includingWAL_;
   }
 
+  public static final int CATALOGVERSION_FIELD_NUMBER = 3;
+  private com.google.protobuf.Int64Value catalogVersion_;
+  /**
+   * <pre>
+   * precise catalog version to create backup for, or null to create backup for the latest version,
+   * when set not null, the pastMoment parameter is ignored
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+   * @return Whether the catalogVersion field is set.
+   */
+  @java.lang.Override
+  public boolean hasCatalogVersion() {
+    return catalogVersion_ != null;
+  }
+  /**
+   * <pre>
+   * precise catalog version to create backup for, or null to create backup for the latest version,
+   * when set not null, the pastMoment parameter is ignored
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+   * @return The catalogVersion.
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int64Value getCatalogVersion() {
+    return catalogVersion_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : catalogVersion_;
+  }
+  /**
+   * <pre>
+   * precise catalog version to create backup for, or null to create backup for the latest version,
+   * when set not null, the pastMoment parameter is ignored
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int64ValueOrBuilder getCatalogVersionOrBuilder() {
+    return getCatalogVersion();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -199,6 +253,9 @@ private static final long serialVersionUID = 0L;
     if (includingWAL_ != false) {
       output.writeBool(2, includingWAL_);
     }
+    if (catalogVersion_ != null) {
+      output.writeMessage(3, getCatalogVersion());
+    }
     unknownFields.writeTo(output);
   }
 
@@ -215,6 +272,10 @@ private static final long serialVersionUID = 0L;
     if (includingWAL_ != false) {
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(2, includingWAL_);
+    }
+    if (catalogVersion_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(3, getCatalogVersion());
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -238,6 +299,11 @@ private static final long serialVersionUID = 0L;
     }
     if (getIncludingWAL()
         != other.getIncludingWAL()) return false;
+    if (hasCatalogVersion() != other.hasCatalogVersion()) return false;
+    if (hasCatalogVersion()) {
+      if (!getCatalogVersion()
+          .equals(other.getCatalogVersion())) return false;
+    }
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -256,6 +322,10 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + INCLUDINGWAL_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getIncludingWAL());
+    if (hasCatalogVersion()) {
+      hash = (37 * hash) + CATALOGVERSION_FIELD_NUMBER;
+      hash = (53 * hash) + getCatalogVersion().hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -401,6 +471,12 @@ private static final long serialVersionUID = 0L;
       }
       includingWAL_ = false;
 
+      if (catalogVersionBuilder_ == null) {
+        catalogVersion_ = null;
+      } else {
+        catalogVersion_ = null;
+        catalogVersionBuilder_ = null;
+      }
       return this;
     }
 
@@ -433,6 +509,11 @@ private static final long serialVersionUID = 0L;
         result.pastMoment_ = pastMomentBuilder_.build();
       }
       result.includingWAL_ = includingWAL_;
+      if (catalogVersionBuilder_ == null) {
+        result.catalogVersion_ = catalogVersion_;
+      } else {
+        result.catalogVersion_ = catalogVersionBuilder_.build();
+      }
       onBuilt();
       return result;
     }
@@ -486,6 +567,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.getIncludingWAL() != false) {
         setIncludingWAL(other.getIncludingWAL());
+      }
+      if (other.hasCatalogVersion()) {
+        mergeCatalogVersion(other.getCatalogVersion());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -715,6 +799,170 @@ private static final long serialVersionUID = 0L;
       includingWAL_ = false;
       onChanged();
       return this;
+    }
+
+    private com.google.protobuf.Int64Value catalogVersion_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> catalogVersionBuilder_;
+    /**
+     * <pre>
+     * precise catalog version to create backup for, or null to create backup for the latest version,
+     * when set not null, the pastMoment parameter is ignored
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+     * @return Whether the catalogVersion field is set.
+     */
+    public boolean hasCatalogVersion() {
+      return catalogVersionBuilder_ != null || catalogVersion_ != null;
+    }
+    /**
+     * <pre>
+     * precise catalog version to create backup for, or null to create backup for the latest version,
+     * when set not null, the pastMoment parameter is ignored
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+     * @return The catalogVersion.
+     */
+    public com.google.protobuf.Int64Value getCatalogVersion() {
+      if (catalogVersionBuilder_ == null) {
+        return catalogVersion_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : catalogVersion_;
+      } else {
+        return catalogVersionBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * precise catalog version to create backup for, or null to create backup for the latest version,
+     * when set not null, the pastMoment parameter is ignored
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+     */
+    public Builder setCatalogVersion(com.google.protobuf.Int64Value value) {
+      if (catalogVersionBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        catalogVersion_ = value;
+        onChanged();
+      } else {
+        catalogVersionBuilder_.setMessage(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * precise catalog version to create backup for, or null to create backup for the latest version,
+     * when set not null, the pastMoment parameter is ignored
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+     */
+    public Builder setCatalogVersion(
+        com.google.protobuf.Int64Value.Builder builderForValue) {
+      if (catalogVersionBuilder_ == null) {
+        catalogVersion_ = builderForValue.build();
+        onChanged();
+      } else {
+        catalogVersionBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * precise catalog version to create backup for, or null to create backup for the latest version,
+     * when set not null, the pastMoment parameter is ignored
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+     */
+    public Builder mergeCatalogVersion(com.google.protobuf.Int64Value value) {
+      if (catalogVersionBuilder_ == null) {
+        if (catalogVersion_ != null) {
+          catalogVersion_ =
+            com.google.protobuf.Int64Value.newBuilder(catalogVersion_).mergeFrom(value).buildPartial();
+        } else {
+          catalogVersion_ = value;
+        }
+        onChanged();
+      } else {
+        catalogVersionBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * precise catalog version to create backup for, or null to create backup for the latest version,
+     * when set not null, the pastMoment parameter is ignored
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+     */
+    public Builder clearCatalogVersion() {
+      if (catalogVersionBuilder_ == null) {
+        catalogVersion_ = null;
+        onChanged();
+      } else {
+        catalogVersion_ = null;
+        catalogVersionBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * precise catalog version to create backup for, or null to create backup for the latest version,
+     * when set not null, the pastMoment parameter is ignored
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+     */
+    public com.google.protobuf.Int64Value.Builder getCatalogVersionBuilder() {
+      
+      onChanged();
+      return getCatalogVersionFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * precise catalog version to create backup for, or null to create backup for the latest version,
+     * when set not null, the pastMoment parameter is ignored
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+     */
+    public com.google.protobuf.Int64ValueOrBuilder getCatalogVersionOrBuilder() {
+      if (catalogVersionBuilder_ != null) {
+        return catalogVersionBuilder_.getMessageOrBuilder();
+      } else {
+        return catalogVersion_ == null ?
+            com.google.protobuf.Int64Value.getDefaultInstance() : catalogVersion_;
+      }
+    }
+    /**
+     * <pre>
+     * precise catalog version to create backup for, or null to create backup for the latest version,
+     * when set not null, the pastMoment parameter is ignored
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
+        getCatalogVersionFieldBuilder() {
+      if (catalogVersionBuilder_ == null) {
+        catalogVersionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>(
+                getCatalogVersion(),
+                getParentForChildren(),
+                isClean());
+        catalogVersion_ = null;
+      }
+      return catalogVersionBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

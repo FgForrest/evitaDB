@@ -33,7 +33,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.test.EvitaTestSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -50,6 +49,7 @@ import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static io.evitadb.api.configuration.StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
 import static io.evitadb.api.query.QueryConstraints.page;
@@ -75,7 +75,6 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 		}
 	}
 
-	@DisplayName("Verify backward binary data compatibility")
 	@Tag(LONG_RUNNING_TEST)
 	@ParameterizedTest
 	@ValueSource(
@@ -125,6 +124,7 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 					.storage(
 						StorageOptions.builder()
 							.storageDirectory(targetDirectory)
+							.outputBufferSize(DEFAULT_OUTPUT_BUFFER_SIZE * 2)
 							.build()
 					)
 					.build()
@@ -163,4 +163,5 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 			assertNotNull(catalogId);
 		}
 	}
+
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+import java.util.function.BiFunction;
 
 /**
  * Exception indicating that a Write Ahead Log (WAL) has been corrupted.
@@ -44,5 +45,20 @@ public class WriteAheadLogCorruptedException extends EvitaInternalError {
 
 	public WriteAheadLogCorruptedException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
 		super(privateMessage, publicMessage, cause);
+	}
+
+	public WriteAheadLogCorruptedException(
+		@Nonnull String catalogName,
+		int walIndex,
+		long lastVersion,
+		long firstVersion,
+		@Nonnull BiFunction<String, Integer, String> getWalFileName
+	) {
+		super(
+			"First version of the WAL file `" + getWalFileName.apply(catalogName, walIndex) + "` doesn't follow up to the last version of the" +
+				" previous WAL file `" + getWalFileName.apply(catalogName, walIndex - 1) + "`! Last version found: `" +
+				lastVersion + "`, first version of the next WAL file : `" + firstVersion + "`! ",
+			"First version of the WAL file doesn't follow up to the last version of the previous WAL file!"
+		);
 	}
 }

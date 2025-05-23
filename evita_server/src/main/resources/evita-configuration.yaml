@@ -39,6 +39,7 @@ storage:
   maxOpenedReadHandles: ${storage.maxOpenedReadHandles:12}
   syncWrites: ${storage.syncWrites:true}
   computeCRC32C: ${storage.computeCRC32C:true}
+  compress: ${storage.compress:false}
   minimalActiveRecordShare: ${storage.minimalActiveRecordShare:0.5}
   fileSizeCompactionThresholdBytes: ${storage.fileSizeCompactionThresholdBytes:100M}
   timeTravelEnabled: ${storage.timeTravelEnabled:false}

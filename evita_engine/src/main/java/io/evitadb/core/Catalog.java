@@ -29,9 +29,9 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
+import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
@@ -135,7 +135,6 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -146,7 +145,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.core.Transaction.isTransactionAvailable;
-import static io.evitadb.utils.CollectionUtils.MAX_POWER_OF_TWO;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -308,6 +306,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportFileService exportFileService,
+		@Nonnull ObservableExecutorService requestExecutor,
 		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
@@ -345,7 +344,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		this.entityCollections = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
 		this.entitySchemaIndex = new TransactionalMap<>(createHashMap(0));
-		this.entityTypeSequence = sequenceService.getOrCreateSequence(
+		this.entityTypeSequence = this.sequenceService.getOrCreateSequence(
 			catalogName, SequenceType.ENTITY_COLLECTION, 0
 		);
 		this.catalogIndex = new CatalogIndex(Scope.LIVE);
@@ -358,7 +357,8 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
 		this.transactionManager = new TransactionManager(
-			this, evitaConfiguration, scheduler, transactionalExecutor, newCatalogVersionConsumer
+			this, evitaConfiguration, scheduler,
+			requestExecutor, transactionalExecutor, newCatalogVersionConsumer
 		);
 		this.trafficRecordingEngine = new TrafficRecordingEngine(
 			internalCatalogSchema.getName(),
@@ -383,6 +383,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportFileService exportFileService,
+		@Nonnull ObservableExecutorService requestExecutor,
 		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
 		@Nonnull TracingContext tracingContext
@@ -399,111 +400,127 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				)
 			)
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
-		final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader(
-			this.persistenceService.getLastCatalogVersion()
-		);
-		final long catalogVersion = catalogHeader.version();
-		this.catalogId = catalogHeader.catalogId();
-		this.versionId = new TransactionalReference<>(catalogVersion);
-		this.state = catalogHeader.catalogState();
-		// initialize container buffer
-		final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService(catalogVersion);
-		// initialize schema - still in constructor
-		final CatalogSchema catalogSchema = CatalogSchemaStoragePart.deserializeWithCatalog(
-			this,
-			() -> ofNullable(storagePartPersistenceService.getStoragePart(catalogVersion, 1, CatalogSchemaStoragePart.class))
-				.map(CatalogSchemaStoragePart::catalogSchema)
-				.orElseThrow(() -> new SchemaNotFoundException(catalogHeader.catalogName()))
-		);
-		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
-		this.catalogIndex = this.persistenceService.readCatalogIndex(this, Scope.LIVE)
-			.orElseGet(() -> new CatalogIndex(Scope.LIVE));
-		this.catalogIndex.attachToCatalog(null, this);
-		this.archiveCatalogIndex = this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
-			.filter(it -> !it.isEmpty())
-			.orElse(null);
-		if (this.archiveCatalogIndex != null) {
-			this.archiveCatalogIndex.attachToCatalog(null, this);
-		}
-		this.cacheSupervisor = cacheSupervisor;
-		this.trafficRecordingEngine = new TrafficRecordingEngine(
-			catalogSchema.getName(),
-			this.state,
-			tracingContext,
-			evitaConfiguration,
-			exportFileService,
-			scheduler
-		);
-		this.dataStoreBuffer = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
-			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
-			new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
 
-		final Collection<CollectionFileReference> entityCollectionHeaders = catalogHeader.getEntityTypeFileIndexes();
-		final Map<String, EntityCollection> collections = createHashMap(entityCollectionHeaders.size());
-		final Map<Integer, EntityCollection> collectionIndex = createHashMap(entityCollectionHeaders.size());
-		for (CollectionFileReference entityTypeFileIndex : entityCollectionHeaders) {
-			final String entityType = entityTypeFileIndex.entityType();
-			final EntityCollectionHeader entityCollectionHeader = this.persistenceService.getEntityCollectionHeader(
-				catalogVersion, entityTypeFileIndex.entityTypePrimaryKey()
+		try {
+			final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader(
+				this.persistenceService.getLastCatalogVersion()
 			);
-			final int entityTypePrimaryKey = entityCollectionHeader.entityTypePrimaryKey();
-			final EntityCollection collection = new EntityCollection(
-				catalogName,
-				catalogVersion,
-				catalogHeader.catalogState(), entityTypePrimaryKey,
-				entityType,
-				this.persistenceService,
-				this.cacheSupervisor,
-				this.sequenceService,
-				this.trafficRecordingEngine
+			final long catalogVersion = catalogHeader.version();
+			this.catalogId = catalogHeader.catalogId();
+			this.versionId = new TransactionalReference<>(catalogVersion);
+			this.state = catalogHeader.catalogState();
+			// initialize container buffer
+			final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService(catalogVersion);
+			// initialize schema - still in constructor
+			final CatalogSchema catalogSchema = CatalogSchemaStoragePart.deserializeWithCatalog(
+				this,
+				() -> ofNullable(storagePartPersistenceService.getStoragePart(catalogVersion, 1, CatalogSchemaStoragePart.class))
+					.map(CatalogSchemaStoragePart::catalogSchema)
+					.orElseThrow(() -> new SchemaNotFoundException(catalogHeader.catalogName()))
 			);
-			collections.put(entityType, collection);
-			collectionIndex.put(MAX_POWER_OF_TWO, collection);
-		}
-		this.entityCollections = new TransactionalMap<>(collections, EntityCollection.class, Function.identity());
-		this.entityTypeSequence = this.sequenceService.getOrCreateSequence(
-			catalogName, SequenceType.ENTITY_COLLECTION, catalogHeader.lastEntityCollectionPrimaryKey()
-		);
-		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(
-			entityCollections.values()
-				.stream()
-				.collect(
-					Collectors.toMap(
-						EntityCollection::getEntityTypePrimaryKey,
-						Function.identity()
+			this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
+			this.catalogIndex = this.persistenceService.readCatalogIndex(this, Scope.LIVE)
+				.orElseGet(() -> new CatalogIndex(Scope.LIVE));
+			this.catalogIndex.attachToCatalog(null, this);
+			this.archiveCatalogIndex = this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
+				.filter(it -> !it.isEmpty())
+				.orElse(null);
+			if (this.archiveCatalogIndex != null) {
+				this.archiveCatalogIndex.attachToCatalog(null, this);
+			}
+			this.cacheSupervisor = cacheSupervisor;
+			this.trafficRecordingEngine = new TrafficRecordingEngine(
+				catalogSchema.getName(),
+				this.state,
+				tracingContext,
+				evitaConfiguration,
+				exportFileService,
+				scheduler
+			);
+			this.dataStoreBuffer = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
+				new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
+				new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
+
+			final Collection<CollectionFileReference> entityCollectionHeaders = catalogHeader.getEntityTypeFileIndexes();
+			final Map<String, EntityCollection> collections = createHashMap(entityCollectionHeaders.size());
+			try {
+				for (CollectionFileReference entityTypeFileIndex : entityCollectionHeaders) {
+					final String entityType = entityTypeFileIndex.entityType();
+					final EntityCollectionHeader entityCollectionHeader = this.persistenceService.getEntityCollectionHeader(
+						catalogVersion, entityTypeFileIndex.entityTypePrimaryKey()
+					);
+					final int entityTypePrimaryKey = entityCollectionHeader.entityTypePrimaryKey();
+					final EntityCollection collection = new EntityCollection(
+						catalogName,
+						catalogVersion,
+						catalogHeader.catalogState(), entityTypePrimaryKey,
+						entityType,
+						this.persistenceService,
+						this.cacheSupervisor,
+						this.sequenceService,
+						this.trafficRecordingEngine
+					);
+					collections.put(entityType, collection);
+				}
+			} catch (RuntimeException ex) {
+				for (EntityCollection collection : collections.values()) {
+					collection.terminate();
+				}
+				// try to clean resources before propagating exeption
+				throw ex;
+			}
+			this.entityCollections = new TransactionalMap<>(collections, EntityCollection.class, Function.identity());
+			this.entityTypeSequence = this.sequenceService.getOrCreateSequence(
+				catalogName, SequenceType.ENTITY_COLLECTION, catalogHeader.lastEntityCollectionPrimaryKey()
+			);
+			this.entityCollectionsByPrimaryKey = new TransactionalMap<>(
+				this.entityCollections.values()
+					.stream()
+					.collect(
+						Collectors.toMap(
+							EntityCollection::getEntityTypePrimaryKey,
+							Function.identity()
+						)
+					),
+				EntityCollection.class, Function.identity()
+			);
+
+			for (EntityCollection entityCollection : collections.values()) {
+				entityCollection.attachToCatalog(null, this);
+			}
+
+			this.entitySchemaIndex = new TransactionalMap<>(
+				this.entityCollections.values()
+					.stream()
+					.collect(
+						Collectors.toMap(
+							EntityCollection::getEntityType,
+							EntityCollection::getSchema
+						)
 					)
-				),
-			EntityCollection.class, Function.identity()
-		);
+			);
+			// perform initialization of reflected schemas
+			for (EntityCollection collection : collections.values()) {
+				collection.initSchema();
+			}
 
-		for (EntityCollection entityCollection : collections.values()) {
-			entityCollection.attachToCatalog(null, this);
+			this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
+			this.evitaConfiguration = evitaConfiguration;
+			this.scheduler = scheduler;
+			this.transactionalExecutor = transactionalExecutor;
+			this.newCatalogVersionConsumer = newCatalogVersionConsumer;
+			this.lastPersistedSchemaVersion = this.schema.get().version();
+			this.transactionManager = new TransactionManager(
+				this, evitaConfiguration, scheduler,
+				requestExecutor, transactionalExecutor, newCatalogVersionConsumer
+			);
+		} catch (RuntimeException ex) {
+			// clean opened resources before propagating exception
+			if (this.persistenceService != null) {
+				this.persistenceService.close();
+			}
+			throw ex;
 		}
-
-		this.entitySchemaIndex = new TransactionalMap<>(
-			this.entityCollections.values()
-				.stream()
-				.collect(
-					Collectors.toMap(
-						EntityCollection::getEntityType,
-						EntityCollection::getSchema
-					)
-				)
-		);
-		// perform initialization of reflected schemas
-		for (EntityCollection collection : collections.values()) {
-			collection.initSchema();
-		}
-
-		this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
-		this.evitaConfiguration = evitaConfiguration;
-		this.scheduler = scheduler;
-		this.transactionalExecutor = transactionalExecutor;
-		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
-		this.lastPersistedSchemaVersion = this.schema.get().version();
-		this.transactionManager = new TransactionManager(
-			this, evitaConfiguration, scheduler, transactionalExecutor, newCatalogVersionConsumer
-		);
 	}
 
 	Catalog(
@@ -598,7 +615,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Override
 	@Nonnull
 	public SealedCatalogSchema getSchema() {
-		return schema.get();
+		return this.schema.get();
 	}
 
 	@Nonnull
@@ -619,7 +636,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Override
 	@Nonnull
 	public String getName() {
-		return schema.get().getName();
+		return this.schema.get().getName();
 	}
 
 	@Override
@@ -640,13 +657,13 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Override
 	public boolean supportsTransaction() {
-		return state == CatalogState.ALIVE;
+		return this.state == CatalogState.ALIVE;
 	}
 
 	@Override
 	@Nonnull
 	public Set<String> getEntityTypes() {
-		return entityCollections.keySet();
+		return this.entityCollections.keySet();
 	}
 
 	@Override
@@ -681,13 +698,13 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Override
 	@Nonnull
 	public Optional<EntityCollectionContract> getCollectionForEntity(@Nonnull String entityType) {
-		return ofNullable(entityCollections.get(entityType));
+		return ofNullable(this.entityCollections.get(entityType));
 	}
 
 	@Override
 	@Nonnull
 	public EntityCollection getCollectionForEntityOrThrowException(@Nonnull String entityType) throws CollectionNotFoundException {
-		return ofNullable(entityCollections.get(entityType))
+		return ofNullable(this.entityCollections.get(entityType))
 			.orElseThrow(() -> new CollectionNotFoundException(entityType));
 	}
 
@@ -701,13 +718,13 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Override
 	@Nonnull
 	public EntityCollection getOrCreateCollectionForEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType) {
-		return ofNullable(entityCollections.get(entityType))
+		return ofNullable(this.entityCollections.get(entityType))
 			.orElseGet(() -> {
 				if (!getSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
 					throw new InvalidSchemaMutationException(entityType, CatalogEvolutionMode.ADDING_ENTITY_TYPES);
 				}
 				updateSchema(session, new CreateEntitySchemaMutation(entityType));
-				return Objects.requireNonNull(entityCollections.get(entityType));
+				return Objects.requireNonNull(this.entityCollections.get(entityType));
 			});
 	}
 
@@ -739,8 +756,12 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	}
 
 	@Override
-	public void delete() {
-		this.persistenceService.delete();
+	public void terminateAndDelete() {
+		try {
+			this.terminateInternally();
+		} finally {
+			this.persistenceService.closeAndDelete();
+		}
 	}
 
 	@Nonnull
@@ -792,13 +813,13 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Nonnull
 	@Override
 	public Map<String, EntitySchemaContract> getEntitySchemaIndex() {
-		return entitySchemaIndex;
+		return this.entitySchemaIndex;
 	}
 
 	@Override
 	@Nonnull
 	public Optional<SealedEntitySchema> getEntitySchema(@Nonnull String entityType) {
-		return ofNullable(entityCollections.get(entityType))
+		return ofNullable(this.entityCollections.get(entityType))
 			.map(EntityCollection::getSchema);
 	}
 
@@ -859,6 +880,8 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				},
 				() -> updatedCatalogConsumer.accept(this)
 			);
+
+		this.persistenceService.verifyIntegrity();
 	}
 
 	@Nonnull
@@ -895,12 +918,13 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Override
 	public ServerTask<?, FileForFetch> backup(
 		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
 		boolean includingWAL,
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
 	) throws TemporalDataNotAvailableException {
 		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createBackupTask(
-			pastMoment, includingWAL, onStart, onComplete
+			pastMoment, catalogVersion, includingWAL, onStart, onComplete
 		);
 		this.scheduler.submit(backupTask);
 		return backupTask;
@@ -928,49 +952,28 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Override
 	public void terminate() {
+		Assert.isPremiseValid(!isTerminated(), "Catalog is already terminated!");
 		try {
-			final String catalogName = getName();
-			final List<EntityCollectionHeader> entityHeaders;
-			boolean changeOccurred = this.lastPersistedSchemaVersion != schema.get().version();
-			final boolean warmingUpState = getCatalogState() == CatalogState.WARMING_UP;
-			entityHeaders = new ArrayList<>(this.entityCollections.size());
-			for (EntityCollection entityCollection : entityCollections.values()) {
-				// in warmup state try to persist all changes in volatile memory
-				if (warmingUpState) {
-					final long lastSeenVersion = entityCollection.getVersion();
-					entityHeaders.add(
-						updateIndexIfNecessary(
-							entityCollection.flush()
-						)
-					);
-					changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
-				}
-				// in all states terminate collection operations
-				entityCollection.terminate();
-			}
-
-			// if any change occurred (this may happen only in warm up state)
-			if (warmingUpState && changeOccurred) {
-				// store catalog header
-				this.persistenceService.storeHeader(
-					this.catalogId,
-					getCatalogState(),
-					getVersion(),
-					this.entityTypeSequence.get(),
-					null,
-					entityHeaders,
-					this.dataStoreBuffer
-				);
-			}
-			// close all resources here, here we just hand all objects to GC
-			this.entityCollections.clear();
-			// log info
-			log.info("Catalog {} successfully terminated.", catalogName);
+			terminateInternally();
 		} finally {
-			persistenceService.close();
+			this.persistenceService.close();
 		}
 	}
 
+	@Override
+	public boolean isTerminated() {
+		return this.persistenceService.isClosed();
+	}
+
+	/**
+	 * Applies a given {@link Mutation} to the appropriate target within the system.
+	 * The method determines the type of the mutation and performs the required action,
+	 * such as applying a schema mutation to the catalog or applying an entity mutation
+	 * to the relevant entity collection.
+	 *
+	 * @param mutation the mutation instance to be applied; must not be null
+	 * @throws InvalidMutationException if the mutation type is not recognized or supported
+	 */
 	public void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException {
 		if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
 			// apply schema mutation to the catalog
@@ -988,7 +991,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Nonnull
 	public Optional<EntityCollection> getCollectionForEntityInternal(@Nonnull String entityType) {
-		return ofNullable(entityCollections.get(entityType));
+		return ofNullable(this.entityCollections.get(entityType));
 	}
 
 	/**
@@ -1098,7 +1101,6 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		final DataStoreChanges transactionalChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this);
 
 		final MapChanges<String, EntityCollection> collectionChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this.entityCollections);
-		Map<String, EntityCollectionPersistenceService> updatedServiceCollections = null;
 		if (collectionChanges != null) {
 			// recognize renamed collections
 			final Map<String, EntityCollection> originalCollectionContents = collectionChanges.getMapDelegate();
@@ -1116,10 +1118,12 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 						updatedCollection.getEntityTypePrimaryKey(),
 						newEntityType
 					);
-					if (updatedServiceCollections == null) {
-						updatedServiceCollections = new HashMap<>(collectionChanges.getModifiedKeys().size());
-					}
-					updatedServiceCollections.put(newEntityType, newPersistenceService);
+					this.entityCollections.put(
+						updatedKey.getKey(),
+						updatedKey.getValue().createCopyWithNewPersistenceService(
+							newCatalogVersionId, CatalogState.ALIVE, newPersistenceService
+						)
+					);
 					originalCollections.remove(updatedCollection);
 					ofNullable(originalCollectionContents.get(newEntityType)).ifPresent(it -> it.removeLayer(transactionalLayer));
 				}
@@ -1130,20 +1134,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			}
 		}
 
-		final Map<String, EntityCollection> possiblyUpdatedCollections = transactionalLayer.getStateCopyWithCommittedChanges(entityCollections);
-		// replace all entity collections with new one if their storage persistence service was changed
-		if (updatedServiceCollections != null) {
-			updatedServiceCollections.forEach(
-				(entityType, newPersistenceService) -> possiblyUpdatedCollections.compute(
-					entityType,
-					(entityTypeKey, entityCollection) -> Objects.requireNonNull(entityCollection)
-						.createCopyWithNewPersistenceService(
-							newCatalogVersionId, CatalogState.ALIVE, newPersistenceService
-						)
-				)
-			);
-		}
-
+		final Map<String, EntityCollection> possiblyUpdatedCollections = transactionalLayer.getStateCopyWithCommittedChanges(this.entityCollections);
 		final CatalogIndex possiblyUpdatedCatalogIndex = transactionalLayer.getStateCopyWithCommittedChanges(this.catalogIndex);
 		final CatalogIndex possiblyUpdatedArchiveCatalogIndex = this.archiveCatalogIndex == null ?
 			null :
@@ -1197,21 +1188,24 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	/**
 	 * Commits a Write-Ahead Log (WAL) for and processes the transaction.
 	 *
-	 * @param transactionId         The ID of the transaction to commit.
-	 * @param commitBehaviour       The requested stage the transaction needs to reach in order the returned future
-	 *                              is completed.
-	 * @param walPersistenceService The Write-Ahead Log persistence service.
+	 * @param transactionId                          The ID of the transaction to commit.
+	 * @param catalogSchemaVersionAtTransactionStart catalog schema version valid at transaction start
+	 * @param walPersistenceService                  The Write-Ahead Log persistence service.
+	 * @param commitProgress                         The record that allows tracking the commit progress.
 	 * @throws TransactionException If an unknown exception occurs while processing the transaction.
 	 */
 	public void commitWal(
 		@Nonnull UUID transactionId,
-		@Nonnull CommitBehavior commitBehaviour,
+		int catalogSchemaVersionAtTransactionStart,
 		@Nonnull IsolatedWalPersistenceService walPersistenceService,
-		@Nonnull CompletableFuture<Long> transactionFinalizationFuture
+		@Nonnull CommitProgressRecord commitProgress
 	) {
 		try {
 			this.transactionManager.commit(
-				transactionId, commitBehaviour, walPersistenceService, transactionFinalizationFuture
+				transactionId,
+				this.getSchema().version() - catalogSchemaVersionAtTransactionStart,
+				walPersistenceService,
+				commitProgress
 			);
 		} catch (Exception e) {
 			this.transactionManager.invalidateTransactionalPublisher();
@@ -1407,10 +1401,10 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 * mutations with an active transaction if available, applies schema modifications, and ensures persistence
 	 * and proper rollback in the event of an error.
 	 *
-	 * @param session         an optional {@link EvitaSessionContract} that may be used to record schema mutations,
-	 *                        if present
-	 * @param schemaMutation  an array of {@link LocalCatalogSchemaMutation} objects that specify the mutations
-	 *                        to apply to the catalog schema
+	 * @param session        an optional {@link EvitaSessionContract} that may be used to record schema mutations,
+	 *                       if present
+	 * @param schemaMutation an array of {@link LocalCatalogSchemaMutation} objects that specify the mutations
+	 *                       to apply to the catalog schema
 	 * @return the updated {@link SealedCatalogSchema} reflecting all applied mutations
 	 */
 	@Nonnull
@@ -1595,7 +1589,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		@Nullable Transaction transactionRef,
 		@Nonnull CatalogSchemaContract catalogSchema
 	) {
-		if (renameEntitySchemaMutation.isOverwriteTarget() && entityCollections.containsKey(renameEntitySchemaMutation.getNewName())) {
+		if (renameEntitySchemaMutation.isOverwriteTarget() && this.entityCollections.containsKey(renameEntitySchemaMutation.getNewName())) {
 			replaceEntityCollectionInternal(transactionRef != null, renameEntitySchemaMutation);
 		} else {
 			renameEntityCollectionInternal(transactionRef != null, renameEntitySchemaMutation);
@@ -1726,7 +1720,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			session, evitaRequest,
 			evitaRequest.isQueryTelemetryRequested() ? new QueryTelemetry(QueryPhase.OVERALL) : null,
 			Collections.emptyMap(),
-			cacheSupervisor
+			this.cacheSupervisor
 		);
 	}
 
@@ -1776,7 +1770,10 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		boolean transactionOpen
 	) {
 		entityCollectionToBeReplacedWith.updateSchema(getSchema(), modifyEntitySchemaName);
-		this.entityCollections.remove(entityCollectionNameToBeReplacedWith);
+		Assert.isPremiseValid(
+			this.entityCollections.remove(entityCollectionNameToBeReplacedWith) == entityCollectionToBeReplacedWith,
+			"Entity collection is expected to be removed from the catalog!"
+		);
 		if (!transactionOpen) {
 			updateIndexIfNecessary(
 				entityCollectionToBeReplacedWith.flush()
@@ -1795,7 +1792,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				)
 			);
 			// update managed reference entity types and groups that target renamed entity
-			for (EntityCollection otherCollection : entityCollections.values()) {
+			for (EntityCollection otherCollection : this.entityCollections.values()) {
 				boolean schemaUpdated = otherCollection.notifyEntityTypeRenamed(
 					entityCollectionNameToBeReplacedWith, entityCollectionToBeReplacedWith
 				);
@@ -1809,12 +1806,65 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			this.flush();
 		} else {
 			// update managed reference entity types and groups that target renamed entity
-			for (EntityCollection otherCollection : entityCollections.values()) {
+			for (EntityCollection otherCollection : this.entityCollections.values()) {
 				otherCollection.notifyEntityTypeRenamed(
 					entityCollectionNameToBeReplacedWith, entityCollectionToBeReplacedWith
 				);
 			}
 			this.entityCollections.put(entityCollectionNameToBeReplaced, entityCollectionToBeReplacedWith);
+		}
+	}
+
+	/**
+	 * Handles the termination operations for the internal state of the catalog object.
+	 * This method performs a cleanup of resources and ensures that any necessary persistence
+	 * operations are completed, specifically during the catalog's warming up state.
+	 * The termination process involves flushing and updating entity collections, storing
+	 * headers if applicable, and preparing the system for garbage collection.
+	 * Logs relevant information or errors during the lifecycle of this operation.
+	 */
+	private void terminateInternally() {
+		final String catalogName = getName();
+		try {
+			final List<EntityCollectionHeader> entityHeaders;
+			boolean changeOccurred = this.lastPersistedSchemaVersion != this.schema.get().version();
+			final boolean warmingUpState = getCatalogState() == CatalogState.WARMING_UP;
+			entityHeaders = new ArrayList<>(this.entityCollections.size());
+			for (EntityCollection entityCollection : this.entityCollections.values()) {
+				// in warmup state try to persist all changes in volatile memory
+				if (warmingUpState) {
+					final long lastSeenVersion = entityCollection.getVersion();
+					entityHeaders.add(
+						updateIndexIfNecessary(
+							entityCollection.flush()
+						)
+					);
+					changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
+				}
+				// in all states terminate collection operations
+				entityCollection.terminate();
+			}
+
+			// if any change occurred (this may happen only in warm up state)
+			if (warmingUpState && changeOccurred) {
+				// store catalog header
+				this.persistenceService.storeHeader(
+					this.catalogId,
+					getCatalogState(),
+					getVersion(),
+					this.entityTypeSequence.get(),
+					null,
+					entityHeaders,
+					this.dataStoreBuffer
+				);
+			}
+			// close all resources here, here we just hand all objects to GC
+			this.entityCollections.clear();
+			// log info
+			log.info("Catalog {} successfully terminated.", catalogName);
+		} catch (RuntimeException ex) {
+			// log error
+			log.error("Failed to terminate catalog {} due to: {}", catalogName, ex.getMessage(), ex);
 		}
 	}
 

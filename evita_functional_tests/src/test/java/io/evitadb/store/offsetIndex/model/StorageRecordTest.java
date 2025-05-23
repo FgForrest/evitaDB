@@ -37,6 +37,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 import javax.annotation.Nonnull;
@@ -45,6 +48,8 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -55,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -69,6 +75,75 @@ class StorageRecordTest {
 	private final Random random = new Random();
 	private File tempFile;
 	private Kryo kryo;
+
+	/**
+	 * Generates a stream of arguments by combining all possible combinations
+	 * of {@link Crc32Check} and {@link Compression} enum values.
+	 *
+	 * @return a {@link Stream} of {@link Arguments} containing every combination
+	 *         of {@link Crc32Check} and {@link Compression}.
+	 */
+	@Nonnull
+	private static Stream<Arguments> combineSettings() {
+		return Stream.of(Crc32Check.values())
+			.flatMap(crc32Check -> Stream.of(Compression.values())
+				.map(compression -> Arguments.of(crc32Check, compression)));
+	}
+
+	/**
+	 * Configures the given {@link ObservableOutput} by optionally computing a CRC32 checksum
+	 * and/or applying compress based on the provided parameters.
+	 *
+	 * @param output      the {@link ObservableOutput} to be configured
+	 * @param crc32Check  an enum indicating whether CRC32 checksum computation should be enabled
+	 * @param compression an enum indicating whether compress should be applied
+	 * @return the configured {@link ObservableOutput}
+	 */
+	private static <T extends OutputStream> ObservableOutput<T> configure(
+		@Nonnull ObservableOutput<T> output,
+		@Nonnull Crc32Check crc32Check,
+		@Nonnull Compression compression
+	) {
+		if (crc32Check == Crc32Check.YES) {
+			output.computeCRC32();
+		}
+		if (compression == Compression.YES) {
+			output.compress();
+		}
+		return output;
+	}
+
+	/**
+	 * Configures the given {@link ObservableOutput} by optionally computing a CRC32 checksum
+	 * and/or applying compress based on the provided parameters.
+	 *
+	 * @param input       the {@link ObservableOutput} to be configured
+	 * @param crc32Check  an enum indicating whether CRC32 checksum computation should be enabled
+	 * @param compression an enum indicating whether compress should be applied
+	 * @return the configured {@link ObservableOutput}
+	 */
+	private static <T extends InputStream> ObservableInput<T> configure(
+		@Nonnull ObservableInput<T> input,
+		@Nonnull Crc32Check crc32Check,
+		@Nonnull Compression compression
+	) {
+		if (crc32Check == Crc32Check.YES) {
+			input.computeCRC32();
+		}
+		if (compression == Compression.YES) {
+			input.compress();
+		}
+		return input;
+	}
+
+	private static LongSetChunk generateLongSetOfSize(int length) {
+		final Long[] longSet = new Long[length];
+		long incr = 0;
+		for (int i = 0; i < length; i++) {
+			longSet[i] = ++incr;
+		}
+		return new LongSetChunk(longSet);
+	}
 
 	@BeforeEach
 	void setUp() {
@@ -86,34 +161,15 @@ class StorageRecordTest {
 	}
 
 	@DisplayName("Single record should be written and read intact")
-	@Test
-	void shouldWriteAndReadRecord() throws IOException {
+	@ParameterizedTest
+	@MethodSource("combineSettings")
+	void shouldWriteAndReadRecord(Crc32Check crc32Check, Compression compression) throws IOException {
 		final StorageRecord<ByteChunk> record;
-		try (final ObservableOutput<?> output = new ObservableOutput<>(new FileOutputStream(tempFile), 16_384, 0)) {
+		try (final ObservableOutput<?> output = configure(new ObservableOutput<>(new FileOutputStream(tempFile), 16_384, 0), crc32Check, compression)) {
 			record = new StorageRecord<>(kryo, output, 1L, false, generateBytes(256));
 		}
 
-		try (final ObservableInput<?> input = new ObservableInput<>(new FileInputStream(tempFile), 8_192)) {
-			final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(
-				kryo, input,
-				fl -> {
-					assertEquals(record.fileLocation(), fl);
-					return ByteChunk.class;
-				}
-			);
-			assertEquals(record, loadedRecord);
-		}
-	}
-
-	@DisplayName("Single record should be written and read intact including CRC32 checksum")
-	@Test
-	void shouldWriteAndReadRecordWithCrc32Check() throws IOException {
-		final StorageRecord<ByteChunk> record;
-		try (final ObservableOutput<?> output = new ObservableOutput<>(new FileOutputStream(tempFile), 16_384, 0).computeCRC32()) {
-			record = new StorageRecord<>(kryo, output, 1L, false, generateBytes(256));
-		}
-
-		try (final ObservableInput<?> input = new ObservableInput<>(new FileInputStream(tempFile), 8_192).computeCRC32()) {
+		try (final ObservableInput<?> input = configure(new ObservableInput<>(new FileInputStream(tempFile), 8_192), crc32Check, compression)) {
 			final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(
 				kryo, input,
 				fl -> {
@@ -166,13 +222,14 @@ class StorageRecordTest {
 	}
 
 	@DisplayName("Multiple records of various random size should be written and read with checksum")
-	@Test
-	void shouldWriteAndReadMultipleDifferentRecordsOfVaryingSize() throws IOException {
+	@ParameterizedTest
+	@MethodSource("combineSettings")
+	void shouldWriteAndReadMultipleDifferentRecordsOfVaryingSize(Crc32Check crc32Check, Compression compression) throws IOException {
 		final int count = 256;
 		final List<StorageRecord<ByteChunk>> records = new ArrayList<>(count);
-		final Map<FileLocation, StorageRecord<ByteChunk>> index = generateAndWriteRandomRecords(count, records::add);
+		final Map<FileLocation, StorageRecord<ByteChunk>> index = generateAndWriteRandomRecords(count, records::add, crc32Check, compression);
 
-		try (final ObservableInput<?> input = new ObservableInput<>(new FileInputStream(tempFile), 16_384).computeCRC32()) {
+		try (final ObservableInput<?> input = configure(new ObservableInput<>(new FileInputStream(tempFile), 16_384), crc32Check, compression)) {
 			for (int i = 0; i < count; i++) {
 				final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(
 					kryo, input,
@@ -187,13 +244,14 @@ class StorageRecordTest {
 	}
 
 	@DisplayName("File locations of multiple records of various random size should be written and read with checksum")
-	@Test
-	void shouldWriteAndReadFileLocationsOfMultipleDifferentRecordsOfVaryingSize() throws IOException {
+	@ParameterizedTest
+	@MethodSource("combineSettings")
+	void shouldWriteAndReadFileLocationsOfMultipleDifferentRecordsOfVaryingSize(Crc32Check crc32Check, Compression compression) throws IOException {
 		final int count = 256;
 		final List<StorageRecord<ByteChunk>> records = new ArrayList<>(count);
-		final Map<FileLocation, StorageRecord<ByteChunk>> index = generateAndWriteRandomRecords(count, records::add);
+		final Map<FileLocation, StorageRecord<ByteChunk>> index = generateAndWriteRandomRecords(count, records::add, crc32Check, compression);
 
-		try (final ObservableInput<?> input = new ObservableInput<>(new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r")), 16_384).computeCRC32()) {
+		try (final ObservableInput<?> input = configure(new ObservableInput<>(new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r")), 16_384), crc32Check, compression)) {
 			long startPosition = 0;
 			for (int i = 0; i < count; i++) {
 				final FileLocation location = StorageRecord.readFileLocation(input, startPosition);
@@ -207,38 +265,41 @@ class StorageRecordTest {
 	}
 
 	@DisplayName("Multiple records should be written and read in random order")
-	@Test
-	void shouldReadRandomRecords() throws FileNotFoundException {
+	@ParameterizedTest
+	@MethodSource("combineSettings")
+	void shouldReadRandomRecords(Crc32Check crc32Check, Compression compression) throws FileNotFoundException {
 		final Map<FileLocation, StorageRecord<ByteChunk>> index = new HashMap<>(8);
-		try (final ObservableOutput<?> output = new ObservableOutput<>(new FileOutputStream(tempFile), 16_384, 0).computeCRC32()) {
+		try (final ObservableOutput<?> output = configure(new ObservableOutput<>(new FileOutputStream(tempFile), 16_384, 0), crc32Check, compression)) {
 			writeRandomRecord(index, output, 256);
 			writeRandomRecord(index, output, 178);
 			writeRandomRecord(index, output, 453);
 		}
 
 		try (final RandomAccessFileInputStream is = new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r"));
-		     final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(is, 8_192).computeCRC32()) {
+		     final ObservableInput<RandomAccessFileInputStream> input = configure(new ObservableInput<>(is, 8_192), crc32Check, compression)) {
 			index.forEach((key, expectedRecord) -> {
-				final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(input, key, (stream, length) -> kryo.readObject(stream, ByteChunk.class));
+				final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(input, key, (stream, length, control) -> kryo.readObject(stream, ByteChunk.class));
 				assertEquals(expectedRecord, loadedRecord);
 			});
 		}
 	}
 
 	@DisplayName("Multiple records with random content size should be written and read in random order")
-	@Test
-	void shouldWriteAndReadRandomlyMultipleDifferentRecordsOfVaryingSize() throws IOException {
+	@ParameterizedTest
+	@MethodSource("combineSettings")
+	void shouldWriteAndReadRandomlyMultipleDifferentRecordsOfVaryingSize(Crc32Check crc32Check, Compression compression) throws IOException {
 		final int count = 256;
 		final int retrievalCount = 512;
-		final Map<FileLocation, StorageRecord<ByteChunk>> index = generateAndWriteRandomRecords(count, rec -> {
-		});
+		final Map<FileLocation, StorageRecord<ByteChunk>> index = generateAndWriteRandomRecords(
+			count, rec -> {}, crc32Check, compression
+		);
 		final List<FileLocation> locations = new ArrayList<>(index.keySet());
 
 		try (final RandomAccessFileInputStream is = new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r"));
-		     final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(is, 8_192 * 2).computeCRC32()) {
+		     final ObservableInput<RandomAccessFileInputStream> input = configure(new ObservableInput<>(is, 8_192 * 2), crc32Check, compression)) {
 			for (int i = 0; i < retrievalCount; i++) {
 				final FileLocation randomLocation = locations.get(random.nextInt(locations.size()));
-				final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(input, randomLocation, (stream, length) -> kryo.readObject(stream, ByteChunk.class));
+				final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(input, randomLocation, (stream, length, control) -> kryo.readObject(stream, ByteChunk.class));
 				final StorageRecord<ByteChunk> expectedRecord = index.get(randomLocation);
 				assertEquals(expectedRecord, loadedRecord);
 			}
@@ -246,37 +307,39 @@ class StorageRecordTest {
 	}
 
 	@DisplayName("Should persist long record spanning several records")
-	@Test
-	void shouldWriteAndReadLongRecordThatExceedsTheBufferButConsistsOfMultipleSmallItems() throws IOException {
+	@ParameterizedTest
+	@MethodSource("combineSettings")
+	void shouldWriteAndReadLongRecordThatExceedsTheBufferButConsistsOfMultipleSmallItems(Crc32Check crc32Check, Compression compression) throws IOException {
 		final StorageRecord<LongSetChunk> record;
-		try (final ObservableOutput<?> output = new ObservableOutput<>(new FileOutputStream(tempFile), 512, 2_048, 0)) {
+		try (final ObservableOutput<?> output = configure(new ObservableOutput<>(new FileOutputStream(tempFile), 512, 2_048, 0), crc32Check, compression)) {
 			record = new StorageRecord<>(kryo, output, 1L, true, generateLongSetOfSize(5000));
 		}
 
-		try (final ObservableInput<?> input = new ObservableInput<>(new FileInputStream(tempFile), 8_192)) {
+		try (final ObservableInput<?> input = configure(new ObservableInput<>(new FileInputStream(tempFile), 8_192), crc32Check, compression)) {
 			final StorageRecord<LongSetChunk> loadedRecord = StorageRecord.read(
 				kryo, input,
 				fl -> LongSetChunk.class
 			);
 			assertEquals(record.fileLocation(), loadedRecord.fileLocation());
 			assertEquals(record, loadedRecord);
-			assertTrue(loadedRecord.closesTransaction());
+			assertTrue(loadedRecord.closesGeneration());
 		}
 
-		try (final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r")), 8_192)) {
+		try (final ObservableInput<RandomAccessFileInputStream> input = configure(new ObservableInput<>(new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r")), 8_192), crc32Check, compression)) {
 			final StorageRecord<LongSetChunk> loadedRecord = StorageRecord.read(
 				input, record.fileLocation(),
-				(stream, length) -> kryo.readObject(stream, LongSetChunk.class)
+				(stream, length, control) -> kryo.readObject(stream, LongSetChunk.class)
 			);
 			assertEquals(record.fileLocation(), loadedRecord.fileLocation());
 			assertEquals(record, loadedRecord);
-			assertTrue(loadedRecord.closesTransaction());
+			assertTrue(loadedRecord.closesGeneration());
 		}
 	}
 
 	@DisplayName("Should persist and read Roaring64Bitmap over multiple records")
-	@Test
-	void shouldWriteAndReadLongBitmapOverMultipleRecords() throws IOException {
+	@ParameterizedTest
+	@MethodSource("combineSettings")
+	void shouldWriteAndReadLongBitmapOverMultipleRecords(Crc32Check crc32Check, Compression compression) throws IOException {
 		final int cardinality = 4065427;
 		final Roaring64Bitmap bitmap = new Roaring64Bitmap();
 		for (int i = 0; i < cardinality; i++) {
@@ -284,11 +347,11 @@ class StorageRecordTest {
 		}
 
 		final StorageRecord<Roaring64Bitmap> record;
-		try (final ObservableOutput<?> output = new ObservableOutput<>(new FileOutputStream(tempFile), 512, 1024, 0).computeCRC32()) {
+		try (final ObservableOutput<?> output = configure(new ObservableOutput<>(new FileOutputStream(tempFile), 512, 1024, 0), crc32Check, compression)) {
 			record = new StorageRecord<>(kryo, output, 1L, true, bitmap);
 		}
 
-		try (final ObservableInput<?> input = new ObservableInput<>(new FileInputStream(tempFile), 8_192).computeCRC32()) {
+		try (final ObservableInput<?> input = configure(new ObservableInput<>(new FileInputStream(tempFile), 8_192), crc32Check, compression)) {
 			final StorageRecord<Roaring64Bitmap> loadedRecord = StorageRecord.read(
 				kryo, input,
 				fl -> Roaring64Bitmap.class
@@ -302,26 +365,27 @@ class StorageRecordTest {
 			}
 		}
 
-		try (final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r")), 8_192)) {
+		try (final ObservableInput<RandomAccessFileInputStream> input = configure(new ObservableInput<>(new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r")), 8_192), crc32Check, compression)) {
 			final StorageRecord<Roaring64Bitmap> loadedRecord = StorageRecord.read(
 				input, record.fileLocation(),
-				(stream, length) -> kryo.readObject(stream, Roaring64Bitmap.class)
+				(stream, length, control) -> kryo.readObject(stream, Roaring64Bitmap.class)
 			);
 			assertEquals(record.fileLocation(), loadedRecord.fileLocation());
 			assertEquals(record, loadedRecord);
-			assertTrue(loadedRecord.closesTransaction());
+			assertTrue(loadedRecord.closesGeneration());
 		}
 	}
 
-	/*
-		PRIVATE METHODS
-	 */
-
 	@Nonnull
-	private Map<FileLocation, StorageRecord<ByteChunk>> generateAndWriteRandomRecords(int count, Consumer<StorageRecord<ByteChunk>> consumer) throws FileNotFoundException {
+	private Map<FileLocation, StorageRecord<ByteChunk>> generateAndWriteRandomRecords(
+		int count,
+		Consumer<StorageRecord<ByteChunk>> consumer,
+		Crc32Check crc32Check,
+		Compression compression
+	) throws FileNotFoundException {
 		final Map<FileLocation, StorageRecord<ByteChunk>> index = new HashMap<>(count);
 
-		try (final ObservableOutput<?> output = new ObservableOutput<>(new FileOutputStream(tempFile), 16_384, 0).computeCRC32()) {
+		try (final ObservableOutput<?> output = configure(new ObservableOutput<>(new FileOutputStream(tempFile), 16_384, 0), crc32Check, compression)) {
 			for (int i = 0; i < count; i++) {
 				final StorageRecord<ByteChunk> record = new StorageRecord<>(kryo, output, 1L, false, generateBytes(random.nextInt(256)));
 				index.put(record.fileLocation(), record);
@@ -329,15 +393,6 @@ class StorageRecordTest {
 			}
 		}
 		return index;
-	}
-
-	private LongSetChunk generateLongSetOfSize(int length) {
-		final Long[] longSet = new Long[length];
-		long incr = 0;
-		for (int i = 0; i < length; i++) {
-			longSet[i] = ++incr;
-		}
-		return new LongSetChunk(longSet);
 	}
 
 	private StorageRecord<ByteChunk> writeRandomRecord(Map<FileLocation, StorageRecord<ByteChunk>> index, ObservableOutput<?> output, int payloadSize) {
@@ -350,6 +405,14 @@ class StorageRecordTest {
 		final byte[] data = new byte[count];
 		random.nextBytes(data);
 		return new ByteChunk(data);
+	}
+
+	private enum Crc32Check {
+		YES, NO
+	}
+
+	private enum Compression {
+		YES, NO
 	}
 
 	private record ByteChunk(byte[] data) {

@@ -24,10 +24,7 @@
 package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.stream.RandomAccessFileInputStream;
-import io.evitadb.utils.BitUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -40,22 +37,13 @@ import java.io.RandomAccessFile;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
-import java.util.zip.CRC32C;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * This test verifies {@link ObservableInput} behaviour.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class ObservableInputTest {
-	public static final int RECORD_SIZE = 24;
-	public static final int PAYLOAD_SIZE = 12;
-	public static final int OVERHEAD_SIZE = RECORD_SIZE - PAYLOAD_SIZE;
-	private final Random random = new Random();
-	private final CRC32C crc32C = new CRC32C();
+class ObservableInputTest extends AbstractObservableInputOutputTest {
 
 	@DisplayName("Record written by standard Kryo output, should be read intact.")
 	@Test
@@ -170,54 +158,6 @@ class ObservableInputTest {
 		final ObservableInput<?> input = new ObservableInput<>(bais, 24).computeCRC32();
 
 		readAndVerifyRecord(input, RECORD_SIZE * 4);
-	}
-
-	private int computeStartPositionFor(int[] parts, int index) {
-		int loc = 0;
-		for (int i = 0; i <= index; i++) {
-			loc += parts[i];
-		}
-		return loc;
-	}
-
-	private void seekReadAndVerifyRecord(ObservableInput<RandomAccessFileInputStream> input, long startPosition, int payloadSize) {
-		input.seek(new FileLocation(startPosition, payloadSize));
-		readAndVerifyRecord(input, payloadSize);
-	}
-
-	private void readAndVerifyRecord(ObservableInput<?> input, int payloadSize) {
-		input.markStart();
-		final int length = input.readInt();
-		byte controlByte = input.readByte();
-		input.markPayloadStart(length);
-		final byte[] payload = input.readBytes(length - 1 - ObservableInputTest.OVERHEAD_SIZE);
-		input.markEnd(controlByte);
-
-		assertEquals(payloadSize + ObservableInputTest.OVERHEAD_SIZE, length);
-		// first byte of payload is control byte
-		assertEquals(payloadSize, payload.length + 1);
-	}
-
-	private long writeRandomRecord(Output controlOutput, int length) {
-		final byte[] bytes = generateBytes(length);
-
-		crc32C.reset();
-		crc32C.update(bytes, 1, bytes.length - 1);
-		final byte controlByte = BitUtils.setBit(bytes[0], StorageRecord.CRC32_BIT, true);
-		crc32C.update(controlByte);
-		final long startPosition = controlOutput.total();
-		controlOutput.writeInt(length + OVERHEAD_SIZE);
-		controlOutput.writeByte(controlByte);
-		controlOutput.writeBytes(bytes, 1, bytes.length - 1);
-		controlOutput.writeLong(crc32C.getValue());
-		controlOutput.flush();
-		return startPosition;
-	}
-
-	private byte[] generateBytes(int count) {
-		final byte[] result = new byte[count];
-		random.nextBytes(result);
-		return result;
 	}
 
 }

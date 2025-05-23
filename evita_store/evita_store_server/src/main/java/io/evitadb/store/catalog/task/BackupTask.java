@@ -95,6 +95,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	public BackupTask(
 		@Nonnull String catalogName,
 		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
 		boolean includingWAL,
 		@Nonnull CatalogBootstrap bootstrapRecord,
 		@Nonnull ExportFileService exportFileService,
@@ -107,10 +108,16 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			BackupTask.class.getSimpleName(),
 			"Backup catalog " + catalogName +
 				(pastMoment == null ? " now" : " at " + pastMoment) +
-				(includingWAL ? "" : ", including WAL: " + includingWAL),
-			new BackupSettings(pastMoment, includingWAL),
+				(catalogVersion == null ? "" : " for version " + catalogVersion) +
+				(includingWAL ? "" : ", including WAL"),
+			new BackupSettings(pastMoment, catalogVersion, includingWAL),
 			(task) -> ((BackupTask) task).doBackup(),
 			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED
+		);
+		Assert.isPremiseValid(
+			catalogVersion == null || bootstrapRecord.catalogVersion() == catalogVersion,
+			"Catalog version " + catalogVersion + " is not the same as the one in the bootstrap record " +
+				bootstrapRecord.catalogVersion() + "!"
 		);
 		this.catalogName = catalogName;
 		this.bootstrapRecord = bootstrapRecord;
@@ -138,6 +145,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		try {
 			final BackupSettings settings = getStatus().settings();
 			final OffsetDateTime thePastMoment = settings.pastMoment();
+			final Long theHistoricalCatalogVersion = settings.catalogVersion();
 			final boolean theIncludingWAL = settings.includingWAL();
 			final long catalogVersion = this.bootstrapRecord.catalogVersion();
 
@@ -150,12 +158,12 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 			final ExportFileHandle exportFileHandle = exportFileService.storeFile(
 				"backup_" + this.catalogName + "_" +
-					(thePastMoment == null ?
+					(thePastMoment == null && theHistoricalCatalogVersion == null ?
 						"actual_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) :
-						"historical_" + thePastMoment.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+						"historical_" + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
 					) + ".zip",
 				"The backup of the " +
-					(thePastMoment == null ? "actual " : "historical " + thePastMoment) +
+					(thePastMoment == null && theHistoricalCatalogVersion == null ? "actual " : "historical " + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment)) +
 					"catalog `" + this.catalogName + "`" + (theIncludingWAL ? " including WAL." : "."),
 				"application/zip",
 				this.getClass().getSimpleName()
@@ -163,7 +171,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 			try {
 				try (final Closeables closeables = new Closeables()) {
-					final CatalogOffsetIndexStoragePartPersistenceService catalogOffsetIndexPersistenceService = thePastMoment == null ?
+					final CatalogOffsetIndexStoragePartPersistenceService catalogOffsetIndexPersistenceService = thePastMoment == null && theHistoricalCatalogVersion == null ?
 						defaultCatalogPersistenceService.getStoragePartPersistenceService(catalogVersion) :
 						closeables.add(defaultCatalogPersistenceService.createCatalogOffsetIndexStoragePartService(this.bootstrapRecord));
 
@@ -179,7 +187,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 						// collect all entity collection services and calculate total record count to backup
 						final ServicesAndStatistics servicesAndStatistics = getServicesAndStatistics(
-							catalogVersion, thePastMoment, theIncludingWAL,
+							catalogVersion, thePastMoment, theHistoricalCatalogVersion, theIncludingWAL,
 							defaultCatalogPersistenceService, catalogOffsetIndexPersistenceService,
 							catalogHeader, closeables
 						);
@@ -284,7 +292,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 						Stream.of(
 							new CatalogHeader(
 								STORAGE_PROTOCOL_VERSION,
-								catalogHeader.version() + 1,
+								catalogHeader.version(),
 								catalogHeader.walFileReference(),
 								entityHeaders.values().stream()
 									.map(
@@ -437,6 +445,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	private static ServicesAndStatistics getServicesAndStatistics(
 		long catalogVersion,
 		@Nullable OffsetDateTime thePastMoment,
+		@Nullable Long theHistoricalCatalogVersion,
 		boolean theIncludingWAL,
 		@Nonnull DefaultCatalogPersistenceService defaultCatalogPersistenceService,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService catalogPersistenceService,
@@ -458,7 +467,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				entityCollectionHeader != null,
 				"Entity collection header for entity type `" + entityTypeFileIndex.entityType() + "` was unexpectedly not created!"
 			);
-			final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = thePastMoment == null ?
+			final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = thePastMoment == null && theHistoricalCatalogVersion == null ?
 				defaultCatalogPersistenceService.getOrCreateEntityCollectionPersistenceService(
 					catalogVersion, entityTypeFileIndex.entityType(), entityTypeFileIndex.entityTypePrimaryKey()
 				) :
@@ -528,11 +537,14 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	/**
 	 * Settings for this instance of backup task.
 	 *
-	 * @param pastMoment   the date and time to create SNAPSHOT backup from
-	 * @param includingWAL whether to include WAL files in the backup
+	 * @param pastMoment     the date and time to create SNAPSHOT backup from
+	 * @param catalogVersion precise catalog version to create backup for, or null to create backup for the latest version,
+	 *                       when set not null, the pastMoment parameter is ignored
+	 * @param includingWAL   whether to include WAL files in the backup
 	 */
 	public record BackupSettings(
 		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
 		boolean includingWAL
 	) implements Serializable {
 
@@ -541,6 +553,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			return Objects.requireNonNull(
 				StringUtils.capitalize(
 					(pastMoment == null ? "" : "pastMoment=" + EvitaDataTypes.formatValue(pastMoment) + ", ") +
+						(catalogVersion == null ? "" : "catalogVersion=" + catalogVersion + ", ") +
 						"includingWAL=" + includingWAL
 				)
 			);

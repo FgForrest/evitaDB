@@ -51,6 +51,7 @@ storage:                                          # [see Storage configuration](
   maxOpenedReadHandles: 12
   syncWrites: true
   computeCRC32C: true
+  compress: false
   minimalActiveRecordShare: 0.5
   fileSizeCompactionThresholdBytes: 100MB
   timeTravelEnabled: false
@@ -579,6 +580,14 @@ This section contains configuration options for the storage layer of the databas
             early as possible.
         </Note>
     </dd>
+    <dt>compress</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>Specifies whether or not to compress the data. If set to true, all data will be compressed, but only those 
+        whose compressed size is less than the original size will be stored in compressed form. Setting this property 
+        to `true` may slow down writes (though not significantly) and increase read speed and throughput, as there's 
+        less slow disk I/O involved. Currently the standard ZIP/deflate compression method is used.</p>
+    </dd>
     <dt>minimalActiveRecordShare</dt>
     <dd>
         <p>**Default:** `0.5` (when waste exceeds 50% the file is compacted)</p>
@@ -657,7 +666,7 @@ This section contains configuration options for the storage layer of the databas
         <p>**Default:** `1s`</p>
         <p>The frequency of flushing the transactional data to the disk when they are sequentially processed.
             If database process the (small) transaction very quickly, it may decide to process next transaction before 
-            flushing changes to the disk. If the client waits for `WAIT_FOR_INDEX_PROPAGATION` he may wait entire 
+            flushing changes to the disk. If the client waits for `WAIT_FOR_CHANGES_VISIBLE` he may wait entire 
             `flushFrequencyInMillis` milliseconds before he gets the response.</p>
     </dd>
 </dl>

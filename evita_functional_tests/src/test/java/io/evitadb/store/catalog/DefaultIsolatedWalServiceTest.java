@@ -87,7 +87,7 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 	);
 	private final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 		getTestDirectory().resolve(transactionId.toString()),
-		false,
+		StorageOptions.temporary(),
 		observableOutputKeeper,
 		new OffHeapMemoryManager(TEST_CATALOG, 512, 1)
 	);
@@ -145,15 +145,16 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 		assertFalse(buffer.isPresent());
 		assertTrue(walReference.getFilePath().isPresent());
 
-		final ReadOnlyHandle readOnlyHandle = writeHandle.toReadOnlyHandle();
-		readOnlyHandle.execute(
-			input -> {
-				for (int i = 0; i < 10; i++) {
-					final Mutation mutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
-					assertEquals(DATA_MUTATION_EXAMPLE, mutation);
+		try (final ReadOnlyHandle readOnlyHandle = writeHandle.toReadOnlyHandle()) {
+			readOnlyHandle.execute(
+				input -> {
+					for (int i = 0; i < 10; i++) {
+						final Mutation mutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+						assertEquals(DATA_MUTATION_EXAMPLE, mutation);
+					}
+					return null;
 				}
-				return null;
-			}
-		);
+			);
+		}
 	}
 }

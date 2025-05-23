@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ import java.util.Optional;
  * @param flushFrequencyInMillis                The frequency of flushing the transactional data to the disk when they
  *                                              are sequentially processed. If database process the (small) transaction
  *                                              very quickly, it may decide to process next transaction before flushing
- *                                              changes to the disk. If the client waits for {@link CommitBehavior#WAIT_FOR_INDEX_PROPAGATION}
+ *                                              changes to the disk. If the client waits for {@link CommitBehavior#WAIT_FOR_CHANGES_VISIBLE}
  *                                              he may wait entire {@link #flushFrequencyInMillis} milliseconds before he gets
  *                                              the response.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024

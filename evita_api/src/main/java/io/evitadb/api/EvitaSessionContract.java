@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
@@ -86,7 +87,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
@@ -187,7 +188,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * calls to this session should end up with {@link InstanceTerminatedException}. In case there were any mutations
 	 * in read/write session and the catalog is in transactional mode, the method is finished when the changes are
 	 * propagated to indexes. The call is equivalent to calling {@link #closeWhen(CommitBehavior)} with
-	 * {@link CommitBehavior#WAIT_FOR_INDEX_PROPAGATION}. This method follows synchronous principles, which are
+	 * {@link CommitBehavior#WAIT_FOR_CHANGES_VISIBLE}. This method follows synchronous principles, which are
 	 * easier to understand and use.
 	 *
 	 * This method is idempotent and may be called multiple times. Only first call is really processed and others are
@@ -195,7 +196,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 */
 	@Override
 	default void close() {
-		closeWhen(CommitBehavior.defaultBehaviour());
+		closeWhen(getCommitBehavior());
 	}
 
 	/**
@@ -207,14 +208,15 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * This method is idempotent and may be called multiple times. Only first call is really processed and others are
 	 * ignored.
 	 */
-	default long closeWhen(@Nonnull CommitBehavior commitBehaviour) {
-		return closeNow(commitBehaviour).join();
+	@Nonnull
+	default CommitVersions closeWhen(@Nonnull CommitBehavior commitBehaviour) {
+		return closeNow(commitBehaviour).toCompletableFuture().join();
 	}
 
 	/**
 	 * Method terminates Evita session and releases all used resources. This method renders the session unusable and
 	 * any further calls to this session should end up with {@link InstanceTerminatedException}. Method finishes
-	 * immediately returning a {@link CompletableFuture} that will be completed when:
+	 * immediately returning a {@link CompletionStage} that will be completed when:
 	 *
 	 * 1. catalog is in warm-up mode: immediately
 	 * 2. catalog is in transactional mode and no changes were made: immediately
@@ -223,7 +225,22 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * This method is idempotent and may be called multiple times, it always returns the same future.
 	 */
 	@Nonnull
-	CompletableFuture<Long> closeNow(@Nonnull CommitBehavior commitBehaviour);
+	CompletionStage<CommitVersions> closeNow(@Nonnull CommitBehavior commitBehaviour);
+
+	/**
+	 * Terminates the session and releases all resources, returning a {@link CommitProgress} object.
+	 * This object exposes {@link CompletionStage}s for each significant transaction commit milestone,
+	 * allowing callers to react asynchronously as the commit progresses (e.g. after conflict resolution,
+	 * WAL persistence, index updates, and global visibility). Method finishes immediately returning
+	 * an object with futures for each significant transaction commit milestone that a client might be
+	 * interested in.
+	 *
+	 * This method is idempotent; repeated calls return the same progress object.
+	 *
+	 * @return a {@link CommitProgress} for observing commit milestones
+	 */
+	@Nonnull
+	CommitProgress closeNowWithProgress();
 
 	/**
 	 * Method creates new a new entity schema and collection for it in the catalog this session is tied to. It returns
@@ -1190,7 +1207,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * !!! Important: remember to close the stream after you are done with it to release the resources
 	 *
 	 * @param request request that specifies the criteria for the changes to be returned, multiple criteria definitions
-	 *                 are combined with logical OR
+	 *                are combined with logical OR
 	 * @return stream of change data captures that match the specified criteria in reversed order
 	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
 	 */
@@ -1202,15 +1219,21 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
 	 *
-	 * @param pastMoment   leave null for creating backup for actual dataset, or specify past moment to create backup for
-	 *                     the dataset as it was at that moment
-	 * @param includingWAL if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
-	 *                     restored, it'll replay the WAL contents locally to bring the catalog to the current state
+	 * @param pastMoment     leave null for creating backup for actual dataset, or specify past moment to create backup for
+	 *                       the dataset as it was at that moment
+	 * @param catalogVersion precise catalog version to create backup for, or null to create backup for the latest version,
+	 *                       when set not null, the pastMoment parameter is ignored
+	 * @param includingWAL   if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
+	 *                       restored, it'll replay the WAL contents locally to bring the catalog to the current state
 	 * @return jobId of the backup process
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
 	@Nonnull
-	Task<?, FileForFetch> backupCatalog(@Nullable OffsetDateTime pastMoment, boolean includingWAL) throws TemporalDataNotAvailableException;
+	Task<?, FileForFetch> backupCatalog(
+		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
+		boolean includingWAL
+	) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Default implementation uses ID for comparing two sessions (and to distinguish one session from another).
@@ -1254,6 +1277,15 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @see io.evitadb.api.SessionTraits.SessionFlags#READ_WRITE
 	 */
 	boolean isReadOnly();
+
+	/**
+	 * Method returns {@link CommitBehavior} set when the session was created. This behavior can be changed when
+	 * the session is {@link #closeWhen(CommitBehavior) closed}, but is used when implicit {@link #close()} is called.
+	 *
+	 * @return commit behavior
+	 */
+	@Nonnull
+	CommitBehavior getCommitBehavior();
 
 	/**
 	 * Returns true if session is switched to binary format output.

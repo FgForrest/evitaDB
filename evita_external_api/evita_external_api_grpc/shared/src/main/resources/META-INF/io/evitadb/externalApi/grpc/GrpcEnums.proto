@@ -21,6 +21,8 @@ enum GrpcCatalogState {
   // All operations are executed transactionally and leave the date in consistent state even if any error occurs.
   // Multiple readers and writers can work with the catalog simultaneously.
   ALIVE = 1;
+  // State signalizing that evitaDB engine was not able to consistently open and load this catalog from the file system.
+  CORRUPTED = 3;
   // Unknown state of the catalog. Used when catalog is corrupted.
   UNKNOWN_CATALOG_STATE = 2;
 }
@@ -519,8 +521,19 @@ enum GrpcCommitBehavior {
   // to indexes. After that the transaction is marked as completed and commit is finished. This behaviour is
   // slowest but guarantees that the changes are persisted on disk and durable and that they are visible
   // immediately after the commit is marked as completed.
-  WAIT_FOR_INDEX_PROPAGATION = 2;
+  WAIT_FOR_CHANGES_VISIBLE = 2;
 
+}
+
+// Contains set of all possible transaction phases each transaction goes through.
+enum GrpcTransactionPhase {
+  // All changes passed conflict resolution steps and are not in conflict with other transactions.
+  CONFLICTS_RESOLVED = 0;
+  // Changes are written to Write Ahead Log (WAL) and are safely persisted on disk. Client might rely on the fact
+  // that the changes will eventually be visible in the database.
+  WAL_PERSISTED = 1;
+  // Changes are visible in shared state of the database and are available to all newly created sessions.
+  CHANGES_VISIBLE = 2;
 }
 
 // Contains set of all supported/used naming conventions in evitaDB APIs.

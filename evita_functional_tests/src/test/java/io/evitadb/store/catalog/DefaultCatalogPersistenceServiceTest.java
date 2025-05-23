@@ -24,13 +24,11 @@
 package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
@@ -60,7 +58,6 @@ import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.file.ExportFileService;
-import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.dataType.PaginatedList;
@@ -69,14 +66,11 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
-import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.ReadOnlyHandle;
-import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
-import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.CatalogPersistenceService;
@@ -85,7 +79,6 @@ import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.test.Entities;
@@ -95,7 +88,6 @@ import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -114,21 +106,19 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService.loadOffsetIndexDescriptor;
-import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.*;
+import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getCatalogBootstrapForSpecificMoment;
+import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getFirstCatalogBootstrap;
+import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getLastCatalogBootstrap;
 import static io.evitadb.store.catalog.DefaultIsolatedWalServiceTest.DATA_MUTATION_EXAMPLE;
 import static io.evitadb.store.catalog.DefaultIsolatedWalServiceTest.SCHEMA_MUTATION_EXAMPLE;
 import static io.evitadb.store.spi.CatalogPersistenceService.CATALOG_FILE_SUFFIX;
-import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogDataStoreFileName;
 import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogDataStoreFileNamePattern;
 import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static java.util.Optional.empty;
@@ -163,14 +153,14 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	);
 	private final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 		getTestDirectory().resolve(transactionId.toString()),
-		false,
+		getStorageOptions(),
 		observableOutputKeeper,
 		new OffHeapMemoryManager(TEST_CATALOG, 512, 1)
 	);
 	private final DefaultIsolatedWalService walService = new DefaultIsolatedWalService(
-		transactionId,
-		kryo,
-		writeHandle
+		this.transactionId,
+		this.kryo,
+		this.writeHandle
 	);
 
 	private static int countFiles(@Nonnull Path catalogDirectory) throws IOException {
@@ -232,131 +222,13 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 	@AfterEach
 	void tearDown() throws IOException {
-		walService.close();
-		observableOutputKeeper.close();
+		this.walService.close();
+		this.observableOutputKeeper.close();
 		final File file = walFile.toFile();
 		if (file.exists()) {
 			fail("File " + file + " should not exist after close!");
 		}
 		cleanTestSubDirectory(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
-	}
-
-	@Disabled("This test is not meant to be run in CI, it is for manual post-mortem analysis of the catalog WAL file remnants.")
-	@Test
-	void analyzeWriteAheadLog() {
-		final String catalogName = "decodoma_cz";
-		final Path basePath = Path.of("/www/oss/evitaDB/data/");
-		final Path catalogFilePath = basePath.resolve(catalogName);
-		final StorageOptions storageOptions = StorageOptions.builder().storageDirectory(basePath).build();
-		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
-		final Pool<Kryo> catalogKryoPool = new Pool<>(true, false, 16) {
-			@Override
-			protected Kryo create() {
-				return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
-			}
-		};
-
-		try (
-			final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
-				1, catalogName, catalogFilePath, catalogKryoPool,
-				storageOptions, transactionOptions,
-				new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
-				0
-			)
-		) {
-			final AtomicReference<UUID> lastTransactionId = new AtomicReference<>();
-			wal.getCommittedMutationStream(-1)
-				.forEach(mutation -> {
-					if (mutation instanceof TransactionMutation txMut && !Objects.equals(lastTransactionId.get(), txMut.getTransactionId())) {
-						System.out.println("\n\n>>>>  Transaction " + txMut.getTransactionId() + " at " + txMut.getCommitTimestamp() + "\n\n");
-						lastTransactionId.set(txMut.getTransactionId());
-					}
-					System.out.println("  " + mutation);
-				});
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
-	}
-
-	@Disabled("This test is not meant to be run in CI, it is for manual post-mortem analysis of the catalog data file remnants.")
-	@Test
-	void postMortemAnalysis() {
-		final String catalogName = "decodoma_cz";
-		final Path basePath = Path.of("/www/oss/evitaDB/data/");
-		final Path catalogFilePath = basePath.resolve(catalogName);
-		final OffsetIndexRecordTypeRegistry recordRegistry = new OffsetIndexRecordTypeRegistry();
-		final StorageOptions storageOptions = StorageOptions.builder().storageDirectory(basePath).build();
-		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
-		final AtomicReference<CatalogHeader> catalogHeaderRef = new AtomicReference<>();
-		final Pool<Kryo> catalogKryoPool = new Pool<>(true, false, 16) {
-			@Override
-			protected Kryo create() {
-				return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
-			}
-		};
-
-		getCatalogBootstrapRecordStream(
-			catalogName,
-			storageOptions
-		).forEach(it -> {
-			System.out.print(it.catalogFileIndex() + "/" + it.catalogVersion() + ": " + it.timestamp() + " (" + it.fileLocation() + ")");
-			try {
-				final OffsetIndex indexRead = new OffsetIndex(
-					it.catalogVersion(),
-					catalogFilePath.resolve(getCatalogDataStoreFileName(catalogName, it.catalogFileIndex())),
-					it.fileLocation(),
-					storageOptions,
-					recordRegistry,
-					new WriteOnlyFileHandle(
-						catalogName,
-						FileType.CATALOG,
-						catalogName,
-						false,
-						catalogFilePath,
-						observableOutputKeeper
-					),
-					null,
-					null,
-					(indexBuilder, theInput) -> loadOffsetIndexDescriptor(
-						catalogFilePath, recordRegistry, VERSIONED_KRYO_FACTORY,
-						catalogHeaderRef::set,
-						indexBuilder, theInput, it.fileLocation()
-					)
-				);
-				final WalFileReference walRef = catalogHeaderRef.get().walFileReference();
-				if (walRef == null) {
-					System.out.println(" -> OK, size " + indexRead.getEntries().size());
-				} else {
-					System.out.println(" -> OK " + walRef.fileIndex() + "/" + walRef.fileLocation() + ", size " + indexRead.getEntries().size());
-				}
-			} catch (Exception e) {
-				System.out.println(" -> ERROR: " + e.getMessage());
-			}
-		});
-
-		final CatalogHeader catalogHeader = catalogHeaderRef.get();
-		try (
-			final CatalogWriteAheadLog wal = createWalIfAnyWalFilePresent(
-				catalogHeader.version(), catalogName, storageOptions, transactionOptions, new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
-				position -> System.out.println("Trim attempted: " + position),
-				() -> firstActiveCatalogVersion -> System.out.println("Purge attempted: " + firstActiveCatalogVersion),
-				catalogFilePath, catalogKryoPool
-			)
-		) {
-			if (wal != null) {
-				final AtomicReference<UUID> lastTransactionId = new AtomicReference<>();
-				wal.getCommittedMutationStream(catalogHeader.version())
-					.forEach(mutation -> {
-						if (mutation instanceof TransactionMutation txMut && !Objects.equals(lastTransactionId.get(), txMut.getTransactionId())) {
-							System.out.println("\n\n>>>>  Transaction " + txMut.getTransactionId() + " at " + txMut.getCommitTimestamp() + "\n\n");
-							lastTransactionId.set(txMut.getTransactionId());
-						}
-						System.out.println("  " + mutation);
-					});
-			}
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
 	}
 
 	@Test
@@ -423,14 +295,16 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			UnexpectedCatalogContentsException.class,
 			() -> {
 				//noinspection EmptyTryBlock
-				try (var ignored = new DefaultCatalogPersistenceService(
-					Mockito.mock(CatalogContract.class),
-					RENAMED_CATALOG,
-					getStorageOptions(),
-					getTransactionOptions(),
-					Mockito.mock(Scheduler.class),
-					Mockito.mock(ExportFileService.class)
-				)) {
+				try (
+					var ignored = new DefaultCatalogPersistenceService(
+						Mockito.mock(CatalogContract.class),
+						RENAMED_CATALOG,
+						getStorageOptions(),
+						getTransactionOptions(),
+						Mockito.mock(Scheduler.class),
+						Mockito.mock(ExportFileService.class)
+					)
+				) {
 					// do nothing
 				}
 			}
@@ -442,14 +316,16 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final Path renamedCatalogPath = prepareInvalidCatalogContents();
 		renamedCatalogPath.resolve(CatalogPersistenceService.RESTORE_FLAG).toFile().createNewFile();
 
-		try (var persistenceService = new DefaultCatalogPersistenceService(
-			Mockito.mock(CatalogContract.class),
-			RENAMED_CATALOG,
-			getStorageOptions(),
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class),
-			Mockito.mock(ExportFileService.class)
-		)) {
+		try (
+			var persistenceService = new DefaultCatalogPersistenceService(
+				Mockito.mock(CatalogContract.class),
+				RENAMED_CATALOG,
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
 			final long lastCatalogVersion = persistenceService.getLastCatalogVersion();
 			final CatalogHeader catalogHeader = persistenceService.getCatalogHeader(lastCatalogVersion);
 			assertNotNull(catalogHeader);
@@ -546,7 +422,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldDeleteCatalog() throws IOException {
+	void shouldTerminateAndDeleteCatalog() throws IOException {
 		shouldSerializeAndDeserializeCatalogHeader();
 
 		final Path catalogDirectory = getStorageOptions().storageDirectory().resolve(TEST_CATALOG);
@@ -562,7 +438,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		) {
 			assertTrue(catalogDirectory.toFile().exists());
 			assertTrue(countFiles(catalogDirectory) > 0);
-			cps.delete();
+			cps.closeAndDelete();
 			assertFalse(catalogDirectory.toFile().exists());
 		}
 	}
@@ -588,8 +464,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAppendWalFromByteBufferAndReadItAgain() {
-		walService.write(1L, DATA_MUTATION_EXAMPLE);
-		walService.write(1L, SCHEMA_MUTATION_EXAMPLE);
+		this.walService.write(1L, DATA_MUTATION_EXAMPLE);
+		this.walService.write(1L, SCHEMA_MUTATION_EXAMPLE);
 
 		final OffHeapWithFileBackupReference walReference = walService.getWalReference();
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
@@ -644,22 +520,23 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			.resolve(catalogName)
 			.resolve(CatalogPersistenceService.getWalFileName(catalogName, 0));
 
-		final ReadOnlyHandle readOnlyHandle = new ReadOnlyFileHandle(walFile, true);
-		readOnlyHandle.execute(
-			input -> {
-				final int transactionSize = input.readInt();
-				// the 2 bytes are required to record the classId
-				final int offsetDateTimeDelta = 11;
-				assertEquals(walReference.getContentLength() + CatalogWriteAheadLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeDelta + 2, transactionSize);
-				final Mutation loadedTransactionMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
-				assertEquals(writtenTransactionMutation, loadedTransactionMutation);
-				final Mutation firstMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
-				assertEquals(DATA_MUTATION_EXAMPLE, firstMutation);
-				final Mutation secondMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
-				assertEquals(SCHEMA_MUTATION_EXAMPLE, secondMutation);
-				return null;
-			}
-		);
+		try (final ReadOnlyHandle readOnlyHandle = new ReadOnlyFileHandle(walFile, StorageOptions.temporary())) {
+			readOnlyHandle.execute(
+				input -> {
+					final int transactionSize = input.readInt();
+					// the 2 bytes are required to record the classId
+					final int offsetDateTimeDelta = 11;
+					assertEquals(walReference.getContentLength() + CatalogWriteAheadLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeDelta + 2, transactionSize);
+					final Mutation loadedTransactionMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+					assertEquals(writtenTransactionMutation, loadedTransactionMutation);
+					final Mutation firstMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+					assertEquals(DATA_MUTATION_EXAMPLE, firstMutation);
+					final Mutation secondMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+					assertEquals(SCHEMA_MUTATION_EXAMPLE, secondMutation);
+					return null;
+				}
+			);
+		}
 	}
 
 	@Test
@@ -669,174 +546,182 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final OffsetDateTime startTime = Instant.ofEpochMilli(System.currentTimeMillis() - 1_000_000_000L).atZone(ZoneId.systemDefault()).toOffsetDateTime();
 		DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS = () -> startTime.toInstant().toEpochMilli();
 
-		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
-			catalogName,
-			storageOptions,
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class),
-			Mockito.mock(ExportFileService.class)
-		);
+		try (
+			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+				catalogName,
+				storageOptions,
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
 
-		for (int i = 0; i < 12; i++) {
-			final int catalogVersion = i + 1;
-			DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS = () -> startTime.plusHours(catalogVersion).toInstant().toEpochMilli();
-			ioService.recordBootstrap(catalogVersion, catalogName, 0, null);
+			for (int i = 0; i < 12; i++) {
+				final int catalogVersion = i + 1;
+				DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS = () -> startTime.plusHours(catalogVersion).toInstant().toEpochMilli();
+				ioService.recordBootstrap(catalogVersion, catalogName, 0, null);
+			}
+
+			final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 5);
+			assertEquals(5, catalogVersions.getData().size());
+			assertEquals(13, catalogVersions.getTotalRecordCount());
+			for (int i = 0; i <= 4; i++) {
+				final CatalogVersion record = catalogVersions.getData().get(i);
+				assertEquals(i, record.version());
+				assertNotNull(record.introducedAt());
+			}
+
+			final PaginatedList<CatalogVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 3, 5);
+			assertEquals(3, catalogVersionsLastPage.getData().size());
+			for (int i = 0; i < 3; i++) {
+				final CatalogVersion record = catalogVersionsLastPage.getData().get(i);
+				assertEquals(10 + i, record.version());
+				assertNotNull(record.introducedAt());
+			}
+
+			final Optional<CatalogBootstrap> first = getFirstCatalogBootstrap(catalogName, storageOptions);
+			assertTrue(first.isPresent());
+			assertEquals(0, first.get().catalogVersion());
+
+			final CatalogBootstrap last = getLastCatalogBootstrap(catalogName, storageOptions);
+			assertNotNull(last);
+			assertEquals(12, last.catalogVersion());
+
+			final CatalogBootstrap m0 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime);
+			assertNotNull(m0);
+			assertEquals(0, m0.catalogVersion());
+
+			final CatalogBootstrap m1 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(5));
+			assertNotNull(m1);
+			assertEquals(5, m1.catalogVersion());
+
+			final CatalogBootstrap m2 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(5).plusMinutes(1));
+			assertNotNull(m2);
+			assertEquals(5, m2.catalogVersion());
+
+			final CatalogBootstrap m3 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(5).minusMinutes(1));
+			assertNotNull(m3);
+			assertEquals(4, m3.catalogVersion());
+
+			final CatalogBootstrap m4 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(15));
+			assertNotNull(m4);
+			assertEquals(12, m4.catalogVersion());
 		}
-
-		final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 5);
-		assertEquals(5, catalogVersions.getData().size());
-		assertEquals(13, catalogVersions.getTotalRecordCount());
-		for (int i = 0; i <= 4; i++) {
-			final CatalogVersion record = catalogVersions.getData().get(i);
-			assertEquals(i, record.version());
-			assertNotNull(record.introducedAt());
-		}
-
-		final PaginatedList<CatalogVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 3, 5);
-		assertEquals(3, catalogVersionsLastPage.getData().size());
-		for (int i = 0; i < 3; i++) {
-			final CatalogVersion record = catalogVersionsLastPage.getData().get(i);
-			assertEquals(10 + i, record.version());
-			assertNotNull(record.introducedAt());
-		}
-
-		final Optional<CatalogBootstrap> first = getFirstCatalogBootstrap(catalogName, storageOptions);
-		assertTrue(first.isPresent());
-		assertEquals(0, first.get().catalogVersion());
-
-		final CatalogBootstrap last = getLastCatalogBootstrap(catalogName, storageOptions);
-		assertNotNull(last);
-		assertEquals(12, last.catalogVersion());
-
-		final CatalogBootstrap m0 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime);
-		assertNotNull(m0);
-		assertEquals(0, m0.catalogVersion());
-
-		final CatalogBootstrap m1 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(5));
-		assertNotNull(m1);
-		assertEquals(5, m1.catalogVersion());
-
-		final CatalogBootstrap m2 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(5).plusMinutes(1));
-		assertNotNull(m2);
-		assertEquals(5, m2.catalogVersion());
-
-		final CatalogBootstrap m3 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(5).minusMinutes(1));
-		assertNotNull(m3);
-		assertEquals(4, m3.catalogVersion());
-
-		final CatalogBootstrap m4 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(15));
-		assertNotNull(m4);
-		assertEquals(12, m4.catalogVersion());
 	}
 
 	@Test
 	void shouldTraverseBootstrapRecordsFromNewestToOldest() {
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
-		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
-			catalogName,
-			getStorageOptions(),
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class),
-			Mockito.mock(ExportFileService.class)
-		);
+		try (
+			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+				catalogName,
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
 
-		for (int i = 0; i < 12; i++) {
-			ioService.recordBootstrap(i + 1, catalogName, 0, null);
-		}
+			for (int i = 0; i < 12; i++) {
+				ioService.recordBootstrap(i + 1, catalogName, 0, null);
+			}
 
-		final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5);
-		assertEquals(5, catalogVersions.getData().size());
-		assertEquals(13, catalogVersions.getTotalRecordCount());
-		for (int i = 0; i < 5; i++) {
-			final CatalogVersion record = catalogVersions.getData().get(i);
-			assertEquals(13 - (i + 1), record.version());
-			assertNotNull(record.introducedAt());
-		}
+			final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5);
+			assertEquals(5, catalogVersions.getData().size());
+			assertEquals(13, catalogVersions.getTotalRecordCount());
+			for (int i = 0; i < 5; i++) {
+				final CatalogVersion record = catalogVersions.getData().get(i);
+				assertEquals(13 - (i + 1), record.version());
+				assertNotNull(record.introducedAt());
+			}
 
-		final PaginatedList<CatalogVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 3, 5);
-		assertEquals(3, catalogVersionsLastPage.getData().size());
-		for (int i = 0; i < 3; i++) {
-			final CatalogVersion record = catalogVersionsLastPage.getData().get(i);
-			assertEquals(3 - (i + 1), record.version());
-			assertNotNull(record.introducedAt());
+			final PaginatedList<CatalogVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 3, 5);
+			assertEquals(3, catalogVersionsLastPage.getData().size());
+			for (int i = 0; i < 3; i++) {
+				final CatalogVersion record = catalogVersionsLastPage.getData().get(i);
+				assertEquals(3 - (i + 1), record.version());
+				assertNotNull(record.introducedAt());
+			}
 		}
 	}
-
-	/*
-		PRIVATE METHODS
-	 */
 
 	@Test
 	void shouldTrimBootstrapRecords() {
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
-		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
-			catalogName,
-			getStorageOptions(),
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class),
-			Mockito.mock(ExportFileService.class)
-		);
+		try (
+			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+				catalogName,
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
 
-		final OffsetDateTime timestamp = OffsetDateTime.now();
-		for (int i = 0; i < 12; i++) {
-			ioService.recordBootstrap(
-				i + 1, catalogName, 0,
-				timestamp.plusMinutes(i).toInstant().toEpochMilli(),
-				null
-			);
+			final OffsetDateTime timestamp = OffsetDateTime.now();
+			for (int i = 0; i < 12; i++) {
+				ioService.recordBootstrap(
+					i + 1, catalogName, 0,
+					timestamp.plusMinutes(i).toInstant().toEpochMilli(),
+					null
+				);
+			}
+
+			final PaginatedList<CatalogVersion> catalogVersions0 = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
+			assertEquals(0, catalogVersions0.getData().get(0).version());
+			assertEquals(13, catalogVersions0.getTotalRecordCount());
+
+			trimAndCheck(ioService, 4, 4, 9);
+			trimAndCheck(ioService, 7, 7, 6);
+			trimAndCheck(ioService, 8, 8, 5);
 		}
-
-		final PaginatedList<CatalogVersion> catalogVersions0 = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
-		assertEquals(0, catalogVersions0.getData().get(0).version());
-		assertEquals(13, catalogVersions0.getTotalRecordCount());
-
-		trimAndCheck(ioService, 4, 4, 9);
-		trimAndCheck(ioService, 7, 7, 6);
-		trimAndCheck(ioService, 8, 8, 5);
 	}
 
 	@Nonnull
 	private Path prepareInvalidCatalogContents() {
-		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
-			SEALED_CATALOG_SCHEMA.getName(),
-			getStorageOptions(),
-			getTransactionOptions(),
-			Mockito.mock(Scheduler.class),
-			Mockito.mock(ExportFileService.class)
-		);
-
-		ioService.getStoragePartPersistenceService(0L)
-			.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
-
-		final EvitaSession mockSession = mock(EvitaSession.class);
-		when(mockSession.getCatalogSchema()).thenReturn(SEALED_CATALOG_SCHEMA);
-
-		final EntityCollection productCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleProductSchema(mockSession, EntitySchemaBuilder::toInstance), 1
-		);
-		final EntityCollection brandCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleBrandSchema(mockSession, EntitySchemaBuilder::toInstance), 2
-		);
-		final EntityCollection storeCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleStoreSchema(mockSession, EntitySchemaBuilder::toInstance), 3
-		);
-
-		// try to serialize
-		ioService.storeHeader(
-			catalogId,
-			CatalogState.WARMING_UP,
-			0L, 0, null,
-			Arrays.asList(
-				productCollection.flush().header(),
-				brandCollection.flush().header(),
-				storeCollection.flush().header()
-			),
-			new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
-		);
-
 		final Path dataDirectory = getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
 		final Path catalogPath = dataDirectory.resolve(TEST_CATALOG);
 		final Path renamedCatalogPath = dataDirectory.resolve(RENAMED_CATALOG);
+
+		try (
+			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+				SEALED_CATALOG_SCHEMA.getName(),
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
+			ioService.getStoragePartPersistenceService(0L)
+				.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
+
+			final EvitaSession mockSession = mock(EvitaSession.class);
+			when(mockSession.getCatalogSchema()).thenReturn(SEALED_CATALOG_SCHEMA);
+
+			final EntityCollection productCollection = constructEntityCollectionWithSomeEntities(
+				ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleProductSchema(mockSession, EntitySchemaBuilder::toInstance), 1
+			);
+			final EntityCollection brandCollection = constructEntityCollectionWithSomeEntities(
+				ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleBrandSchema(mockSession, EntitySchemaBuilder::toInstance), 2
+			);
+			final EntityCollection storeCollection = constructEntityCollectionWithSomeEntities(
+				ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleStoreSchema(mockSession, EntitySchemaBuilder::toInstance), 3
+			);
+
+			// try to serialize
+			ioService.storeHeader(
+				catalogId,
+				CatalogState.WARMING_UP,
+				0L, 0, null,
+				Arrays.asList(
+					productCollection.flush().header(),
+					brandCollection.flush().header(),
+					storeCollection.flush().header()
+				),
+				new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
+			);
+		}
+
 		// rename catalog bootstrap file
 		assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogBootstrapFileName(TEST_CATALOG)).toFile()
 			.renameTo(catalogPath.resolve(CatalogPersistenceService.getCatalogBootstrapFileName(RENAMED_CATALOG)).toFile()));
@@ -852,8 +737,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		// finally rename folder
 		assertTrue(catalogPath.toFile().renameTo(renamedCatalogPath.toFile()));
 
-		ioService.close();
-
 		return renamedCatalogPath;
 	}
 
@@ -864,7 +747,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
 			60, 60,
 			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1,
-			false, true, 1.0, 0L, false,
+			false, false, true, 1.0, 0L, false,
 			Long.MAX_VALUE, Long.MAX_VALUE
 		);
 	}

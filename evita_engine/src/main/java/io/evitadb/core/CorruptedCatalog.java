@@ -77,6 +77,7 @@ public final class CorruptedCatalog implements CatalogContract {
 	private final String catalogName;
 	@Getter private final Path catalogStoragePath;
 	@Getter private final Throwable cause;
+	private boolean terminated;
 
 	@Nonnull
 	@Override
@@ -169,7 +170,7 @@ public final class CorruptedCatalog implements CatalogContract {
 	}
 
 	@Override
-	public void delete() {
+	public void terminateAndDelete() {
 		FileUtils.deleteDirectory(catalogStoragePath);
 	}
 
@@ -240,6 +241,7 @@ public final class CorruptedCatalog implements CatalogContract {
 	@Override
 	public ServerTask<Void, FileForFetch> backup(
 		@Nullable OffsetDateTime pastMoment,
+		@Nullable Long catalogVersion,
 		boolean includingWAL,
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
@@ -265,7 +267,12 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Override
 	public void terminate() {
-		// we don't need to terminate corrupted catalog
+		this.terminated = true;
+	}
+
+	@Override
+	public boolean isTerminated() {
+		return this.terminated;
 	}
 
 }

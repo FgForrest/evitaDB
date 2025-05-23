@@ -34,6 +34,7 @@ import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.dataType.data.DataItemMap;
 import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.AssociatedDataForm;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType;
@@ -99,7 +100,15 @@ class EvitaDataTypesConverterTest {
 				.setType(GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.COMPLEX_DATA_OBJECT)
 				.setVersion(Int32Value.of(1))
 				.build(),
-			EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(complexDataObjectValue, 1)
+			EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(complexDataObjectValue, 1, AssociatedDataForm.JSON)
+		);
+		Assertions.assertEquals(
+			GrpcEvitaAssociatedDataValue.newBuilder()
+				.setRoot(EvitaDataTypesConverter.toGrpcDataItem(complexDataObjectValue.root()))
+				.setType(GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.COMPLEX_DATA_OBJECT)
+				.setVersion(Int32Value.of(1))
+				.build(),
+			EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(complexDataObjectValue, 1, AssociatedDataForm.STRUCTURED_VALUE)
 		);
 	}
 
@@ -213,7 +222,12 @@ class EvitaDataTypesConverterTest {
 
 		assertEquals(
 			complexDataObjectValue,
-			EvitaDataTypesConverter.toEvitaValue(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(complexDataObjectValue))
+			EvitaDataTypesConverter.toEvitaValue(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(complexDataObjectValue, AssociatedDataForm.STRUCTURED_VALUE))
+		);
+
+		assertEquals(
+			complexDataObjectValue,
+			EvitaDataTypesConverter.toEvitaValue(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(complexDataObjectValue, AssociatedDataForm.JSON))
 		);
 	}
 

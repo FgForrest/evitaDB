@@ -338,14 +338,18 @@ public class EvitaServer {
 			)
 		);
 
-		try {
+		try (
+			final InputStream resourceAsStream = EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION);
+		) {
 			// iterate over all files in the directory and merge them into a single configuration
-			Map<String, Object> finalYaml = loadYamlContents(readerFactory.apply(EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION)), yamlParser.get());
+			Map<String, Object> finalYaml = loadYamlContents(readerFactory.apply(resourceAsStream), yamlParser.get());
 			Map<String, Object> endpointDefaults = updateEndpointDefaults(Map.of(), finalYaml);
 			for (Path file : files) {
-				final Map<String, Object> loadedYaml = loadYamlContents(readerFactory.apply(new FileInputStream(file.toFile())), yamlParser.get());
-				endpointDefaults = updateEndpointDefaults(endpointDefaults, loadedYaml);
-				finalYaml = combine(finalYaml, loadedYaml);
+				try (final InputStream fileInputStream = new BufferedInputStream(new FileInputStream(file.toFile()))) {
+					final Map<String, Object> loadedYaml = loadYamlContents(readerFactory.apply(fileInputStream), yamlParser.get());
+					endpointDefaults = updateEndpointDefaults(endpointDefaults, loadedYaml);
+					finalYaml = combine(finalYaml, loadedYaml);
+				}
 			}
 			// apply the api.endpointDefaults
 			applyEndpointDefaults(finalYaml, endpointDefaults);
@@ -588,7 +592,7 @@ public class EvitaServer {
 	public CompletableFuture<Void> stop() {
 		if (this.stopFuture == null && this.externalApiServer != null) {
 			this.stopFuture = this.externalApiServer.closeAsynchronously()
-				.thenAccept(unused -> ConsoleWriter.write("Server stopped, bye.\n\n"));
+				.thenAccept(unused -> ConsoleWriter.write("Server stopped, bye.\n"));
 		}
 		return this.stopFuture == null ?
 			CompletableFuture.completedFuture(null) : this.stopFuture;
@@ -743,6 +747,7 @@ public class EvitaServer {
 				ConsoleWriter.write("Failed to stop evita server in dedicated time (30 secs.).\n");
 			} finally {
 				evita.close();
+				ConsoleWriter.write("evitaDB instance closed, all files synced on disk.\n\n");
 			}
 		}
 

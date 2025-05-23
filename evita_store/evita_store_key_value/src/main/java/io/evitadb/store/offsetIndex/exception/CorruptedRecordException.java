@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.store.offsetIndex.exception;
 import io.evitadb.store.exception.StorageException;
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
@@ -53,6 +54,12 @@ public class CorruptedRecordException extends StorageException {
 
 	public CorruptedRecordException(String message, Throwable cause) {
 		super(message, cause);
+		this.expected = -1L;
+		this.real = -1L;
+	}
+
+	public CorruptedRecordException(@Nonnull String publicMessage) {
+		super(publicMessage);
 		this.expected = -1L;
 		this.real = -1L;
 	}

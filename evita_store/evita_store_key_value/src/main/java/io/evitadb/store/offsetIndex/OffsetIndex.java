@@ -45,12 +45,15 @@ import io.evitadb.store.offsetIndex.io.WriteOnlyHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
 import io.evitadb.store.offsetIndex.model.VersionedValue;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.BitUtils;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -139,6 +142,15 @@ public class OffsetIndex {
 	 * Initial size of the central {@link #histogram} index.
 	 */
 	public static final int HISTOGRAM_INITIAL_CAPACITY = 16;
+	/**
+	 * Default size of the pools for decompression.
+	 */
+	public static final int DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY = 5;
+	/**
+	 * Pool that is usually empty, but may contain large byte arrays that are used as temporary containers during
+	 * decompression of binary records.
+	 */
+	private final Pool<byte[]> decompressionPool;
 	/**
 	 * Contains configuration options for the {@link OffsetIndex},
 	 */
@@ -232,6 +244,7 @@ public class OffsetIndex {
 	 */
 	@Nonnull
 	public static <T extends StoragePart> T readSingleRecord(
+		@Nonnull StorageOptions storageOptions,
 		@Nonnull Path filePath,
 		@Nonnull FileLocation fileLocation,
 		@Nonnull RecordKey recordKey,
@@ -245,6 +258,12 @@ public class OffsetIndex {
 				)
 			)
 		) {
+			if (storageOptions.computeCRC32C()) {
+				input.computeCRC32();
+			}
+			if (storageOptions.compress()) {
+				input.compress();
+			}
 			final FilteringOffsetIndexBuilder filteringOffsetIndexBuilder = new FilteringOffsetIndexBuilder(recordKey);
 			deserialize(
 				input,
@@ -290,26 +309,38 @@ public class OffsetIndex {
 		this.writeKryo = fileOffsetDescriptor.getWriteKryo();
 		this.writeHandle = writeHandle;
 		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
-		final Optional<CollectingOffsetIndexBuilder> fileOffsetIndexBuilder;
-		if (this.lastSyncedPosition == 0) {
-			fileOffsetIndexBuilder = Optional.empty();
-		} else {
-			fileOffsetIndexBuilder = of(
-				readFileOffsetIndex(fileOffsetDescriptor.fileLocation())
-			);
+		try {
+			final Optional<CollectingOffsetIndexBuilder> fileOffsetIndexBuilder;
+			if (this.lastSyncedPosition == 0) {
+				fileOffsetIndexBuilder = Optional.empty();
+			} else {
+				fileOffsetIndexBuilder = of(
+					readFileOffsetIndex(fileOffsetDescriptor.fileLocation())
+				);
+			}
+			this.keyCatalogVersion = catalogVersion;
+			this.keyToLocations = fileOffsetIndexBuilder
+				.map(CollectingOffsetIndexBuilder::getBuiltIndex)
+				.orElseGet(() -> CollectionUtils.createConcurrentHashMap(KEY_HASH_MAP_INITIAL_SIZE));
+			this.histogram = fileOffsetIndexBuilder
+				.map(CollectingOffsetIndexBuilder::getHistogram)
+				.orElseGet(() -> CollectionUtils.createConcurrentHashMap(HISTOGRAM_INITIAL_CAPACITY));
+			fileOffsetIndexBuilder
+				.ifPresent(it -> {
+					this.totalSizeBytes.set(it.getTotalSizeBytes());
+					this.maxRecordSizeBytes.set(it.getMaxSizeBytes());
+				});
+			this.decompressionPool = new Pool<>(true, false, DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY) {
+				@Override
+				protected byte[] create() {
+					return new byte[storageOptions.outputBufferSize()];
+				}
+			};
+		} catch (RuntimeException ex) {
+			clearReadOnlyOpenedHandles();
+			// clean resources before rethrowing the exception
+			throw ex;
 		}
-		this.keyCatalogVersion = catalogVersion;
-		this.keyToLocations = fileOffsetIndexBuilder
-			.map(CollectingOffsetIndexBuilder::getBuiltIndex)
-			.orElseGet(() -> CollectionUtils.createConcurrentHashMap(KEY_HASH_MAP_INITIAL_SIZE));
-		this.histogram = fileOffsetIndexBuilder
-			.map(CollectingOffsetIndexBuilder::getHistogram)
-			.orElseGet(() -> CollectionUtils.createConcurrentHashMap(HISTOGRAM_INITIAL_CAPACITY));
-		fileOffsetIndexBuilder
-			.ifPresent(it -> {
-				this.totalSizeBytes.set(it.getTotalSizeBytes());
-				this.maxRecordSizeBytes.set(it.getMaxSizeBytes());
-			});
 	}
 
 	public OffsetIndex(
@@ -350,6 +381,12 @@ public class OffsetIndex {
 				)
 			)
 		) {
+			if (storageOptions.computeCRC32C()) {
+				input.computeCRC32();
+			}
+			if (storageOptions.compress()) {
+				input.compress();
+			}
 			final CollectingOffsetIndexBuilder fileOffsetIndexBuilder = new CollectingOffsetIndexBuilder();
 			deserialize(
 				input,
@@ -367,6 +404,12 @@ public class OffsetIndex {
 				version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
 			);
 			this.writeKryo = fileOffsetDescriptor.getWriteKryo();
+			this.decompressionPool = new Pool<>(true, false, DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY) {
+				@Override
+				protected byte[] create() {
+					return new byte[storageOptions.outputBufferSize()];
+				}
+			};
 		} catch (FileNotFoundException e) {
 			throw new UnexpectedIOException(
 				"Cannot create read offset file index from file `" + filePath + "`!",
@@ -416,7 +459,13 @@ public class OffsetIndex {
 			storageOptions.maxOpenedReadHandles(),
 			version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
 		);
-		this.writeKryo = fileOffsetDescriptor.getWriteKryo();
+		this.writeKryo = this.fileOffsetDescriptor.getWriteKryo();
+		this.decompressionPool = new Pool<>(true, false, DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY) {
+			@Override
+			protected byte[] create() {
+				return new byte[storageOptions.outputBufferSize()];
+			}
+		};
 	}
 
 	/**
@@ -481,7 +530,7 @@ public class OffsetIndex {
 	public <T extends StoragePart> T get(long catalogVersion, long primaryKey, @Nonnull Class<T> recordType) throws RecordNotYetWrittenException {
 		assertOperative();
 		final RecordKey key = new RecordKey(
-			recordTypeRegistry.idFor(recordType),
+			this.recordTypeRegistry.idFor(recordType),
 			primaryKey
 		);
 
@@ -512,15 +561,19 @@ public class OffsetIndex {
 					return null;
 				} else {
 					final VersionedValue rewrittenValue = volatileValue.versionedValue();
-					//noinspection unchecked
-					return (T) get(rewrittenValue.fileLocation(), recordTypeRegistry.typeFor(rewrittenValue.recordType()));
+					if (rewrittenValue == null) {
+						return null;
+					} else {
+						//noinspection unchecked
+						return (T) get(rewrittenValue.fileLocation(), recordTypeRegistry.typeFor(rewrittenValue.recordType()));
+					}
 				}
 			}
 		}
 
-		return ofNullable(keyToLocations.get(key))
+		return ofNullable(this.keyToLocations.get(key))
 			.map(it -> doGet(recordType, primaryKey, it))
-			.filter(it -> it.transactionId() <= catalogVersion)
+			.filter(it -> it.generationId() <= catalogVersion)
 			.map(StorageRecord::payload)
 			.orElse(null);
 	}
@@ -545,7 +598,7 @@ public class OffsetIndex {
 		assertOperative();
 
 		final RecordKey key = new RecordKey(
-			recordTypeRegistry.idFor(recordType),
+			this.recordTypeRegistry.idFor(recordType),
 			primaryKey
 		);
 
@@ -557,10 +610,10 @@ public class OffsetIndex {
 			} else {
 				try {
 					// if the record was not yet flushed to the disk we need to enforce sync so that we can read it
-					if (lastSyncedPosition < nonFlushedValue.fileLocation().endPosition()) {
+					if (this.lastSyncedPosition < nonFlushedValue.fileLocation().endPosition()) {
 						doSoftFlush();
 					}
-					return getBinary(nonFlushedValue.fileLocation(), recordTypeRegistry.typeFor(nonFlushedValue.recordType()));
+					return getBinary(nonFlushedValue.fileLocation(), this.recordTypeRegistry.typeFor(nonFlushedValue.recordType()));
 				} catch (KryoException exception) {
 					throw new RecordNotYetWrittenException(primaryKey, recordType, exception);
 				}
@@ -575,14 +628,18 @@ public class OffsetIndex {
 					return null;
 				} else {
 					final VersionedValue rewrittenValue = volatileValue.versionedValue();
-					return getBinary(rewrittenValue.fileLocation(), recordTypeRegistry.typeFor(rewrittenValue.recordType()));
+					if (rewrittenValue == null) {
+						return null;
+					} else {
+						return getBinary(rewrittenValue.fileLocation(), recordTypeRegistry.typeFor(rewrittenValue.recordType()));
+					}
 				}
 			}
 		}
 
-		return ofNullable(keyToLocations.get(key))
+		return ofNullable(this.keyToLocations.get(key))
 			.map(it -> doGetBinary(recordType, primaryKey, it))
-			.filter(it -> it.transactionId() <= catalogVersion)
+			.filter(it -> it.generationId() <= catalogVersion)
 			.map(StorageRecord::payload)
 			.orElse(null);
 	}
@@ -633,7 +690,7 @@ public class OffsetIndex {
 	 * Stores or overwrites record with passed primary key in OffsetIndex. Values of different types are distinguished by
 	 * the OffsetIndex so that two different types of objects with same primary keys don't overwrite each other.
 	 *
-	 * @param catalogVersion will be propagated to {@link StorageRecord#transactionId()}
+	 * @param catalogVersion will be propagated to {@link StorageRecord#generationId()}
 	 * @param value          value to be stored
 	 */
 	public <T extends StoragePart> long put(long catalogVersion, @Nonnull T value) {
@@ -697,7 +754,7 @@ public class OffsetIndex {
 	/**
 	 * Flushes current state of the OffsetIndex to the disk. File contents are in sync when this method finalizes.
 	 *
-	 * @param catalogVersion will be propagated to {@link StorageRecord#transactionId()}
+	 * @param catalogVersion will be propagated to {@link StorageRecord#generationId()}
 	 */
 	@Nonnull
 	public OffsetIndexDescriptor flush(long catalogVersion) {
@@ -725,7 +782,7 @@ public class OffsetIndex {
 	 *
 	 * @param outputStream   target output stream to write the copy to
 	 * @param progressConsumer consumer that will be called with the progress of the copy
-	 * @param catalogVersion will be propagated to {@link StorageRecord#transactionId()}
+	 * @param catalogVersion will be propagated to {@link StorageRecord#generationId()}
 	 * @return result containing the file location and the file descriptor actual when the copy was made
 	 */
 	@Nonnull
@@ -804,32 +861,11 @@ public class OffsetIndex {
 	public FileLocation close() {
 		assertOperative();
 		// this will forbid new read handles to be created
-		operative = false;
+		this.operative = false;
 		try {
-			if (!shutdownDownProcedureActive.compareAndExchange(false, true)) {
+			if (!this.shutdownDownProcedureActive.compareAndExchange(false, true)) {
 				// spinning lock to close all opened handles once they occur free in pool
-				long start = System.currentTimeMillis();
-				while (!readOnlyOpenedHandles.isEmpty() && System.currentTimeMillis() - start > storageOptions.waitOnCloseSeconds() * 1000) {
-					if (readOnlyHandlePool.getFree() > 0) {
-						final ReadOnlyHandle handleToClose = readOnlyHandlePool.obtain();
-						try {
-							handleToClose.execute(
-								exclusiveReadAccess -> {
-									exclusiveReadAccess.close();
-									return null;
-								});
-							readOnlyOpenedHandles.remove(handleToClose);
-						} catch (Exception ex) {
-							log.error("Read handle cannot be closed!", ex);
-							// ignore this - we need to close other files
-						}
-					}
-				}
-				// these handles were not released by the clients within the timeout
-				for (ReadOnlyHandle readOnlyOpenedHandle : readOnlyOpenedHandles) {
-					readOnlyOpenedHandle.close();
-				}
-				this.readOnlyOpenedHandles.clear();
+				clearReadOnlyOpenedHandles();
 				// at last flush OffsetIndex and close write handle
 				this.fileOffsetDescriptor = doFlush(
 					// if there are any non-flushed values, use their version as the last version
@@ -838,21 +874,53 @@ public class OffsetIndex {
 					this.fileOffsetDescriptor,
 					true
 				);
-				return fileOffsetDescriptor.fileLocation();
+				return this.fileOffsetDescriptor.fileLocation();
 			} else {
 				throw new GenericEvitaInternalError("OffsetIndex is already being closed!");
 			}
 		} finally {
-			shutdownDownProcedureActive.compareAndExchange(true, false);
+			this.shutdownDownProcedureActive.compareAndExchange(true, false);
 		}
+	}
+
+	/**
+	 * Clears read-only file handles that have been opened but not properly released.
+	 *
+	 * This method attempts to close all handles in the `readOnlyOpenedHandles` collection that were unable to be
+	 * released within a specific timeout defined by `storageOptions.waitOnCloseSeconds()`. It performs a cleanup
+	 * of file handles to ensure that resources are released and avoid resource leakage.
+	 */
+	private void clearReadOnlyOpenedHandles() {
+		long start = System.currentTimeMillis();
+		while (!this.readOnlyOpenedHandles.isEmpty() && System.currentTimeMillis() - start > this.storageOptions.waitOnCloseSeconds() * 1000) {
+			if (this.readOnlyHandlePool.getFree() > 0) {
+				final ReadOnlyHandle handleToClose = this.readOnlyHandlePool.obtain();
+				try {
+					handleToClose.execute(
+						exclusiveReadAccess -> {
+							IOUtils.closeQuietly(exclusiveReadAccess::close);
+							return null;
+						});
+					this.readOnlyOpenedHandles.remove(handleToClose);
+				} catch (Exception ex) {
+					log.error("Read handle cannot be closed!", ex);
+					// ignore this - we need to close other files
+				}
+			}
+		}
+		// these handles were not released by the clients within the timeout
+		for (ReadOnlyHandle readOnlyOpenedHandle : readOnlyOpenedHandles) {
+			readOnlyOpenedHandle.close();
+		}
+		this.readOnlyOpenedHandles.clear();
 	}
 
 	/**
 	 * Returns position of last fragment of the current {@link OffsetIndex} in the tracked file.
 	 */
-	@Nullable
+	@Nonnull
 	public FileLocation getFileOffsetIndexLocation() {
-		return fileOffsetDescriptor.fileLocation();
+		return this.fileOffsetDescriptor.fileLocation();
 	}
 
 	/**
@@ -1072,7 +1140,7 @@ public class OffsetIndex {
 		boolean close
 	) {
 		// if there are any non-flushed values, we need to flush them to the disk (of if the offset index was not yet created)
-		if (this.volatileValues.hasValuesToFlush() || fileOffsetIndexDescriptor.fileLocation() == null) {
+		if (this.volatileValues.hasValuesToFlush() || fileOffsetIndexDescriptor.fileLocation() == FileLocation.EMPTY) {
 			final OffsetIndexDescriptor newFileOffsetIndexDescriptor = writeHandle.checkAndExecuteAndSync(
 				"Writing mem table",
 				this::assertOperative,
@@ -1119,11 +1187,13 @@ public class OffsetIndex {
 			);
 
 			if (close) {
-				writeHandle.close();
+				IOUtils.closeQuietly(this.writeHandle::close);
 			}
-
 			return newFileOffsetIndexDescriptor;
 		} else {
+			if (close) {
+				IOUtils.closeQuietly(this.writeHandle::close);
+			}
 			return fileOffsetIndexDescriptor;
 		}
 	}
@@ -1136,13 +1206,13 @@ public class OffsetIndex {
 	 */
 	private void doSoftFlush() {
 		if (this.volatileValues.hasValuesToFlush()) {
-			writeHandle.checkAndExecuteAndSync(
+			this.writeHandle.checkAndExecuteAndSync(
 				"Syncing changes to disk.",
 				this::assertOperative,
 				it -> null,
 				(output, result) -> {
 					// update last synced position, since in post action we are already after sync
-					this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
+					this.lastSyncedPosition = this.writeHandle.getLastWrittenPosition();
 					// propagate changes in KeyCompressor to the read kryo pool
 					if (fileOffsetDescriptor.resetDirty()) {
 						this.fileOffsetDescriptor = new OffsetIndexDescriptor(
@@ -1299,7 +1369,7 @@ public class OffsetIndex {
 	 * Method retrieves existing record from the OffsetIndex.
 	 */
 	private <T extends Serializable> StorageRecord<T> doGet(@Nonnull Class<T> recordType, long primaryKey, @Nonnull FileLocation it) {
-		return readOnlyHandlePool.borrowAndExecute(
+		return this.readOnlyHandlePool.borrowAndExecute(
 			readOnlyFileHandle -> readOnlyFileHandle.execute(
 				exclusiveReadAccess -> {
 					assertOperative();
@@ -1309,7 +1379,7 @@ public class OffsetIndex {
 								return StorageRecord.read(
 									exclusiveReadAccess,
 									it,
-									(stream, length) -> kryo.readObject(stream, recordType)
+									(stream, length, control) -> kryo.readObject(stream, recordType)
 								);
 							} catch (CorruptedRecordException ex) {
 								throw new CorruptedKeyValueRecordException(
@@ -1327,17 +1397,39 @@ public class OffsetIndex {
 	 * Method retrieves existing record from the OffsetIndex without parsing its contents.
 	 */
 	private <T extends Serializable> StorageRecord<byte[]> doGetBinary(@Nonnull Class<T> recordType, long primaryKey, @Nonnull FileLocation it) {
-		return readOnlyHandlePool.borrowAndExecute(
+		return this.readOnlyHandlePool.borrowAndExecute(
 			readOnlyFileHandle -> readOnlyFileHandle.execute(
 				exclusiveReadAccess -> {
 					assertOperative();
 					return this.readKryoPool.borrowAndExecute(
 						kryo -> {
 							try {
-								return StorageRecord.read(
-									exclusiveReadAccess,
-									it,
-									(stream, length) -> stream.readBytes(length - StorageRecord.OVERHEAD_SIZE)
+								exclusiveReadAccess.seek(it);
+								final RawRecord rawRecord = StorageRecord.readRaw(exclusiveReadAccess);
+								/* TOBEDONE 13 - THIS LOGIC SHOULD BE EXTRACTED TO HIGHER LEVELS,
+								     DECOMPRESSION SHOULD OCCUR ON THE CLIENT TO SAVE NETWORK BANDWITH */
+								final byte[] decompressed;
+								if (BitUtils.isBitSet(rawRecord.control(), StorageRecord.COMPRESSION_BIT)) {
+									// decompress the record first
+									byte[] utility = null;
+									try {
+										utility = this.decompressionPool.obtain();
+										final int decompressedBytes = exclusiveReadAccess.decompress(rawRecord.rawData(), utility);
+										decompressed = Arrays.copyOf(utility, decompressedBytes);
+									} finally {
+										if (utility != null) {
+											this.decompressionPool.free(utility);
+										}
+									}
+								} else {
+									decompressed = rawRecord.rawData();
+								}
+								// we need to manually read generation id, hence it may have been compressed
+								return new StorageRecord<>(
+									rawRecord.generationId(),
+									BitUtils.isBitSet(rawRecord.control(), StorageRecord.GENERATION_CLOSING_BIT),
+									decompressed,
+									rawRecord.location()
 								);
 							} catch (CorruptedRecordException ex) {
 								throw new CorruptedKeyValueRecordException(
@@ -2018,8 +2110,8 @@ public class OffsetIndex {
 				Optional.ofNullable(this.volatileValues)
 					.map(vv -> vv.values().stream().mapToLong(it -> MemoryMeasuringConstants.LONG_SIZE + it.getTotalSize()).sum())
 					.orElse(0L)
-				+ MemoryMeasuringConstants.OBJECT_HEADER_SIZE * 4 +
-				+MemoryMeasuringConstants.INT_SIZE + MemoryMeasuringConstants.LONG_SIZE;
+				+ MemoryMeasuringConstants.OBJECT_HEADER_SIZE * 4
+				+ MemoryMeasuringConstants.INT_SIZE + MemoryMeasuringConstants.LONG_SIZE;
 		}
 
 		/**
@@ -2321,7 +2413,7 @@ public class OffsetIndex {
 			try {
 				if (this.readFilesLock.tryLock(storageOptions.lockTimeoutSeconds(), TimeUnit.SECONDS)) {
 					try {
-						final ReadOnlyHandle readOnlyFileHandle = writeHandle.toReadOnlyHandle();
+						final ReadOnlyHandle readOnlyFileHandle = OffsetIndex.this.writeHandle.toReadOnlyHandle();
 						if (OffsetIndex.this.readOnlyOpenedHandles.size() >= OffsetIndex.this.storageOptions.maxOpenedReadHandles()) {
 							throw new PoolExhaustedException(storageOptions.maxOpenedReadHandles(), readOnlyFileHandle.toString());
 						}

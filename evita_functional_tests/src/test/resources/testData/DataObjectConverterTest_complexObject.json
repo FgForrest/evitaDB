@@ -45,7 +45,8 @@
       "fShort" : 3,
       "fShortP" : 4,
       "fString" : "TTT",
-      "innerContainer" : null
+      "innerContainer" : null,
+      "timestamp" : "2021-01-01T00:00:00Z"
     }, {
       "fBigDecimal" : "123.12",
       "fBoolean" : true,
@@ -69,7 +70,8 @@
       "fShort" : 3,
       "fShortP" : 4,
       "fString" : "GGG",
-      "innerContainer" : null
+      "innerContainer" : null,
+      "timestamp" : "2021-01-01T00:00:00Z"
     } ],
     "index" : {
       "ZZZ" : {
@@ -95,7 +97,8 @@
         "fShort" : 3,
         "fShortP" : 4,
         "fString" : "DEF",
-        "innerContainer" : null
+        "innerContainer" : null,
+        "timestamp" : "2021-01-01T00:00:00Z"
       }
     },
     "indexWithComplexKey" : null,
@@ -122,7 +125,8 @@
       "fShort" : 3,
       "fShortP" : 4,
       "fString" : "RRR",
-      "innerContainer" : null
+      "innerContainer" : null,
+      "timestamp" : "2021-01-01T00:00:00Z"
     }, {
       "fBigDecimal" : "123.12",
       "fBoolean" : true,
@@ -146,7 +150,8 @@
       "fShort" : 3,
       "fShortP" : 4,
       "fString" : "EEE",
-      "innerContainer" : null
+      "innerContainer" : null,
+      "timestamp" : "2021-01-01T00:00:00Z"
     } ],
     "pojo" : {
       "fBigDecimal" : "123.12",
@@ -171,7 +176,8 @@
       "fShort" : 3,
       "fShortP" : 4,
       "fString" : "WWW",
-      "innerContainer" : null
+      "innerContainer" : null,
+      "timestamp" : "2021-01-01T00:00:00Z"
     },
     "set" : [ {
       "fBigDecimal" : "123.12",
@@ -196,7 +202,8 @@
       "fShort" : 3,
       "fShortP" : 4,
       "fString" : "RTE",
-      "innerContainer" : null
+      "innerContainer" : null,
+      "timestamp" : "2021-01-01T00:00:00Z"
     }, {
       "fBigDecimal" : "123.12",
       "fBoolean" : true,
@@ -220,7 +227,9 @@
       "fShort" : 3,
       "fShortP" : 4,
       "fString" : "EGD",
-      "innerContainer" : null
+      "innerContainer" : null,
+      "timestamp" : "2021-01-01T00:00:00Z"
     } ]
-  }
+  },
+  "timestamp" : "2021-01-01T00:00:00Z"
 }

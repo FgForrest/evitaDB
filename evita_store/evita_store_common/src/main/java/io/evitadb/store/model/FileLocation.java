@@ -38,6 +38,7 @@ import java.io.Serializable;
  */
 public record FileLocation(long startingPosition, int recordLength) implements Serializable {
 	@Serial private static final long serialVersionUID = 6408882908172452621L;
+	public static final FileLocation EMPTY = new FileLocation(0, 0);
 
 	@Override
 	public String toString() {

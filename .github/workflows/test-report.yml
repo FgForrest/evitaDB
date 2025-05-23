@@ -4,7 +4,7 @@ name: Test-Report
 
 on:
   workflow_run:
-    workflows: ['CI Dev branch', 'All tests including long-running', 'Documentation tests'] # runs after CI of full test workflow
+    workflows: ['CI Dev branch', 'All tests including long-running', 'CI Dev branch documentation'] # runs after CI of full test workflow
     types:
       - completed
 
@@ -23,12 +23,13 @@ jobs:
     permissions:
       checks: write
     steps:
-      - name: Download a test results # download `evita-server.jar` artifact if the workflow we react to was successful
-        uses: dawidd6/action-download-artifact@20319c5641d495c8a52e688b7dc5fada6c3a9fbc # v8
+      - name: Download test results # download all test results artifacts
+        uses: dawidd6/action-download-artifact@07ab29fd4a977ae4d2b275087cf67563dfdf0295 # v9
         with:
           workflow: ${{ github.event.workflow_run.workflow_id }}
           run_id: ${{ github.event.workflow_run.id }}
-          name: test-results          # artifact name
+          name: ^test-results.*$      # regex to match all artifacts that start with test-results
+          name_is_regexp: true        # treat name as a regular expression
 
       - name: Publish Test Report
         uses: mikepenz/action-junit-report@ee6b445351cd81e2f73a16a0e52d598aeac2197f # v5.3.0

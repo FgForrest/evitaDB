@@ -246,11 +246,11 @@ structure details required for the schema definition:
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AttributeRef.java</SourceClass></dt>
     <dd>
-        Annotation can be placed on methods that should return entity or reference [attribute](#attribute).
+        Annotation can be placed on methods that should return entity or reference [attribute](../../use/schema.md#attribute).
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedDataRef.java</SourceClass></dt>
     <dd>
-        Annotation can be placed on methods that should return entity [associated data](#associated-data).
+        Annotation can be placed on methods that should return entity [associated data](../../use/schema.md#associated-data).
         If the associated data represents a custom Java type converted into [complex data type](../data-types.md#complex-data-types),
         the implementation provides automatic conversion for that data type.
     </dd>
@@ -262,7 +262,7 @@ structure details required for the schema definition:
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReferenceRef.java</SourceClass></dt>
     <dd>
-        Annotation can be placed on methods that should return entity [reference or reflected reference](#reference) 
+        Annotation can be placed on methods that should return entity [reference or reflected reference](../../use/schema.md#reference) 
         to another entity. It can point to another model class (interface/class/record) that contains properties for 
         `@ReferencedEntity` and `@ReferencedEntityGroup` annotations and relation attributes or directly to different 
         entity read contract annotated with `@Entity` or `@EntityRef` annotation.

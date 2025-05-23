@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,12 +23,11 @@
 
 package io.evitadb.core.transaction.stage;
 
-import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.core.metric.event.transaction.NewCatalogVersionPropagatedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionProcessedEvent;
 import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
-import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -92,20 +91,14 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 		try {
 			this.catalogName = task.catalogName();
 			this.transactionManager.propagateCatalogSnapshot(task.catalog());
-			if (task.future() != null) {
-				log.debug("Snapshot propagating task for catalog `" + catalogName + "` completed (" + task.catalog().getEntityTypes() + ")!");
-				task.future().complete(task.catalogVersion());
-			} else {
-				Assert.isPremiseValid(
-					task.commitBehaviour() != CommitBehavior.WAIT_FOR_INDEX_PROPAGATION,
-					"Future is unexpectedly null and commit behaviour is WAIT_FOR_INDEX_PROPAGATION!"
-				);
-			}
+			log.debug("Snapshot propagating task for catalog `" + this.catalogName + "` completed (" + task.catalog().getEntityTypes() + ")!");
+			task.commitProgress().onChangesVisible().completeAsync(
+				() -> new CommitVersions(task.catalogVersion(), task.catalogSchemaVersion()),
+				this.transactionManager.getRequestExecutor()
+			);
 		} catch (Throwable ex) {
-			log.error("Error while processing snapshot propagating task for catalog `" + catalogName + "`!", ex);
-			if (task.future() != null) {
-				task.future().completeExceptionally(ex);
-			}
+			log.error("Error while processing snapshot propagating task for catalog `" + this.catalogName + "`!", ex);
+			task.commitProgress().completeExceptionally(ex);
 		}
 
 		// emit the event
@@ -114,7 +107,7 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 		// emit transaction processed events
 		final OffsetDateTime now = OffsetDateTime.now();
 		for (OffsetDateTime commitTime : task.commitTimestamps()) {
-			new TransactionProcessedEvent(catalogName, Duration.between(commitTime, now)).commit();
+			new TransactionProcessedEvent(this.catalogName, Duration.between(commitTime, now)).commit();
 		}
 
 		this.subscription.request(1);
@@ -123,7 +116,7 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 	@Override
 	public final void onError(Throwable throwable) {
 		log.error(
-			"Fatal error! Error propagated outside catalog `" + catalogName + "` snapshot propagation task! " +
+			"Fatal error! Error propagated outside catalog `" + this.catalogName + "` snapshot propagation task! " +
 				"This is unexpected and effectively stops transaction processing!",
 			throwable
 		);
@@ -131,7 +124,7 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 
 	@Override
 	public final void onComplete() {
-		log.debug("Conflict snapshot propagation stage completed for catalog `" + catalogName + "`!");
+		log.debug("Conflict snapshot propagation stage completed for catalog `" + this.catalogName + "`!");
 		this.completed = true;
 	}
 

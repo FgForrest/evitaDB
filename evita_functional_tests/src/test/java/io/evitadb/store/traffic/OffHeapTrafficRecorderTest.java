@@ -54,6 +54,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -115,7 +116,8 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 	}
 
 	@AfterEach
-	void tearDown() {
+	void tearDown() throws IOException {
+		this.trafficRecorder.close();
 		FileUtils.deleteDirectory(this.exportDirectory);
 	}
 

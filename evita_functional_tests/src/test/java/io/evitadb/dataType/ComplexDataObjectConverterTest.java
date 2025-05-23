@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.dataType;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.dataType.data.DataItem;
 import io.evitadb.dataType.data.DataItemArray;
+import io.evitadb.dataType.data.DataItemMap;
 import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.dataType.data.DiscardedData;
 import io.evitadb.dataType.data.NonSerializedData;
@@ -40,6 +41,8 @@ import lombok.NoArgsConstructor;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.Serial;
 import java.io.Serializable;
@@ -54,13 +57,16 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 
+import static io.evitadb.utils.StringUtils.normalizeLineEndings;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -124,9 +130,26 @@ class ComplexDataObjectConverterTest {
 		final ComplexDataObjectConverter<TestComplexObject> converter = new ComplexDataObjectConverter<>(veryComplexObject);
 		final Serializable serializedForm = converter.getSerializableForm();
 
-		assertTrue(serializedForm instanceof ComplexDataObject);
-		assertEquals(readFromClasspath("testData/DataObjectConverterTest_complexObject.txt"), serializedForm.toString());
+		assertInstanceOf(ComplexDataObject.class, serializedForm);
+		assertEquals(
+			normalizeLineEndings(readFromClasspath("testData/DataObjectConverterTest_complexObject.txt")),
+			normalizeLineEndings(serializedForm.toString())
+		);
 	}
+
+	@Test
+	void shouldSerializeComplexRecord() throws IOException {
+		final TestComplexRecord veryComplexRecord = createVeryComplexRecord();
+		final ComplexDataObjectConverter<TestComplexRecord> converter = new ComplexDataObjectConverter<>(veryComplexRecord);
+		final Serializable serializedForm = converter.getSerializableForm();
+
+		assertInstanceOf(ComplexDataObject.class, serializedForm);
+		assertEquals(
+			normalizeLineEndings(readFromClasspath("testData/DataObjectConverterTest_complexObject.txt")),
+			normalizeLineEndings(serializedForm.toString())
+		);
+	}
+
 
 	@Test
 	void shouldEstimateSizeOfComplexObject() {
@@ -138,7 +161,7 @@ class ComplexDataObjectConverterTest {
 	}
 
 	@Test
-	void shouldDeserializeComplexObject() {
+	void shouldSerializeAndDeserializeComplexObject() {
 		final TestComplexObject veryComplexObject = createVeryComplexObject();
 		final ComplexDataObjectConverter<TestComplexObject> serializer = new ComplexDataObjectConverter<>(veryComplexObject);
 		final Serializable serializedForm = serializer.getSerializableForm();
@@ -149,10 +172,55 @@ class ComplexDataObjectConverterTest {
 	}
 
 	@Test
+	void shouldSerializeAndDeserializeComplexRecord() {
+		final TestComplexRecord veryComplexRecord = createVeryComplexRecord();
+		final ComplexDataObjectConverter<TestComplexRecord> serializer = new ComplexDataObjectConverter<>(veryComplexRecord);
+		final Serializable serializedForm = serializer.getSerializableForm();
+
+		final ComplexDataObjectConverter<TestComplexRecord> deserializer = new ComplexDataObjectConverter<>(TestComplexRecord.class, reflectionLookup);
+		final TestComplexRecord deserializedObject = deserializer.getOriginalForm(serializedForm);
+		assertEquals(createVeryComplexRecord(), deserializedObject);
+	}
+
+	@Test
 	void shouldSerializeAndDeserializeComplexObjectArray() {
 		final TestComplexObject veryComplexObject = createVeryComplexObject();
 		final ComplexDataObjectConverter<TestComplexObject[]> converter = new ComplexDataObjectConverter<>(new TestComplexObject[]{veryComplexObject, veryComplexObject});
 		final Serializable serializedForm = converter.getSerializableForm();
+
+		final ComplexDataObjectConverter<TestComplexObject[]> deserializer = new ComplexDataObjectConverter<>(TestComplexObject[].class, reflectionLookup);
+		final TestComplexObject[] deserializedObject = deserializer.getOriginalForm(serializedForm);
+		final TestComplexObject matrixObject = createVeryComplexObject();
+		assertArrayEquals(new TestComplexObject[]{matrixObject, matrixObject}, deserializedObject);
+	}
+
+	@Test
+	void shouldSerializeAndDeserializeComplexObjectWithFormattedStrings() {
+		final TestComplexObject veryComplexObject = createVeryComplexObject();
+		final ComplexDataObjectConverter<TestComplexObject> serializer = new ComplexDataObjectConverter<>(veryComplexObject);
+		final Serializable serializedForm = replaceAllValuesWithFormattedStrings((ComplexDataObject) serializer.getSerializableForm());
+
+		final ComplexDataObjectConverter<TestComplexObject> deserializer = new ComplexDataObjectConverter<>(TestComplexObject.class, reflectionLookup);
+		final TestComplexObject deserializedObject = deserializer.getOriginalForm(serializedForm);
+		assertEquals(createVeryComplexObject(), deserializedObject);
+	}
+
+	@Test
+	void shouldSerializeAndDeserializeComplexRecordWithFormattedStrings() {
+		final TestComplexRecord veryComplexRecord = createVeryComplexRecord();
+		final ComplexDataObjectConverter<TestComplexRecord> serializer = new ComplexDataObjectConverter<>(veryComplexRecord);
+		final Serializable serializedForm = replaceAllValuesWithFormattedStrings((ComplexDataObject) serializer.getSerializableForm());
+
+		final ComplexDataObjectConverter<TestComplexRecord> deserializer = new ComplexDataObjectConverter<>(TestComplexRecord.class, reflectionLookup);
+		final TestComplexRecord deserializedObject = deserializer.getOriginalForm(serializedForm);
+		assertEquals(createVeryComplexRecord(), deserializedObject);
+	}
+
+	@Test
+	void shouldSerializeAndDeserializeComplexObjectArrayWithFormattedStrings() {
+		final TestComplexObject veryComplexObject = createVeryComplexObject();
+		final ComplexDataObjectConverter<TestComplexObject[]> converter = new ComplexDataObjectConverter<>(new TestComplexObject[]{veryComplexObject, veryComplexObject});
+		final Serializable serializedForm = replaceAllValuesWithFormattedStrings((ComplexDataObject) converter.getSerializableForm());
 
 		final ComplexDataObjectConverter<TestComplexObject[]> deserializer = new ComplexDataObjectConverter<>(TestComplexObject[].class, reflectionLookup);
 		final TestComplexObject[] deserializedObject = deserializer.getOriginalForm(serializedForm);
@@ -185,8 +253,11 @@ class ComplexDataObjectConverterTest {
 		final ComplexDataObjectConverter<TestComplexImmutableObject> converter = new ComplexDataObjectConverter<>(veryComplexObject);
 		final Serializable serializedForm = converter.getSerializableForm();
 
-		assertTrue(serializedForm instanceof ComplexDataObject);
-		assertEquals(readFromClasspath("testData/DataObjectConverterTest_complexObject.txt"), serializedForm.toString());
+		assertInstanceOf(ComplexDataObject.class, serializedForm);
+		assertEquals(
+			normalizeLineEndings(readFromClasspath("testData/DataObjectConverterTest_complexObject.txt")),
+			normalizeLineEndings(serializedForm.toString())
+		);
 	}
 
 	@Test
@@ -276,6 +347,41 @@ class ComplexDataObjectConverterTest {
 		);
 	}
 
+	@Nonnull
+	private static ComplexDataObject replaceAllValuesWithFormattedStrings(@Nonnull ComplexDataObject complexDataObject) {
+		return new ComplexDataObject(
+			Objects.requireNonNull(replaceAllValuesWithFormattedStrings(complexDataObject.root()))
+		);
+	}
+
+	@Nullable
+	private static DataItem replaceAllValuesWithFormattedStrings(@Nullable DataItem dataItem) {
+		if (dataItem instanceof DataItemMap dim) {
+			final Map<String, DataItem> children = new HashMap<>(dim.childrenIndex().size());
+			for (Entry<String, DataItem> entry : dim.childrenIndex().entrySet()) {
+				children.put(
+					entry.getKey(),
+					replaceAllValuesWithFormattedStrings(entry.getValue())
+				);
+			}
+			return new DataItemMap(children);
+		} else if (dataItem instanceof DataItemArray dia) {
+			return new DataItemArray(
+				Arrays.stream(dia.children())
+					.map(ComplexDataObjectConverterTest::replaceAllValuesWithFormattedStrings)
+					.toArray(DataItem[]::new)
+			);
+		} else if (dataItem instanceof DataItemValue div) {
+			return new DataItemValue(
+				div.value() instanceof String ? div.value() : EvitaDataTypes.formatValue(div.value())
+			);
+		} else if (dataItem == null) {
+			return null;
+		} else {
+			throw new IllegalStateException("Unexpected data type: " + dataItem.getClass());
+		}
+	}
+
 	private TestComplexObject createVeryComplexObject() {
 		return createComplexObject(
 			"ABC",
@@ -304,22 +410,31 @@ class ComplexDataObjectConverterTest {
 		);
 	}
 
-	private ArrayContainer createArrayComplexObject() {
-		return new ArrayContainer(
-			new int[]{78, 65},
-			new String[0],
-			new ArrayContainer[]{
-				new ArrayContainer(
-					null,
-					null,
-					null
+	private TestComplexRecord createVeryComplexRecord() {
+		return createComplexRecord(
+			"ABC",
+			new InnerContainer(
+				Collections.singletonMap(
+					"ZZZ",
+					createComplexObject("DEF", null)
 				),
-				new ArrayContainer(
-					new int[]{7},
-					new String[]{"ABC", "DEF"},
-					new ArrayContainer[0]
-				)
-			}
+				null,
+				new LinkedHashSet<>(
+					Arrays.asList(
+						createComplexObject("RTE", null),
+						createComplexObject("EGD", null)
+					)
+				),
+				Arrays.asList(
+					createComplexObject("RRR", null),
+					createComplexObject("EEE", null)
+				),
+				new TestComplexObject[]{
+					createComplexObject("TTT", null),
+					createComplexObject("GGG", null)
+				},
+				createComplexObject("WWW", null)
+			)
 		);
 	}
 
@@ -369,7 +484,31 @@ class ComplexDataObjectConverterTest {
 			IntegerNumberRange.to(124),
 			Locale.CANADA,
 			innerContainer,
-			CustomEnum.ENUM_B
+			CustomEnum.ENUM_B,
+			OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
+		);
+	}
+
+	private TestComplexRecord createComplexRecord(String id, InnerContainer innerContainer) {
+		return new TestComplexRecord(
+			id,
+			(byte) 1, (byte) 2,
+			(short) 3, (short) 4,
+			5, 6,
+			7L, 7L,
+			true, false,
+			'A', 'B',
+			new BigDecimal("123.12"),
+			OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
+			LocalDateTime.of(2021, 1, 1, 0, 0, 0, 0),
+			LocalDate.of(2021, 1, 1),
+			LocalTime.of(0, 0, 0, 0),
+			DateTimeRange.since(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)),
+			IntegerNumberRange.to(124),
+			Locale.CANADA,
+			innerContainer,
+			CustomEnum.ENUM_B,
+			OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
 		);
 	}
 
@@ -391,6 +530,7 @@ class ComplexDataObjectConverterTest {
 			DateTimeRange.since(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)),
 			IntegerNumberRange.to(124),
 			Locale.CANADA,
+			OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
 			innerContainer
 		);
 	}
@@ -429,6 +569,36 @@ class ComplexDataObjectConverterTest {
 		private Locale fLocale;
 		private InnerContainer innerContainer;
 		private CustomEnum fCustomEnum;
+		private OffsetDateTime timestamp;
+	}
+
+	public record TestComplexRecord(
+		String fString,
+		Byte fByte,
+		byte fByteP,
+		Short fShort,
+		short fShortP,
+		Integer fInteger,
+		int fIntegerP,
+		Long fLong,
+		long fLongP,
+		Boolean fBoolean,
+		boolean fBooleanP,
+		Character fChar,
+		char fCharP,
+		BigDecimal fBigDecimal,
+		OffsetDateTime fOffsetDateTime,
+		LocalDateTime fLocalDateTime,
+		LocalDate fLocalDate,
+		LocalTime fLocalTime,
+		DateTimeRange fDateTimeRange,
+		IntegerNumberRange fNumberRange,
+		Locale fLocale,
+		InnerContainer innerContainer,
+		CustomEnum fCustomEnum,
+		OffsetDateTime timestamp
+	) implements Serializable {
+		@Serial private static final long serialVersionUID = 7169622529995308080L;
 	}
 
 	@Data
@@ -456,6 +626,7 @@ class ComplexDataObjectConverterTest {
 		private final DateTimeRange fDateTimeRange;
 		private final IntegerNumberRange fNumberRange;
 		private final Locale fLocale;
+		private final OffsetDateTime timestamp;
 		private final InnerImmutableContainer innerContainer;
 	}
 

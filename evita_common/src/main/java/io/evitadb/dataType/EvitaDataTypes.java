@@ -51,6 +51,7 @@ import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 /**
  * This class contains validation logic for evitaDB data types.
@@ -126,6 +127,8 @@ public class EvitaDataTypes {
 			final String str = unknownObject.toString();
 			if (str.length() == 1) {
 				return str.charAt(0);
+			} else if (str.length() == 3 && str.charAt(0) == '\'' && str.charAt(2) == '\'') {
+				return str.charAt(1);
 			} else {
 				throw new InconvertibleDataTypeException(requestedType, unknownObject);
 			}
@@ -149,8 +152,12 @@ public class EvitaDataTypes {
 		if (unknownObject instanceof Locale) {
 			return (Locale) unknownObject;
 		} else {
-			final String localeString = unknownObject.toString();
+			String localeString = unknownObject.toString();
 			Assert.isTrue(!localeString.isEmpty(), () -> new InconvertibleDataTypeException(requestedType, unknownObject));
+
+			if (localeString.charAt(0) == '\'' && localeString.charAt(localeString.length() - 1) == '\'') {
+				localeString = localeString.substring(1, localeString.length() - 1);
+			}
 
 			final Locale locale = Locale.forLanguageTag(localeString);
 			Assert.isTrue(!locale.getLanguage().isEmpty(), () -> new InconvertibleDataTypeException(requestedType, unknownObject));
@@ -492,6 +499,7 @@ public class EvitaDataTypes {
 			throw new InconvertibleDataTypeException(typeWithPrecision.requestedType(), unknownObject);
 		}
 	};
+	private static final Pattern STRING_DELIMITER_PATTERN = Pattern.compile(STRING_DELIMITER);
 
 	static {
 		final LinkedHashSet<Class<?>> queryDataTypes = new LinkedHashSet<>();
@@ -533,6 +541,8 @@ public class EvitaDataTypes {
 		primitiveWrappers.put(short.class, Short.class);
 		primitiveWrappers.put(int.class, Integer.class);
 		primitiveWrappers.put(long.class, Long.class);
+		primitiveWrappers.put(float.class, Float.class);
+		primitiveWrappers.put(double.class, Double.class);
 		primitiveWrappers.put(char.class, Character.class);
 		PRIMITIVE_WRAPPING_TYPES = Collections.unmodifiableMap(primitiveWrappers);
 	}
@@ -599,6 +609,7 @@ public class EvitaDataTypes {
 	 * @return possible converted object to known type
 	 * @throws UnsupportedDataTypeException if non-supported type is used
 	 */
+	@Nullable
 	public static Serializable toSupportedType(@Nullable Serializable unknownObject) throws UnsupportedDataTypeException {
 		if (unknownObject == null) {
 			// nulls are allowed
@@ -691,9 +702,9 @@ public class EvitaDataTypes {
 	@Nonnull
 	public static String formatValue(@Nullable Serializable value) {
 		if (value instanceof String) {
-			return CHAR_STRING_DELIMITER + ((String) value).replaceAll(STRING_DELIMITER, "\\\\'") + STRING_DELIMITER;
+			return CHAR_STRING_DELIMITER + STRING_DELIMITER_PATTERN.matcher(((String) value)).replaceAll("\\\\'") + STRING_DELIMITER;
 		} else if (value instanceof Character) {
-			return CHAR_STRING_DELIMITER + ((Character) value).toString().replaceAll(STRING_DELIMITER, "\\\\'") + STRING_DELIMITER;
+			return CHAR_STRING_DELIMITER + STRING_DELIMITER_PATTERN.matcher(((Character) value).toString()).replaceAll("\\\\'") + STRING_DELIMITER;
 		} else if (value instanceof BigDecimal bigDecimalValue) {
 			// Value normalisations were taken from https://github.com/googleapis/googleapis/blob/master/google/type/decimal.proto docs from Google.
 			// All other validation parts are done automatically by Java's BigDecimal
@@ -738,7 +749,8 @@ public class EvitaDataTypes {
 	/**
 	 * Method returns wrapping class for primitive type.
 	 */
-	public static <T> Class<T> getWrappingPrimitiveClass(Class<T> type) {
+	@Nonnull
+	public static <T> Class<T> getWrappingPrimitiveClass(@Nonnull Class<T> type) {
 		final Class<?> wrappingClass = PRIMITIVE_WRAPPING_TYPES.get(type);
 		Assert.notNull(wrappingClass, "Class " + type + " is not a primitive class!");
 		//noinspection unchecked
@@ -787,9 +799,15 @@ public class EvitaDataTypes {
 			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
 				2 * (MemoryMeasuringConstants.OBJECT_HEADER_SIZE + MemoryMeasuringConstants.LOCAL_DATE_TIME_SIZE + MemoryMeasuringConstants.REFERENCE_SIZE) +
 				2 * (MemoryMeasuringConstants.LONG_SIZE);
-		} else if (unknownObject instanceof final NumberRange numberRange) {
-			final Number innerDataType = Optional.ofNullable(numberRange.getPreciseFrom())
-				.orElseGet(numberRange::getPreciseTo);
+		} else if (unknownObject instanceof final NumberRange<?> numberRange) {
+			final Number innerDataType;
+			if (numberRange.getPreciseFrom() != null) {
+				innerDataType = numberRange.getPreciseFrom();
+			} else if (numberRange.getPreciseTo() != null) {
+				innerDataType = numberRange.getPreciseTo();
+			} else {
+				innerDataType = null;
+			}
 			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE
 				+ 2 * (innerDataType == null ? 0 : estimateSize(innerDataType)) +
 				MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.INT_SIZE +

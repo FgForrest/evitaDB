@@ -55,11 +55,12 @@ import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.data.ComplexDataObjectConverter;
+import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.TestGrpcClientBuilderCreator;
-import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
@@ -77,6 +78,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -87,7 +89,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 import org.opentest4j.AssertionFailedError;
 
+import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -119,7 +125,13 @@ class EvitaSessionServiceFunctionalTest {
 
 	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
-		final GrpcClientBuilder clientBuilder = TestGrpcClientBuilderCreator.getBuilder(new ClientSessionInterceptor(), evitaServer.getExternalApiServer());
+		final GrpcClientBuilder clientBuilder = TestGrpcClientBuilderCreator.getBuilder(
+			new ClientSessionInterceptor(
+				EvitaClientConfiguration.builder().build().clientId(),
+				new SemVer(2025, 4)
+			),
+			evitaServer.getExternalApiServer()
+		);
 		final List<SealedEntity> entities = new TestDataProvider().generateEntities(evita, 1000);
 		return new DataCarrier(
 			"entities", entities,
@@ -1641,7 +1653,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		final Executable executable = () -> evitaSessionBlockingStub.close(
 			GrpcCloseRequest.newBuilder()
-				.setCommitBehaviour(GrpcCommitBehavior.WAIT_FOR_INDEX_PROPAGATION)
+				.setCommitBehaviour(GrpcCommitBehavior.WAIT_FOR_CHANGES_VISIBLE)
 				.build()
 		);
 
@@ -1850,12 +1862,12 @@ class EvitaSessionServiceFunctionalTest {
 
 		final GrpcEntityResponse originalEntity = evitaSessionBlockingStub.getEntity(entityRequest);
 
-		final String jsonValue = "{\"root\":{\"name\":\"test\", \"value\":\"100.453\"}}";
-		final String defaultJsonValue = ComplexDataObjectConverter.convertComplexDataObjectToJson(
-			(ComplexDataObject) existingEntity.getAssociatedDataValue(ASSOCIATED_DATA_REFERENCED_FILES)
-				.map(AssociatedDataValue::value)
-				.orElseThrow()
-		).toString();
+		final AssociatedDataComplexObjectExample associatedData = new AssociatedDataComplexObjectExample(
+			"test", new BigDecimal("100.453"),
+			OffsetDateTime.of(2023, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC)
+		);
+		final ComplexDataObject associatedDataComplexObject = (ComplexDataObject) ComplexDataObjectConverter.getSerializableForm(associatedData);
+
 		final String czLocaleString = CZECH_LOCALE.toLanguageTag();
 
 		final AtomicReference<GrpcUpsertEntityResponse> upsertEntityResponse = new AtomicReference<>();
@@ -1886,7 +1898,9 @@ class EvitaSessionServiceFunctionalTest {
 														.setAssociatedDataLocale(EvitaDataTypesConverter.toGrpcLocale(CZECH_LOCALE))
 														.setAssociatedDataValue(
 															GrpcEvitaAssociatedDataValue.newBuilder()
-																.setJsonValue(jsonValue)
+																.setRoot(
+																	EvitaDataTypesConverter.toGrpcDataItem(associatedDataComplexObject.root())
+																)
 																.build())
 														.build()
 												)
@@ -1917,8 +1931,17 @@ class EvitaSessionServiceFunctionalTest {
 		assertNotNull(upsertEntityResponse.get().getEntity().getLocalizedAssociatedDataMap().get(czLocaleString));
 		assertNotNull(originalEntity.getEntity().getGlobalAssociatedDataMap().get(ASSOCIATED_DATA_REFERENCED_FILES));
 		assertNull(upsertEntityResponse.get().getEntity().getGlobalAssociatedDataMap().get(ASSOCIATED_DATA_REFERENCED_FILES));
-		assertEquals(defaultJsonValue, originalEntity.getEntity().getGlobalAssociatedDataMap().get(ASSOCIATED_DATA_REFERENCED_FILES).getJsonValue());
-		assertNotEquals(jsonValue, upsertEntityResponse.get().getEntity().getLocalizedAssociatedDataMap().get(czLocaleString).getAssociatedDataMap().get(ASSOCIATED_DATA_LABELS).getJsonValue());
+		assertEquals(
+			existingEntity.getAssociatedDataValue(ASSOCIATED_DATA_REFERENCED_FILES)
+				.map(AssociatedDataValue::value)
+				.orElseThrow(),
+			EvitaDataTypesConverter.toComplexObject(originalEntity.getEntity().getGlobalAssociatedDataMap().get(ASSOCIATED_DATA_REFERENCED_FILES).getRoot())
+		);
+		assertEquals(
+			associatedDataComplexObject,
+			EvitaDataTypesConverter.toComplexObject(
+				upsertEntityResponse.get().getEntity().getLocalizedAssociatedDataMap().get(czLocaleString).getAssociatedDataMap().get(ASSOCIATED_DATA_LABELS).getRoot())
+		);
 	}
 
 	@Test
@@ -2505,6 +2528,14 @@ class EvitaSessionServiceFunctionalTest {
 			final BinaryEntity binaryEntity = entityResponse.get(i);
 			assertBinaryEntity(binaryEntity, grpcBinaryEntity);
 		}
+	}
+
+	public record AssociatedDataComplexObjectExample(
+		@Nonnull String name,
+		@Nonnull BigDecimal value,
+		@Nonnull OffsetDateTime dateTime
+	) implements Serializable {
+
 	}
 
 }

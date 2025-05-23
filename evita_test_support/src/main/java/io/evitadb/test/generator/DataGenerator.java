@@ -73,6 +73,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.DecimalFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -98,6 +99,8 @@ import static java.util.Optional.ofNullable;
  */
 @SuppressWarnings("ALL")
 public class DataGenerator {
+	static final Serializable GENERIC = Long.MAX_VALUE;
+	private static final DecimalFormat PRICE_FORMAT;
 	public static final Locale CZECH_LOCALE = new Locale("cs", "CZ");
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_CODE = "code";
@@ -143,7 +146,6 @@ public class DataGenerator {
 	public static final String PRICE_LIST_INTRODUCTION = "introduction";
 	public static final Set<Locale> LOCALES_SET = new LinkedHashSet<>(Arrays.asList(CZECH_LOCALE, Locale.ENGLISH, Locale.GERMAN, Locale.FRENCH));
 	public static final Predicate<String> TRUE_PREDICATE = s -> true;
-	static final Serializable GENERIC = Long.MAX_VALUE;
 	public static final String[] PRICE_LIST_NAMES = new String[]{
 		PRICE_LIST_BASIC,
 		PRICE_LIST_REFERENCE,
@@ -200,6 +202,12 @@ public class DataGenerator {
 	 * Currency list to generate prices for.
 	 */
 	@Setter private final Currency[] currencies;
+
+	static {
+		// Prepare DecimalFormat with the locale
+		PRICE_FORMAT = (DecimalFormat) DecimalFormat.getInstance(Locale.getDefault());
+		PRICE_FORMAT.applyPattern("#0.00");
+	}
 
 	/**
 	 * Returns hierarchy connected with passed entity type.
@@ -416,7 +424,7 @@ public class DataGenerator {
 			final String priceList = pickRandomOneFromSet(genericFaker, priceListsToUse);
 			// avoid generating multiple prices for the same price list
 			priceListsToUse.remove(priceList);
-			final BigDecimal basePrice = new BigDecimal(genericFaker.commerce().price());
+			final BigDecimal basePrice = new BigDecimal(genericFaker.commerce().price().replace(PRICE_FORMAT.getDecimalFormatSymbols().getDecimalSeparator(), '.'));
 			final DateTimeRange validity = genericFaker.bool().bool() ? DATE_TIME_RANGES[genericFaker.random().nextInt(DATE_TIME_RANGES.length)] : null;
 			final boolean indexed = priceIndexingDecider.test(priceList, genericFaker);
 			final Integer priceId = uniqueSequencer.merge(new PriceKey(schema.getName()), 1, Integer::sum);

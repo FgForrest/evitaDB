@@ -171,24 +171,22 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 	@Nullable
 	private FileForFetch start() {
 		final TrafficRecordingSettings settings = getStatus().settings();
+		final String fileName = "traffic_recording_" + settings.catalogName() + "_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 		ExportSessionSink exportSessionSink = null;
 		try {
-			final String fileName = "traffic_recording_" + settings.catalogName() + "_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-			final ExportFileHandle exportFileHandle = this.exportFileService.storeFile(
-				fileName + ".zip",
-				"Traffic recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
-					" with sampling rate " + settings.samplingRate() + "%" + getFinishCondition(settings) + ".",
-				"application/zip",
-				this.getClass().getSimpleName()
-			);
-
 			exportSessionSink = settings.exportFile() ?
 				new ExportSessionSink(
 					this.trafficRecordingEngine.getTrafficOptions().trafficDiskBufferSizeInBytes(),
 					settings,
 					this::stopInternal,
 					this::updateProgress,
-					exportFileHandle
+					this.exportFileService.storeFile(
+						fileName + ".zip",
+						"Traffic recording started at " + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
+							" with sampling rate " + settings.samplingRate() + "%" + getFinishCondition(settings) + ".",
+						"application/zip",
+						this.getClass().getSimpleName()
+					)
 				) :
 				null;
 
@@ -226,7 +224,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 	/**
 	 * A private static class responsible for exporting session data to a compressed archive. This class implements
 	 * {@link SessionSink} and {@link Closeable}, enabling it to act as a sink for session data and supporting proper
-	 * resource management. The class ensures session data is exported in chunks, handles file compression using
+	 * resource management. The class ensures session data is exported in chunks, handles file compress using
 	 * a zip archive, and maintains metadata about the export operation such as exported size and session count.
 	 */
 	private static class ExportSessionSink implements SessionSink, Closeable {

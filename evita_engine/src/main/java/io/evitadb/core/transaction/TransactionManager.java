@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 package io.evitadb.core.transaction;
 
-import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.TransactionTimedOutException;
@@ -52,6 +52,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.utils.Assert;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -62,10 +63,11 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
@@ -99,6 +101,10 @@ public class TransactionManager {
 	 */
 	private final Scheduler scheduler;
 	/**
+	 * The executor service used for notifying clients about transaction completion.
+	 */
+	@Getter private final ObservableExecutorService requestExecutor;
+	/**
 	 * The executor used for handling transactional tasks.
 	 */
 	private final ObservableExecutorService transactionalExecutor;
@@ -107,23 +113,39 @@ public class TransactionManager {
 	 */
 	private final Consumer<Catalog> newCatalogVersionConsumer;
 	/**
-	 * Contains the latest version of the catalog written to WAL - this practically represents a sequence
+	 * Contains the latest version created for appending to the WAL - this practically represents a sequence
 	 * number increased with each committed transaction and denotes the next catalog version.
 	 */
 	private final AtomicLong lastAssignedCatalogVersion;
+	/**
+	 * Contains the last schema version of the catalog. This is used to estimate the proper catalog schema version
+	 * in a particular catalog version.
+	 */
+	private final AtomicInteger accumulatedCatalogSchemaVersionDelta;
+	/**
+	 * Contains the last visible schema version of the catalog. This is used to estimate the proper catalog schema version
+	 * in a particular catalog version.
+	 */
+	private final AtomicInteger lastCatalogSchemaVersion;
 	/**
 	 * Java {@link java.util.concurrent.Flow} implementation that allows to process transactional tasks in
 	 * asynchronous reactive manner.
 	 */
 	private final AtomicReference<SubmissionPublisher<ConflictResolutionTransactionTask>> transactionalPipeline = new AtomicReference<>();
 	/**
-	 * Contains last catalog version appended successfully to the WAL.
+	 * Contains the last catalog version appended successfully to the WAL (i.e. {@link #lastAssignedCatalogVersion} that
+	 * finally arrived to WAL file).
 	 */
 	private final AtomicLong lastWrittenCatalogVersion;
 	/**
 	 * Contains the ID of the last finalized transaction. This is used to skip already processed transaction.
 	 */
 	private final AtomicLong lastFinalizedCatalogVersion;
+	/**
+	 * Delta in catalog schema version that was incorporated into the last finalized catalog and could be deduced from
+	 * {@link #accumulatedCatalogSchemaVersionDelta} when this version of catalog becomes visible.
+	 */
+	private final ConcurrentSkipListSet<FinalizedCatalogVersion> lastFinalizedCatalogVersionSchemaDelta;
 	/**
 	 * Contains reference to the current catalog snapshot this trunk incorporation task will be building upon.
 	 * The catalog is being exchanged regularly and the instance of the TransactionManager is not recreated - i.e. stays
@@ -235,18 +257,31 @@ public class TransactionManager {
 		@Nonnull Catalog catalog,
 		@Nonnull EvitaConfiguration configuration,
 		@Nonnull Scheduler scheduler,
+		@Nonnull ObservableExecutorService requestExecutor,
 		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
 	) {
 		this.configuration = configuration;
 		this.scheduler = scheduler;
+		this.requestExecutor = requestExecutor;
 		this.transactionalExecutor = transactionalExecutor;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastFinalizedCatalog = new AtomicReference<>(catalog);
 		this.livingCatalog = new AtomicReference<>(catalog);
-		this.lastAssignedCatalogVersion = new AtomicLong(catalog.getVersion());
-		this.lastWrittenCatalogVersion = new AtomicLong(catalog.getVersion());
+		// fetch from the persistence store initially - might be greater than current version
+		this.lastAssignedCatalogVersion = new AtomicLong(catalog.getLastCatalogVersionInMutationStream());
+		this.lastCatalogSchemaVersion = new AtomicInteger(catalog.getSchema().version());
+		this.accumulatedCatalogSchemaVersionDelta = new AtomicInteger(0);
+		this.lastWrittenCatalogVersion = new AtomicLong(this.lastAssignedCatalogVersion.get());
+		// this is the catalog version really used (propagated in indexes)
 		this.lastFinalizedCatalogVersion = new AtomicLong(catalog.getVersion());
+		this.lastFinalizedCatalogVersionSchemaDelta = new ConcurrentSkipListSet<>();
+
+		Assert.isPremiseValid(
+			this.lastWrittenCatalogVersion.get() >= this.lastAssignedCatalogVersion.get(),
+			"The last finalized catalog version must be greater or equal to last assigned catalog version!"
+		);
+
 		this.walDrainingTask = new DelayedAsyncTask(
 			catalog.getName(), "WAL draining task",
 			scheduler,
@@ -278,9 +313,9 @@ public class TransactionManager {
 	 */
 	public void commit(
 		@Nonnull UUID transactionId,
-		@Nonnull CommitBehavior commitBehaviour,
+		int catalogSchemaVersionDelta,
 		@Nonnull IsolatedWalPersistenceService walPersistenceService,
-		@Nonnull CompletableFuture<Long> transactionFinalizationFuture
+		@Nonnull CommitProgressRecord commitProgress
 	) {
 		getTransactionalPublisher().offer(
 			new ConflictResolutionTransactionTask(
@@ -288,13 +323,13 @@ public class TransactionManager {
 				transactionId,
 				walPersistenceService.getMutationCount(),
 				walPersistenceService.getMutationSizeInBytes(),
+				catalogSchemaVersionDelta,
 				walPersistenceService.getWalReference(),
-				commitBehaviour,
-				transactionFinalizationFuture
+				commitProgress
 			),
 			(subscriber, task) -> {
 				invalidateTransactionalPublisher();
-				transactionFinalizationFuture.completeExceptionally(
+				commitProgress.completeExceptionally(
 					new TransactionException(
 						"Conflict resolution transaction queue is full! Transaction cannot be processed at the moment."
 					)
@@ -357,9 +392,10 @@ public class TransactionManager {
 	 * or the WAL appending failing. We need to lower newly assigned catalog versions so that they take the dropped
 	 * versions into account and produce a consistent sequence of catalog versions.
 	 */
-	public void notifyCatalogVersionDropped(int numberOfDroppedCatalogVersions) {
+	public void notifyCatalogVersionDropped(int numberOfDroppedCatalogVersions, int schemaVersionDelta) {
 		if (numberOfDroppedCatalogVersions > 0) {
 			this.lastAssignedCatalogVersion.addAndGet(-numberOfDroppedCatalogVersions);
+			this.accumulatedCatalogSchemaVersionDelta.addAndGet(-schemaVersionDelta);
 			final Catalog theLivingCatalog = getLivingCatalog();
 			final long theLastAssignedCatalogVersion = getLastAssignedCatalogVersion();
 			Assert.isPremiseValid(
@@ -378,6 +414,19 @@ public class TransactionManager {
 	 */
 	public long getNextCatalogVersionToAssign() {
 		return this.lastAssignedCatalogVersion.incrementAndGet();
+	}
+
+	/**
+	 * This method estimates the catalog schema version based on the given delta. The catalog schema version cannot be
+	 * known upfront at the transaction commit time, because it is not known how parallel transactions queue up. Multiple
+	 * transaction may have updated the schema in parallel and the version is dependent on the order of the transactions
+	 * in the queue.
+	 *
+	 * @param delta the delta to add to the last catalog schema version
+	 * @return the estimated catalog schema version
+	 */
+	public int addDeltaAndEstimateCatalogSchemaVersion(int delta) {
+		return this.lastCatalogSchemaVersion.get() + this.accumulatedCatalogSchemaVersionDelta.addAndGet(delta);
 	}
 
 	/**
@@ -451,7 +500,11 @@ public class TransactionManager {
 	 * @param lastFinalizedCatalog        the last finalized catalog
 	 * @param lastFinalizedCatalogVersion the last finalized catalog version
 	 */
-	public void updateLastFinalizedCatalog(@Nonnull Catalog lastFinalizedCatalog, long lastFinalizedCatalogVersion) {
+	public void updateLastFinalizedCatalog(
+		@Nonnull Catalog lastFinalizedCatalog,
+		long lastFinalizedCatalogVersion,
+		int incorporatedCatalogSchemaVersionDelta
+	) {
 		final long theLastFinalizedCatalogVersion = getLastFinalizedCatalogVersion();
 		Assert.isPremiseValid(
 			theLastFinalizedCatalogVersion < lastFinalizedCatalogVersion,
@@ -464,6 +517,9 @@ public class TransactionManager {
 		);
 		this.lastFinalizedCatalog.set(lastFinalizedCatalog);
 		this.lastFinalizedCatalogVersion.set(lastFinalizedCatalogVersion);
+		this.lastFinalizedCatalogVersionSchemaDelta.add(
+			new FinalizedCatalogVersion(lastFinalizedCatalogVersion, incorporatedCatalogSchemaVersionDelta)
+		);
 	}
 
 	/**
@@ -472,23 +528,38 @@ public class TransactionManager {
 	 */
 	public void notifyCatalogPresentInLiveView(@Nonnull Catalog livingCatalog) {
 		final Catalog theLivingCatalog = getLivingCatalog();
-		if (livingCatalog.getVersion() > 0L) {
+		final long catalogVersion = livingCatalog.getVersion();
+		if (catalogVersion > 0L) {
 			Assert.isPremiseValid(
-				theLivingCatalog.getVersion() < livingCatalog.getVersion(),
+				theLivingCatalog.getVersion() < catalogVersion || (theLivingCatalog == livingCatalog),
 				"Catalog versions must be in order! " +
-					"Expected " + theLivingCatalog.getVersion() + ", got " + livingCatalog.getVersion() + "."
+					"Expected " + theLivingCatalog.getVersion() + ", got " + catalogVersion + "."
 			);
 			final long theLastFinalizedVersion = getLastFinalizedCatalogVersion();
 			Assert.isPremiseValid(
-				theLastFinalizedVersion >= livingCatalog.getVersion(),
+				theLastFinalizedVersion >= catalogVersion,
 				"Catalog versions must be in order! " +
-					"Expected " + theLastFinalizedVersion + ", got " + livingCatalog.getVersion() + "."
+					"Expected " + theLastFinalizedVersion + ", got " + catalogVersion + "."
 			);
 		}
-		this.lastAssignedCatalogVersion.updateAndGet(current -> Math.max(current, livingCatalog.getVersion()));
+		this.lastAssignedCatalogVersion.updateAndGet(current -> Math.max(current, catalogVersion));
+		this.lastCatalogSchemaVersion.updateAndGet(current -> Math.max(current, livingCatalog.getSchema().version()));
 		this.livingCatalog.set(livingCatalog);
 
-		if (this.lastFinalizedCatalogVersion.getAndUpdate(current -> Math.max(current, livingCatalog.getVersion())) <= livingCatalog.getVersion()) {
+		this.lastFinalizedCatalogVersionSchemaDelta.removeIf(
+			finalizedCatalogVersion -> {
+				if (finalizedCatalogVersion.catalogVersion() <= catalogVersion) {
+					// remove finalized catalog version that is older than the current living catalog
+					// and update the accumulated schema version delta
+					this.accumulatedCatalogSchemaVersionDelta.addAndGet(-finalizedCatalogVersion.incorporatedSchemaVersionDelta());
+					return true;
+				} else {
+					return false;
+				}
+			}
+		);
+
+		if (this.lastFinalizedCatalogVersion.getAndUpdate(current -> Math.max(current, catalogVersion)) <= catalogVersion) {
 			this.lastFinalizedCatalog.set(livingCatalog);
 		}
 	}
@@ -525,10 +596,11 @@ public class TransactionManager {
 	) {
 		try {
 			if (this.walAppendingLock.tryLock(0, TimeUnit.MILLISECONDS)) {
+				final long theLastWrittenCatalogVersion = this.lastWrittenCatalogVersion.get();
 				Assert.isPremiseValid(
-					this.lastWrittenCatalogVersion.get() + 1 == transactionMutation.getCatalogVersion(),
+					theLastWrittenCatalogVersion <= 0 || theLastWrittenCatalogVersion + 1 == transactionMutation.getCatalogVersion(),
 					"Transaction cannot be written to the WAL out of order. " +
-						"Expected version " + (this.lastWrittenCatalogVersion.get() + 1) + ", got " + transactionMutation.getCatalogVersion() + "."
+						"Expected version " + (theLastWrittenCatalogVersion + 1) + ", got " + transactionMutation.getCatalogVersion() + "."
 				);
 				return getLivingCatalog()
 					.appendWalAndDiscard(
@@ -651,7 +723,8 @@ public class TransactionManager {
 					newCatalog = commitChangesToSharedCatalog(lastTransactionMutation, lastTransaction, transactionHandler);
 					updateLastFinalizedCatalog(
 						newCatalog,
-						lastTransactionMutation.getCatalogVersion()
+						lastTransactionMutation.getCatalogVersion(),
+						newCatalog.getSchema().version() - this.lastCatalogSchemaVersion.get()
 					);
 
 					log.debug("Finalizing catalog: {}", lastTransactionMutation.getCatalogVersion());
@@ -906,6 +979,27 @@ public class TransactionManager {
 		@Nonnull Catalog catalog,
 		@Nonnull OffsetDateTime[] commitTimesOfProcessedTransactions
 	) {
+	}
+
+	/**
+	 * Represents a finalized version of a catalog with its associated version number
+	 * and schema version delta.
+	 *
+	 * This record is immutable and encapsulates the details of a catalog's finalized
+	 * state, including the catalog version and the difference in schema versions.
+	 *
+	 * @param catalogVersion The version number of the catalog.
+	 * @param incorporatedSchemaVersionDelta The difference or delta in the schema version.
+	 */
+	record FinalizedCatalogVersion(
+		long catalogVersion,
+		int incorporatedSchemaVersionDelta
+	) implements Comparable<FinalizedCatalogVersion> {
+
+		@Override
+		public int compareTo(FinalizedCatalogVersion other) {
+			return Long.compare(this.catalogVersion, other.catalogVersion);
+		}
 	}
 
 }
