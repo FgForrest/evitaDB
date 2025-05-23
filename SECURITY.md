@@ -4,12 +4,11 @@
 
 evitaDB is currently in active development and fixes are back ported only to a few recent versions.
 
-| Version  | Supported          |
-|----------| ------------------ |
-| 2025.3.x | :white_check_mark: |
-| 2025.2.x | :white_check_mark: |
-| 2024.1.x | :white_check_mark: |
-| < 2025.1 | :x:                |
+| Version    | Supported          |
+|------------|--------------------|
+| 2025.4.x   | :white_check_mark: |
+| 2025.3.x   | :white_check_mark: |
+| < 2025.2.x | :x:                |
 
 ## Reporting a Vulnerability
 
