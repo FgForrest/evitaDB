@@ -2826,7 +2826,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			catalogHeader.version(),
 			catalogHeader.catalogName(),
 			new CatalogBootstrap(
-				this.bootstrapUsed.catalogVersion(),
+				catalogHeader.version(),
 				this.bootstrapUsed.catalogFileIndex(),
 				OffsetDateTime.now(),
 				flushedDescriptor.fileLocation()

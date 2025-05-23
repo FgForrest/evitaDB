@@ -78,7 +78,7 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 	@Tag(LONG_RUNNING_TEST)
 	@ParameterizedTest
 	@ValueSource(
-		strings = {"2024.5", "2025.1"}
+		strings = {"2024.5", "2025.1", "2025.3"}
 	)
 	void verifyBackwardCompatibilityTo(String version) throws IOException {
 		final Path targetDirectory = this.mainDirectory.resolve(version);
