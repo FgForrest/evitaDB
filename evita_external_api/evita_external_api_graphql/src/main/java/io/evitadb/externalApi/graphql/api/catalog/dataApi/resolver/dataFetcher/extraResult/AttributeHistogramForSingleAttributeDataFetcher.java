@@ -30,9 +30,9 @@ import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import lombok.RequiredArgsConstructor;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Extracts individual attribute {@link HistogramContract} for a specific attribute from {@link AttributeHistogram collection of attribute histograms}.
@@ -49,8 +49,8 @@ public class AttributeHistogramForSingleAttributeDataFetcher implements DataFetc
 
 	@Nullable
 	@Override
-	public HistogramContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final Map<String, HistogramContract> histograms = environment.getSource();
+	public HistogramContract get(DataFetchingEnvironment environment) throws Exception {
+		final Map<String, HistogramContract> histograms = Objects.requireNonNull(environment.getSource());
 		return histograms.get(this.attributeSchema.getName());
 	}
 }

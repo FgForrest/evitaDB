@@ -339,7 +339,7 @@ public class EvitaServer {
 		);
 
 		try (
-			final InputStream resourceAsStream = EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION);
+			final InputStream resourceAsStream = EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION)
 		) {
 			// iterate over all files in the directory and merge them into a single configuration
 			Map<String, Object> finalYaml = loadYamlContents(readerFactory.apply(resourceAsStream), yamlParser.get());
@@ -514,6 +514,7 @@ public class EvitaServer {
 	/**
 	 * Constructor that initializes the EvitaServer.
 	 */
+	@SuppressWarnings({"UnnecessaryStringEscape", "EscapedSpace"})
 	public EvitaServer(@Nonnull Path configDirLocation, boolean strictConfigFileCheck, @Nullable String logInitializationStatus, @Nonnull Map<String, String> arguments) {
 		this.externalApiProviders = ExternalApiServer.gatherExternalApiProviders();
 		final EvitaServerConfigurationWithLogFilesListing evitaServerConfigurationWithLogFilesListing = parseConfiguration(configDirLocation, strictConfigFileCheck, arguments);
@@ -737,8 +738,7 @@ public class EvitaServer {
 
 		@Override
 		public void run() {
-			final Evita evita = this.evitaServer.getEvita();
-			try {
+			try (Evita evita = this.evitaServer.getEvita()) {
 				evita.getServiceExecutor().prepareForBeingShutdown();
 				this.evitaServer.stop()
 					.thenAccept(unused -> stop())
@@ -746,7 +746,6 @@ public class EvitaServer {
 			} catch (ExecutionException | InterruptedException | TimeoutException e) {
 				ConsoleWriter.write("Failed to stop evita server in dedicated time (30 secs.).\n");
 			} finally {
-				evita.close();
 				ConsoleWriter.write("evitaDB instance closed, all files synced on disk.\n\n");
 			}
 		}

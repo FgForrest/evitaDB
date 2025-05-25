@@ -26,6 +26,7 @@ package io.evitadb.index.bitmap;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**
@@ -51,7 +52,7 @@ public class BitmapChanges {
 	 * Temporary intermediate result of the last {@link #getMergedBitmap()} operation. Nullified immediately with next
 	 * change.
 	 */
-	private RoaringBitmap memoizedMergedBitmap;
+	@Nullable private RoaringBitmap memoizedMergedBitmap;
 
 	BitmapChanges(RoaringBitmap original) {
 		this.originalBitmap = original;

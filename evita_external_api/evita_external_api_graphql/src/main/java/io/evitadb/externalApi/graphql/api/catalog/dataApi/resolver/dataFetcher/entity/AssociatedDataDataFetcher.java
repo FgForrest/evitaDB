@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Fetcher for associated data container. Mainly to gather desired locale for individual associated
@@ -60,9 +61,9 @@ public class AssociatedDataDataFetcher implements DataFetcher<DataFetcherResult<
 
     @Nonnull
     @Override
-    public DataFetcherResult<AssociatedDataContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        final EntityQueryContext context = environment.getLocalContext();
-        final AssociatedDataContract associatedData = environment.getSource(); // because entity implements AssociatedDataContract
+    public DataFetcherResult<AssociatedDataContract> get(DataFetchingEnvironment environment) throws Exception {
+        final EntityQueryContext context = Objects.requireNonNull(environment.getLocalContext());
+        final AssociatedDataContract associatedData = Objects.requireNonNull(environment.getSource()); // because entity implements AssociatedDataContract
 
         final Locale customLocale = environment.getArgument(AssociatedDataFieldHeaderDescriptor.LOCALE.name());
         if (customLocale != null && !associatedData.getAssociatedDataLocales().contains(customLocale)) {

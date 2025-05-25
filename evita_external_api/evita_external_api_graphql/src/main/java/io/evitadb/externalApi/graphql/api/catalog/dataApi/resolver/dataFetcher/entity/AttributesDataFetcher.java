@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Fetcher for attributes container. Mainly to gather desired locale for individual attributes and
@@ -46,7 +47,7 @@ import java.util.Locale;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class AttributesDataFetcher implements DataFetcher<DataFetcherResult<AttributesContract>> {
+public class AttributesDataFetcher implements DataFetcher<DataFetcherResult<AttributesContract<?>>> {
 
     @Nullable
     private static AttributesDataFetcher INSTANCE;
@@ -61,16 +62,16 @@ public class AttributesDataFetcher implements DataFetcher<DataFetcherResult<Attr
 
     @Nonnull
     @Override
-    public DataFetcherResult<AttributesContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        final EntityQueryContext context = environment.getLocalContext();
-        final AttributesContract attributes = environment.getSource(); // because entity implements AttributesContract
+    public DataFetcherResult<AttributesContract<?>> get(DataFetchingEnvironment environment) throws Exception {
+        final EntityQueryContext context = Objects.requireNonNull(environment.getLocalContext());
+        final AttributesContract<?> attributes = Objects.requireNonNull(environment.getSource()); // because entity implements AttributesContract
 
         final Locale customLocale = environment.getArgument(AttributesFieldHeaderDescriptor.LOCALE.name());
         if (customLocale != null && !attributes.getAttributeLocales().contains(customLocale)) {
             // This entity doesn't have attributes for given custom locale, so we don't want to try to fetch individual
             // attributes. It would be pointless as there are no attributes and would result in GQL error because some attributes
             // may be non-nullable
-            return DataFetcherResult.<AttributesContract>newResult().build();
+            return DataFetcherResult.<AttributesContract<?>>newResult().build();
         }
 
         Locale desiredLocale = environment.getArgumentOrDefault(AttributesFieldHeaderDescriptor.LOCALE.name(), context.getDesiredLocale());
@@ -84,7 +85,7 @@ public class AttributesDataFetcher implements DataFetcher<DataFetcherResult<Attr
                 throw new GraphQLInternalError("Unsupported source `" + attributes.getClass().getName() + "`.");
             }
         }
-        return DataFetcherResult.<AttributesContract>newResult()
+        return DataFetcherResult.<AttributesContract<?>>newResult()
             .data(attributes)
             .localContext(context.toBuilder()
                 .desiredLocale(desiredLocale)

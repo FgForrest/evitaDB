@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * Returns entity schema from parent catalog schema.
@@ -44,8 +45,8 @@ public class CatalogEntitySchemaDataFetcher implements DataFetcher<EntitySchemaC
 
 	@Nonnull
 	@Override
-	public EntitySchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final CatalogSchemaContract catalogSchema = environment.getSource();
+	public EntitySchemaContract get(DataFetchingEnvironment environment) throws Exception {
+		final CatalogSchemaContract catalogSchema = Objects.requireNonNull(environment.getSource());
 		return catalogSchema.getEntitySchemaOrThrowException(this.entityType);
 	}
 }

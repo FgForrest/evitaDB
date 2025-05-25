@@ -183,10 +183,10 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 		} else {
 			if (this.productIterator.hasNext()) {
 				this.product = this.productIterator.next();
-				addToGeneratedEntities(this.productSchema, this.product.getPrimaryKey());
+				addToGeneratedEntities(this.productSchema, this.product.getPrimaryKeyOrThrowException());
 				// keep track of already assigned primary keys (may have gaps, may be in random order)
-				if (this.product.getPrimaryKey() > this.pkPeek) {
-					this.pkPeek = this.product.getPrimaryKey();
+				if (this.product.getPrimaryKeyOrThrowException() > this.pkPeek) {
+					this.pkPeek = this.product.getPrimaryKeyOrThrowException();
 				}
 			} else {
 				// when products are exhausted - start again from scratch
@@ -204,7 +204,7 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 				 */
 				// initialize first product from the new round
 				this.product = this.productIterator.next();
-				addToGeneratedEntities(this.productSchema, this.product.getPrimaryKey());
+				addToGeneratedEntities(this.productSchema, this.product.getPrimaryKeyOrThrowException());
 			}
 			this.insertCounter++;
 		}

@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -70,10 +71,17 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(
+		@Nullable CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaProvider entitySchemaAccessor
+	) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
 			mutationEntitySchemaAccessor.addUpsertedEntitySchema(EntitySchema._internalBuild(this.entityType));
 		}
+		Assert.isPremiseValid(
+			catalogSchema != null,
+			"Catalog schema cannot be null when creating entity schema mutation!"
+		);
 		return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 	}
 

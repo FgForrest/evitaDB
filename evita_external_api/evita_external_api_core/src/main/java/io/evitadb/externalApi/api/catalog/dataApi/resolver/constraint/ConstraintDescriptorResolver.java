@@ -47,6 +47,7 @@ import javax.annotation.Nullable;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.CLASSIFIER_NAMING_CONVENTION;
@@ -112,7 +113,7 @@ class ConstraintDescriptorResolver {
 					// didn't change, we can use simplified name without prefix and classifier
 					if (derivedPropertyType.equals(ConstraintPropertyType.GENERIC) &&
 						!resolveContext.isAtRoot() &&
-						resolveContext.dataLocator().targetDomain().equals(resolveContext.parentDataLocator().targetDomain()) &&
+						resolveContext.dataLocator().targetDomain().equals(Objects.requireNonNull(resolveContext.parentDataLocator()).targetDomain()) &&
 						possibleClassifier == null) {
 						return ConstraintDescriptorProvider.getConstraint(
 							this.constraintType,
@@ -138,7 +139,7 @@ class ConstraintDescriptorResolver {
 		rawClassifier = constructClassifier(classifierWords);
 
 		final Optional<String> actualClassifier = resolveActualClassifier(resolveContext, constraintDescriptor, rawClassifier);
-		final DataLocator innerDataLocator = resolveInnerDataLocator(resolveContext, constraintDescriptor, actualClassifier);
+		final DataLocator innerDataLocator = resolveInnerDataLocator(resolveContext, constraintDescriptor, actualClassifier.orElse(null));
 
 		return Optional.of(new ParsedConstraintDescriptor(
 			key,
@@ -149,7 +150,7 @@ class ConstraintDescriptorResolver {
 	}
 
 	@Nonnull
-	private Optional<String> constructClassifier(@Nonnull Deque<String> classifierWords) {
+	private static Optional<String> constructClassifier(@Nonnull Deque<String> classifierWords) {
 		if (classifierWords.isEmpty()) {
 			return Optional.empty();
 		}
@@ -160,7 +161,7 @@ class ConstraintDescriptorResolver {
 	}
 
 	@Nonnull
-	private String constructFullName(@Nonnull Deque<String> fullNameWords) {
+	private static String constructFullName(@Nonnull Deque<String> fullNameWords) {
 		Assert.isPremiseValid(
 			!fullNameWords.isEmpty(),
 			() -> new ExternalApiInternalError("Full name cannot be empty.")
@@ -187,7 +188,7 @@ class ConstraintDescriptorResolver {
 			final DataLocator parentDataLocator = resolveContext.dataLocator();
 			if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
 				final ReferenceSchemaContract referenceSchema = this.catalogSchema.getEntitySchemaOrThrowException(dataLocatorWithReference.entityType())
-					.getReference(dataLocatorWithReference.referenceName())
+					.getReference(Objects.requireNonNull(dataLocatorWithReference.referenceName()))
 					// we can safely check this because if there was any reference schema there should be any classifier to begin with
 					.orElseThrow(() -> new ExternalApiInternalError("Missing reference schema in data locator with reference. Cannot resolve classifier `" + c + "`."));
 
@@ -236,7 +237,7 @@ class ConstraintDescriptorResolver {
 	@Nonnull
 	private DataLocator resolveInnerDataLocator(@Nonnull ConstraintResolveContext resolveContext,
 	                                            @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                            @Nonnull Optional<String> classifier) {
+	                                            @Nullable String classifier) {
 		return this.dataLocatorResolver.resolveConstraintDataLocator(resolveContext.dataLocator(), constraintDescriptor, classifier);
 	}
 

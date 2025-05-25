@@ -32,6 +32,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -69,7 +70,7 @@ public abstract class BaseConstraint<T extends Constraint<T>> implements Constra
 
 	@Nonnull
 	protected String getDefaultName() {
-		return StringUtils.uncapitalize(this.getClass().getSimpleName());
+		return Objects.requireNonNull(StringUtils.uncapitalize(this.getClass().getSimpleName()));
 	}
 
 	protected BaseConstraint(@Nullable String name, @Nonnull Serializable... arguments) {

@@ -146,23 +146,25 @@ public class ClassSchemaAnalyzer {
 	 */
 	@Nonnull
 	public static Optional<String> extractEntityTypeFromClass(@Nonnull Class<?> classToAnalyse, @Nonnull ReflectionLookup reflectionLookup) {
-		return reflectionLookup.extractFromClass(
-			classToAnalyse, EntityRef.class,
-			clazz -> {
-				final EntityRef entityRef = reflectionLookup.getClassAnnotation(clazz, EntityRef.class);
-				if (entityRef != null) {
-					return ofNullable(entityRef.value())
-						.filter(it -> !it.isBlank())
-						.or(() -> of(reflectionLookup.findOriginClass(clazz, entityRef).getSimpleName()));
+		return Objects.requireNonNull(
+			reflectionLookup.extractFromClass(
+				classToAnalyse, EntityRef.class,
+				clazz -> {
+					final EntityRef entityRef = reflectionLookup.getClassAnnotation(clazz, EntityRef.class);
+					if (entityRef != null) {
+						return ofNullable(entityRef.value())
+							.filter(it -> !it.isBlank())
+							.or(() -> of(reflectionLookup.findOriginClass(clazz, entityRef).getSimpleName()));
+					}
+					final Entity entity = reflectionLookup.getClassAnnotation(clazz, Entity.class);
+					if (entity != null) {
+						return ofNullable(entity.name())
+							.filter(it -> !it.isBlank())
+							.or(() -> of(reflectionLookup.findOriginClass(clazz, entity).getSimpleName()));
+					}
+					return empty();
 				}
-				final Entity entity = reflectionLookup.getClassAnnotation(clazz, Entity.class);
-				if (entity != null) {
-					return ofNullable(entity.name())
-						.filter(it -> !it.isBlank())
-						.or(() -> of(reflectionLookup.findOriginClass(clazz, entity).getSimpleName()));
-				}
-				return empty();
-			}
+			)
 		);
 	}
 
@@ -600,7 +602,7 @@ public class ClassSchemaAnalyzer {
 		@Nonnull Class<?> modelClass,
 		@Nonnull BiFunction<String, Class<?>, Class<?>> subClassResolver,
 		@Nonnull ReflectionLookup reflectionLookup,
-		@Nonnull SchemaPostProcessor postProcessor
+		@Nullable SchemaPostProcessor postProcessor
 	) {
 		this.modelClass = modelClass;
 		this.subClassResolver = subClassResolver;
@@ -1255,12 +1257,12 @@ public class ClassSchemaAnalyzer {
 	 * {@link SortableAttributeCompound} present on the specified class and processes them to
 	 * configure sortable attribute compounds within the provided editor.
 	 *
-	 * @param type the class type whose annotations are to be processed; must not be null
+	 * @param type   the class type whose annotations are to be processed; must not be null
 	 * @param editor the schema editor responsible for handling sortable attribute compounds; must not be null
 	 */
 	private void defineSortableAttributeCompounds(
 		@Nonnull Class<?> type,
-		@Nonnull SortableAttributeCompoundSchemaProviderEditor<?,?> editor
+		@Nonnull SortableAttributeCompoundSchemaProviderEditor<?, ?> editor
 	) {
 		Stream.concat(
 			this.reflectionLookup.getClassAnnotations(type, SortableAttributeCompounds.class)

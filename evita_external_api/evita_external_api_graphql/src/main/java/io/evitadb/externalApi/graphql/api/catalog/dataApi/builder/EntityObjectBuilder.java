@@ -76,6 +76,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
@@ -819,7 +820,7 @@ public class EntityObjectBuilder {
 		if (referenceSchema.isReferencedGroupTypeManaged()) {
 			referencedEntitySchema = this.buildingContext
 				.getSchema()
-				.getEntitySchemaOrThrowException(referenceSchema.getReferencedGroupType());
+				.getEntitySchemaOrThrowException(Objects.requireNonNull(referenceSchema.getReferencedGroupType()));
 		} else {
 			referencedEntitySchema = null;
 		}

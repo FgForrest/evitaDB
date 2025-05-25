@@ -32,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
+import java.util.Objects;
 
 /**
  * Extracts list of all {@link FacetGroupStatistics} of certain reference name from {@link FacetSummary}.
@@ -46,8 +47,8 @@ public class FacetGroupStatisticsDataFetcher implements DataFetcher<Collection<F
 
 	@Nonnull
 	@Override
-	public Collection<FacetGroupStatistics> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final FacetSummary facetSummary = environment.getSource();
+	public Collection<FacetGroupStatistics> get(DataFetchingEnvironment environment) throws Exception {
+		final FacetSummary facetSummary = Objects.requireNonNull(environment.getSource());
 		return facetSummary.getReferenceStatistics()
 			.stream()
 			.filter(it -> it.getReferenceName().equals(this.referenceSchema.getName()))

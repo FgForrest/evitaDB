@@ -32,7 +32,9 @@ import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import lombok.EqualsAndHashCode;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Objects;
 import java.util.Random;
 
 /**
@@ -46,7 +48,7 @@ public class RandomOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = -6261246532556762806L;
 	private final ExpressionNode operator;
 
-	public RandomOperator(ExpressionNode operator) {
+	public RandomOperator(@Nullable ExpressionNode operator) {
 		this.operator = operator;
 	}
 
@@ -54,7 +56,9 @@ public class RandomOperator implements ExpressionNode {
 	@Override
 	public Long compute(@Nonnull PredicateEvaluationContext context) {
 		final Random rnd = context.getRandom();
-		return this.operator == null ? rnd.nextLong() : rnd.nextLong(EvitaDataTypes.toTargetType(this.operator.compute(context), Long.class));
+		return this.operator == null ?
+			rnd.nextLong() :
+			rnd.nextLong(Objects.requireNonNull(EvitaDataTypes.toTargetType(this.operator.compute(context), Long.class)));
 	}
 
 	@Nonnull

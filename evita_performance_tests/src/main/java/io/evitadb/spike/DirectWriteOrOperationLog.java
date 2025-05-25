@@ -33,6 +33,8 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.infra.Blackhole;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -243,7 +245,7 @@ public class DirectWriteOrOperationLog {
 
 	}
 
-	public record WriteOperation(String key, Integer value, OperationType operation) {
+	public record WriteOperation(@Nonnull String key, @Nullable Integer value, @Nonnull OperationType operation) {
 		public void apply(String key, Map<String, Integer> resultMap) {
 			if (this.operation == OperationType.SET) {
 				resultMap.put(key, this.value);

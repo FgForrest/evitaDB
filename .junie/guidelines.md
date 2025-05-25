@@ -1,0 +1,39 @@
+# Junie Guidelines
+
+This document outlines the coding guidelines and best practices for the Junie project. 
+It is intended to ensure consistency, readability, and maintainability across the codebase.
+
+### Code Style
+
+- **Indentation**: Use tabs for indentation
+- **Line Length**: Limit lines to 100 characters
+- **Java modules**: Use Java modules to organize code
+
+- prefer immutable classes / records for data structures
+- prefer performance to readability in performance-critical code
+- automatically add `@Nullable` and `@NotNull` annotations to method parameters and return types
+- use `final` for local variables
+- use `this` for instance variables 
+- automatically add JavaDoc to all generated classes and methods
+- add line comments to complex logic
+
+### Key external libraries
+
+- RoaringBitmap: for working with bitmaps
+- Kryo: for binary serialization and deserialization
+- Netty and Armeria: for web server and client functionality
+- Logback: for logging
+- Jackson: for JSON serialization and deserialization
+- gRPC Java: for gRPC functionality
+- GraphQL Java: for GraphQL functionality
+- Byte Buddy: for runtime code generation
+
+### Building
+
+- **Build Tool**: Use Maven for building the project
+
+### Testing
+
+- **JUnit 5**: Use JUnit 5 for unit tests
+- all test files are located in the `evita_functional_tests/src/test/java` directory
+- automatically generate test cases for all public methods

@@ -92,7 +92,7 @@ abstract class AbstractHierarchyStatisticsComputer {
 	 * in the {@link LevelInfo#queriedEntityCount()} statistics. Might be null if the count is not required to be
 	 * computed at all.
 	 */
-	@Nullable
+	@Nonnull
 	protected final StatisticsBase statisticsBase;
 
 	public AbstractHierarchyStatisticsComputer(
@@ -109,7 +109,7 @@ abstract class AbstractHierarchyStatisticsComputer {
 		this.hierarchyFilterPredicateProducer = hierarchyFilterPredicateProducer;
 		this.havingPredicate = havingPredicate;
 		this.scopePredicate = ofNullable(scopePredicate).orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
-		this.statisticsBase = statisticsBase;
+		this.statisticsBase = statisticsBase == null ? StatisticsBase.WITHOUT_USER_FILTER : statisticsBase;
 		this.statisticsType = statisticsType;
 	}
 

@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -183,8 +184,8 @@ public class FacetSummaryConverter extends RequireConverter {
 					convertFilterConstraint(
 						new EntityDataLocator(
 							referenceSchema.isReferencedGroupTypeManaged()
-								? new ManagedEntityTypePointer(referenceSchema.getReferencedGroupType())
-								: new ExternalEntityTypePointer(referenceSchema.getReferencedGroupType())
+								? new ManagedEntityTypePointer(Objects.requireNonNull(referenceSchema.getReferencedGroupType()))
+								: new ExternalEntityTypePointer(Objects.requireNonNull(referenceSchema.getReferencedGroupType()))
 						),
 						facetSummaryOfReference.getFilterGroupBy().get()
 					)
@@ -203,8 +204,8 @@ public class FacetSummaryConverter extends RequireConverter {
 					convertOrderConstraint(
 						new EntityDataLocator(
 							referenceSchema.isReferencedGroupTypeManaged()
-								? new ManagedEntityTypePointer(referenceSchema.getReferencedGroupType())
-								: new ExternalEntityTypePointer(referenceSchema.getReferencedGroupType())
+								? new ManagedEntityTypePointer(Objects.requireNonNull(referenceSchema.getReferencedGroupType()))
+								: new ExternalEntityTypePointer(Objects.requireNonNull(referenceSchema.getReferencedGroupType()))
 						),
 						facetSummaryOfReference.getOrderGroupBy().get()
 					)

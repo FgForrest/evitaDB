@@ -142,7 +142,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 										(o, o2) -> {
 											throw new GenericEvitaInternalError(
 												"There is already facet group for reference `" + it.getKey() +
-													"` with id `" + o.getGroupEntity().getPrimaryKey() + "`."
+													"` with id `" + Objects.requireNonNull(o.getGroupEntity()).getPrimaryKeyOrThrowException() + "`."
 											);
 										},
 										LinkedHashMap::new
@@ -251,7 +251,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 		if (set.isEmpty()) {
 			final Set<String> representativeAttributes = context.getRepresentativeAttribute(entity.getSchema());
 			return representativeAttributes.stream()
-				.map(attribute -> EvitaDataTypes.formatValue(entity.getAttribute(attribute).toString()))
+				.map(attribute -> Objects.requireNonNull(EvitaDataTypes.formatValue(entity.getAttribute(attribute))))
 				.collect(Collectors.joining(", "));
 		} else if (set.size() == 1) {
 			return EvitaDataTypes.formatValue(entity.getAttribute(set.iterator().next()));
@@ -259,7 +259,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 			final Set<String> representativeAttributes = context.getRepresentativeAttribute(entity.getSchema());
 			return set.stream()
 				.filter(representativeAttributes::contains)
-				.map(attribute -> EvitaDataTypes.formatValue(entity.getAttribute(attribute).toString()))
+				.map(attribute -> Objects.requireNonNull(EvitaDataTypes.formatValue(entity.getAttribute(attribute))))
 				.collect(Collectors.joining(", "));
 		}
 	}
@@ -389,6 +389,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 			return Objects.hash(difference(), matchCount(), hasSense());
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			if (this.difference > 0) {

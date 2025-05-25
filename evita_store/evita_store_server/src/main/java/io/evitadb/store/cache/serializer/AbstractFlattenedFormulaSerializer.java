@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,6 +52,7 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -135,7 +136,7 @@ public abstract class AbstractFlattenedFormulaSerializer<T extends CachePayloadH
 		} else if (filteredPriceRecords instanceof CombinedPriceRecords combinedPriceRecords) {
 			// store flag that we have combination of both
 			output.writeByte(BOTH);
-			writeResolvedPriceRecords(output, combinedPriceRecords.getResolvedFilteredPriceRecords());
+			writeResolvedPriceRecords(output, Objects.requireNonNull(combinedPriceRecords.getResolvedFilteredPriceRecords()));
 			writeLazyEvaluatedPriceRecords(kryo, output, combinedPriceRecords.getLazyEvaluatedEntityPriceRecords());
 		} else {
 			throw new GenericEvitaInternalError("Unknown type of FilteredPriceRecords " + filteredPriceRecords.getClass().getName());
@@ -254,6 +255,7 @@ public abstract class AbstractFlattenedFormulaSerializer<T extends CachePayloadH
 		final int[] ordinaryPriceRecords = input.readInts(ordinaryPriceRecordsCount, true);
 
 		final GlobalEntityIndex globalEntityIndex = globalEntityIndexAccessor.get();
+		//noinspection rawtypes
 		final PriceListAndCurrencyPriceIndex[] priceIndexes = Arrays.stream(priceEvaluationContext.targetPriceIndexes())
 			.map(globalEntityIndex::getPriceIndex)
 			.toArray(PriceListAndCurrencyPriceIndex[]::new);

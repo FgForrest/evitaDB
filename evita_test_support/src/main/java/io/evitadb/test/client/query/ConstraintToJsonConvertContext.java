@@ -43,7 +43,6 @@ import javax.annotation.Nullable;
 @ToString
 @EqualsAndHashCode
 class ConstraintToJsonConvertContext implements ConstraintTraverseContext<ConstraintToJsonConvertContext> {
-
 	@Nullable private final DataLocator parentDataLocator;
 	@Nonnull private final DataLocator dataLocator;
 
@@ -51,7 +50,7 @@ class ConstraintToJsonConvertContext implements ConstraintTraverseContext<Constr
 		this(null, dataLocator);
 	}
 
-	public ConstraintToJsonConvertContext(@Nonnull DataLocator parentDataLocator, @Nonnull DataLocator dataLocator) {
+	public ConstraintToJsonConvertContext(@Nullable DataLocator parentDataLocator, @Nonnull DataLocator dataLocator) {
 		this.parentDataLocator = parentDataLocator;
 		this.dataLocator = dataLocator;
 	}

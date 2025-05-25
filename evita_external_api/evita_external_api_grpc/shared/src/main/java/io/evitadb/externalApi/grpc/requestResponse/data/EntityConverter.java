@@ -628,7 +628,9 @@ public class EntityConverter {
 	@Nonnull
 	public static <T> T parseBinaryEntity(@Nonnull GrpcBinaryEntity binaryEntity) {
 		/* TOBEDONE JNO https://github.com/FgForrest/evitaDB/issues/13 */
-		return null;
+		throw new UnsupportedOperationException(
+			"Parsing of binary entities is not yet supported in gRPC API! Please use the sealed entity form instead."
+		);
 	}
 
 	/**

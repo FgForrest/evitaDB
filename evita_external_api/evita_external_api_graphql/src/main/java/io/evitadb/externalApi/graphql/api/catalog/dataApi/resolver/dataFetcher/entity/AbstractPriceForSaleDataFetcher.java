@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -53,9 +54,9 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<P> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final EntityDecorator entity = environment.getSource();
-		final EntityQueryContext context = environment.getLocalContext();
+	public DataFetcherResult<P> get(DataFetchingEnvironment environment) throws Exception {
+		final EntityDecorator entity = Objects.requireNonNull(environment.getSource());
+		final EntityQueryContext context = Objects.requireNonNull(environment.getLocalContext());
 
 		final String[] priceLists = resolveDesiredPricesLists(environment, context);
 		final Currency currency = resolveDesiredCurrency(environment, context);
@@ -100,6 +101,7 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 	@Nonnull
 	protected String[] resolveDesiredPricesLists(@Nonnull DataFetchingEnvironment environment,
 	                                             @Nonnull EntityQueryContext context) {
+		//noinspection unchecked
 		return Optional.ofNullable((List<String>) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LISTS.name()))
 			.map(it -> it.toArray(String[]::new))
 			.or(() -> Optional.ofNullable((String) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
@@ -131,6 +133,7 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 
 	@Nonnull
 	protected AccompanyingPrice[] resolveDesiredAccompanyingPrices(@Nonnull DataFetchingEnvironment environment) {
+		//noinspection unchecked
 		return SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), environment.getSelectionSet())
 			.stream()
 			.map(f -> new AccompanyingPrice(

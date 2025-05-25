@@ -37,12 +37,14 @@ import io.evitadb.performance.client.ClientDataFullDatabaseState;
 import io.evitadb.performance.generators.RandomQueryGenerator;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
+import io.evitadb.utils.Assert;
 import lombok.Data;
 import lombok.Getter;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 
+import javax.annotation.Nullable;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.nio.file.Path;
@@ -66,12 +68,12 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 
 	private Deque<Query> preloadedQueries = new ArrayDeque<>(64);
 	private Path inputFolder;
-	private Kryo kryo;
-	private Input input;
+	@Nullable private Kryo kryo;
+	@Nullable private Input input;
 	/**
 	 * Query prepared for the measured invocation.
 	 */
-	@Getter protected QueryWithExpectedType queryWithExpectedType;
+	@Nullable @Getter protected QueryWithExpectedType queryWithExpectedType;
 
 	/**
 	 * Prepares artificial product for the next operation that is measured in the benchmark.
@@ -90,7 +92,9 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 
 	@TearDown(Level.Iteration)
 	public void tearDown() {
-		this.input.close();
+		if (this.input != null) {
+			this.input.close();
+		}
 		this.input = null;
 		this.kryo = null;
 	}
@@ -111,6 +115,7 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 		final LinkedList<Query> fetchedQueries = new LinkedList<>();
 		synchronized (this.monitor) {
 			for (int i = 0; i < queryCount; i++) {
+				Assert.isPremiseValid(this.kryo != null && this.input != null, "Kryo or input stream is not initialized properly.");
 				try {
 					if (!this.input.canReadInt()) {
 						// reopen the same file again and read from start
@@ -131,9 +136,9 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 		private final Query query;
 		private final Class<? extends EntityClassifier> expectedResult;
 
-		public QueryWithExpectedType(Query query) {
+		public QueryWithExpectedType(@Nullable Query query) {
 			this.query = query;
-			this.expectedResult = this.query.getRequire() != null && FinderVisitor.findConstraints(this.query.getRequire(), EntityContentRequire.class::isInstance, ExtraResultRequireConstraint.class::isInstance).isEmpty()
+			this.expectedResult = this.query != null && this.query.getRequire() != null && FinderVisitor.findConstraints(this.query.getRequire(), EntityContentRequire.class::isInstance, ExtraResultRequireConstraint.class::isInstance).isEmpty()
 				? EntityReferenceContract.class : SealedEntity.class;
 		}
 

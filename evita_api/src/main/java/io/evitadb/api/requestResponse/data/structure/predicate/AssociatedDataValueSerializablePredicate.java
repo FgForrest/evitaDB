@@ -29,7 +29,7 @@ import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
-import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate;
@@ -82,7 +82,7 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 	/**
 	 * Contains information about underlying predicate that is bound to the {@link EntityDecorator}. This underlying
 	 * predicate represents the scope of the fetched (enriched) entity in its true form (i.e. {@link Entity}) and needs
-	 * to be carried around even if {@link EntityCollectionContract#limitEntity(SealedEntity, EvitaRequest, EvitaSessionContract)}
+	 * to be carried around even if {@link EntityCollectionContract#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}
 	 * is invoked on the entity.
 	 */
 	@Nullable @Getter private final AssociatedDataValueSerializablePredicate underlyingPredicate;
@@ -149,7 +149,7 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 	 * Returns true if the associated data in specified locale were fetched along with the entity.
 	 */
 	public boolean wasFetched(@Nonnull Locale locale) {
-		return this.locales != null && this.locales.isEmpty() || this.locales.contains(locale);
+		return this.locales != null && (this.locales.isEmpty() || this.locales.contains(locale));
 	}
 
 	/**
@@ -173,7 +173,7 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 	 */
 	public boolean wasFetched(@Nonnull String attributeName, @Nonnull Locale locale) {
 		return (this.requiresEntityAssociatedData && (this.associatedDataSet.isEmpty() || this.associatedDataSet.contains(attributeName))) &&
-			(this.locales != null && this.locales.isEmpty() || this.locales.contains(locale));
+			(this.locales != null && (this.locales.isEmpty() || this.locales.contains(locale)));
 	}
 
 	/**
@@ -195,13 +195,14 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 		if (!(this.requiresEntityAssociatedData && (this.associatedDataSet.isEmpty() || this.associatedDataSet.contains(associatedDataKey.associatedDataName())))) {
 			throw ContextMissingException.associatedDataContextMissing(associatedDataKey.associatedDataName());
 		}
-		if (associatedDataKey.localized() && !(Objects.equals(this.locale, associatedDataKey.locale()) || this.locales != null && this.locales.isEmpty() || this.locales.contains(associatedDataKey.locale()))) {
+		final Locale adkLocale = associatedDataKey.locale();
+		if (adkLocale != null && !(Objects.equals(this.locale, adkLocale) || this.locales != null && (this.locales.isEmpty() || this.locales.contains(adkLocale)))) {
 			throw ContextMissingException.associatedDataLocalizationContextMissing(
 				associatedDataKey.associatedDataName(),
-				associatedDataKey.locale(),
+				adkLocale,
 				Stream.concat(
 					this.locale == null ? Stream.empty() : Stream.of(this.locale),
-					this.locales.stream()
+					this.locales == null ? Stream.empty() : this.locales.stream()
 				).distinct()
 			);
 		}

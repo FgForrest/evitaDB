@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -81,6 +81,7 @@ abstract class AbstractPriceRelatedConstraintTranslator<T extends FilterConstrai
 		for (PriceInnerRecordHandling innerRecordHandling : PriceInnerRecordHandling.values()) {
 			final CompositeObjectArray<Formula> priceListFormulas = new CompositeObjectArray<>(Formula.class);
 			if (priceLists == null) {
+				//noinspection DataFlowIssue
 				final Formula initialFormula = priceListFormulaComputer.apply(null, currency, innerRecordHandling);
 				if (!(initialFormula instanceof EmptyFormula)) {
 					priceListFormulas.add(translateFormula(initialFormula));
@@ -89,6 +90,7 @@ abstract class AbstractPriceRelatedConstraintTranslator<T extends FilterConstrai
 				Serializable firstFormulaPriceList = null;
 				Formula lastFormula = null;
 				for (String priceList : priceLists) {
+					//noinspection DataFlowIssue
 					final Formula priceListFormula = priceListFormulaComputer.apply(priceList, currency, innerRecordHandling);
 					if (!(priceListFormula instanceof EmptyFormula)) {
 						final Formula translatedFormula = translateFormula(priceListFormula);

@@ -201,7 +201,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 		return getPriceInternal(new PriceKey(priceId, priceList, currency));
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public Optional<PriceContract> getPrice(@Nonnull PriceKey priceKey) throws ContextMissingException {
 		return getPriceInternal(priceKey);

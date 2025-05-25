@@ -39,6 +39,7 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.Objects;
 
 /**
  * The ConstantOperand class represents an operator that always returns a constant value.
@@ -52,7 +53,7 @@ public class ConstantOperand implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 272389410429555636L;
 	@Getter private final Serializable value;
 
-	public ConstantOperand(Serializable value) {
+	public ConstantOperand(@Nonnull Serializable value) {
 		Assert.isTrue(
 			value != null,
 			() -> new ParserException("Null value is not allowed!")
@@ -70,7 +71,7 @@ public class ConstantOperand implements ExpressionNode {
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		try {
-			final BigDecimal valueAsBigDecimal = EvitaDataTypes.toTargetType(this.value, BigDecimal.class);
+			final BigDecimal valueAsBigDecimal = Objects.requireNonNull(EvitaDataTypes.toTargetType(this.value, BigDecimal.class));
 			return BigDecimalNumberRange.between(valueAsBigDecimal, valueAsBigDecimal);
 		} catch (InconvertibleDataTypeException ex) {
 			return BigDecimalNumberRange.INFINITE;

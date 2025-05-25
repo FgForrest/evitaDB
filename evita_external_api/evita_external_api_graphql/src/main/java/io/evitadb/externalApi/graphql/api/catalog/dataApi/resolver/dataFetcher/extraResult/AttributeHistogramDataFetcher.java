@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Extracts individual attribute {@link HistogramContract}s for each attribute from {@link EvitaResponse}s extra results
@@ -57,8 +58,8 @@ public class AttributeHistogramDataFetcher implements DataFetcher<Map<String, Hi
 
 	@Nullable
 	@Override
-	public Map<String, HistogramContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final EvitaResponse<?> response = environment.getSource();
+	public Map<String, HistogramContract> get(DataFetchingEnvironment environment) throws Exception {
+		final EvitaResponse<?> response = Objects.requireNonNull(environment.getSource());
 		final AttributeHistogram attributeHistogram = response.getExtraResult(AttributeHistogram.class);
 		if (attributeHistogram == null) {
 			return null;

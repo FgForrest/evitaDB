@@ -118,6 +118,7 @@ public class MapChanges<K, V> implements Serializable {
 	/**
 	 * Computes the correct value for the passed key taking changes in this diff layer into an account.
 	 */
+	@Nullable
 	@SuppressWarnings("unchecked")
 	V get(Object key) {
 		if (containsRemoved((K) key)) {
@@ -159,6 +160,7 @@ public class MapChanges<K, V> implements Serializable {
 	 * Method records insertion / update of the record with particular key. The update is trapped within this object
 	 * data. If the record was not in original map the {@link #createdKeyCount} is incremented.
 	 */
+	@Nullable
 	V put(K key, V value) {
 		final V originalValue;
 		if (containsCreatedOrModified(key)) {
@@ -322,6 +324,7 @@ public class MapChanges<K, V> implements Serializable {
 	/**
 	 * Registers an inserted entry.
 	 */
+	@Nullable
 	V registerCreatedKey(K key, V value) {
 		final V previous = this.modifiedKeys.put(key, value);
 		this.createdKeyCount++;
@@ -331,6 +334,7 @@ public class MapChanges<K, V> implements Serializable {
 	/**
 	 * Registers an updated entry.
 	 */
+	@Nullable
 	V registerModifiedKey(K key, V value) {
 		return this.modifiedKeys.put(key, value);
 	}
@@ -345,6 +349,7 @@ public class MapChanges<K, V> implements Serializable {
 	/**
 	 * Removes previously registered inserted entry via. {@link #registerCreatedKey(Object, Object)}.
 	 */
+	@Nonnull
 	V removeCreatedKey(K key) {
 		final V previous = this.modifiedKeys.remove(key);
 		this.createdKeyCount--;

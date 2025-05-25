@@ -164,7 +164,9 @@ public class CreateReferenceSchemaMutation
 			// we can convert mutation to updates only if the reference type matches
 			final ReferenceSchemaContract existingVersion = currentReference.get();
 			if (!(existingVersion instanceof ReflectedReferenceSchemaContract)) {
-				final ReferenceSchemaContract createdVersion = mutate(currentEntitySchema, null);
+				final ReferenceSchemaContract createdVersion = Objects.requireNonNull(
+					mutate(currentEntitySchema, null)
+				);
 
 				return new MutationCombinationResult<>(
 					null,

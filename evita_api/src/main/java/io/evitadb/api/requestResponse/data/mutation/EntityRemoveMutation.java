@@ -128,7 +128,7 @@ public class EntityRemoveMutation implements EntityMutation {
 		return this.entityType;
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public Integer getEntityPrimaryKey() {
 		return this.entityPrimaryKey;

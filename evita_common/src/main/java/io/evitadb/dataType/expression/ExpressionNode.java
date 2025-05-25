@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import javax.annotation.Nonnull;
 import java.beans.Expression;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.Objects;
 import java.util.function.BinaryOperator;
 import java.util.function.UnaryOperator;
 
@@ -121,7 +122,7 @@ public interface ExpressionNode extends Serializable {
 	 */
 	@Nonnull
 	default <T extends Serializable> T compute(@Nonnull PredicateEvaluationContext context, @Nonnull Class<T> clazz) throws ExpressionEvaluationException {
-		return EvitaDataTypes.toTargetType(compute(context), clazz);
+		return Objects.requireNonNull(EvitaDataTypes.toTargetType(compute(context), clazz));
 	}
 
 	/**

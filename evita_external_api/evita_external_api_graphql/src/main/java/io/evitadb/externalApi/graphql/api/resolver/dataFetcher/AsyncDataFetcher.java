@@ -34,7 +34,6 @@ import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -60,10 +59,12 @@ public class AsyncDataFetcher implements DataFetcher<Object> {
 	@Nonnull private final TracingContext tracingContext;
 	@Nonnull private final String tracingBlockDescription;
 
-	public AsyncDataFetcher(@Nonnull DataFetcher<?> delegate,
-	                        @Nonnull GraphQLOptions config,
-	                        @Nonnull TracingContext tracingContext,
-	                        @Nullable Evita evita) {
+	public AsyncDataFetcher(
+		@Nonnull DataFetcher<?> delegate,
+		@Nonnull GraphQLOptions config,
+		@Nonnull TracingContext tracingContext,
+		@Nonnull Evita evita
+	) {
 		this.enabled = config.isParallelize();
 
 		this.delegate = delegate;

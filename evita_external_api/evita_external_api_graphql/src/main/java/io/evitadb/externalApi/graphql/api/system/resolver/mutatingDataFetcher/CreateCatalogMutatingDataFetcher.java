@@ -32,6 +32,7 @@ import io.evitadb.externalApi.graphql.api.system.model.CreateCatalogMutationHead
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * Returns single catalog dto by name.
@@ -45,12 +46,10 @@ public class CreateCatalogMutatingDataFetcher implements DataFetcher<CatalogCont
 
     @Nonnull
     @Override
-    public CatalogContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        final String catalogName = environment.getArgument(CreateCatalogMutationHeaderDescriptor.NAME.name());
+    public CatalogContract get(DataFetchingEnvironment environment) throws Exception {
+        final String catalogName = Objects.requireNonNull(environment.getArgument(CreateCatalogMutationHeaderDescriptor.NAME.name()));
 
 	    this.evita.defineCatalog(catalogName);
-        final CatalogContract newCatalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
-
-        return newCatalog;
+	    return this.evita.getCatalogInstanceOrThrowException(catalogName);
     }
 }

@@ -35,6 +35,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.infra.Blackhole;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -129,9 +130,10 @@ public class ArrayOrHashMap {
 	private interface ValueLookup {
 
 		/**
-		 * Returns vallue assigned to the key.
+		 * Returns value assigned to the key.
 		 */
-		Integer getValue(String key);
+		@Nullable
+		Integer getValue(@Nonnull String key);
 
 	}
 
@@ -140,6 +142,7 @@ public class ArrayOrHashMap {
 	 * index is used to retrieve value from values array.
 	 */
 	private record ArraySet(@Nonnull String[] names, @Nonnull Integer[] values) implements ValueLookup {
+		@Nullable
 		@Override
 		public Integer getValue(@Nonnull String key) {
 			final int index = Arrays.binarySearch(this.names, key);
@@ -163,7 +166,7 @@ public class ArrayOrHashMap {
 		}
 
 		@Override
-		public Integer getValue(String key) {
+		public Integer getValue(@Nonnull String key) {
 			return this.keyValues.get(key);
 		}
 	}

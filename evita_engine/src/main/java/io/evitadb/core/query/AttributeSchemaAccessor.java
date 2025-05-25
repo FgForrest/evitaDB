@@ -113,7 +113,7 @@ public class AttributeSchemaAccessor {
 			if (referenceSchema != null) {
 				for (Scope scope : requestedScopes) {
 					if (!referenceSchema.isIndexedInScope(scope)) {
-						throw new ReferenceNotIndexedException(referenceSchema.getName(), entitySchema, scope);
+						throw new ReferenceNotIndexedException(referenceSchema.getName(), Objects.requireNonNull(entitySchema), scope);
 					}
 				}
 			}

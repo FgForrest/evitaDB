@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -62,12 +62,13 @@ public class Collection extends ConstraintLeaf<HeadConstraint> implements HeadCo
 
 	@Creator
 	public Collection(@Nonnull String entityType) {
-		super(null, entityType);
+		super(new Serializable[]{ entityType });
 	}
 
 	/**
 	 * Returns type of the entity that will be queried by associated query.
 	 */
+	@Nonnull
 	public String getEntityType() {
 		return (String) getArguments()[0];
 	}

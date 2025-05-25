@@ -118,7 +118,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 		// prepare filtering bitmap
 		final RoaringBitmap filteredRecordIds;
 		if (filteringFormula == null) {
-			filteredRecordIds = null;
+			filteredRecordIds = new RoaringBitmap();
 		} else {
 			filteredRecordIds = RoaringBitmapBackedBitmap.getRoaringBitmap(filteringFormula.compute());
 		}
@@ -366,7 +366,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 
 	@Nullable
 	@Override
-	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
+	public EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
 		// create optimized formula that offers best memoized intermediate results reuse
 		final Formula optimizedFormula = FilterFormulaAttributeOptimizeVisitor.optimize(this.filterFormula, this.histogramRequests.keySet());
 
@@ -377,8 +377,6 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 			formula -> {
 				if (formula instanceof UserFilterFormula) {
 					FormulaFinder.find(formula, AttributeFormula.class, LookUp.DEEP)
-						.stream()
-						.map(AttributeFormula.class::cast)
 						.forEach(attributeFormula -> ofNullable(attributeFormula.getRequestedPredicate())
 							.ifPresent(it -> userFilterFormulaPredicates.put(attributeFormula.getAttributeName(), it)));
 					return null;

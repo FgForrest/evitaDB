@@ -23,6 +23,7 @@
 
 package io.evitadb.dataType.array;
 
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -365,7 +366,7 @@ public class CompositeLongArray {
 		CompositeLongArrayOfLong() {
 			this.index = -1;
 			this.chunkIndex = CHUNK_SIZE;
-			this.currentChunk = null;
+			this.currentChunk = ArrayUtils.EMPTY_LONG_ARRAY;
 			this.size = CompositeLongArray.this.getSize();
 			this.chunkIterator = CompositeLongArray.this.chunks.iterator();
 		}

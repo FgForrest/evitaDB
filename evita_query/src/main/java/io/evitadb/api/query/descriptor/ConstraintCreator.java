@@ -37,6 +37,7 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -230,7 +231,7 @@ public class ConstraintCreator {
 				.toList();
 			this.hasValueParameters = !this.valueParameters.isEmpty();
 		}
-		return this.valueParameters;
+		return Objects.requireNonNull(this.valueParameters);
 	}
 
 	/**
@@ -245,7 +246,7 @@ public class ConstraintCreator {
 				.toList();
 			this.hasChildParameters = !this.childParameters.isEmpty();
 		}
-		return this.childParameters;
+		return Objects.requireNonNull(this.childParameters);
 	}
 
 	/**
@@ -260,7 +261,7 @@ public class ConstraintCreator {
 				.toList();
 			this.hasAdditionalChildParameters = !this.additionalChildParameters.isEmpty();
 		}
-		return this.additionalChildParameters;
+		return Objects.requireNonNull(this.additionalChildParameters);
 	}
 
 	/**

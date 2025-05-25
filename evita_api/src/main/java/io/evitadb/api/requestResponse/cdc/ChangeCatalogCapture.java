@@ -93,7 +93,7 @@ public record ChangeCatalogCapture(
 	public static ChangeCatalogCapture schemaCapture(
 		@Nonnull MutationPredicateContext context,
 		@Nonnull Operation operation,
-		@Nonnull Mutation mutation
+		@Nullable Mutation mutation
 	) {
 		return new ChangeCatalogCapture(
 			context.getVersion(),

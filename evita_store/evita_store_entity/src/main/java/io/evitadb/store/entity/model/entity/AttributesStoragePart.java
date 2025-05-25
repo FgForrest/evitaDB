@@ -91,7 +91,7 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	/**
 	 * Id used for lookups in persistent storage for this particular container.
 	 */
-	@Getter private Long storagePartPK;
+	@Nullable @Getter private Long storagePartPK;
 	/**
 	 * See {@link Attributes#getAttributeValues()}. Attributes are sorted in ascending order according to {@link AttributeKey}.
 	 */

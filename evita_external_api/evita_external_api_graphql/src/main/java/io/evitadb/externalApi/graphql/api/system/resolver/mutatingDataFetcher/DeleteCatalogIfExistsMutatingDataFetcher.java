@@ -31,6 +31,7 @@ import io.evitadb.externalApi.graphql.api.system.model.DeleteCatalogIfExistsMuta
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * Returns single catalog dto by name.
@@ -44,8 +45,10 @@ public class DeleteCatalogIfExistsMutatingDataFetcher implements DataFetcher<Boo
 
     @Nonnull
     @Override
-    public Boolean get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        final String catalogName = environment.getArgument(DeleteCatalogIfExistsMutationHeaderDescriptor.NAME.name());
+    public Boolean get(DataFetchingEnvironment environment) throws Exception {
+        final String catalogName = Objects.requireNonNull(
+            environment.getArgument(DeleteCatalogIfExistsMutationHeaderDescriptor.NAME.name())
+        );
         return this.evita.deleteCatalogIfExists(catalogName);
     }
 }

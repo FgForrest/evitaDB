@@ -286,9 +286,9 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 	 */
 	@Nonnull
 	public BigDecimalNumberRange inverse(int precision) {
-		if (this == BigDecimalNumberRange.INFINITE || this.from != null && this.to != null) {
+		if (this == BigDecimalNumberRange.INFINITE || (this.from != null && this.to != null) || (this.from == null && this.to == null)) {
 			return BigDecimalNumberRange.INFINITE;
-		} else if (this.from == null) {
+		} else if (this.to != null) {
 			return BigDecimalNumberRange.from(this.to.add(BigDecimal.ONE.movePointLeft(precision)));
 		} else {
 			return BigDecimalNumberRange.to(this.from.subtract(BigDecimal.ONE.movePointLeft(precision)));

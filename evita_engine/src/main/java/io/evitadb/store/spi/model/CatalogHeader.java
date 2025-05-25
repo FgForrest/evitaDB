@@ -97,7 +97,7 @@ public record CatalogHeader(
 		);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public Long getStoragePartPK() {
 		return 1L;

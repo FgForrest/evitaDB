@@ -33,6 +33,8 @@ import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -55,7 +57,7 @@ public class DataLocatorResolver {
 	 * already has correct data locator with references and so on resolved. Thus, we check if we can switch context
 	 * of child constraints to desired domain with the data that we have from parent container.
 	 *
-	 * @param parentDataLocator parent data locator to the new child data locator of child constraints, data locator of current constraint container
+	 * @param parentDataLocator             parent data locator to the new child data locator of child constraints, data locator of current constraint container
 	 * @param desiredChildDomainOfParameter domain of child constraint parameter to use for child constraints of current container
 	 * @return resolved child data locator or empty if data for the child locator is missing, but it is still logically correct
 	 */
@@ -112,13 +114,15 @@ public class DataLocatorResolver {
 					);
 					yield Optional.of(new FacetDataLocator(childEntityTypePointer, childReferenceName));
 				}
-				default -> throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
+				default ->
+					throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
 			};
 		} else {
 			if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
 				if (dataLocatorWithReference.referenceName() == null) {
 					return switch (desiredChildDomainOfParameter) {
-						case GENERIC -> Optional.of(new GenericDataLocator(dataLocatorWithReference.entityTypePointer()));
+						case GENERIC ->
+							Optional.of(new GenericDataLocator(dataLocatorWithReference.entityTypePointer()));
 						case ENTITY -> Optional.of(new EntityDataLocator(dataLocatorWithReference.entityTypePointer()));
 						default ->
 							throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
@@ -152,7 +156,8 @@ public class DataLocatorResolver {
 									: new ExternalEntityTypePointer(referencedGroupType)
 							));
 						}
-						case SEGMENT -> Optional.of(new SegmentDataLocator(dataLocatorWithReference.entityTypePointer()));
+						case SEGMENT ->
+							Optional.of(new SegmentDataLocator(dataLocatorWithReference.entityTypePointer()));
 						default ->
 							throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
 					};
@@ -162,7 +167,8 @@ public class DataLocatorResolver {
 					case GENERIC -> Optional.of(new GenericDataLocator(parentDataLocator.entityTypePointer()));
 					case ENTITY -> Optional.of(new EntityDataLocator(parentDataLocator.entityTypePointer()));
 					case SEGMENT -> Optional.of(new SegmentDataLocator(parentDataLocator.entityTypePointer()));
-					default -> throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
+					default ->
+						throw new ExternalApiInternalError("Unsupported domain `" + desiredChildDomainOfParameter + "`.");
 				};
 			}
 		}
@@ -172,16 +178,19 @@ public class DataLocatorResolver {
 	 * Tries to create new {@link DataLocator} for passed constraint container based on its {@link ConstraintPropertyType}
 	 * and classifier. Not all combinations with parent container are currently allowed as they don't make currently sense.
 	 *
-	 * @param parentDataLocator data locator of parent container in which this constraint is placed
+	 * @param parentDataLocator    data locator of parent container in which this constraint is placed
 	 * @param constraintDescriptor descriptor of current constraint
-	 * @param classifier optional classifier of current constraint
+	 * @param classifier           optional classifier of current constraint
 	 */
 	@Nonnull
-	public DataLocator resolveConstraintDataLocator(@Nonnull DataLocator parentDataLocator,
-	                                                @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                                @SuppressWarnings("OptionalUsedAsFieldOrParameterType") @Nonnull Optional<String> classifier) {
+	public DataLocator resolveConstraintDataLocator(
+		@Nonnull DataLocator parentDataLocator,
+		@Nonnull ConstraintDescriptor constraintDescriptor,
+		@Nullable String classifier
+	) {
 		return switch (constraintDescriptor.propertyType()) {
-			case GENERIC, ATTRIBUTE, ASSOCIATED_DATA, PRICE -> parentDataLocator; // these property type currently doesn't have any container constraints
+			case GENERIC, ATTRIBUTE, ASSOCIATED_DATA, PRICE ->
+				parentDataLocator; // these property type currently doesn't have any container constraints
 			case ENTITY -> {
 				if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
 					if (dataLocatorWithReference.referenceName() == null) {
@@ -189,7 +198,7 @@ public class DataLocatorResolver {
 						yield new EntityDataLocator(dataLocatorWithReference.entityTypePointer());
 					} else {
 						final ReferenceSchemaContract referenceSchema = this.catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType())
-							.getReferenceOrThrowException(dataLocatorWithReference.referenceName());
+							.getReferenceOrThrowException(Objects.requireNonNull(dataLocatorWithReference.referenceName()));
 						if (referenceSchema.isReferencedEntityTypeManaged()) {
 							yield new EntityDataLocator(new ManagedEntityTypePointer(referenceSchema.getReferencedEntityType()));
 						} else {
@@ -207,14 +216,18 @@ public class DataLocatorResolver {
 						!(parentDataLocator instanceof DataLocatorWithReference),
 						() -> new ExternalApiInternalError("`" + constraintDescriptor.propertyType() + "` containers cannot have `" + constraintDescriptor.propertyType() + "` constraints with different classifiers.")
 					);
-					if (constraintDescriptor.creator().hasClassifierParameter() && classifier.isEmpty()) {
+					if (constraintDescriptor.creator().hasClassifierParameter() && classifier == null) {
 						throw new ExternalApiInternalError("Missing required classifier.");
 					}
 					yield switch (constraintDescriptor.propertyType()) {
-						case REFERENCE -> new ReferenceDataLocator(parentDataLocator.entityTypePointer(), classifier.orElse(null));
-						case HIERARCHY -> new HierarchyDataLocator(parentDataLocator.entityTypePointer(), classifier.orElse(null));
-						case FACET -> new FacetDataLocator(parentDataLocator.entityTypePointer(), classifier.orElse(null));
-						default -> throw new ExternalApiInternalError("Unexpected property type `" + constraintDescriptor.propertyType() + "`.");
+						case REFERENCE ->
+							new ReferenceDataLocator(parentDataLocator.entityTypePointer(), Objects.requireNonNull(classifier));
+						case HIERARCHY ->
+							new HierarchyDataLocator(parentDataLocator.entityTypePointer(), classifier);
+						case FACET ->
+							new FacetDataLocator(parentDataLocator.entityTypePointer(), classifier);
+						default ->
+							throw new ExternalApiInternalError("Unexpected property type `" + constraintDescriptor.propertyType() + "`.");
 					};
 				} else {
 					// if reference constraint doesn't have classifier, it means it is either in another reference container or it is some more general constraint
@@ -244,7 +257,6 @@ public class DataLocatorResolver {
 					}
 				}
 			}
-			default -> throw new ExternalApiInternalError("Unsupported property type `" + constraintDescriptor.propertyType() + "`.");
 		};
 	}
 }

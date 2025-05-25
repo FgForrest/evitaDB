@@ -32,6 +32,7 @@ import io.evitadb.externalApi.graphql.api.system.model.CatalogQueryHeaderDescrip
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * Returns single catalog dto by name.
@@ -45,8 +46,8 @@ public class CatalogDataFetcher implements DataFetcher<CatalogContract>, ReadDat
 
     @Nonnull
     @Override
-    public CatalogContract get(@Nonnull DataFetchingEnvironment environment) {
-        final String catalogName = environment.getArgument(CatalogQueryHeaderDescriptor.NAME.name());
+    public CatalogContract get(DataFetchingEnvironment environment) {
+        final String catalogName = Objects.requireNonNull(environment.getArgument(CatalogQueryHeaderDescriptor.NAME.name()));
         return this.evita.getCatalogInstanceOrThrowException(catalogName);
     }
 }

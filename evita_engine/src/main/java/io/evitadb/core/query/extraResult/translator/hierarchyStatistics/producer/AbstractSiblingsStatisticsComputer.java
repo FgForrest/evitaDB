@@ -67,7 +67,7 @@ abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarchyStati
 	@Override
 	protected List<Accumulator> createStatistics(
 		@Nonnull QueryExecutionContext executionContext,
-		@Nullable HierarchyTraversalPredicate scopePredicate,
+		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
 		final OptionalInt parentNode = getParentNodeId(this.context);

@@ -128,8 +128,8 @@ public abstract class ClientBulkWriteState extends ClientDataState {
 		if (this.productIterator.hasNext()) {
 			this.product = this.productIterator.next();
 			// keep track of already assigned primary keys (may have gaps, may be in random order)
-			if (this.product.getPrimaryKey() > this.pkPeek) {
-				this.pkPeek = this.product.getPrimaryKey();
+			if (this.product.getPrimaryKeyOrThrowException() > this.pkPeek) {
+				this.pkPeek = this.product.getPrimaryKeyOrThrowException();
 			}
 		} else {
 			// when products are exhausted - start again from scratch

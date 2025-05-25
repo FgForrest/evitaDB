@@ -71,7 +71,6 @@ import static java.util.Optional.ofNullable;
  */
 @RequiredArgsConstructor
 public class PriceListCompositionTerminationVisitor implements FormulaVisitor {
-	private static final Formula[] EMPTY_FORMULA = new Formula[0];
 	/**
 	 * Contains query price mode of the current query.
 	 */
@@ -151,7 +150,7 @@ public class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 			} finally {
 
 				// extract the level from the stack
-				final Formula[] newInnerFormulas = this.stack.pop().toArray(EMPTY_FORMULA);
+				final Formula[] newInnerFormulas = this.stack.pop().toArray(Formula.EMPTY_FORMULA_ARRAY);
 				// if there are exactly the same formulas as before
 				if (Arrays.equals(formula.getInnerFormulas(), newInnerFormulas)) {
 					// just produce the input formula

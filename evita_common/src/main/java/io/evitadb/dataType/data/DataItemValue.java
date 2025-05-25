@@ -74,8 +74,9 @@ public record DataItemValue(
 		return Objects.hash(this.value);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
-		return this.value.toString();
+		return this.value == null ? "NULL" : this.value.toString();
 	}
 }

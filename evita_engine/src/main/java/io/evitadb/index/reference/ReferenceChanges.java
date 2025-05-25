@@ -23,6 +23,7 @@
 
 package io.evitadb.index.reference;
 
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -38,19 +39,21 @@ public class ReferenceChanges<T> {
 	 */
 	private final AtomicReference<T> theValue;
 
-	public ReferenceChanges(T theValue) {
+	public ReferenceChanges(@Nullable T theValue) {
 		this.theValue = new AtomicReference<>(theValue);
 	}
 
-	public void set(T value) {
+	public void set(@Nullable T value) {
 		this.theValue.set(value);;
 	}
 
+	@Nullable
 	public T get() {
 		return this.theValue.get();
 	}
 
-	public T compareAndExchange(T currentValue, T newValue) {
+	@Nullable
+	public T compareAndExchange(@Nullable T currentValue, @Nullable T newValue) {
 		return this.theValue.compareAndExchange(currentValue, newValue);
 	}
 }

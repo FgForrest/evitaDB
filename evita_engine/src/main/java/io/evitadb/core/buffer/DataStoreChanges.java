@@ -41,6 +41,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -76,7 +77,7 @@ public class DataStoreChanges {
 	 * the <a href="https://github.com/FgForrest/evitaDB/issues/689">issue #689</a> revealed that it's beneficial to
 	 * store some of them in memory and flush them once in a while to the persistent storage.
 	 */
-	private Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> trappedChanges;
+	@Nullable private Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> trappedChanges;
 
 	public DataStoreChanges(@Nonnull StoragePartPersistenceService persistenceService) {
 		this.persistenceService = persistenceService;
@@ -219,7 +220,8 @@ public class DataStoreChanges {
 	 */
 	public <T extends StoragePart> void putStoragePart(long catalogVersion, @Nonnull T value) {
 		if (this.trappedChanges != null) {
-			ofNullable(this.trappedChanges.get(value.getClass())).ifPresent(it -> it.remove(value.getStoragePartPK()));
+			ofNullable(this.trappedChanges.get(value.getClass()))
+				.ifPresent(it -> it.remove(Objects.requireNonNull(value.getStoragePartPK())));
 		}
 		this.persistenceService.putStoragePart(catalogVersion, value);
 	}
@@ -232,7 +234,7 @@ public class DataStoreChanges {
 	 */
 	public <T extends StoragePart> void trapPutStoragePart(@Nonnull T value) {
 		this.trappedChanges = this.trappedChanges == null ? new HashMap<>(64) : this.trappedChanges;
-		final Long storagePartPK = value.getStoragePartPK();
+		final Long storagePartPK = Objects.requireNonNull(value.getStoragePartPK());
 		final Class<? extends StoragePart> containerType = value.getClass();
 		this.trappedChanges.computeIfAbsent(containerType, aClass -> new LongObjectHashMap<>(256))
 			.put(storagePartPK, value);
@@ -317,7 +319,7 @@ public class DataStoreChanges {
 	) implements StoragePart {
 		@Serial private static final long serialVersionUID = -3939591252705809288L;
 
-		@Nullable
+		@Nonnull
 		@Override
 		public Long getStoragePartPK() {
 			return this.storagePartPK;

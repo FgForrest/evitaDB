@@ -34,6 +34,7 @@ import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -57,7 +58,7 @@ public abstract class AbstractFormula implements Formula {
 	 * Contains memoized result once {@link #computeInternal()} is invoked for the first time. Additional calls of
 	 * {@link Formula#compute()} will return this memoized result without paying the computational costs
 	 */
-	protected Bitmap memoizedResult;
+	@Nullable protected Bitmap memoizedResult;
 	/**
 	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
@@ -65,11 +66,11 @@ public abstract class AbstractFormula implements Formula {
 	/**
 	 * Contains memoized value of {@link #getCost()}  of this formula.
 	 */
-	private Long cost;
+	@Nullable private Long cost;
 	/**
 	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
 	 */
-	private Long costToPerformance;
+	@Nullable private Long costToPerformance;
 	/**
 	 * Contains memoized value of {@link #getHash()} method.
 	 */

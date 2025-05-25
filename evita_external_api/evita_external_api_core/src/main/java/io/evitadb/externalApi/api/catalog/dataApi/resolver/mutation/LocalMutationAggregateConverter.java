@@ -71,10 +71,12 @@ public class LocalMutationAggregateConverter extends MutationAggregateConverter<
 	@Getter(AccessLevel.PROTECTED)
 	private final Map<String, LocalMutationConverter<LocalMutation<?, ?>>> converters = createHashMap(20);
 
-	public LocalMutationAggregateConverter(@Nonnull ObjectMapper objectMapper,
-	                                       @Nullable EntitySchemaContract entitySchema,
-	                                       @Nonnull MutationObjectParser objectParser,
-	                                       @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public LocalMutationAggregateConverter(
+		@Nonnull ObjectMapper objectMapper,
+		@Nullable EntitySchemaContract entitySchema,
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 		// todo lho nullability comes from io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingDataFetcher.ChangeCatalogDataCaptureBodyDataFetcher.ChangeCatalogDataCaptureBodyDataFetcher
 		//  we need to decide what we want when we generate schema for this use case

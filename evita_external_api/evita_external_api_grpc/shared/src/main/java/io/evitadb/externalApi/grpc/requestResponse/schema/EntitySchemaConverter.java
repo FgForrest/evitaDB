@@ -748,7 +748,7 @@ public class EntitySchemaConverter {
 					referenceSchema.getEntityType(),
 					Map.of(),
 					true,
-					cardinality,
+					cardinality == null ? Cardinality.ZERO_OR_MORE : cardinality,
 					referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
 					Map.of(),
 					referenceSchema.getReferencedGroupTypeManaged(),
@@ -785,7 +785,7 @@ public class EntitySchemaConverter {
 					? Collections.emptyMap()
 					: NamingConvention.generate(referenceSchema.getEntityType()),
 				referenceSchema.getReferencedEntityTypeManaged(),
-				cardinality,
+				cardinality == null ? Cardinality.ZERO_OR_MORE : cardinality,
 				referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
 				referenceSchema.getReferencedGroupTypeManaged()
 					? Collections.emptyMap()

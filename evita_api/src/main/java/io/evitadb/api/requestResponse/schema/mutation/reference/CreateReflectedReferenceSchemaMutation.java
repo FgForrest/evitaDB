@@ -85,7 +85,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 	@Getter @Nullable private final Scope[] indexedInScopes;
 	@Getter @Nullable private final Scope[] facetedInScopes;
 	@Getter @Nonnull private final AttributeInheritanceBehavior attributeInheritanceBehavior;
-	@Getter @Nullable private final String[] attributeInheritanceFilter;
+	@Getter @Nonnull private final String[] attributeInheritanceFilter;
 
 	@Nullable
 	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
@@ -144,7 +144,8 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		this.indexedInScopes = indexedInScopes;
 		this.facetedInScopes = facetedInScopes;
 		this.attributeInheritanceBehavior = attributeInheritanceBehavior;
-		this.attributeInheritanceFilter = attributeInheritanceFilter;
+		this.attributeInheritanceFilter = attributeInheritanceFilter == null ?
+			ArrayUtils.EMPTY_STRING_ARRAY : attributeInheritanceFilter;
 	}
 
 	public boolean isFaceted() {
@@ -168,7 +169,9 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		) {
 			// we can convert mutation to updates only if the reference type matches
 			if (currentReference.get() instanceof ReflectedReferenceSchemaContract existingVersion) {
-				final ReflectedReferenceSchemaContract createdVersion = (ReflectedReferenceSchemaContract) mutate(currentEntitySchema, null);
+				final ReflectedReferenceSchemaContract createdVersion = Objects.requireNonNull(
+					(ReflectedReferenceSchemaContract) mutate(currentEntitySchema, null)
+				);
 				return new MutationCombinationResult<>(
 					null,
 					Stream.of(
@@ -240,7 +243,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final ReflectedReferenceSchema newReferenceSchema = (ReflectedReferenceSchema) this.mutate(entitySchema, null);
+		final ReflectedReferenceSchema newReferenceSchema = Objects.requireNonNull((ReflectedReferenceSchema) this.mutate(entitySchema, null));
 		final Optional<ReferenceSchemaContract> referencedReferenceSchema = catalogSchema.getEntitySchema(newReferenceSchema.getReferencedEntityType())
 			.flatMap(it -> it.getReference(newReferenceSchema.getReflectedReferenceName()));
 		final ReferenceSchemaContract referenceToInsert = referencedReferenceSchema

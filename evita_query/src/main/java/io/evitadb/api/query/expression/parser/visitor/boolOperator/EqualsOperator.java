@@ -36,6 +36,7 @@ import lombok.EqualsAndHashCode;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * The EqualsOperator class implements the ExpressionNode interface and is used to compare two operands for equality.
@@ -66,7 +67,7 @@ public class EqualsOperator implements ExpressionNode {
 			value2 instanceof Comparable,
 			() -> new ParserException("Equals function right operand must be comparable!")
 		);
-		final Serializable convertedValue2 = EvitaDataTypes.toTargetType(value2, value1.getClass());
+		final Serializable convertedValue2 = Objects.requireNonNull(EvitaDataTypes.toTargetType(value2, value1.getClass()));
 		//noinspection rawtypes,unchecked
 		return ((Comparable) value1).compareTo(convertedValue2) == 0;
 	}

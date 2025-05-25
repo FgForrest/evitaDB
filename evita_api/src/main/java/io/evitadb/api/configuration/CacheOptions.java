@@ -146,7 +146,8 @@ public record CacheOptions(
 			this.anteroomRecordCount = cacheOptions.anteroomRecordCount;
 			this.minimalComplexityThreshold = cacheOptions.minimalComplexityThreshold;
 			this.minimalUsageThreshold = cacheOptions.minimalUsageThreshold;
-			this.cacheSizeInBytes = cacheOptions.cacheSizeInBytes;
+			this.cacheSizeInBytes = cacheOptions.cacheSizeInBytes == null ?
+				DEFAULT_CACHE_SIZE : cacheOptions.cacheSizeInBytes;
 		}
 
 		public Builder reflection(ReflectionCachingBehaviour reflection) {

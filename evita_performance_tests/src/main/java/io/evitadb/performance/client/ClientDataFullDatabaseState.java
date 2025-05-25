@@ -110,7 +110,7 @@ public abstract class ClientDataFullDatabaseState extends ClientDataState {
 						response
 							.getRecordData()
 							.forEach(it -> {
-								processCreatedEntityReference(new EntityReference(it.getType(), it.getPrimaryKey()));
+								processCreatedEntityReference(new EntityReference(it.getType(), it.getPrimaryKeyOrThrowException()));
 								processEntity(it);
 								entityCount.incrementAndGet();
 								priceCount.addAndGet(it.getPrices().size());
@@ -125,23 +125,23 @@ public abstract class ClientDataFullDatabaseState extends ClientDataState {
 					totalAttributeCount.addAndGet(attributeCount.get());
 					totalAssociatedDataCount.addAndGet(associatedDataCount.get());
 					totalReferenceCount.addAndGet(referenceCount.get());
-					loadInfo.append("Entity `" + entityType + "` fully read and examined in " + StringUtils.formatPreciseNano(System.nanoTime() - entityProcessingStart) + "\n");
-					of(entityCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append(        "\t - entity count          : " + it + "\n"));
-					of(priceCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append(         "\t - price count           : " + it + "\n"));
-					of(attributeCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append(     "\t - attribute count       : " + it + "\n"));
-					of(associatedDataCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append("\t - associated data count : " + it + "\n"));
-					of(referenceCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append("\t - reference count       : " + it + "\n"));
+					loadInfo.append("Entity `").append(entityType).append("` fully read and examined in ").append(StringUtils.formatPreciseNano(System.nanoTime() - entityProcessingStart)).append("\n");
+					of(entityCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append("\t - entity count          : ").append(it).append("\n"));
+					of(priceCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append("\t - price count           : ").append(it).append("\n"));
+					of(attributeCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append("\t - attribute count       : ").append(it).append("\n"));
+					of(associatedDataCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append("\t - associated data count : ").append(it).append("\n"));
+					of(referenceCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append("\t - reference count       : ").append(it).append("\n"));
 				}
 				final double entitiesPerSec = (double) totalEntityCount.get() / (double) ((System.nanoTime() - processingStart) / 1_000_000_000);
 				System.out.println("Entities (" + totalEntityCount.get() + ") processing speed " + entitiesPerSec + " recs/sec.");
 				return null;
 			}
 		);
-		loadInfo.append("\nSummary for " + totalEntityCount.get() + " entities:\n");
-		of(totalPriceCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append(         "\t - price count           : " + it + "\n"));
-		of(totalAttributeCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append(     "\t - attribute count       : " + it + "\n"));
-		of(totalAssociatedDataCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append("\t - associated data count : " + it + "\n"));
-		of(totalReferenceCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append("\t - reference count       : " + it + "\n"));
+		loadInfo.append("\nSummary for ").append(totalEntityCount.get()).append(" entities:\n");
+		of(totalPriceCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append("\t - price count           : ").append(it).append("\n"));
+		of(totalAttributeCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append("\t - attribute count       : ").append(it).append("\n"));
+		of(totalAssociatedDataCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append("\t - associated data count : ").append(it).append("\n"));
+		of(totalReferenceCount.get()).filter(it -> it > 0).ifPresent(it -> loadInfo.append("\t - reference count       : ").append(it).append("\n"));
 
 		System.out.print("Database loaded in " + StringUtils.formatPreciseNano(System.nanoTime() - start) + "!\n" + loadInfo + "\nWarmup results: ");
 	}

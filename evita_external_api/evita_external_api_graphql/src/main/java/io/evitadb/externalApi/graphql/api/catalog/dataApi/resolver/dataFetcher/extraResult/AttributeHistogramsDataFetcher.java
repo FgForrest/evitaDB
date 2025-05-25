@@ -35,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 
@@ -51,8 +52,8 @@ public class AttributeHistogramsDataFetcher implements DataFetcher<List<Map<Stri
 
 	@Nonnull
 	@Override
-	public List<Map<String, Object>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final EvitaResponse<?> response = environment.getSource();
+	public List<Map<String, Object>> get(DataFetchingEnvironment environment) throws Exception {
+		final EvitaResponse<?> response = Objects.requireNonNull(environment.getSource());
 		final AttributeHistogram attributeHistogram = response.getExtraResult(AttributeHistogram.class);
 		if (attributeHistogram == null) {
 			return List.of();

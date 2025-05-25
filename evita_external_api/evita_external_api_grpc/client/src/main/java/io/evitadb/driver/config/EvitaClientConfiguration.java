@@ -129,7 +129,7 @@ public record EvitaClientConfiguration(
 		private Path certificateFolderPath = ClientCertificateManager.getDefaultClientCertificateFolderPath();
 		private String trustStorePassword = "trustStorePassword";
 		private ReflectionCachingBehaviour reflectionCachingBehaviour = ReflectionCachingBehaviour.CACHE;
-		private Object openTelemetryInstance = null;
+		@Nullable private Object openTelemetryInstance = null;
 		private int trackedTaskLimit = 100;
 
 		Builder() {
@@ -181,8 +181,8 @@ public record EvitaClientConfiguration(
 		 * This setting was renamed to {@link #serverCertificatePath(Path)}.
 		 *
 		 * @deprecated Use {@link #serverCertificatePath(Path)} instead.
-		 * @param rootCaCertificatePath
-		 * @return
+		 * @param rootCaCertificatePath Path to the server certificate that should be used for TLS connection.
+		 * @return Builder instance for chaining.
 		 */
 		@Deprecated
 		@Nonnull

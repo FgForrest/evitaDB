@@ -34,6 +34,8 @@ import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalErr
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Objects;
 
 /**
  * Returns converted {@link ChangeSystemCapture#body()} to correct GraphQL representation.
@@ -49,9 +51,9 @@ public class ChangeCatalogSchemaCaptureBodyDataFetcher implements DataFetcher<Ob
 	);
 
 	@Override
-	@Nonnull
-	public Object get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final ChangeSystemCapture capture = environment.getSource();
+	@Nullable
+	public Object get(DataFetchingEnvironment environment) throws Exception {
+		final ChangeSystemCapture capture = Objects.requireNonNull(environment.getSource());
 		final LocalCatalogSchemaMutation body = (LocalCatalogSchemaMutation) capture.body();
 		Assert.isPremiseValid(
 			body != null,

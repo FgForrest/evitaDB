@@ -31,6 +31,7 @@ import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalErr
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * Finds and returns concrete {@link AssociatedDataSchemaContract} from current parent {@link EntitySchemaContract}
@@ -45,8 +46,8 @@ public class AssociatedDataSchemaDataFetcher implements DataFetcher<AssociatedDa
 
 	@Nonnull
 	@Override
-	public AssociatedDataSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final EntitySchemaContract entitySchema = environment.getSource();
+	public AssociatedDataSchemaContract get(DataFetchingEnvironment environment) throws Exception {
+		final EntitySchemaContract entitySchema = Objects.requireNonNull(environment.getSource());
 		return entitySchema.getAssociatedData(this.name)
 			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find associated data schema for name `" + this.name + "` in entity schema `" + entitySchema.getName() + "`."));
 	}

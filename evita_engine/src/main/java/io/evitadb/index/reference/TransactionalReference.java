@@ -56,14 +56,14 @@ public class TransactionalReference<T> implements TransactionalLayerProducer<Ref
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private final AtomicReference<T> value;
 
-	public TransactionalReference(T value) {
+	public TransactionalReference(@Nullable T value) {
 		this.value = new AtomicReference<>(value);
 	}
 
 	/**
 	 * Sets the value to `value` in a transactional safe way (if transaction is available).
 	 */
-	public void set(T value) {
+	public void set(@Nullable T value) {
 		final ReferenceChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.value.set(value);
@@ -78,7 +78,8 @@ public class TransactionalReference<T> implements TransactionalLayerProducer<Ref
 	 *
 	 * @return the witness value, which will be the same as the expected value if successful
 	 */
-	public T compareAndExchange(T currentValue, T newValue) {
+	@Nullable
+	public T compareAndExchange(@Nullable T currentValue, @Nullable T newValue) {
 		final ReferenceChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.value.compareAndExchange(currentValue, newValue);
@@ -90,6 +91,7 @@ public class TransactionalReference<T> implements TransactionalLayerProducer<Ref
 	/**
 	 * returns the current value in a transactional safe way (if transaction is available).
 	 */
+	@Nullable
 	public T get() {
 		final ReferenceChanges<T> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {

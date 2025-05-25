@@ -99,11 +99,16 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 		this.controlBitmap = controlBitmap;
 		this.initFields();
 	}
-	DisentangleFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nullable Bitmap mainBitmap, @Nullable Bitmap controlBitmap, @Nullable Formula... formulas) {
+	DisentangleFormula(
+		@Nullable Consumer<CacheableFormula> computationCallback,
+		@Nullable Bitmap mainBitmap,
+		@Nullable Bitmap controlBitmap,
+		@Nullable Formula... formulas
+	) {
 		super(computationCallback);
 		this.mainBitmap = mainBitmap;
 		this.controlBitmap = controlBitmap;
-		this.initFields(formulas);
+		this.initFields(formulas == null ? EMPTY_FORMULA_ARRAY : formulas);
 		Assert.isTrue(
 			(ArrayUtils.isEmpty(this.innerFormulas) && (mainBitmap != null && controlBitmap != null)) ||
 			(this.innerFormulas.length == 2 && (mainBitmap == null && controlBitmap == null)),

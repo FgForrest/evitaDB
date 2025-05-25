@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 
 /**
  * Extracts {@link FacetSummary} from {@link EvitaResponse}'s extra results requested by
@@ -53,10 +54,10 @@ public class FacetSummaryDataFetcher implements DataFetcher<FacetSummary> {
 		return INSTANCE;
 	}
 
-	@Nonnull
+	@Nullable
 	@Override
-	public FacetSummary get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final EvitaResponse<?> response = environment.getSource();
+	public FacetSummary get(DataFetchingEnvironment environment) throws Exception {
+		final EvitaResponse<?> response = Objects.requireNonNull(environment.getSource());
 		return response.getExtraResult(FacetSummary.class);
 	}
 }

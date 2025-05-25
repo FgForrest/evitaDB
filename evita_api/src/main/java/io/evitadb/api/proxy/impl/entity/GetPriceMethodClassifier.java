@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -481,7 +481,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 				() -> {
 					final List<PriceContract> prices = priceSupplier.apply(theState.entity())
-						.filter(it -> priceList.equals(it.priceList()))
+						.filter(it -> priceList == null || priceList.equals(it.priceList()))
 						.limit(2)
 						.toList();
 					if (prices.isEmpty()) {
@@ -493,7 +493,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 							(int) theState.entity()
 								.getPrices()
 								.stream()
-								.filter(it -> priceList.equals(it.priceList()))
+								.filter(it -> priceList == null || priceList.equals(it.priceList()))
 								.count()
 						);
 					}
@@ -522,7 +522,10 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 					} else {
 						throw new UnexpectedResultCountException(
 							matchingPrices.size() +
-								(pricePredicate == null ? (int) allPrices.count() : (int) allPrices.filter(pricePredicate).count())
+								(pricePredicate == null ?
+									(int) priceSupplier.apply(theState.entity()).count() :
+									(int) priceSupplier.apply(theState.entity()).filter(pricePredicate).count()
+								)
 						);
 					}
 				}

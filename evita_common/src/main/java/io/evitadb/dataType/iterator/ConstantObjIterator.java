@@ -23,6 +23,7 @@
 
 package io.evitadb.dataType.iterator;
 
+import javax.annotation.Nullable;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
@@ -34,7 +35,7 @@ import java.util.NoSuchElementException;
 public class ConstantObjIterator<T> implements Iterator<T> {
 	private final T[] constant;
 	private int index = -1;
-	private T nextNumberToReturn = null;
+	@Nullable private T nextNumberToReturn = null;
 
 	public ConstantObjIterator(T[] constant) {
 		this.constant = constant;

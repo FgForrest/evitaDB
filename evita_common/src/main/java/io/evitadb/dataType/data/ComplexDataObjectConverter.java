@@ -144,6 +144,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 * @throws InvalidDataObjectException         When the deserialization process fails
 	 * @throws IncompleteDeserializationException When some data cannot be deserialized
 	 */
+	@Nonnull
 	public static <T extends Serializable> T getOriginalForm(
 		@Nonnull Serializable container,
 		@Nonnull Class<T> requestedClass,

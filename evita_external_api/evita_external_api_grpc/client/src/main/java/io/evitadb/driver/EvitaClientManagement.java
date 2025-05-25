@@ -512,7 +512,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	private <T> T executeWithEvitaBlockingService(
 		@Nonnull AsyncCallFunction<EvitaManagementServiceStub, T> lambda
 	) {
-		final Timeout timeout = this.evitaClient.timeout.get().peek();
+		final Timeout timeout = Objects.requireNonNull(this.evitaClient.timeout.get().peek());
 		try {
 			return lambda.apply(
 				this.evitaManagementServiceStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit())
@@ -543,7 +543,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	private <T> T executeWithEvitaService(
 		@Nonnull AsyncCallFunction<EvitaManagementServiceFutureStub, ListenableFuture<T>> lambda
 	) {
-		final Timeout timeout = this.evitaClient.timeout.get().peek();
+		final Timeout timeout = Objects.requireNonNull(this.evitaClient.timeout.get().peek());
 		try {
 			return lambda.apply(this.evitaManagementServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
 				.get(timeout.timeout(), timeout.timeoutUnit());

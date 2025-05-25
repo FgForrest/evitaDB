@@ -763,7 +763,7 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public SealedEntitySchema getSchema() {
-		return this.schema.get();
+		return Objects.requireNonNull(this.schema.get());
 	}
 
 	/**
@@ -1247,7 +1247,7 @@ public final class EntityCollection implements
 	 * Returns internally held {@link EntitySchema}.
 	 */
 	public EntitySchema getInternalSchema() {
-		return this.schema == null ? this.initialSchema : this.schema.get().getDelegate();
+		return this.schema == null ? this.initialSchema : Objects.requireNonNull(this.schema.get()).getDelegate();
 	}
 
 	/**
@@ -1449,7 +1449,7 @@ public final class EntityCollection implements
 			final ReferenceChanges<EntitySchemaDecorator> schemaChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this.schema);
 			if (schemaChanges != null) {
 				Assert.isPremiseValid(
-					schemaChanges.get().version() == getSchema().version(),
+					Objects.requireNonNull(schemaChanges.get()).version() == getSchema().version(),
 					"Schema was unexpectedly modified!"
 				);
 				transactionalLayer.removeTransactionalMemoryLayerIfExists(this.schema);
@@ -1781,7 +1781,7 @@ public final class EntityCollection implements
 		);
 		final EntitySchemaContract finalUpdatedSchema = updatedSchema;
 		Assert.isTrue(
-			originalSchemaBeforeExchange.version() == originalSchema.version(),
+			Objects.requireNonNull(originalSchemaBeforeExchange).version() == originalSchema.version(),
 			() -> new ConcurrentSchemaUpdateException(originalSchema, finalUpdatedSchema)
 		);
 		this.catalog.entitySchemaUpdated(updatedSchema);

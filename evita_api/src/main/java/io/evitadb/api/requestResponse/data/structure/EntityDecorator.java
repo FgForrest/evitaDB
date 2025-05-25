@@ -57,7 +57,6 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -1198,12 +1197,12 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public List<PriceForSaleWithAccompanyingPrices> getAllPricesForSaleWithAccompanyingPrices(
-		@Nullable Currency currency,
+		@Nonnull Currency currency,
 		@Nullable OffsetDateTime atTheMoment,
-		@Nullable String[] priceListPriority,
+		@Nonnull String[] priceListPriority,
 		@Nonnull AccompanyingPrice[] accompanyingPricesRequest
 	) {
-		this.pricePredicate.checkFetched(currency, priceListPriority == null ? ArrayUtils.EMPTY_STRING_ARRAY : priceListPriority);
+		this.pricePredicate.checkFetched(currency, priceListPriority);
 		final List<PriceForSaleWithAccompanyingPrices> allPricesForSale = SealedEntity.super.getAllPricesForSaleWithAccompanyingPrices(currency, atTheMoment, priceListPriority, accompanyingPricesRequest);
 		if (allPricesForSale.size() > 1) {
 			return allPricesForSale

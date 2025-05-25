@@ -90,21 +90,9 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 */
 	@Nonnull @Getter private final AttributeHistogramRequest request;
 	/**
-	 * Execution context from initialization phase.
-	 */
-	protected QueryExecutionContext context;
-	/**
 	 * Contains memoized value of {@link #getEstimatedCost()}  of this formula.
 	 */
 	private final Long estimatedCost;
-	/**
-	 * Contains memoized value of {@link #getCost()}  of this formula.
-	 */
-	private Long cost;
-	/**
-	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
-	 */
-	private Long costToPerformance;
 	/**
 	 * Contains memoized value of {@link #getHash()} method.
 	 */
@@ -117,6 +105,18 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 * Contains memoized value of {@link #gatherTransactionalIds()} computed hash.
 	 */
 	private final Long transactionalIdHash;
+	/**
+	 * Execution context from initialization phase.
+	 */
+	protected QueryExecutionContext context;
+	/**
+	 * Contains memoized value of {@link #getCost()}  of this formula.
+	 */
+	private Long cost;
+	/**
+	 * Contains memoized value of {@link #getCostToPerformanceRatio()} of this formula.
+	 */
+	private Long costToPerformance;
 	/**
 	 * Contains bucket array that contains only entity primary keys that match the {@link #filterFormula}. The array
 	 * is initialized during {@link #compute()} method and result is memoized, so it's ensured it's computed only once.
@@ -411,18 +411,20 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				filterFormula, (visitor, theFormula) -> {
 					if (theFormula instanceof UserFilterFormula) {
 						// we need to reconstruct the user filter formula
-						final Formula updatedUserFilterFormula = FormulaCloner.clone(
-							theFormula,
-							innerFormula -> {
-								if (innerFormula instanceof SelectionFormula) {
-									return shouldBeExcluded(((SelectionFormula) innerFormula).getDelegate()) ? null : innerFormula;
-								} else {
-									return shouldBeExcluded(innerFormula) ? null : innerFormula;
+						final Formula updatedUserFilterFormula = Objects.requireNonNull(
+							FormulaCloner.clone(
+								theFormula,
+								innerFormula -> {
+									if (innerFormula instanceof SelectionFormula) {
+										return shouldBeExcluded(((SelectionFormula) innerFormula).getDelegate()) ? null : innerFormula;
+									} else {
+										return shouldBeExcluded(innerFormula) ? null : innerFormula;
+									}
 								}
-							}
+							)
 						);
 						if (updatedUserFilterFormula.getInnerFormulas().length == 0) {
-							// if there is no formula left in tue user filter container, leave it out entirely
+							// if there is no formula left in the user filter container, leave it out entirely
 							return null;
 						} else {
 							return updatedUserFilterFormula;

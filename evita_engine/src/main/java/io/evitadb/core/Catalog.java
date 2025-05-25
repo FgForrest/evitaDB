@@ -359,7 +359,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		this.scheduler = scheduler;
 		this.transactionalExecutor = transactionalExecutor;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
-		this.lastPersistedSchemaVersion = this.schema.get().version();
+		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
 		this.transactionManager = new TransactionManager(
 			this, evitaConfiguration,
 			scheduler, requestExecutor, transactionalExecutor,
@@ -514,7 +514,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			this.scheduler = scheduler;
 			this.transactionalExecutor = transactionalExecutor;
 			this.newCatalogVersionConsumer = newCatalogVersionConsumer;
-			this.lastPersistedSchemaVersion = this.schema.get().version();
+			this.lastPersistedSchemaVersion = catalogSchema.version();
 			this.transactionManager = new TransactionManager(
 				this, evitaConfiguration,
 				scheduler, requestExecutor, transactionalExecutor,
@@ -621,7 +621,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Override
 	@Nonnull
 	public SealedCatalogSchema getSchema() {
-		return this.schema.get();
+		return Objects.requireNonNull(this.schema.get());
 	}
 
 	@Nonnull
@@ -642,12 +642,12 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Override
 	@Nonnull
 	public String getName() {
-		return this.schema.get().getName();
+		return getInternalSchema().getName();
 	}
 
 	@Override
 	public long getVersion() {
-		return this.versionId.get();
+		return Objects.requireNonNull(this.versionId.get());
 	}
 
 	/**
@@ -773,7 +773,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Nonnull
 	@Override
 	public CatalogContract replace(@Nonnull CatalogSchemaContract updatedSchema, @Nonnull CatalogContract catalogToBeReplaced) {
-		final long catalogVersion = this.versionId.get();
+		final long catalogVersion = getVersion();
 		this.entityCollections.values().forEach(EntityCollection::terminate);
 		final CatalogSchema renamedSchema = CatalogSchema._internalBuild(updatedSchema);
 		exchangeCatalogSchema(renamedSchema, getInternalSchema());
@@ -1052,7 +1052,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 */
 	@Nonnull
 	public CatalogSchema getInternalSchema() {
-		return this.schema.get().getDelegate();
+		return Objects.requireNonNull(this.schema.get()).getDelegate();
 	}
 
 	/**
@@ -1255,7 +1255,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 */
 	public void flush(long catalogVersion, @Nonnull TransactionMutation lastProcessedTransaction) {
 		Assert.isPremiseValid(getCatalogState() == CatalogState.ALIVE, "Catalog is not in ALIVE state!");
-		boolean changeOccurred = this.schema.get().version() != this.lastPersistedSchemaVersion;
+		boolean changeOccurred = getInternalSchema().version() != this.lastPersistedSchemaVersion;
 		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
 		for (EntityCollection entityCollection : this.entityCollections.values()) {
 			final long lastSeenVersion = entityCollection.getVersion();
@@ -1277,7 +1277,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				entityHeaders,
 				this.dataStoreBuffer
 			);
-			this.lastPersistedSchemaVersion = this.schema.get().version();
+			this.lastPersistedSchemaVersion = getInternalSchema().version();
 		}
 	}
 
@@ -1355,7 +1355,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 */
 	void flush() {
 		// if we're going live start with TRUE (force flush), otherwise start with false
-		boolean changeOccurred = this.goingLive.get() || this.schema.get().version() != this.lastPersistedSchemaVersion;
+		boolean changeOccurred = this.goingLive.get() || getInternalSchema().version() != this.lastPersistedSchemaVersion;
 		Assert.isPremiseValid(
 			getCatalogState() == CatalogState.WARMING_UP,
 			"Cannot flush catalog in transactional mode. Any changes could occur only in transaction!"
@@ -1392,7 +1392,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				entityHeaders,
 				this.dataStoreBuffer
 			);
-			this.lastPersistedSchemaVersion = this.schema.get().version();
+			this.lastPersistedSchemaVersion = getInternalSchema().version();
 		}
 	}
 
@@ -1549,14 +1549,16 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		final CatalogSchema updatedInternalSchema = (CatalogSchema) updatedSchema;
 
 		if (updatedSchema.version() > currentSchema.version()) {
-			final CatalogSchemaDecorator currentSchemaWrapper = this.schema.get();
+			final CatalogSchemaDecorator currentSchemaWrapper = Objects.requireNonNull(this.schema.get());
 			Assert.isPremiseValid(
 				currentSchemaWrapper.getDelegate() == currentSchema,
 				"Invalid current schema used!"
 			);
-			final CatalogSchemaDecorator originalSchemaBeforeExchange = this.schema.compareAndExchange(
-				currentSchemaWrapper,
-				new CatalogSchemaDecorator(updatedInternalSchema)
+			final CatalogSchemaDecorator originalSchemaBeforeExchange = Objects.requireNonNull(
+				this.schema.compareAndExchange(
+					currentSchemaWrapper,
+					new CatalogSchemaDecorator(updatedInternalSchema)
+				)
 			);
 			Assert.isTrue(
 				originalSchemaBeforeExchange.version() == currentSchema.version(),
@@ -1843,7 +1845,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		final String catalogName = getName();
 		try {
 			final List<EntityCollectionHeader> entityHeaders;
-			boolean changeOccurred = this.lastPersistedSchemaVersion != this.schema.get().version();
+			boolean changeOccurred = this.lastPersistedSchemaVersion != getInternalSchema().version();
 			final boolean warmingUpState = getCatalogState() == CatalogState.WARMING_UP;
 			entityHeaders = new ArrayList<>(this.entityCollections.size());
 			for (EntityCollection entityCollection : this.entityCollections.values()) {

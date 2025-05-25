@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.util.Locale;
 
 /**
  * Converts between {@link ApplyDeltaAttributeMutation} and {@link GrpcApplyDeltaAttributeMutation} in both directions.
@@ -77,8 +78,9 @@ public class ApplyDeltaAttributeMutationConverter extends AttributeMutationConve
 		final GrpcApplyDeltaAttributeMutation.Builder builder = GrpcApplyDeltaAttributeMutation.newBuilder()
 			.setAttributeName(mutation.getAttributeKey().attributeName());
 
-		if (mutation.getAttributeKey().localized()) {
-			builder.setAttributeLocale(EvitaDataTypesConverter.toGrpcLocale(mutation.getAttributeKey().locale()));
+		final Locale locale = mutation.getAttributeKey().locale();
+		if (locale != null) {
+			builder.setAttributeLocale(EvitaDataTypesConverter.toGrpcLocale(locale));
 		}
 
 		final Number delta = mutation.getDelta();

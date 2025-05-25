@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 public record CumulatedPrice(
 	int version,
 	@Nonnull PriceKey priceKey,
-	@Nullable Map<Integer, PriceContract> innerRecordPrices,
+	@Nonnull Map<Integer, PriceContract> innerRecordPrices,
 	@Nonnull BigDecimal priceWithoutTax,
 	@Nonnull BigDecimal taxRate,
 	@Nonnull BigDecimal priceWithTax
@@ -138,6 +138,7 @@ public record CumulatedPrice(
 		return result;
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "\uD83D\uDCB0 \uD83D\uDCB5 " + this.priceWithTax + " " + this.priceKey.currency() + " (" + this.taxRate + "%)" +

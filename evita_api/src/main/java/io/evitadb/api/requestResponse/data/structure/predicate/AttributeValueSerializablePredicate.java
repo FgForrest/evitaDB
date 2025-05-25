@@ -188,10 +188,11 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 		if (!(this.requiresEntityAttributes && (this.attributeSet.isEmpty() || this.attributeSet.contains(attributeKey.attributeName())))) {
 			throw ContextMissingException.attributeContextMissing(attributeKey.attributeName());
 		}
-		if (attributeKey.localized() && !(Objects.equals(this.locale, attributeKey.locale()) || this.locales != null && (this.locales.isEmpty() || this.locales.contains(attributeKey.locale())))) {
+		final Locale akLocale = attributeKey.locale();
+		if (akLocale != null && !(Objects.equals(this.locale, akLocale) || this.locales != null && (this.locales.isEmpty() || this.locales.contains(akLocale)))) {
 			throw ContextMissingException.attributeLocalizationContextMissing(
 				attributeKey.attributeName(),
-				attributeKey.locale(),
+				akLocale,
 				Stream.concat(
 					this.locale == null ? Stream.empty() : Stream.of(this.locale),
 					this.locales == null ? Stream.empty() : this.locales.stream()

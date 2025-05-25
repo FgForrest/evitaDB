@@ -98,8 +98,8 @@ public class CreateGlobalAttributeSchemaMutation
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable AttributeUniquenessType unique,
-		@Nullable GlobalAttributeUniquenessType uniqueGlobally,
+		@Nonnull AttributeUniquenessType unique,
+		@Nonnull GlobalAttributeUniquenessType uniqueGlobally,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -277,6 +277,7 @@ public class CreateGlobalAttributeSchemaMutation
 						)
 					)
 					.filter(Objects::nonNull)
+					.map(LocalCatalogSchemaMutation.class::cast)
 					.toArray(LocalCatalogSchemaMutation[]::new)
 			);
 		} else {

@@ -35,6 +35,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Finds single attribute value from entity by name and possibly locale. Each attribute field should have its own fetcher
@@ -55,9 +56,9 @@ public class AttributeValueDataFetcher<T extends Serializable> implements DataFe
 
     @Nullable
     @Override
-    public T get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        final AttributesContract<?> attributes = environment.getSource();
-        final Locale locale = ((EntityQueryContext) environment.getLocalContext()).getDesiredLocale();
+    public T get(DataFetchingEnvironment environment) throws Exception {
+        final AttributesContract<?> attributes = Objects.requireNonNull(environment.getSource());
+        final Locale locale = Objects.requireNonNull((EntityQueryContext) environment.getLocalContext()).getDesiredLocale();
 
         if (locale == null && this.attributeSchema.isLocalized()) {
             throw new GraphQLInvalidArgumentException(

@@ -65,6 +65,7 @@ import java.util.Currency;
 import java.util.LinkedList;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 import static io.evitadb.core.Transaction.isTransactionAvailable;
@@ -216,8 +217,9 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nonnull
 	public static Comparator<? extends Comparable> getComparator(@Nonnull AttributeKey attributeKey, @Nonnull Class<?> attributeType) {
-		if (String.class.isAssignableFrom(attributeType) && attributeKey.localized()) {
-			return new LocalizedStringComparator(attributeKey.locale());
+		final Locale locale = attributeKey.locale();
+		if (String.class.isAssignableFrom(attributeType) && locale != null) {
+			return new LocalizedStringComparator(locale);
 		} else {
 			return DEFAULT_COMPARATOR;
 		}
@@ -826,7 +828,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	private void addRange(int recordId, @Nonnull Range[] ranges) {
 		final Range[] consolidatedRangesToAdd = Range.consolidateRange(ranges);
 		for (Range consolidatedRange : consolidatedRangesToAdd) {
-			this.rangeIndex.addRecord(consolidatedRange.getFrom(), consolidatedRange.getTo(), recordId);
+			Objects.requireNonNull(this.rangeIndex).addRecord(consolidatedRange.getFrom(), consolidatedRange.getTo(), recordId);
 		}
 	}
 
@@ -839,7 +841,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	private void removeRange(int recordId, @Nonnull Range[] ranges) {
 		final Range[] consolidatedRangesToRemove = Range.consolidateRange(ranges);
 		for (Range consolidatedRange : consolidatedRangesToRemove) {
-			this.rangeIndex.removeRecord(consolidatedRange.getFrom(), consolidatedRange.getTo(), recordId);
+			Objects.requireNonNull(this.rangeIndex).removeRecord(consolidatedRange.getFrom(), consolidatedRange.getTo(), recordId);
 		}
 	}
 

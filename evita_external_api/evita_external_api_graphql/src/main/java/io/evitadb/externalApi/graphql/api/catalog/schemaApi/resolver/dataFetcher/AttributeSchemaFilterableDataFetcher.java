@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Provides complete list of {@link AttributeSchemaContract#isFilterableInScope(Scope)}
@@ -57,9 +58,9 @@ public class AttributeSchemaFilterableDataFetcher implements DataFetcher<List<Sc
 	@Override
 	@Nonnull
 	public List<Scope> get(DataFetchingEnvironment environment) throws Exception {
-		final AttributeSchemaContract attributeSchema = environment.getSource();
+		final AttributeSchemaContract attributeSchema = Objects.requireNonNull(environment.getSource());
 		return Arrays.stream(Scope.values())
-			.filter(scope -> attributeSchema.isFilterableInScope(scope))
+			.filter(attributeSchema::isFilterableInScope)
 			.toList();
 	}
 }

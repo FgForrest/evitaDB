@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 
 /**
  * Only passes {@link EvitaResponse} to individual extra result fetchers so that they can safely extract their extra results.
@@ -53,7 +54,7 @@ public class ExtraResultsDataFetcher implements DataFetcher<EvitaResponse<?>> {
 
 	@Nonnull
 	@Override
-	public EvitaResponse<?> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		return environment.getSource();
+	public EvitaResponse<?> get(DataFetchingEnvironment environment) throws Exception {
+		return Objects.requireNonNull(environment.getSource());
 	}
 }

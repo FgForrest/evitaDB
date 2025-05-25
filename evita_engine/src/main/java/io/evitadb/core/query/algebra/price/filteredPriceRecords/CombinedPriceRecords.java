@@ -28,8 +28,10 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -42,7 +44,7 @@ public class CombinedPriceRecords implements FilteredPriceRecords {
 	@Serial private static final long serialVersionUID = -9121190638019933649L;
 	@Getter private final NonResolvedFilteredPriceRecords nonResolvedFilteredPriceRecords;
 	@Getter private final LazyEvaluatedEntityPriceRecords lazyEvaluatedEntityPriceRecords;
-	@Getter private ResolvedFilteredPriceRecords resolvedFilteredPriceRecords;
+	@Nullable @Getter private ResolvedFilteredPriceRecords resolvedFilteredPriceRecords;
 
 	public CombinedPriceRecords(
 		@Nonnull ResolvedFilteredPriceRecords resolvedFilteredPriceRecords,
@@ -69,7 +71,7 @@ public class CombinedPriceRecords implements FilteredPriceRecords {
 			this.resolvedFilteredPriceRecords = this.nonResolvedFilteredPriceRecords.toResolvedFilteredPriceRecords();
 		}
 		return new PriceRecordIterator(
-			this.resolvedFilteredPriceRecords.getPriceRecordsLookup(),
+			Objects.requireNonNull(this.resolvedFilteredPriceRecords).getPriceRecordsLookup(),
 			this.lazyEvaluatedEntityPriceRecords.getPriceRecordsLookup()
 		);
 	}
