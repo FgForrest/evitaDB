@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -124,19 +124,19 @@ abstract class AbstractHierarchyStatisticsComputer {
 		@Nullable Locale language
 	) {
 		HierarchyFilteringPredicate filteringPredicate;
-		if (hierarchyFilterPredicateProducer == null) {
+		if (this.hierarchyFilterPredicateProducer == null) {
 			filteringPredicate = Objects.requireNonNullElse(
-				havingPredicate, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE
+				this.havingPredicate, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE
 			);
 			if (language != null) {
 				if (filteringPredicate == HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE) {
-					filteringPredicate = new LocaleHierarchyEntityPredicate(context.entityIndex(), language);
+					filteringPredicate = new LocaleHierarchyEntityPredicate(this.context.entityIndex(), language);
 				} else {
-					filteringPredicate.and(new LocaleHierarchyEntityPredicate(context.entityIndex(), language));
+					filteringPredicate.and(new LocaleHierarchyEntityPredicate(this.context.entityIndex(), language));
 				}
 			}
 		} else {
-			filteringPredicate = ofNullable(hierarchyFilterPredicateProducer.apply(statisticsBase))
+			filteringPredicate = ofNullable(this.hierarchyFilterPredicateProducer.apply(this.statisticsBase))
 				.map(it -> {
 					it.initializeIfNotAlreadyInitialized(executionContext);
 					return it;
@@ -149,11 +149,11 @@ abstract class AbstractHierarchyStatisticsComputer {
 		// the language predicate is used to filter out entities that doesn't have requested language variant
 		return createStatistics(
 			executionContext,
-			scopePredicate,
+			this.scopePredicate,
 			filteringPredicate
 		)
 			.stream()
-			.map(it -> it.toLevelInfo(statisticsType))
+			.map(it -> it.toLevelInfo(this.statisticsType))
 			.toList();
 	}
 

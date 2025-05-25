@@ -110,36 +110,36 @@ public record QueryContainer(
 	public boolean equals(Object o) {
 		if (!(o instanceof QueryContainer that)) return false;
 
-		return ioFetchCount == that.ioFetchCount &&
-			totalRecordCount == that.totalRecordCount &&
-			ioFetchedSizeBytes == that.ioFetchedSizeBytes &&
-			recordSessionOffset == that.recordSessionOffset &&
-			durationInMilliseconds == that.durationInMilliseconds &&
-			query.equals(that.query) &&
-			sessionId.equals(that.sessionId) &&
-			Arrays.equals(labels, that.labels) &&
-			Arrays.equals(primaryKeys, that.primaryKeys) &&
-			created.equals(that.created) &&
-			Objects.equals(sessionSequenceOrder, that.sessionSequenceOrder) &&
-			Objects.equals(sessionRecordsCount, that.sessionRecordsCount) &&
-			Objects.equals(finishedWithError, that.finishedWithError);
+		return this.ioFetchCount == that.ioFetchCount &&
+			this.totalRecordCount == that.totalRecordCount &&
+			this.ioFetchedSizeBytes == that.ioFetchedSizeBytes &&
+			this.recordSessionOffset == that.recordSessionOffset &&
+			this.durationInMilliseconds == that.durationInMilliseconds &&
+			this.query.equals(that.query) &&
+			this.sessionId.equals(that.sessionId) &&
+			Arrays.equals(this.labels, that.labels) &&
+			Arrays.equals(this.primaryKeys, that.primaryKeys) &&
+			this.created.equals(that.created) &&
+			Objects.equals(this.sessionSequenceOrder, that.sessionSequenceOrder) &&
+			Objects.equals(this.sessionRecordsCount, that.sessionRecordsCount) &&
+			Objects.equals(this.finishedWithError, that.finishedWithError);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = Objects.hashCode(sessionSequenceOrder);
-		result = 31 * result + sessionId.hashCode();
-		result = 31 * result + recordSessionOffset;
-		result = 31 * result + Objects.hashCode(sessionRecordsCount);
-		result = 31 * result + query.hashCode();
-		result = 31 * result + Arrays.hashCode(labels);
-		result = 31 * result + created.hashCode();
-		result = 31 * result + durationInMilliseconds;
-		result = 31 * result + totalRecordCount;
-		result = 31 * result + ioFetchCount;
-		result = 31 * result + ioFetchedSizeBytes;
-		result = 31 * result + Arrays.hashCode(primaryKeys);
-		result = 31 * result + Objects.hashCode(finishedWithError);
+		int result = Objects.hashCode(this.sessionSequenceOrder);
+		result = 31 * result + this.sessionId.hashCode();
+		result = 31 * result + this.recordSessionOffset;
+		result = 31 * result + Objects.hashCode(this.sessionRecordsCount);
+		result = 31 * result + this.query.hashCode();
+		result = 31 * result + Arrays.hashCode(this.labels);
+		result = 31 * result + this.created.hashCode();
+		result = 31 * result + this.durationInMilliseconds;
+		result = 31 * result + this.totalRecordCount;
+		result = 31 * result + this.ioFetchCount;
+		result = 31 * result + this.ioFetchedSizeBytes;
+		result = 31 * result + Arrays.hashCode(this.primaryKeys);
+		result = 31 * result + Objects.hashCode(this.finishedWithError);
 		return result;
 	}
 }

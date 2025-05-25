@@ -113,9 +113,9 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.schema = EntitySchema._internalBuild(type);
 		this.primaryKey = null;
 		this.scope =  Scope.DEFAULT_SCOPE;
-		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
-		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
-		this.pricesBuilder = new InitialPricesBuilder(schema);
+		this.attributesBuilder = new InitialEntityAttributesBuilder(this.schema);
+		this.associatedDataBuilder = new InitialAssociatedDataBuilder(this.schema);
+		this.pricesBuilder = new InitialPricesBuilder(this.schema);
 		this.references = new LinkedHashMap<>();
 	}
 
@@ -135,9 +135,9 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.primaryKey = primaryKey;
 		this.schema = EntitySchema._internalBuild(type);
 		this.scope =  Scope.DEFAULT_SCOPE;
-		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
-		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
-		this.pricesBuilder = new InitialPricesBuilder(schema);
+		this.attributesBuilder = new InitialEntityAttributesBuilder(this.schema);
+		this.associatedDataBuilder = new InitialAssociatedDataBuilder(this.schema);
+		this.pricesBuilder = new InitialPricesBuilder(this.schema);
 		this.references = new LinkedHashMap<>();
 	}
 
@@ -386,7 +386,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
-		attributesBuilder.mutateAttribute(mutation);
+		this.attributesBuilder.mutateAttribute(mutation);
 		return this;
 	}
 

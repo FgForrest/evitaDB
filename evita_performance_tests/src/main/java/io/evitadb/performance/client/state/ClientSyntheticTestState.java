@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -80,11 +80,11 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 	public void prepareQueries() {
 		this.inputFolder = getDataDirectory().resolve(getCatalogName() + "_queries/queries.kryo");
 		try {
-			this.input = new ByteBufferInput(new FileInputStream(inputFolder.toFile()), 8_192);
+			this.input = new ByteBufferInput(new FileInputStream(this.inputFolder.toFile()), 8_192);
 			this.kryo = KryoFactory.createKryo(QuerySerializationKryoConfigurer.INSTANCE);
 			this.preloadedQueries = fetchNewQueries(PRELOADED_QUERY_COUNT);
 		} catch (FileNotFoundException e) {
-			throw new RuntimeException("Cannot access input folder: " + inputFolder);
+			throw new RuntimeException("Cannot access input folder: " + this.inputFolder);
 		}
 	}
 
@@ -100,10 +100,10 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall() {
-		this.queryWithExpectedType = ofNullable(preloadedQueries.pollFirst()).map(QueryWithExpectedType::new).orElse(null);
+		this.queryWithExpectedType = ofNullable(this.preloadedQueries.pollFirst()).map(QueryWithExpectedType::new).orElse(null);
 		while (this.queryWithExpectedType == null) {
 			this.preloadedQueries = fetchNewQueries(PRELOADED_QUERY_COUNT);
-			this.queryWithExpectedType = new QueryWithExpectedType(preloadedQueries.pollFirst());
+			this.queryWithExpectedType = new QueryWithExpectedType(this.preloadedQueries.pollFirst());
 		}
 	}
 
@@ -112,15 +112,15 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 		synchronized (this.monitor) {
 			for (int i = 0; i < queryCount; i++) {
 				try {
-					if (!input.canReadInt()) {
+					if (!this.input.canReadInt()) {
 						// reopen the same file again and read from start
 						this.input.close();
 						this.input = new ByteBufferInput(new FileInputStream(this.inputFolder.toFile()), 8_192);
 					}
 				} catch (FileNotFoundException e) {
-					throw new RuntimeException("Cannot access input folder: " + inputFolder);
+					throw new RuntimeException("Cannot access input folder: " + this.inputFolder);
 				}
-				fetchedQueries.add(kryo.readObject(input, Query.class));
+				fetchedQueries.add(this.kryo.readObject(this.input, Query.class));
 			}
 		}
 		return fetchedQueries;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -187,14 +187,14 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Override
 	@Nullable
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
-		final AttributeSchemaContract attributeSchema = ofNullable(attributeTypes.get(attributeName))
+		final AttributeSchemaContract attributeSchema = ofNullable(this.attributeTypes.get(attributeName))
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
 		Assert.isTrue(
 			!attributeSchema.isLocalized(),
 			() -> ContextMissingException.localeForAttributeContextMissing(attributeName)
 		);
 		//noinspection unchecked
-		return (T) ofNullable(attributeValues.get(new AttributeKey(attributeName)))
+		return (T) ofNullable(this.attributeValues.get(new AttributeKey(attributeName)))
 			.map(AttributesContract.AttributeValue::value)
 			.orElse(null);
 	}
@@ -202,14 +202,14 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Override
 	@Nullable
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName) {
-		final AttributeSchemaContract attributeSchema = ofNullable(attributeTypes.get(attributeName))
+		final AttributeSchemaContract attributeSchema = ofNullable(this.attributeTypes.get(attributeName))
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
 		Assert.isTrue(
 			!attributeSchema.isLocalized(),
 			() -> ContextMissingException.localeForAttributeContextMissing(attributeName)
 		);
 		//noinspection unchecked
-		return (T[]) ofNullable(attributeValues.get(new AttributeKey(attributeName)))
+		return (T[]) ofNullable(this.attributeValues.get(new AttributeKey(attributeName)))
 			.map(AttributesContract.AttributeValue::value)
 			.orElse(null);
 	}
@@ -217,24 +217,24 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) {
-		final AttributeSchemaContract attributeSchema = ofNullable(attributeTypes.get(attributeName))
+		final AttributeSchemaContract attributeSchema = ofNullable(this.attributeTypes.get(attributeName))
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
 		if (attributeSchema.isLocalized()) {
 			return empty();
 		} else {
-			return ofNullable(attributeValues.get(new AttributeKey(attributeName)));
+			return ofNullable(this.attributeValues.get(new AttributeKey(attributeName)));
 		}
 	}
 
 	@Override
 	@Nullable
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
-		final AttributeSchemaContract schema = ofNullable(attributeTypes.get(attributeName))
+		final AttributeSchemaContract schema = ofNullable(this.attributeTypes.get(attributeName))
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
 		//noinspection unchecked
 		return (T) (schema.isLocalized() ?
-			ofNullable(attributeValues.get(new AttributeKey(attributeName, locale))) :
-			ofNullable(attributeValues.get(new AttributeKey(attributeName))))
+			ofNullable(this.attributeValues.get(new AttributeKey(attributeName, locale))) :
+			ofNullable(this.attributeValues.get(new AttributeKey(attributeName))))
 			.map(AttributesContract.AttributeValue::value)
 			.orElse(null);
 	}
@@ -242,12 +242,12 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Override
 	@Nullable
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale) {
-		final AttributeSchemaContract schema = ofNullable(attributeTypes.get(attributeName))
+		final AttributeSchemaContract schema = ofNullable(this.attributeTypes.get(attributeName))
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
 		//noinspection unchecked,ConstantConditions
 		return (T[]) (schema.isLocalized() ?
-			ofNullable(attributeValues.get(new AttributeKey(attributeName, locale))) :
-			ofNullable(attributeValues.get(new AttributeKey(attributeName))))
+			ofNullable(this.attributeValues.get(new AttributeKey(attributeName, locale))) :
+			ofNullable(this.attributeValues.get(new AttributeKey(attributeName))))
 			.map(AttributesContract.AttributeValue::value)
 			.orElse(null);
 	}
@@ -255,17 +255,17 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Override
 	@Nonnull
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName, @Nonnull Locale locale) {
-		final AttributeSchemaContract schema = ofNullable(attributeTypes.get(attributeName))
+		final AttributeSchemaContract schema = ofNullable(this.attributeTypes.get(attributeName))
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
 		return schema.isLocalized() ?
-			ofNullable(attributeValues.get(new AttributeKey(attributeName, locale))) :
-			ofNullable(attributeValues.get(new AttributeKey(attributeName)));
+			ofNullable(this.attributeValues.get(new AttributeKey(attributeName, locale))) :
+			ofNullable(this.attributeValues.get(new AttributeKey(attributeName)));
 	}
 
 	@Override
 	@Nonnull
 	public Optional<S> getAttributeSchema(@Nonnull String attributeName) {
-		return ofNullable(attributeTypes.get(attributeName));
+		return ofNullable(this.attributeTypes.get(attributeName));
 	}
 
 	@Override
@@ -277,7 +277,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 				.stream()
 				.filter(attributeValue -> attributeValue.value() != null)
 				.map(attributeValue -> attributeValue.key().attributeName())
-				.filter(key -> attributeTypes.get(key) != null)
+				.filter(key -> this.attributeTypes.get(key) != null)
 				.collect(
 					Collectors.toCollection(
 						() -> CollectionUtils.createLinkedHashSet(this.attributeValues.size())
@@ -299,7 +299,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 				.stream()
 				.filter(attributeValue -> attributeValue.value() != null)
 				.map(AttributeValue::key)
-				.filter(key -> attributeTypes.get(key.attributeName()) != null)
+				.filter(key -> this.attributeTypes.get(key.attributeName()) != null)
 				.collect(Collectors.toUnmodifiableSet());
 		}
 		return this.attributeKeys;
@@ -309,11 +309,11 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Nonnull
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
 		final String attributeName = attributeKey.attributeName();
-		final AttributeSchemaContract schema = ofNullable(attributeTypes.get(attributeName))
+		final AttributeSchemaContract schema = ofNullable(this.attributeTypes.get(attributeName))
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
 		return schema.isLocalized() ?
-			ofNullable(attributeValues.get(attributeKey)) :
-			ofNullable(attributeValues.get(attributeKey.localized() ? new AttributeKey(attributeName) : attributeKey));
+			ofNullable(this.attributeValues.get(attributeKey)) :
+			ofNullable(this.attributeValues.get(attributeKey.localized() ? new AttributeKey(attributeName) : attributeKey));
 	}
 
 	/**
@@ -325,7 +325,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 			this.filteredAttributeValues = this.attributeValues
 				.values()
 				.stream()
-				.filter(attributeValue -> attributeTypes.get(attributeValue.key().attributeName()) != null)
+				.filter(attributeValue -> this.attributeTypes.get(attributeValue.key().attributeName()) != null)
 				.toList();
 		}
 		return this.filteredAttributeValues;
@@ -334,10 +334,10 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Nonnull
 	@Override
 	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
-		if (attributeTypes.get(attributeName) == null) {
+		if (this.attributeTypes.get(attributeName) == null) {
 			throw createAttributeNotFoundException(attributeName);
 		} else {
-			return attributeValues
+			return this.attributeValues
 				.entrySet()
 				.stream()
 				.filter(it -> attributeName.equals(it.getKey().attributeName()))
@@ -367,8 +367,8 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	 */
 	@Nonnull
 	public Optional<AttributeValue> getAttributeValueWithoutSchemaCheck(@Nonnull AttributeKey attributeKey) {
-		return ofNullable(attributeValues.get(attributeKey))
-			.or(() -> attributeKey.localized() ? ofNullable(attributeValues.get(new AttributeKey(attributeKey.attributeName()))) : empty());
+		return ofNullable(this.attributeValues.get(attributeKey))
+			.or(() -> attributeKey.localized() ? ofNullable(this.attributeValues.get(new AttributeKey(attributeKey.attributeName()))) : empty());
 	}
 
 	/**

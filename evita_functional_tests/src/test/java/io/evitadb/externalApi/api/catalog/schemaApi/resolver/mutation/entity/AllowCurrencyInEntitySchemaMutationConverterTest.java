@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ class AllowCurrencyInEntitySchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new AllowCurrencyInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new AllowCurrencyInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -60,7 +60,7 @@ class AllowCurrencyInEntitySchemaMutationConverterTest {
 			Currency.getInstance("CZK")
 		);
 
-		final AllowCurrencyInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
+		final AllowCurrencyInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AllowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), List.of(
 					Currency.getInstance("USD"),
@@ -70,7 +70,7 @@ class AllowCurrencyInEntitySchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final AllowCurrencyInEntitySchemaMutation convertedMutation2 = converter.convertFromInput(
+		final AllowCurrencyInEntitySchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(AllowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), List.of("USD", "CZK"))
 				.build()
@@ -81,7 +81,7 @@ class AllowCurrencyInEntitySchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final AllowCurrencyInEntitySchemaMutation expectedMutation = new AllowCurrencyInEntitySchemaMutation();
 
-		final AllowCurrencyInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
+		final AllowCurrencyInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AllowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), List.of())
 				.build()
@@ -91,7 +91,7 @@ class AllowCurrencyInEntitySchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

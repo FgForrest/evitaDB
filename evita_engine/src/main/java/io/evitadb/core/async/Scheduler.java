@@ -136,7 +136,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		this.executorService = theExecutor;
 		// create queue with double the size of the configured queue size to have some breathing room
 		this.queueCapacity = options.queueSize();
-		this.queue = new ArrayBlockingQueue<>(queueCapacity << 1);
+		this.queue = new ArrayBlockingQueue<>(this.queueCapacity << 1);
 		// schedule automatic purging task
 		new DelayedAsyncTask(
 			null,
@@ -167,7 +167,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 */
 	@Nonnull
 	public ScheduledThreadPoolExecutor getExecutorServiceInternal() {
-		return executorService;
+		return this.executorService;
 	}
 
 	@Nonnull
@@ -301,7 +301,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 			if (task instanceof ServerTask<?, ?> st) {
 				st.transitionToIssued();
 			}
-			final Future<T> future = executorService.submit(task);
+			final Future<T> future = this.executorService.submit(task);
 			this.submittedTaskCount.incrementAndGet();
 			return future;
 		} else if (!this.shutdownInProgress.get()) {
@@ -318,7 +318,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 			if (task instanceof ServerTask<?, ?> st) {
 				st.transitionToIssued();
 			}
-			final Future<T> future = executorService.submit(task, result);
+			final Future<T> future = this.executorService.submit(task, result);
 			this.submittedTaskCount.incrementAndGet();
 			return future;
 		} else if (!this.shutdownInProgress.get()) {
@@ -335,7 +335,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 			if (task instanceof ServerTask<?, ?> st) {
 				st.transitionToIssued();
 			}
-			final Future<?> future = executorService.submit(task);
+			final Future<?> future = this.executorService.submit(task);
 			this.submittedTaskCount.incrementAndGet();
 			return future;
 		} else if (!this.shutdownInProgress.get()) {
@@ -354,7 +354,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 					st.transitionToIssued();
 				}
 			}
-			final List<Future<T>> futures = executorService.invokeAll(tasks);
+			final List<Future<T>> futures = this.executorService.invokeAll(tasks);
 			this.submittedTaskCount.addAndGet(futures.size());
 			return futures;
 		} else if (!this.shutdownInProgress.get()) {
@@ -373,7 +373,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 					st.transitionToIssued();
 				}
 			}
-			final List<Future<T>> futures = executorService.invokeAll(tasks, timeout, unit);
+			final List<Future<T>> futures = this.executorService.invokeAll(tasks, timeout, unit);
 			this.submittedTaskCount.addAndGet(futures.size());
 			return futures;
 		} else if (!this.shutdownInProgress.get()) {
@@ -392,7 +392,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 					st.transitionToIssued();
 				}
 			}
-			final T result = executorService.invokeAny(tasks);
+			final T result = this.executorService.invokeAny(tasks);
 			this.submittedTaskCount.incrementAndGet();
 			return result;
 		} else {
@@ -409,7 +409,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 					ast.transitionToIssued();
 				}
 			}
-			final T result = executorService.invokeAny(tasks, timeout, unit);
+			final T result = this.executorService.invokeAny(tasks, timeout, unit);
 			this.submittedTaskCount.incrementAndGet();
 			return result;
 		} else if (!this.shutdownInProgress.get()) {
@@ -715,9 +715,9 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 
 		@Override
 		public Thread newThread(@Nonnull Runnable runnable) {
-			final Thread thread = new Thread(group, runnable, "Evita-service-" + THREAD_COUNTER.incrementAndGet());
-			if (priority > 0 && thread.getPriority() != priority) {
-				thread.setPriority(priority);
+			final Thread thread = new Thread(this.group, runnable, "Evita-service-" + THREAD_COUNTER.incrementAndGet());
+			if (this.priority > 0 && thread.getPriority() != this.priority) {
+				thread.setPriority(this.priority);
 			}
 			return thread;
 		}
@@ -732,7 +732,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	private static class NonScheduledFuture<T> implements ScheduledFuture<T> {
 		public static final NonScheduledFuture<?> INSTANCE = new NonScheduledFuture<>();
 		private final IllegalStateException exception = new IllegalStateException("Scheduler is being shut down!");
-		@Delegate @Getter private final CompletableFuture<T> future = CompletableFuture.failedFuture(exception);
+		@Delegate @Getter private final CompletableFuture<T> future = CompletableFuture.failedFuture(this.exception);
 
 		@Nonnull
 		public static <T> NonScheduledFuture<T> instance() {

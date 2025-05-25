@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,13 +48,13 @@ class RemoveReferenceSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new RemoveReferenceSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new RemoveReferenceSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final RemoveReferenceSchemaMutation expectedMutation = new RemoveReferenceSchemaMutation("tags");
-		final RemoveReferenceSchemaMutation convertedMutation = converter.convertFromInput(
+		final RemoveReferenceSchemaMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.build()
@@ -64,7 +64,7 @@ class RemoveReferenceSchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

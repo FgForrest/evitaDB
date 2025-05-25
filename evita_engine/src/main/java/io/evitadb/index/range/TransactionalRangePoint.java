@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -140,15 +140,15 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		TransactionalRangePoint that = (TransactionalRangePoint) o;
-		return threshold == that.threshold && Objects.equals(starts, that.starts) && Objects.equals(ends, that.ends);
+		return this.threshold == that.threshold && Objects.equals(this.starts, that.starts) && Objects.equals(this.ends, that.ends);
 	}
 
 	@Override
 	public String toString() {
 		return "TransactionalRangePoint{" +
-			"threshold=" + threshold +
-			", starts=" + starts +
-			", ends=" + ends +
+			"threshold=" + this.threshold +
+			", starts=" + this.starts +
+			", ends=" + this.ends +
 			'}';
 	}
 
@@ -170,9 +170,9 @@ public class TransactionalRangePoint implements TransactionalObject<Transactiona
 		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
 			return new TransactionalRangePoint(
-				threshold,
-				transactionalLayer.getStateCopyWithCommittedChanges(starts),
-				transactionalLayer.getStateCopyWithCommittedChanges(ends)
+				this.threshold,
+				transactionalLayer.getStateCopyWithCommittedChanges(this.starts),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.ends)
 			);
 		} else {
 			return this;

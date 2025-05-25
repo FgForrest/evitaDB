@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,12 +55,12 @@ public final class SingleVariableEvaluationContext extends AbstractPredicateEval
 	@Override
 	public Optional<Object> getVariable(@Nonnull String variableName) {
 		return Objects.equals(variableName, this.variableName) ?
-			Optional.of(variableValue) : Optional.empty();
+			Optional.of(this.variableValue) : Optional.empty();
 	}
 
 	@Nonnull
 	@Override
 	public Stream<String> getVariableNames() {
-		return Stream.of(variableName);
+		return Stream.of(this.variableName);
 	}
 }

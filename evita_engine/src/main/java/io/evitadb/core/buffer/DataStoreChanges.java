@@ -276,7 +276,7 @@ public class DataStoreChanges {
 	@Nonnull
 	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK indexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		//noinspection unchecked,rawtypes
-		return (I) dirtyEntityIndexes.computeIfAbsent(
+		return (I) this.dirtyEntityIndexes.computeIfAbsent(
 			indexKey, (Function) accessorWhenMissing
 		);
 	}
@@ -288,7 +288,7 @@ public class DataStoreChanges {
 	@Nullable
 	public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK indexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		//noinspection unchecked
-		return ofNullable((I)dirtyEntityIndexes.get(indexKey))
+		return ofNullable((I) this.dirtyEntityIndexes.get(indexKey))
 			.orElseGet(() -> accessorWhenMissing.apply(indexKey));
 	}
 
@@ -299,7 +299,7 @@ public class DataStoreChanges {
 	@Nonnull
 	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
 		//noinspection unchecked
-		final I dirtyIndexesRemoval = (I) dirtyEntityIndexes.remove(entityIndexKey);
+		final I dirtyIndexesRemoval = (I) this.dirtyEntityIndexes.remove(entityIndexKey);
 		final I baseIndexesRemoval = removalPropagation.apply(entityIndexKey);
 		return ofNullable(dirtyIndexesRemoval).orElse(baseIndexesRemoval);
 	}

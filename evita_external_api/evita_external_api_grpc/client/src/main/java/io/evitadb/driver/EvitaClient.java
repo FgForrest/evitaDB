@@ -429,12 +429,12 @@ public class EvitaClient implements EvitaContract {
 
 		@Override
 		public void close() {
-			delegate.cancel();
+			this.delegate.cancel();
 		}
 
 		@Override
 		public void subscribe(Subscriber<? super C> subscriber) {
-			delegate.subscribe(FlowAdapters.toSubscriber(createConversionSubscriber(subscriber)));
+			this.delegate.subscribe(FlowAdapters.toSubscriber(createConversionSubscriber(subscriber)));
 		}
 
 		@Nullable
@@ -474,22 +474,22 @@ public class EvitaClient implements EvitaContract {
 
 		@Override
 		public void onSubscribe(Subscription subscription) {
-			delegate.onSubscribe(subscription);
+			this.delegate.onSubscribe(subscription);
 		}
 
 		@Override
 		public void onNext(G item) {
-			delegate.onNext(convertCapture(item));
+			this.delegate.onNext(convertCapture(item));
 		}
 
 		@Override
 		public void onError(Throwable throwable) {
-			delegate.onError(throwable);
+			this.delegate.onError(throwable);
 		}
 
 		@Override
 		public void onComplete() {
-			delegate.onComplete();
+			this.delegate.onComplete();
 		}
 
 		@Nullable

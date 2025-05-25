@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ public abstract class ClientAttributeFilteringState extends ClientDataFullDataba
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall() {
-		this.query = generateRandomAttributeQuery(random, productSchema, filterableAttributes, sortableAttributes);
+		this.query = generateRandomAttributeQuery(this.random, this.productSchema, this.filterableAttributes, this.sortableAttributes);
 	}
 
 	@Override
@@ -97,7 +97,7 @@ public abstract class ClientAttributeFilteringState extends ClientDataFullDataba
 	@Override
 	protected void processEntity(@Nonnull SealedEntity entity) {
 		if (entity.getType().equals(PRODUCT_ENTITY_TYPE)) {
-			updateAttributeStatistics(entity, random, filterableAttributes);
+			updateAttributeStatistics(entity, this.random, this.filterableAttributes);
 		}
 	}
 

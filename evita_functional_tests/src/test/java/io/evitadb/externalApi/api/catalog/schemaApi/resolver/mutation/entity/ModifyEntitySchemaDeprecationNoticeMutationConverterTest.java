@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ class ModifyEntitySchemaDeprecationNoticeMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyEntitySchemaDeprecationNoticeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyEntitySchemaDeprecationNoticeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -57,7 +57,7 @@ class ModifyEntitySchemaDeprecationNoticeMutationConverterTest {
 			"depr"
 		);
 
-		final ModifyEntitySchemaDeprecationNoticeMutation convertedMutation = converter.convertFromInput(
+		final ModifyEntitySchemaDeprecationNoticeMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(ModifyEntitySchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
 				.build()
@@ -71,12 +71,12 @@ class ModifyEntitySchemaDeprecationNoticeMutationConverterTest {
 			null
 		);
 
-		final ModifyEntitySchemaDeprecationNoticeMutation convertedMutation = converter.convertFromInput(Map.of());
+		final ModifyEntitySchemaDeprecationNoticeMutation convertedMutation = this.converter.convertFromInput(Map.of());
 		assertEquals(expectedMutation, convertedMutation);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

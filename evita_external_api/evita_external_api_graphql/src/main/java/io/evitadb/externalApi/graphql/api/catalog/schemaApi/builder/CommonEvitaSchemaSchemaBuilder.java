@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,57 +59,57 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 	@Override
 	public void build() {
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
-		buildingContext.registerType(scalarEnum);
-		buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
-		buildingContext.registerType(buildNameVariantsObject());
+		this.buildingContext.registerType(scalarEnum);
+		this.buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
+		this.buildingContext.registerType(buildNameVariantsObject());
 
-		buildingContext.registerType(buildChangeCatalogCaptureObject());
+		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
 	}
 
 	@Nonnull
 	private GraphQLObjectType buildNameVariantsObject() {
-		buildingContext.registerDataFetcher(
+		this.buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.CAMEL_CASE,
 			CAMEL_CASE_VARIANT_DATA_FETCHER
 		);
-		buildingContext.registerDataFetcher(
+		this.buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.PASCAL_CASE,
 			PASCAL_CASE_VARIANT_DATA_FETCHER
 		);
-		buildingContext.registerDataFetcher(
+		this.buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.SNAKE_CASE,
 			SNAKE_CASE_VARIANT_DATA_FETCHER
 		);
-		buildingContext.registerDataFetcher(
+		this.buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.UPPER_SNAKE_CASE,
 			UPPER_SNAKE_CASE_VARIANT_DATA_FETCHER
 		);
-		buildingContext.registerDataFetcher(
+		this.buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.KEBAB_CASE,
 			KEBAB_CASE_VARIANT_DATA_FETCHER
 		);
 
 		return NameVariantsDescriptor.THIS
-			.to(objectBuilderTransformer)
+			.to(this.objectBuilderTransformer)
 			.build();
 	}
 
 	@Nonnull
 	private GraphQLObjectType buildChangeCatalogCaptureObject() {
-		buildingContext.registerDataFetcher(
+		this.buildingContext.registerDataFetcher(
 			ChangeCatalogCaptureDescriptor.THIS,
 			ChangeCatalogCaptureDescriptor.BODY,
 			new ChangeCatalogSchemaCaptureBodyDataFetcher()
 		);
 
 		return ChangeCatalogCaptureDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.field(ChangeCatalogCaptureDescriptor.BODY.to(fieldBuilderTransformer).type(nonNull(GraphQLScalars.OBJECT)))
+			.to(this.objectBuilderTransformer)
+			.field(ChangeCatalogCaptureDescriptor.BODY.to(this.fieldBuilderTransformer).type(nonNull(GraphQLScalars.OBJECT)))
 			.build();
 	}
 }

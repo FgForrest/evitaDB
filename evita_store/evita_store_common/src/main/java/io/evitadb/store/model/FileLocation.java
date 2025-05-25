@@ -42,7 +42,7 @@ public record FileLocation(long startingPosition, int recordLength) implements S
 
 	@Override
 	public String toString() {
-		return "location " + startingPosition + " [length: " + recordLength + "B]";
+		return "location " + this.startingPosition + " [length: " + this.recordLength + "B]";
 	}
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,13 +48,13 @@ class CreateEntitySchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new CreateEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new CreateEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final CreateEntitySchemaMutation expectedMutation = new CreateEntitySchemaMutation("product");
-		final CreateEntitySchemaMutation convertedMutation = converter.convertFromInput(
+		final CreateEntitySchemaMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
 				.build()
@@ -64,8 +64,8 @@ class CreateEntitySchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -74,7 +74,7 @@ class CreateEntitySchemaMutationConverterTest {
 			.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
 			.build();
 		//noinspection unchecked
-		final Map<String, Object> convertedOutput = (Map<String, Object>) converter.convertToOutput(
+		final Map<String, Object> convertedOutput = (Map<String, Object>) this.converter.convertToOutput(
 			new CreateEntitySchemaMutation("product")
 		);
 		assertEquals(expectedOutput, convertedOutput);

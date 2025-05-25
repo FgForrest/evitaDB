@@ -49,7 +49,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new CreateAssociatedDataSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new CreateAssociatedDataSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -63,7 +63,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 			true
 		);
 
-		final CreateAssociatedDataSchemaMutation convertedMutation1 = converter.convertFromInput(
+		final CreateAssociatedDataSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -75,7 +75,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final CreateAssociatedDataSchemaMutation convertedMutation2 = converter.convertFromInput(
+		final CreateAssociatedDataSchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -98,7 +98,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 			false
 		);
 
-		final CreateAssociatedDataSchemaMutation convertedMutation1 = converter.convertFromInput(
+		final CreateAssociatedDataSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class)
@@ -111,7 +111,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class)
 					.build()
@@ -119,14 +119,14 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -141,7 +141,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 		);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

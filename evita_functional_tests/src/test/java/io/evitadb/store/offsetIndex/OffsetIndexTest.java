@@ -265,14 +265,14 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 
 	@BeforeEach
 	void setUp() throws IOException {
-		targetFile.toFile().delete();
+		this.targetFile.toFile().delete();
 		cleanTestSubDirectory(TEST_FOLDER);
 		cleanTestSubDirectory(TEST_FOLDER_EXPORT);
 	}
 
 	@AfterEach
 	void tearDown() throws IOException {
-		targetFile.toFile().delete();
+		this.targetFile.toFile().delete();
 		cleanTestSubDirectory(TEST_FOLDER);
 		cleanTestSubDirectory(TEST_FOLDER_EXPORT);
 	}
@@ -348,8 +348,8 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 					1.0, 0L
 				),
 				limitedBufferOptions,
-				offsetIndexRecordTypeRegistry,
-				new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper),
+				this.offsetIndexRecordTypeRegistry,
+				new WriteOnlyFileHandle(this.targetFile, storageOptions, observableOutputKeeper),
 				nonFlushedBlock -> {
 				},
 				oldestRecordTimestamp -> {
@@ -372,8 +372,8 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 					1.0, 0L
 				),
 				limitedBufferOptions,
-				offsetIndexRecordTypeRegistry,
-				new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper),
+				this.offsetIndexRecordTypeRegistry,
+				new WriteOnlyFileHandle(this.targetFile, storageOptions, observableOutputKeeper),
 				nonFlushedBlock -> {
 				},
 				oldestRecordTimestamp -> {
@@ -394,7 +394,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 				snapshotBootstrapDescriptor.version(),
 				snapshotBootstrapDescriptor,
 				limitedBufferOptions,
-				offsetIndexRecordTypeRegistry,
+				this.offsetIndexRecordTypeRegistry,
 				new WriteOnlyFileHandle(snapshotPath, storageOptions, observableOutputKeeper),
 				nonFlushedBlock -> {
 				},
@@ -456,8 +456,8 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 					1.0, 0L
 				),
 				storageOptions,
-				offsetIndexRecordTypeRegistry,
-				new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper),
+				this.offsetIndexRecordTypeRegistry,
+				new WriteOnlyFileHandle(this.targetFile, storageOptions, observableOutputKeeper),
 				nonFlushedBlock -> {
 				},
 				oldestRecordTimestamp -> {
@@ -524,8 +524,8 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 					1.0, 0L
 				),
 				storageOptions,
-				offsetIndexRecordTypeRegistry,
-				new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper),
+				this.offsetIndexRecordTypeRegistry,
+				new WriteOnlyFileHandle(this.targetFile, storageOptions, observableOutputKeeper),
 				nonFlushedBlock -> {
 				},
 				oldestRecordTimestamp -> {
@@ -599,13 +599,13 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 
 			for (int i = 1; i <= recordCount * iterationCount; i++) {
 				final RecordKey key = new RecordKey(
-					offsetIndexRecordTypeRegistry.idFor(EntityBodyStoragePart.class),
+					this.offsetIndexRecordTypeRegistry.idFor(EntityBodyStoragePart.class),
 					i
 				);
 
 				final Supplier<EntityBodyStoragePart> entityBodySupplier = () -> OffsetIndex.readSingleRecord(
 					storageOptions,
-					targetFile,
+					this.targetFile,
 					offsetIndexDescriptor.fileLocation(),
 					key,
 					(offsetIndexBuilder, input) -> offsetIndexBuilder.getFileLocationFor(key)
@@ -643,8 +643,8 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 					1.0, 0L
 				),
 				storageOptions,
-				offsetIndexRecordTypeRegistry,
-				new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper),
+				this.offsetIndexRecordTypeRegistry,
+				new WriteOnlyFileHandle(this.targetFile, storageOptions, observableOutputKeeper),
 				nonFlushedBlock -> {
 				},
 				oldestRecordTimestamp -> {
@@ -666,7 +666,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	@Tag(LONG_RUNNING_TEST)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
-		final AtomicReference<Path> currentFilePath = new AtomicReference<>(targetFile);
+		final AtomicReference<Path> currentFilePath = new AtomicReference<>(this.targetFile);
 		final StorageOptions storageOptions = buildOptionsWithLimitedBuffer(Crc32Check.YES, Compression.NO);
 		try (
 			final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class))
@@ -680,8 +680,8 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 						1.0, 0L
 					),
 					storageOptions,
-					offsetIndexRecordTypeRegistry,
-					new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper),
+					this.offsetIndexRecordTypeRegistry,
+					new WriteOnlyFileHandle(this.targetFile, storageOptions, observableOutputKeeper),
 					nonFlushedBlock -> {
 					},
 					oldestRecordTimestamp -> {
@@ -756,7 +756,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 							1.0, 0L
 						),
 						storageOptions,
-						offsetIndexRecordTypeRegistry,
+						this.offsetIndexRecordTypeRegistry,
 						new WriteOnlyFileHandle(currentFilePath.get(), storageOptions, observableOutputKeeper),
 						nonFlushedBlock -> {
 						},
@@ -846,7 +846,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 								1.0, 0L
 							),
 							storageOptions,
-							offsetIndexRecordTypeRegistry,
+							this.offsetIndexRecordTypeRegistry,
 							new WriteOnlyFileHandle(newPath, storageOptions, observableOutputKeeper),
 							nonFlushedBlock -> {
 							},
@@ -910,7 +910,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		OffsetIndex loadedFileOffsetIndex = null;
 		try (
 			final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class));
-			final WriteOnlyFileHandle writeHandle = new WriteOnlyFileHandle(targetFile, storageOptions, observableOutputKeeper);
+			final WriteOnlyFileHandle writeHandle = new WriteOnlyFileHandle(this.targetFile, storageOptions, observableOutputKeeper);
 		) {
 			final OffsetIndex fileOffsetIndex = new OffsetIndex(
 				0L,
@@ -920,7 +920,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 					1.0, 0L
 				),
 				storageOptions,
-				offsetIndexRecordTypeRegistry,
+				this.offsetIndexRecordTypeRegistry,
 				writeHandle,
 				nonFlushedBlock -> {
 				},
@@ -945,7 +945,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 					1.0, 0L
 				),
 				storageOptions,
-				offsetIndexRecordTypeRegistry,
+				this.offsetIndexRecordTypeRegistry,
 				writeHandle,
 				nonFlushedBlock -> {
 				},

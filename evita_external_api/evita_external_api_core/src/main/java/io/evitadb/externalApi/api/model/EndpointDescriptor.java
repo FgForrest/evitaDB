@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -103,8 +103,8 @@ public record EndpointDescriptor(@Nonnull String operation,
 			return constructOperationName(classifier(PROPERTY_NAME_NAMING_CONVENTION), suffix);
 		} else {
 			Assert.isPremiseValid(
-				!operation.contains(OPERATION_NAME_WILDCARD),
-				() -> new ExternalApiInternalError("Operation `" + operation + "` contains wildcard, and thus needs classifier")
+				!this.operation.contains(OPERATION_NAME_WILDCARD),
+				() -> new ExternalApiInternalError("Operation `" + this.operation + "` contains wildcard, and thus needs classifier")
 			);
 		}
 		return constructOperationName(suffix);
@@ -126,7 +126,7 @@ public record EndpointDescriptor(@Nonnull String operation,
 	public String operation(@Nonnull NamedSchemaContract schema, @Nullable String suffix) {
 		Assert.isPremiseValid(
 			!hasClassifier(),
-			() -> new ExternalApiInternalError("Endpoint `" + operation + "` has static classifier, cannot use dynamic one.")
+			() -> new ExternalApiInternalError("Endpoint `" + this.operation + "` has static classifier, cannot use dynamic one.")
 		);
 
 		return constructOperationName(schema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION), suffix);
@@ -138,9 +138,9 @@ public record EndpointDescriptor(@Nonnull String operation,
 	@Nonnull
 	private String constructOperationName(@Nullable String customSuffix) {
 		if (customSuffix != null) {
-			return operation + StringUtils.toSpecificCase(customSuffix, PROPERTY_NAME_PART_NAMING_CONVENTION);
+			return this.operation + StringUtils.toSpecificCase(customSuffix, PROPERTY_NAME_PART_NAMING_CONVENTION);
 		}
-		return operation;
+		return this.operation;
 	}
 
 	/**
@@ -148,12 +148,12 @@ public record EndpointDescriptor(@Nonnull String operation,
 	 */
 	@Nonnull
 	private String constructOperationName(@Nonnull String customClassifier, @Nullable String customSuffix) {
-		if (operation.contains(OPERATION_NAME_WILDCARD)) {
+		if (this.operation.contains(OPERATION_NAME_WILDCARD)) {
 			Assert.isPremiseValid(
 				customSuffix == null,
 				() -> new ExternalApiInternalError("Custom operation suffix is supported only when no implicit suffix is defined.")
 			);
-			final String[] operationParts = operation.split("\\" + OPERATION_NAME_WILDCARD);
+			final String[] operationParts = this.operation.split("\\" + OPERATION_NAME_WILDCARD);
 			return operationParts[0] +
 				StringUtils.toSpecificCase(customClassifier, PROPERTY_NAME_PART_NAMING_CONVENTION) +
 				StringUtils.toSpecificCase(operationParts[1], PROPERTY_NAME_PART_NAMING_CONVENTION);
@@ -169,10 +169,10 @@ public record EndpointDescriptor(@Nonnull String operation,
 	@Nonnull
 	public String urlPathItem() {
 		Assert.isPremiseValid(
-			urlPathItem != null,
+			this.urlPathItem != null,
 			() -> new ExternalApiInternalError("URL path item of endpoint is missing.")
 		);
-		return urlPathItem;
+		return this.urlPathItem;
 	}
 
 	/**
@@ -187,7 +187,7 @@ public record EndpointDescriptor(@Nonnull String operation,
 	}
 
 	public boolean hasClassifier() {
-		return classifier != null;
+		return this.classifier != null;
 	}
 
 	@Nonnull

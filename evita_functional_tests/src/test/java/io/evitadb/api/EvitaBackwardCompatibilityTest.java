@@ -69,9 +69,9 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 
 	@BeforeEach
 	void setUp() throws MalformedURLException {
-		mainDirectory = Path.of(System.getProperty("java.io.tmpdir")).resolve(DIRECTORY);
-		if (!mainDirectory.toFile().exists()) {
-			mainDirectory.toFile().mkdirs();
+		this.mainDirectory = Path.of(System.getProperty("java.io.tmpdir")).resolve(DIRECTORY);
+		if (!this.mainDirectory.toFile().exists()) {
+			this.mainDirectory.toFile().mkdirs();
 		}
 	}
 

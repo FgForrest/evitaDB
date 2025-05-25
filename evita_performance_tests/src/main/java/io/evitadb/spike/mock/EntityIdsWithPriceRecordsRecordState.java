@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,23 +67,23 @@ public class EntityIdsWithPriceRecordsRecordState {
 	@Setup(Level.Trial)
 	public void setUp() {
 		final CompositeObjectArray<PriceRecordContract> priceRecordsA = new CompositeObjectArray<>(PriceRecordContract.class);
-		entitiesA = generateBitmap(ENTITY_COUNT, PRICE_COUNT, priceRecordsA);
-		entitiesPriceRecordsA = priceRecordsA.toArray();
+		this.entitiesA = generateBitmap(ENTITY_COUNT, PRICE_COUNT, priceRecordsA);
+		this.entitiesPriceRecordsA = priceRecordsA.toArray();
 
 		final CompositeObjectArray<PriceRecordContract> priceRecordsB = new CompositeObjectArray<>(PriceRecordContract.class);
-		entitiesB = generateBitmap(ENTITY_COUNT, PRICE_COUNT, priceRecordsB);
-		entitiesPriceRecordsB = priceRecordsB.toArray();
+		this.entitiesB = generateBitmap(ENTITY_COUNT, PRICE_COUNT, priceRecordsB);
+		this.entitiesPriceRecordsB = priceRecordsB.toArray();
 
 		final CompositeObjectArray<PriceRecordContract> priceRecordsC = new CompositeObjectArray<>(PriceRecordContract.class);
-		entitiesC = generateBitmap(ENTITY_COUNT, PRICE_COUNT, priceRecordsC);
-		entitiesPriceRecordsC = priceRecordsC.toArray();
+		this.entitiesC = generateBitmap(ENTITY_COUNT, PRICE_COUNT, priceRecordsC);
+		this.entitiesPriceRecordsC = priceRecordsC.toArray();
 
-		formula = new OrFormula(
-			new MockEntityIdsFormula(entitiesA, new ResolvedFilteredPriceRecords(entitiesPriceRecordsA, SortingForm.NOT_SORTED)),
-			new MockEntityIdsFormula(entitiesB, new ResolvedFilteredPriceRecords(entitiesPriceRecordsB, SortingForm.NOT_SORTED)),
-			new MockEntityIdsFormula(entitiesB, new ResolvedFilteredPriceRecords(entitiesPriceRecordsC, SortingForm.NOT_SORTED))
+		this.formula = new OrFormula(
+			new MockEntityIdsFormula(this.entitiesA, new ResolvedFilteredPriceRecords(this.entitiesPriceRecordsA, SortingForm.NOT_SORTED)),
+			new MockEntityIdsFormula(this.entitiesB, new ResolvedFilteredPriceRecords(this.entitiesPriceRecordsB, SortingForm.NOT_SORTED)),
+			new MockEntityIdsFormula(this.entitiesB, new ResolvedFilteredPriceRecords(this.entitiesPriceRecordsC, SortingForm.NOT_SORTED))
 		);
-		formula.compute();
+		this.formula.compute();
 	}
 
 	private Bitmap generateBitmap(int entityCount, int priceCount, CompositeObjectArray<PriceRecordContract> priceRecords) {

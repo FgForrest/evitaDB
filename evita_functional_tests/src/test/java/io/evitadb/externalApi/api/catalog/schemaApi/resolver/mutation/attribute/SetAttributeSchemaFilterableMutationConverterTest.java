@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new SetAttributeSchemaFilterableMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new SetAttributeSchemaFilterableMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -61,7 +61,7 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 			new Scope[] { Scope.LIVE }
 		);
 
-		final SetAttributeSchemaFilterableMutation convertedMutation1 = converter.convertFromInput(
+		final SetAttributeSchemaFilterableMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
@@ -70,7 +70,7 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final SetAttributeSchemaFilterableMutation convertedMutation2 = converter.convertFromInput(
+		final SetAttributeSchemaFilterableMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
@@ -84,7 +84,7 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(), true)
 					.build()
@@ -92,13 +92,13 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(SetAttributeSchemaFilterableMutationDescriptor.NAME.name(), "code")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

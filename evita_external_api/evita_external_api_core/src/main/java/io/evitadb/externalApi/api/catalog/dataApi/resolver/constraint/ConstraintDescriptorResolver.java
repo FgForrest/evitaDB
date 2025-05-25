@@ -102,7 +102,7 @@ class ConstraintDescriptorResolver {
 			final String possibleFullName = constructFullName(fullNameWords);
 
 			constraintDescriptor = ConstraintDescriptorProvider.getConstraint(
-					constraintType,
+					this.constraintType,
 					derivedPropertyType,
 					possibleFullName,
 					possibleClassifier
@@ -115,7 +115,7 @@ class ConstraintDescriptorResolver {
 						resolveContext.dataLocator().targetDomain().equals(resolveContext.parentDataLocator().targetDomain()) &&
 						possibleClassifier == null) {
 						return ConstraintDescriptorProvider.getConstraint(
-							constraintType,
+							this.constraintType,
 							fallbackPropertyType,
 							possibleFullName,
 							null
@@ -186,7 +186,7 @@ class ConstraintDescriptorResolver {
 
 			final DataLocator parentDataLocator = resolveContext.dataLocator();
 			if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
-				final ReferenceSchemaContract referenceSchema = catalogSchema.getEntitySchemaOrThrowException(dataLocatorWithReference.entityType())
+				final ReferenceSchemaContract referenceSchema = this.catalogSchema.getEntitySchemaOrThrowException(dataLocatorWithReference.entityType())
 					.getReference(dataLocatorWithReference.referenceName())
 					// we can safely check this because if there was any reference schema there should be any classifier to begin with
 					.orElseThrow(() -> new ExternalApiInternalError("Missing reference schema in data locator with reference. Cannot resolve classifier `" + c + "`."));
@@ -203,7 +203,7 @@ class ConstraintDescriptorResolver {
 					);
 				};
 			} else {
-				final EntitySchemaContract schemaForClassifier = catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType());
+				final EntitySchemaContract schemaForClassifier = this.catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType());
 				return switch (constraintDescriptor.propertyType()) {
 					case ATTRIBUTE -> schemaForClassifier.getAttributeByName(c, CLASSIFIER_NAMING_CONVENTION)
 						.map(AttributeSchemaContract::getName)
@@ -237,7 +237,7 @@ class ConstraintDescriptorResolver {
 	private DataLocator resolveInnerDataLocator(@Nonnull ConstraintResolveContext resolveContext,
 	                                            @Nonnull ConstraintDescriptor constraintDescriptor,
 	                                            @Nonnull Optional<String> classifier) {
-		return dataLocatorResolver.resolveConstraintDataLocator(resolveContext.dataLocator(), constraintDescriptor, classifier);
+		return this.dataLocatorResolver.resolveConstraintDataLocator(resolveContext.dataLocator(), constraintDescriptor, classifier);
 	}
 
 

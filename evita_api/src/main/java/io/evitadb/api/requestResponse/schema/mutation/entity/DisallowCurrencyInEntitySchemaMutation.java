@@ -85,7 +85,7 @@ public class DisallowCurrencyInEntitySchemaMutation implements CombinableLocalEn
 				new DisallowCurrencyInEntitySchemaMutation(
 					Stream.concat(
 							disallowCurrencyInEntitySchema.getCurrencies().stream(),
-							currencies.stream()
+							this.currencies.stream()
 						)
 						.distinct()
 						.toArray(Currency[]::new)
@@ -93,15 +93,15 @@ public class DisallowCurrencyInEntitySchemaMutation implements CombinableLocalEn
 			);
 		} else if (existingMutation instanceof AllowCurrencyInEntitySchemaMutation allowCurrencyInEntitySchema) {
 			final Currency[] currenciesToAdd = Arrays.stream(allowCurrencyInEntitySchema.getCurrencies())
-				.filter(added -> !currencies.contains(added))
+				.filter(added -> !this.currencies.contains(added))
 				.toArray(Currency[]::new);
-			final Set<Currency> currenciesToRemove = currencies.stream()
+			final Set<Currency> currenciesToRemove = this.currencies.stream()
 				.filter(it -> currentEntitySchema.getCurrencies().contains(it))
 				.collect(Collectors.toSet());
 
 			return new MutationCombinationResult<>(
 				currenciesToAdd.length == 0 ? null : (currenciesToAdd.length == ((AllowCurrencyInEntitySchemaMutation) existingMutation).getCurrencies().length ? existingMutation : new AllowCurrencyInEntitySchemaMutation(currenciesToAdd)),
-				currenciesToRemove.size() == currencies.size() ? this : (currenciesToRemove.isEmpty() ? null : new DisallowCurrencyInEntitySchemaMutation(currenciesToRemove))
+				currenciesToRemove.size() == this.currencies.size() ? this : (currenciesToRemove.isEmpty() ? null : new DisallowCurrencyInEntitySchemaMutation(currenciesToRemove))
 			);
 		} else {
 			return null;
@@ -112,7 +112,7 @@ public class DisallowCurrencyInEntitySchemaMutation implements CombinableLocalEn
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (entitySchema.getCurrencies().stream().noneMatch(currencies::contains)) {
+		if (entitySchema.getCurrencies().stream().noneMatch(this.currencies::contains)) {
 			// no need to change the schema
 			return entitySchema;
 		} else {
@@ -150,6 +150,6 @@ public class DisallowCurrencyInEntitySchemaMutation implements CombinableLocalEn
 
 	@Override
 	public String toString() {
-		return "Disallow: currencies=" + currencies;
+		return "Disallow: currencies=" + this.currencies;
 	}
 }

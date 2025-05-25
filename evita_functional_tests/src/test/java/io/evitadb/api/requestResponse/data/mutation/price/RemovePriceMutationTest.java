@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ class RemovePriceMutationTest extends AbstractMutationTest {
 		final RemovePriceMutation mutation = new RemovePriceMutation(priceKey);
 		final OffsetDateTime theDay = OffsetDateTime.now();
 		final PriceContract removedPrice = mutation.mutateLocal(
-			productSchema,
+			this.productSchema,
 			new Price(
 				1, priceKey, 2, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.TEN,
 				DateTimeRange.since(theDay),
@@ -77,7 +77,7 @@ class RemovePriceMutationTest extends AbstractMutationTest {
 	@Test
 	void shouldFailToRemoveNonexistingPrice() {
 		final RemovePriceMutation mutation = new RemovePriceMutation(new PriceKey(1, "basic", CZK));
-		assertThrows(InvalidMutationException.class, () -> mutation.mutateLocal(productSchema, null));
+		assertThrows(InvalidMutationException.class, () -> mutation.mutateLocal(this.productSchema, null));
 	}
 
 	@Test
@@ -87,7 +87,7 @@ class RemovePriceMutationTest extends AbstractMutationTest {
 		assertThrows(
 			InvalidMutationException.class,
 			() -> mutation.mutateLocal(
-				productSchema,
+				this.productSchema,
 				new Price(
 					1, priceKey, 2, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.TEN,
 					null, true, true

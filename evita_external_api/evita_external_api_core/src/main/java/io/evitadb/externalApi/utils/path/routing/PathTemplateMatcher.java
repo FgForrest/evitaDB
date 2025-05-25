@@ -57,7 +57,7 @@ public class PathTemplateMatcher<T> {
 		for (int i = 0; i < lengths.length; ++i) {
 			int pathLength = lengths[i];
 			if (pathLength == length) {
-				Set<PathTemplateHolder> entry = pathTemplateMap.get(normalizedPath);
+				Set<PathTemplateHolder> entry = this.pathTemplateMap.get(normalizedPath);
 				if (entry != null) {
 					PathMatchResult<T> res = handleStemMatch(entry, normalizedPath, params);
 					if (res != null) {
@@ -66,7 +66,7 @@ public class PathTemplateMatcher<T> {
 				}
 			} else if (pathLength < length) {
 				String part = normalizedPath.substring(0, pathLength);
-				Set<PathTemplateHolder> entry = pathTemplateMap.get(part);
+				Set<PathTemplateHolder> entry = this.pathTemplateMap.get(part);
 				if (entry != null) {
 					PathMatchResult<T> res = handleStemMatch(entry, normalizedPath, params);
 					if (res != null) {
@@ -91,7 +91,7 @@ public class PathTemplateMatcher<T> {
 
 
 	public synchronized PathTemplateMatcher<T> add(final PathTemplate template, final T value) {
-		Set<PathTemplateHolder> values = pathTemplateMap.get(trimBase(template));
+		Set<PathTemplateHolder> values = this.pathTemplateMap.get(trimBase(template));
 		Set<PathTemplateHolder> newValues;
 		if (values == null) {
 			newValues = new TreeSet<>();
@@ -110,7 +110,7 @@ public class PathTemplateMatcher<T> {
 			throw UndertowMessages.MESSAGES.matcherAlreadyContainsTemplate(template.getTemplateString(), equivalent.getTemplateString());
 		}
 		newValues.add(holder);
-		pathTemplateMap.put(trimBase(template), newValues);
+		this.pathTemplateMap.put(trimBase(template), newValues);
 		buildLengths();
 		return this;
 	}
@@ -134,7 +134,7 @@ public class PathTemplateMatcher<T> {
 				return -o1.compareTo(o2);
 			}
 		});
-		for (String p : pathTemplateMap.keySet()) {
+		for (String p : this.pathTemplateMap.keySet()) {
 			lengths.add(p.length());
 		}
 
@@ -161,12 +161,12 @@ public class PathTemplateMatcher<T> {
 	}
 
 	Map<String, Set<PathTemplateHolder>> getPathTemplateMap() {
-		return pathTemplateMap;
+		return this.pathTemplateMap;
 	}
 
 	public Set<PathTemplate> getPathTemplates() {
 		Set<PathTemplate> templates = new HashSet<>();
-		for (Set<PathTemplateHolder> holders : pathTemplateMap.values()) {
+		for (Set<PathTemplateHolder> holders : this.pathTemplateMap.values()) {
 			for (PathTemplateHolder holder: holders) {
 				templates.add(holder.template);
 			}
@@ -180,7 +180,7 @@ public class PathTemplateMatcher<T> {
 	}
 
 	private synchronized PathTemplateMatcher<T> remove(PathTemplate template) {
-		Set<PathTemplateHolder> values = pathTemplateMap.get(trimBase(template));
+		Set<PathTemplateHolder> values = this.pathTemplateMap.get(trimBase(template));
 		Set<PathTemplateHolder> newValues;
 		if (values == null) {
 			return this;
@@ -196,9 +196,9 @@ public class PathTemplateMatcher<T> {
 			}
 		}
 		if (newValues.size() == 0) {
-			pathTemplateMap.remove(trimBase(template));
+			this.pathTemplateMap.remove(trimBase(template));
 		} else {
-			pathTemplateMap.put(trimBase(template), newValues);
+			this.pathTemplateMap.put(trimBase(template), newValues);
 		}
 		buildLengths();
 		return this;
@@ -207,7 +207,7 @@ public class PathTemplateMatcher<T> {
 
 	public synchronized T get(String template) {
 		PathTemplate pathTemplate = PathTemplate.create(template);
-		Set<PathTemplateHolder> values = pathTemplateMap.get(trimBase(pathTemplate));
+		Set<PathTemplateHolder> values = this.pathTemplateMap.get(trimBase(pathTemplate));
 		if(values == null) {
 			return null;
 		}
@@ -228,7 +228,7 @@ public class PathTemplateMatcher<T> {
 		}
 
 		public T getValue() {
-			return value;
+			return this.value;
 		}
 	}
 
@@ -248,17 +248,17 @@ public class PathTemplateMatcher<T> {
 			if (!PathTemplateHolder.class.equals(o.getClass())) return false;
 
 			PathTemplateHolder that = (PathTemplateHolder) o;
-			return template.equals(that.template);
+			return this.template.equals(that.template);
 		}
 
 		@Override
 		public int hashCode() {
-			return template.hashCode();
+			return this.template.hashCode();
 		}
 
 		@Override
 		public int compareTo(PathTemplateHolder o) {
-			return template.compareTo(o.template);
+			return this.template.compareTo(o.template);
 		}
 	}
 

@@ -158,7 +158,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 						catalogName,
 						storageOptions,
 						catalogFilePath,
-						observableOutputKeeper
+						this.observableOutputKeeper
 					),
 					null,
 					null,

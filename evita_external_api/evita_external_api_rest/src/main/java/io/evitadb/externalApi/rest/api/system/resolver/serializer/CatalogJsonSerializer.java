@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ public class CatalogJsonSerializer {
 
 	@Nonnull
 	public ArrayNode serialize(@Nonnull Collection<CatalogContract> catalogs) {
-		final ArrayNode arrayNode = objectJsonSerializer.arrayNode();
+		final ArrayNode arrayNode = this.objectJsonSerializer.arrayNode();
 		catalogs.forEach(catalog -> arrayNode.add(serialize(catalog)));
 
 		return arrayNode;
@@ -76,7 +76,7 @@ public class CatalogJsonSerializer {
 
 	@Nonnull
 	private ObjectNode serialize(@Nonnull Catalog catalog) {
-		final ObjectNode rootNode = objectJsonSerializer.objectNode();
+		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
 		rootNode.put(CatalogDescriptor.CATALOG_ID.name(), catalog.getCatalogId().toString());
 		rootNode.put(CatalogDescriptor.NAME.name(), catalog.getName());
 		rootNode.put(CatalogDescriptor.NAME_VARIANTS.name(), serializeNameVariants(catalog.getSchema().getNameVariants()));
@@ -85,7 +85,7 @@ public class CatalogJsonSerializer {
 		rootNode.put(CatalogDescriptor.SUPPORTS_TRANSACTION.name(), catalog.supportsTransaction());
 		rootNode.put(CatalogDescriptor.CORRUPTED.name(), false);
 
-		final ArrayNode entityTypes = objectJsonSerializer.arrayNode();
+		final ArrayNode entityTypes = this.objectJsonSerializer.arrayNode();
 		catalog.getEntityTypes().forEach(entityTypes::add);
 		rootNode.set(CatalogDescriptor.ENTITY_TYPES.name(), entityTypes);
 
@@ -94,7 +94,7 @@ public class CatalogJsonSerializer {
 
 	@Nonnull
 	private ObjectNode serialize(@Nonnull CorruptedCatalog corruptedCatalog) {
-		final ObjectNode rootNode = objectJsonSerializer.objectNode();
+		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
 		rootNode.put(CorruptedCatalogDescriptor.CATALOG_ID.name(), corruptedCatalog.getCatalogId().toString());
 		rootNode.put(CorruptedCatalogDescriptor.NAME.name(), corruptedCatalog.getName());
 		rootNode.put(CorruptedCatalogDescriptor.CATALOG_STORAGE_PATH.name(), corruptedCatalog.getCatalogStoragePath().toString());
@@ -106,7 +106,7 @@ public class CatalogJsonSerializer {
 
 	@Nonnull
 	private ObjectNode serializeNameVariants(@Nonnull Map<NamingConvention, String> nameVariants) {
-		final ObjectNode nameVariantsNode = objectJsonSerializer.objectNode();
+		final ObjectNode nameVariantsNode = this.objectJsonSerializer.objectNode();
 		nameVariantsNode.put(NameVariantsDescriptor.CAMEL_CASE.name(), nameVariants.get(NamingConvention.CAMEL_CASE));
 		nameVariantsNode.put(NameVariantsDescriptor.PASCAL_CASE.name(), nameVariants.get(NamingConvention.PASCAL_CASE));
 		nameVariantsNode.put(NameVariantsDescriptor.SNAKE_CASE.name(), nameVariants.get(NamingConvention.SNAKE_CASE));

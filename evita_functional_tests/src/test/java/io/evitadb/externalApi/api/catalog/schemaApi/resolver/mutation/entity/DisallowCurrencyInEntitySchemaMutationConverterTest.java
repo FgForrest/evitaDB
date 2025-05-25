@@ -51,7 +51,7 @@ class DisallowCurrencyInEntitySchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new DisallowCurrencyInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new DisallowCurrencyInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -61,7 +61,7 @@ class DisallowCurrencyInEntitySchemaMutationConverterTest {
 			Currency.getInstance("USD")
 		);
 
-		final DisallowCurrencyInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
+		final DisallowCurrencyInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), List.of(
 					Currency.getInstance("CZK"),
@@ -71,7 +71,7 @@ class DisallowCurrencyInEntitySchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final DisallowCurrencyInEntitySchemaMutation convertedMutation2 = converter.convertFromInput(
+		final DisallowCurrencyInEntitySchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), List.of("CZK", "USD"))
 				.build()
@@ -82,7 +82,7 @@ class DisallowCurrencyInEntitySchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final DisallowCurrencyInEntitySchemaMutation expectedMutation = new DisallowCurrencyInEntitySchemaMutation();
 
-		final DisallowCurrencyInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
+		final DisallowCurrencyInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), List.of())
 				.build()
@@ -92,8 +92,8 @@ class DisallowCurrencyInEntitySchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -104,7 +104,7 @@ class DisallowCurrencyInEntitySchemaMutationConverterTest {
 		);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

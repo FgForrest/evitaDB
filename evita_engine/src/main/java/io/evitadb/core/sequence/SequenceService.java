@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ public class SequenceService {
 	@Nonnull
 	private AtomicInteger getOrCreateSequenceInternal(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nullable String entityType, @Nullable Integer initialValue) {
 		final int theInitialValue = ofNullable(initialValue).orElse(0);
-		final AtomicInteger sequence = intSequences.computeIfAbsent(
+		final AtomicInteger sequence = this.intSequences.computeIfAbsent(
 			new SequenceKey(catalog, sequenceType, entityType),
 			sequenceKey -> new AtomicInteger(theInitialValue)
 		);
@@ -142,7 +142,7 @@ public class SequenceService {
 	@Nonnull
 	private AtomicLong getOrCreateSequenceInternal(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nullable String entityType, @Nullable Long initialValue) {
 		final long theInitialValue = ofNullable(initialValue).orElse(0L);
-		final AtomicLong sequence = longSequences.computeIfAbsent(
+		final AtomicLong sequence = this.longSequences.computeIfAbsent(
 			new SequenceKey(catalog, sequenceType, entityType),
 			sequenceKey -> new AtomicLong(theInitialValue)
 		);

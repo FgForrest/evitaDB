@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ public class AddingOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public BigDecimal compute(@Nonnull PredicateEvaluationContext context) {
-		return Arrays.stream(operator)
+		return Arrays.stream(this.operator)
 			.map(op -> op.compute(context, BigDecimal.class))
 			.reduce(BigDecimal.ZERO, BigDecimal::add);
 	}
@@ -67,7 +67,7 @@ public class AddingOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		return Arrays.stream(operator)
+		return Arrays.stream(this.operator)
 			.map(ExpressionNode::determinePossibleRange)
 			.reduce((a, b) -> ExpressionNode.combine(a, b, BigDecimal::add))
 			.orElseThrow();
@@ -75,7 +75,7 @@ public class AddingOperator implements ExpressionNode {
 
 	@Override
 	public String toString() {
-		return Arrays.stream(operator)
+		return Arrays.stream(this.operator)
 			.map(ExpressionNode::toString)
 			.reduce((a, b) -> a + " + " + b)
 			.orElseThrow();

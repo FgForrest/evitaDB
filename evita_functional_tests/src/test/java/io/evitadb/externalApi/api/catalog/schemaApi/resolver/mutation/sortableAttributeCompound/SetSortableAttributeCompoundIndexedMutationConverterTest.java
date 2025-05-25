@@ -29,7 +29,6 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SortableAttributeCompoundSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -53,7 +52,7 @@ class SetSortableAttributeCompoundIndexedMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new SetSortableAttributeCompoundIndexedMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new SetSortableAttributeCompoundIndexedMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -62,7 +61,7 @@ class SetSortableAttributeCompoundIndexedMutationConverterTest {
 			"code",
 			new Scope[] {Scope.LIVE}
 		);
-		final SetSortableAttributeCompoundIndexedMutation convertedMutation1 = converter.convertFromInput(
+		final SetSortableAttributeCompoundIndexedMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(SetSortableAttributeCompoundIndexedMutationDescriptor.NAME.name(), "code")
 				.e(SetSortableAttributeCompoundIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
@@ -71,7 +70,7 @@ class SetSortableAttributeCompoundIndexedMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final SetSortableAttributeCompoundIndexedMutation convertedMutation2 = converter.convertFromInput(
+		final SetSortableAttributeCompoundIndexedMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(SetSortableAttributeCompoundIndexedMutationDescriptor.NAME.name(), "code")
 				.e(SetSortableAttributeCompoundIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
@@ -83,8 +82,8 @@ class SetSortableAttributeCompoundIndexedMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -95,7 +94,7 @@ class SetSortableAttributeCompoundIndexedMutationConverterTest {
 		);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

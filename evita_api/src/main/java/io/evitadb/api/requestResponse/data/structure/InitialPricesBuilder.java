@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -217,11 +217,11 @@ public class InitialPricesBuilder implements PricesBuilder {
 	@Override
 	public Prices build() {
 		return new Prices(
-			entitySchema,
+			this.entitySchema,
 			1,
-			prices.values(),
-			priceInnerRecordHandling,
-			!prices.isEmpty()
+			this.prices.values(),
+			this.priceInnerRecordHandling,
+			!this.prices.isEmpty()
 		);
 	}
 
@@ -229,8 +229,8 @@ public class InitialPricesBuilder implements PricesBuilder {
 	@Override
 	public Stream<? extends LocalMutation<?, ?>> buildChangeSet() {
 		return Stream.concat(
-			priceInnerRecordHandling == null ? Stream.empty() : Stream.of(new SetPriceInnerRecordHandlingMutation(priceInnerRecordHandling)),
-			prices.entrySet().stream().map(it -> new UpsertPriceMutation(it.getKey(), it.getValue()))
+			this.priceInnerRecordHandling == null ? Stream.empty() : Stream.of(new SetPriceInnerRecordHandlingMutation(this.priceInnerRecordHandling)),
+			this.prices.entrySet().stream().map(it -> new UpsertPriceMutation(it.getKey(), it.getValue()))
 		);
 	}
 

@@ -103,7 +103,7 @@ public class DataChunkJsonSerializer {
 	private <I extends Serializable> ObjectNode serializeBaseDataChunk(@Nonnull DataChunk<I> dataChunk,
 																	   @Nonnull DataChunkType dataChunkType,
 	                                                                   @Nonnull Function<I, JsonNode> itemSerializer) {
-		final ObjectNode dataChunkNode = objectJsonSerializer.objectNode();
+		final ObjectNode dataChunkNode = this.objectJsonSerializer.objectNode();
 
 		final ArrayNode dataNode = serializeData(dataChunk, itemSerializer);
 
@@ -122,7 +122,7 @@ public class DataChunkJsonSerializer {
 
 	@Nonnull
 	private <I extends Serializable> ArrayNode serializeData(@Nonnull DataChunk<I> dataChunk, @Nonnull Function<I, JsonNode> itemSerializer) {
-		final ArrayNode dataNode = objectJsonSerializer.arrayNode();
+		final ArrayNode dataNode = this.objectJsonSerializer.arrayNode();
 		for (I item : dataChunk.getData()) {
 			dataNode.add(itemSerializer.apply(item));
 		}

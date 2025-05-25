@@ -50,7 +50,7 @@ class ModifyAttributeSchemaDefaultValueMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyAttributeSchemaDefaultValueMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyAttributeSchemaDefaultValueMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -59,7 +59,7 @@ class ModifyAttributeSchemaDefaultValueMutationConverterTest {
 			"code",
 			"defaultValue"
 		);
-		final ModifyAttributeSchemaDefaultValueMutation convertedMutation1 = converter.convertFromInput(
+		final ModifyAttributeSchemaDefaultValueMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(ModifyAttributeSchemaDefaultValueMutationDescriptor.DEFAULT_VALUE.name(), "defaultValue")
@@ -74,7 +74,7 @@ class ModifyAttributeSchemaDefaultValueMutationConverterTest {
 			"code",
 			null
 		);
-		final ModifyAttributeSchemaDefaultValueMutation convertedMutation1 = converter.convertFromInput(
+		final ModifyAttributeSchemaDefaultValueMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.build()
@@ -84,8 +84,8 @@ class ModifyAttributeSchemaDefaultValueMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -96,7 +96,7 @@ class ModifyAttributeSchemaDefaultValueMutationConverterTest {
 		);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ class ConstraintCloneVisitorTest {
 
 	@BeforeEach
 	void setUp() {
-		filterConstraint = and(
+		this.filterConstraint = and(
 			attributeEquals("a", "b"),
 			or(
 				attributeIsNotNull("def"),
@@ -59,7 +59,7 @@ class ConstraintCloneVisitorTest {
 				)
 			)
 		);
-		requireConstraint = require(
+		this.requireConstraint = require(
 			page(1, 20),
 			referenceContent(
 				"a",
@@ -73,7 +73,7 @@ class ConstraintCloneVisitorTest {
 
 	@Test
 	void shouldCloneFilteringConstraintReplacingIsTrue() {
-		final FilterConstraint clone = ConstraintCloneVisitor.clone(filterConstraint, (visitor, examined) -> {
+		final FilterConstraint clone = ConstraintCloneVisitor.clone(this.filterConstraint, (visitor, examined) -> {
 			if (examined instanceof final AttributeEquals attributeEquals && attributeEquals.getAttributeValue().equals(true)) {
 				return new AttributeEquals(attributeEquals.getAttributeName(), false);
 			} else {
@@ -100,7 +100,7 @@ class ConstraintCloneVisitorTest {
 
 	@Test
 	void shouldCloneFilteringConstraintReplacingIsTrueWithNull() {
-		final FilterConstraint clone = ConstraintCloneVisitor.clone(filterConstraint, (visitor, examined) -> {
+		final FilterConstraint clone = ConstraintCloneVisitor.clone(this.filterConstraint, (visitor, examined) -> {
 			if (examined instanceof final AttributeEquals attributeEquals && attributeEquals.getAttributeValue().equals(true)) {
 				return null;
 			} else {
@@ -123,7 +123,7 @@ class ConstraintCloneVisitorTest {
 
 	@Test
 	void shouldCloneFilteringConstraintReplacingBetweenWithNull() {
-		final FilterConstraint clone = ConstraintCloneVisitor.clone(filterConstraint, (visitor, examined) -> {
+		final FilterConstraint clone = ConstraintCloneVisitor.clone(this.filterConstraint, (visitor, examined) -> {
 			if (examined instanceof AttributeBetween) {
 				return null;
 			} else {
@@ -149,7 +149,7 @@ class ConstraintCloneVisitorTest {
 
 	@Test
 	void shouldCloneFilteringConstraintReplacingNotWithAnd() {
-		final FilterConstraint clone = ConstraintCloneVisitor.clone(filterConstraint, (visitor, examined) -> {
+		final FilterConstraint clone = ConstraintCloneVisitor.clone(this.filterConstraint, (visitor, examined) -> {
 			if (examined instanceof Not) {
 				return new And(
 					Stream.concat(
@@ -183,7 +183,7 @@ class ConstraintCloneVisitorTest {
 	@Test
 	void shouldCloneRequireConstraintReplacingIsTrueInAdditionalChildren() {
 		final RequireConstraint clone = ConstraintCloneVisitor.clone(
-			requireConstraint,
+			this.requireConstraint,
 			(visitor, examined) -> {
 				if (examined instanceof final AttributeEquals attributeEquals && attributeEquals.getAttributeValue().equals(true)) {
 					return new AttributeEquals(attributeEquals.getAttributeName(), false);

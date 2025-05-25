@@ -405,7 +405,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 	@Override
 	public void applyMutation(@Nonnull LocalMutation<?, ?> localMutation) {
-		final EntitySchema entitySchema = schemaAccessor.get();
+		final EntitySchema entitySchema = this.schemaAccessor.get();
 		if (localMutation instanceof SetPriceInnerRecordHandlingMutation setPriceInnerRecordHandlingMutation) {
 			updatePrices(entitySchema, setPriceInnerRecordHandlingMutation);
 		} else if (localMutation instanceof PriceMutation priceMutation) {
@@ -449,13 +449,13 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		getChangedEntityStorageParts()
 			.forEach(part -> {
 				if (part.isEmpty()) {
-					remover.accept(catalogVersion, part);
+					remover.accept(this.catalogVersion, part);
 				} else {
 					Assert.isPremiseValid(
-						!entityRemovedEntirely,
+						!this.entityRemovedEntirely,
 						"Only removal operations are expected to happen!"
 					);
-					updater.accept(catalogVersion, part);
+					updater.accept(this.catalogVersion, part);
 				}
 			});
 	}
@@ -877,7 +877,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		if (!checkGlobal && !checkLocalized) {
 			return;
 		}
-		final EntitySchema entitySchema = schemaAccessor.get();
+		final EntitySchema entitySchema = this.schemaAccessor.get();
 		final Collection<EntityAttributeSchemaContract> nonNullableOrDefaultValueAttributes =
 			entitySchema.getNonNullableOrDefaultValueAttributes();
 		if (nonNullableOrDefaultValueAttributes.isEmpty()) {
@@ -955,8 +955,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull List<Object> missingMandatedAttributes,
 		@Nonnull MutationCollector mutationCollector
 	) {
-		final EntitySchema entitySchema = schemaAccessor.get();
-		final CatalogSchema catalogSchema = catalogSchemaAccessor.get();
+		final EntitySchema entitySchema = this.schemaAccessor.get();
+		final CatalogSchema catalogSchema = this.catalogSchemaAccessor.get();
 
 		setupReferencesOnEntityCreation(
 			referencesStorageContainer,
@@ -1099,8 +1099,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
 		@Nonnull MutationCollector mutationCollector
 	) {
-		final CatalogSchema catalogSchema = catalogSchemaAccessor.get();
-		final EntitySchema entitySchema = schemaAccessor.get();
+		final CatalogSchema catalogSchema = this.catalogSchemaAccessor.get();
+		final EntitySchema entitySchema = this.schemaAccessor.get();
 		final IntHashSet processedMutations = new IntHashSet(inputMutations.size());
 		for (int i = 0; i < inputMutations.size(); i++) {
 			if (!processedMutations.contains(i)) {
@@ -1378,8 +1378,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			return;
 		}
 
-		final CatalogSchema catalogSchema = catalogSchemaAccessor.get();
-		final EntitySchema entitySchema = schemaAccessor.get();
+		final CatalogSchema catalogSchema = this.catalogSchemaAccessor.get();
+		final EntitySchema entitySchema = this.schemaAccessor.get();
 		propagateOrphanedReferenceAttributeMutations(
 			scope, catalogSchema, entitySchema, inputMutations, mutationCollector
 		);
@@ -1531,13 +1531,13 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * Method verifies that all non-mandatory associated data are present on entity.
 	 */
 	private void verifyMandatoryAssociatedData(@Nonnull EntityBodyStoragePart entityStorageContainer) throws MandatoryAssociatedDataNotProvidedException {
-		final EntitySchema entitySchema = schemaAccessor.get();
+		final EntitySchema entitySchema = this.schemaAccessor.get();
 		final Collection<AssociatedDataSchema> nonNullableAssociatedData = entitySchema.getNonNullableAssociatedData();
 		if (nonNullableAssociatedData.isEmpty()) {
 			return;
 		}
 
-		final Set<AssociatedDataKey> availableAssociatedDataKeys = entityContainer.getAssociatedDataKeys();
+		final Set<AssociatedDataKey> availableAssociatedDataKeys = this.entityContainer.getAssociatedDataKeys();
 		final Set<Locale> entityLocales = entityStorageContainer.getLocales();
 
 		final List<AssociatedDataKey> missingMandatedAssociatedData = nonNullableAssociatedData
@@ -1572,7 +1572,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			.filter(AssociatedDataStoragePart::isEmpty)
 			.filter(it -> {
 				if (mandatoryAssociatedData.get() == null) {
-					final EntitySchema entitySchema = schemaAccessor.get();
+					final EntitySchema entitySchema = this.schemaAccessor.get();
 					mandatoryAssociatedData.set(
 						entitySchema.getNonNullableAssociatedData()
 							.stream()
@@ -1586,7 +1586,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			.toList();
 
 		if (!missingMandatedAssociatedData.isEmpty()) {
-			throw new MandatoryAssociatedDataNotProvidedException(entityType, missingMandatedAssociatedData);
+			throw new MandatoryAssociatedDataNotProvidedException(this.entityType, missingMandatedAssociatedData);
 		}
 	}
 
@@ -1594,7 +1594,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * Method verifies that all references keep the specified cardinality.
 	 */
 	private void verifyReferenceCardinalities(@Nullable ReferencesStoragePart referencesStorageContainer) throws ReferenceCardinalityViolatedException {
-		final EntitySchemaContract entitySchema = schemaAccessor.get();
+		final EntitySchemaContract entitySchema = this.schemaAccessor.get();
 		final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
 		if (references.isEmpty()) {
 			return;
@@ -1672,9 +1672,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			.orElseThrow(() -> new EvitaInvalidUsageException("Attribute `" + attributeKey.attributeName() + "` is not known for entity `" + entitySchema.getName() + "`."));
 		final AttributesStoragePart attributesStorageContainer = ofNullable(attributeKey.locale())
 			// get or create locale specific attributes container
-			.map(it -> getAttributeStoragePart(entityType, entityPrimaryKey, it))
+			.map(it -> getAttributeStoragePart(this.entityType, this.entityPrimaryKey, it))
 			// get or create locale agnostic container (global one)
-			.orElseGet(() -> getAttributeStoragePart(entityType, entityPrimaryKey));
+			.orElseGet(() -> getAttributeStoragePart(this.entityType, this.entityPrimaryKey));
 
 		// now replace the attribute contents in the container
 		attributesStorageContainer.upsertAttribute(
@@ -1683,7 +1683,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 		// change in entity parts also change the entity itself (we need to update the version)
 		if (attributesStorageContainer.isDirty()) {
-			getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST).setDirty(true);
+			getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST).setDirty(true);
 		}
 
 		recomputeLanguageOnAttributeUpdate(localMutation);
@@ -1696,7 +1696,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private void updateAssociatedData(@Nonnull EntitySchemaContract entitySchema, @Nonnull AssociatedDataMutation localMutation) {
 		final AssociatedDataKey associatedDataKey = localMutation.getAssociatedDataKey();
 		// get or create associated data container
-		final AssociatedDataStoragePart associatedDataStorageContainer = getAssociatedDataStoragePart(entityType, entityPrimaryKey, associatedDataKey);
+		final AssociatedDataStoragePart associatedDataStorageContainer = getAssociatedDataStoragePart(this.entityType, this.entityPrimaryKey, associatedDataKey);
 		final AssociatedDataValue mutatedValue = localMutation.mutateLocal(entitySchema, associatedDataStorageContainer.getValue());
 		// add associated data key to entity set to allow lazy fetching by the key
 		final boolean localesChanged;
@@ -1710,7 +1710,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 		// change in entity parts also change the entity itself (we need to update the version)
 		if (associatedDataStorageContainer.isDirty()) {
-			getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST).setDirty(true);
+			getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST).setDirty(true);
 		}
 
 		// recompute entity languages (this affect the related index)
@@ -1731,7 +1731,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	private void updateReferences(@Nonnull EntitySchemaContract entitySchema, @Nonnull ReferenceMutation<?> localMutation) {
 		// get or create references container
-		final ReferencesStoragePart referencesStorageCnt = getReferencesStoragePart(entityType, entityPrimaryKey);
+		final ReferencesStoragePart referencesStorageCnt = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
 		// replace or add the mutated reference in the container
 		final ReferenceContract updatedReference = referencesStorageCnt.replaceOrAddReference(
 			localMutation.getReferenceKey(),
@@ -1739,7 +1739,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		);
 		// change in entity parts also change the entity itself (we need to update the version)
 		if (referencesStorageCnt.isDirty()) {
-			getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST).setDirty(true);
+			getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST).setDirty(true);
 		}
 		// recompute languages
 		if (localMutation instanceof ReferenceAttributeMutation referenceAttributesUpdateMutation) {
@@ -1755,7 +1755,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	private void updateParent(@Nonnull EntitySchemaContract entitySchema, @Nonnull ParentMutation localMutation) {
 		// get entity container
-		final EntityBodyStoragePart entityStorageContainer = getEntityStoragePart(entityType, entityPrimaryKey, requiresExisting);
+		final EntityBodyStoragePart entityStorageContainer = getEntityStoragePart(this.entityType, this.entityPrimaryKey, this.requiresExisting);
 		// update hierarchical placement there
 		entityStorageContainer.setParent(
 			localMutation.mutateLocal(
@@ -1775,7 +1775,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	private void updatePriceIndex(@Nonnull EntitySchemaContract entitySchema, @Nonnull PriceMutation localMutation) {
 		// get or create prices container
-		final PricesStoragePart pricesStorageContainer = getPriceStoragePart(entityType, entityPrimaryKey);
+		final PricesStoragePart pricesStorageContainer = getPriceStoragePart(this.entityType, this.entityPrimaryKey);
 		// add or replace price in the container
 		pricesStorageContainer.replaceOrAddPrice(
 			localMutation.getPriceKey(),
@@ -1786,7 +1786,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		);
 		// change in entity parts also change the entity itself (we need to update the version)
 		if (pricesStorageContainer.isDirty()) {
-			getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST).setDirty(true);
+			getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST).setDirty(true);
 		}
 	}
 
@@ -1833,11 +1833,11 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param updatedReference body of the removed reference
 	 */
 	private void removeEntireReference(@Nonnull ReferenceContract updatedReference) {
-		final ReferencesStoragePart referencesStoragePart = getReferencesStoragePart(entityType, entityPrimaryKey);
+		final ReferencesStoragePart referencesStoragePart = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
 		updatedReference.getAttributeLocales().forEach(locale -> {
-			final AttributesStoragePart attributeStoragePart = getAttributeStoragePart(entityType, entityPrimaryKey, locale);
+			final AttributesStoragePart attributeStoragePart = getAttributeStoragePart(this.entityType, this.entityPrimaryKey, locale);
 			if (attributeStoragePart.isEmpty() && !referencesStoragePart.isLocalePresent(locale)) {
-				final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
+				final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST);
 				if (entityStoragePart.removeAttributeLocale(locale)) {
 					registerRemovedLocale(locale);
 				}

@@ -135,27 +135,27 @@ class TransactionalStageTest {
 		@Override
 		public void onNext(Item item) {
 			try {
-				Assert.isPremiseValid(!running, "Stage is already running!");
-				running = true;
-				System.out.println(stageNo + " got: " + item.getValue());
-				item.stagePassed(stageNo);
+				Assert.isPremiseValid(!this.running, "Stage is already running!");
+				this.running = true;
+				System.out.println(this.stageNo + " got: " + item.getValue());
+				item.stagePassed(this.stageNo);
 				try {
 					offer(item, (subscriber, theItem) -> {
 						System.out.println("Dropped : " + theItem.getValue());
 						theItem.getFuture().complete(false);
 						return false;
 					});
-					if (stageNo == item.stageToCompleteFuture) {
-						System.out.println("Stage " + stageNo + " completed : " + item.getValue());
+					if (this.stageNo == item.stageToCompleteFuture) {
+						System.out.println("Stage " + this.stageNo + " completed : " + item.getValue());
 						item.future.complete(true);
 					}
 				} catch (Exception ex) {
-					System.out.println("Stage " + stageNo + " failed : " + item.getValue());
+					System.out.println("Stage " + this.stageNo + " failed : " + item.getValue());
 					item.future.completeExceptionally(ex);
 				}
-				subscription.request(1);
+				this.subscription.request(1);
 			} finally {
-				running = false;
+				this.running = false;
 			}
 		}
 
@@ -163,13 +163,13 @@ class TransactionalStageTest {
 		public void onError(Throwable t) {
 			System.out.println("On error: ");
 			t.printStackTrace();
-			subscription.request(1);
+			this.subscription.request(1);
 		}
 
 		@Override
 		public void onComplete() {
 			System.out.println("Done");
-			done = true;
+			this.done = true;
 		}
 
 	}
@@ -185,7 +185,7 @@ class TransactionalStageTest {
 
 		public void stagePassed(int stage) {
 			this.stages.add(stage);
-			if (throwsException) {
+			if (this.throwsException) {
 				throw new RuntimeException("Exception in stage " + stage);
 			}
 		}

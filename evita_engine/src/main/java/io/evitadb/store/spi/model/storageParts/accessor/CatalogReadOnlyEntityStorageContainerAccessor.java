@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -100,13 +100,13 @@ public class CatalogReadOnlyEntityStorageContainerAccessor implements EntityStor
 
 	@Nonnull
 	private ReadOnlyEntityStorageContainerAccessor getDelegate(@Nonnull String entityType) {
-		this.entitySpecificAccessors = Optional.ofNullable(entitySpecificAccessors).orElseGet(HashMap::new);
+		this.entitySpecificAccessors = Optional.ofNullable(this.entitySpecificAccessors).orElseGet(HashMap::new);
 		return this.entitySpecificAccessors.computeIfAbsent(
 			entityType,
 			eType -> {
-				final EntityCollection entityCollection = catalog.getCollectionForEntityOrThrowException(entityType);
+				final EntityCollection entityCollection = this.catalog.getCollectionForEntityOrThrowException(entityType);
 				return new ReadOnlyEntityStorageContainerAccessor(
-					catalog.getVersion(),
+					this.catalog.getVersion(),
 					entityCollection.getDataStoreReader()
 				);
 			}

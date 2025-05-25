@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ public class PropertyObjectListMapper<T extends Serializable> implements Functio
 	public T[] apply(@Nonnull Object rawPropertyValue) {
 		Assert.isTrue(
 			rawPropertyValue instanceof List<?>,
-			() -> exceptionFactory.createInvalidArgumentException("Property `" + propertyName + "` of mutation `" + mutationName + "` is expected to be an array.")
+			() -> this.exceptionFactory.createInvalidArgumentException("Property `" + this.propertyName + "` of mutation `" + this.mutationName + "` is expected to be an array.")
 		);
 
 		final List<Object> rawElements = (List<Object>) rawPropertyValue;
@@ -103,12 +103,12 @@ public class PropertyObjectListMapper<T extends Serializable> implements Functio
 			.map(rawElement -> {
 				Assert.isTrue(
 					rawElement instanceof Map<?, ?>,
-					() -> exceptionFactory.createInvalidArgumentException("Item in property `" + propertyName + "` of mutation `" + mutationName + "` is expected to be an object.")
+					() -> this.exceptionFactory.createInvalidArgumentException("Item in property `" + this.propertyName + "` of mutation `" + this.mutationName + "` is expected to be an object.")
 				);
 
 				final Map<String, Object> element = (Map<String, Object>) rawElement;
-				return objectMapper.apply(new Input(mutationName, element, exceptionFactory));
+				return this.objectMapper.apply(new Input(this.mutationName, element, this.exceptionFactory));
 			})
-			.toArray(size -> (T[]) Array.newInstance(objectType, size));
+			.toArray(size -> (T[]) Array.newInstance(this.objectType, size));
 	}
 }

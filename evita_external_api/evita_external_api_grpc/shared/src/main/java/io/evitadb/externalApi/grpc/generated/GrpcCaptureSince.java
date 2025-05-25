@@ -73,20 +73,20 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             com.google.protobuf.Int32Value.Builder subBuilder = null;
-            if (version_ != null) {
-              subBuilder = version_.toBuilder();
+            if (this.version_ != null) {
+              subBuilder = this.version_.toBuilder();
             }
-            version_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            this.version_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(version_);
-              version_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.version_);
+              this.version_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 16: {
 
-            transactionId_ = input.readInt64();
+            this.transactionId_ = input.readInt64();
             break;
           }
           default: {
@@ -129,7 +129,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasVersion() {
-    return version_ != null;
+    return this.version_ != null;
   }
   /**
    * <code>.google.protobuf.Int32Value version = 1;</code>
@@ -137,7 +137,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.Int32Value getVersion() {
-    return version_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : version_;
+    return this.version_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : this.version_;
   }
   /**
    * <code>.google.protobuf.Int32Value version = 1;</code>
@@ -155,48 +155,48 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public long getTransactionId() {
-    return transactionId_;
+    return this.transactionId_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (version_ != null) {
+    if (this.version_ != null) {
       output.writeMessage(1, getVersion());
     }
-    if (transactionId_ != 0L) {
-      output.writeInt64(2, transactionId_);
+    if (this.transactionId_ != 0L) {
+      output.writeInt64(2, this.transactionId_);
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (version_ != null) {
+    if (this.version_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getVersion());
     }
-    if (transactionId_ != 0L) {
+    if (this.transactionId_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(2, transactionId_);
+        .computeInt64Size(2, this.transactionId_);
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -217,14 +217,14 @@ private static final long serialVersionUID = 0L;
     }
     if (getTransactionId()
         != other.getTransactionId()) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -235,8 +235,8 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + TRANSACTIONID_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getTransactionId());
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -368,13 +368,13 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (versionBuilder_ == null) {
-        version_ = null;
+      if (this.versionBuilder_ == null) {
+        this.version_ = null;
       } else {
-        version_ = null;
-        versionBuilder_ = null;
+        this.version_ = null;
+        this.versionBuilder_ = null;
       }
-      transactionId_ = 0L;
+      this.transactionId_ = 0L;
 
       return this;
     }
@@ -402,12 +402,12 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCaptureSince buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcCaptureSince result = new io.evitadb.externalApi.grpc.generated.GrpcCaptureSince(this);
-      if (versionBuilder_ == null) {
-        result.version_ = version_;
+      if (this.versionBuilder_ == null) {
+        result.version_ = this.version_;
       } else {
-        result.version_ = versionBuilder_.build();
+        result.version_ = this.versionBuilder_.build();
       }
-      result.transactionId_ = transactionId_;
+      result.transactionId_ = this.transactionId_;
       onBuilt();
       return result;
     }
@@ -499,31 +499,31 @@ private static final long serialVersionUID = 0L;
      * @return Whether the version field is set.
      */
     public boolean hasVersion() {
-      return versionBuilder_ != null || version_ != null;
+      return this.versionBuilder_ != null || this.version_ != null;
     }
     /**
      * <code>.google.protobuf.Int32Value version = 1;</code>
      * @return The version.
      */
     public com.google.protobuf.Int32Value getVersion() {
-      if (versionBuilder_ == null) {
-        return version_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : version_;
+      if (this.versionBuilder_ == null) {
+        return this.version_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : this.version_;
       } else {
-        return versionBuilder_.getMessage();
+        return this.versionBuilder_.getMessage();
       }
     }
     /**
      * <code>.google.protobuf.Int32Value version = 1;</code>
      */
     public Builder setVersion(com.google.protobuf.Int32Value value) {
-      if (versionBuilder_ == null) {
+      if (this.versionBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        version_ = value;
+        this.version_ = value;
         onChanged();
       } else {
-        versionBuilder_.setMessage(value);
+        this.versionBuilder_.setMessage(value);
       }
 
       return this;
@@ -533,11 +533,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setVersion(
         com.google.protobuf.Int32Value.Builder builderForValue) {
-      if (versionBuilder_ == null) {
-        version_ = builderForValue.build();
+      if (this.versionBuilder_ == null) {
+        this.version_ = builderForValue.build();
         onChanged();
       } else {
-        versionBuilder_.setMessage(builderForValue.build());
+        this.versionBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -546,16 +546,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value version = 1;</code>
      */
     public Builder mergeVersion(com.google.protobuf.Int32Value value) {
-      if (versionBuilder_ == null) {
-        if (version_ != null) {
-          version_ =
-            com.google.protobuf.Int32Value.newBuilder(version_).mergeFrom(value).buildPartial();
+      if (this.versionBuilder_ == null) {
+        if (this.version_ != null) {
+          this.version_ =
+            com.google.protobuf.Int32Value.newBuilder(this.version_).mergeFrom(value).buildPartial();
         } else {
-          version_ = value;
+          this.version_ = value;
         }
         onChanged();
       } else {
-        versionBuilder_.mergeFrom(value);
+        this.versionBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -564,12 +564,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value version = 1;</code>
      */
     public Builder clearVersion() {
-      if (versionBuilder_ == null) {
-        version_ = null;
+      if (this.versionBuilder_ == null) {
+        this.version_ = null;
         onChanged();
       } else {
-        version_ = null;
-        versionBuilder_ = null;
+        this.version_ = null;
+        this.versionBuilder_ = null;
       }
 
       return this;
@@ -586,11 +586,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value version = 1;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getVersionOrBuilder() {
-      if (versionBuilder_ != null) {
-        return versionBuilder_.getMessageOrBuilder();
+      if (this.versionBuilder_ != null) {
+        return this.versionBuilder_.getMessageOrBuilder();
       } else {
-        return version_ == null ?
-            com.google.protobuf.Int32Value.getDefaultInstance() : version_;
+        return this.version_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : this.version_;
       }
     }
     /**
@@ -599,15 +599,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getVersionFieldBuilder() {
-      if (versionBuilder_ == null) {
-        versionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.versionBuilder_ == null) {
+        this.versionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
                 getVersion(),
                 getParentForChildren(),
                 isClean());
-        version_ = null;
+        this.version_ = null;
       }
-      return versionBuilder_;
+      return this.versionBuilder_;
     }
 
     private long transactionId_ ;
@@ -617,7 +617,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public long getTransactionId() {
-      return transactionId_;
+      return this.transactionId_;
     }
     /**
      * <code>int64 transactionId = 2;</code>
@@ -626,7 +626,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTransactionId(long value) {
 
-      transactionId_ = value;
+      this.transactionId_ = value;
       onChanged();
       return this;
     }
@@ -636,7 +636,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearTransactionId() {
 
-      transactionId_ = 0L;
+      this.transactionId_ = 0L;
       onChanged();
       return this;
     }

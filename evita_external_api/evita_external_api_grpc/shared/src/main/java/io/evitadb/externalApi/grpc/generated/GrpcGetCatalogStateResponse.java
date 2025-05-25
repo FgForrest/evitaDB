@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcGetCatalogStateResponse() {
-    catalogState_ = 0;
+    this.catalogState_ = 0;
   }
 
   @java.lang.Override
@@ -79,8 +79,8 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
             int rawValue = input.readEnum();
-            bitField0_ |= 0x00000001;
-            catalogState_ = rawValue;
+            this.bitField0_ |= 0x00000001;
+            this.catalogState_ = rawValue;
             break;
           }
           default: {
@@ -127,7 +127,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the catalogState field is set.
    */
   @java.lang.Override public boolean hasCatalogState() {
-    return ((bitField0_ & 0x00000001) != 0);
+    return ((this.bitField0_ & 0x00000001) != 0);
   }
   /**
    * <pre>
@@ -138,7 +138,7 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for catalogState.
    */
   @java.lang.Override public int getCatalogStateValue() {
-    return catalogState_;
+    return this.catalogState_;
   }
   /**
    * <pre>
@@ -150,42 +150,42 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCatalogState getCatalogState() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcCatalogState result = io.evitadb.externalApi.grpc.generated.GrpcCatalogState.valueOf(catalogState_);
+    io.evitadb.externalApi.grpc.generated.GrpcCatalogState result = io.evitadb.externalApi.grpc.generated.GrpcCatalogState.valueOf(this.catalogState_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNRECOGNIZED : result;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (((bitField0_ & 0x00000001) != 0)) {
-      output.writeEnum(1, catalogState_);
+    if (((this.bitField0_ & 0x00000001) != 0)) {
+      output.writeEnum(1, this.catalogState_);
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (((bitField0_ & 0x00000001) != 0)) {
+    if (((this.bitField0_ & 0x00000001) != 0)) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(1, catalogState_);
+        .computeEnumSize(1, this.catalogState_);
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -201,25 +201,25 @@ private static final long serialVersionUID = 0L;
 
     if (hasCatalogState() != other.hasCatalogState()) return false;
     if (hasCatalogState()) {
-      if (catalogState_ != other.catalogState_) return false;
+      if (this.catalogState_ != other.catalogState_) return false;
     }
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
     if (hasCatalogState()) {
       hash = (37 * hash) + CATALOGSTATE_FIELD_NUMBER;
-      hash = (53 * hash) + catalogState_;
+      hash = (53 * hash) + this.catalogState_;
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -355,8 +355,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      catalogState_ = 0;
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.catalogState_ = 0;
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       return this;
     }
 
@@ -383,12 +383,12 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse result = new io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse(this);
-      int from_bitField0_ = bitField0_;
+      int from_bitField0_ = this.bitField0_;
       int to_bitField0_ = 0;
       if (((from_bitField0_ & 0x00000001) != 0)) {
         to_bitField0_ |= 0x00000001;
       }
-      result.catalogState_ = catalogState_;
+      result.catalogState_ = this.catalogState_;
       result.bitField0_ = to_bitField0_;
       onBuilt();
       return result;
@@ -481,7 +481,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the catalogState field is set.
      */
     @java.lang.Override public boolean hasCatalogState() {
-      return ((bitField0_ & 0x00000001) != 0);
+      return ((this.bitField0_ & 0x00000001) != 0);
     }
     /**
      * <pre>
@@ -492,7 +492,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire for catalogState.
      */
     @java.lang.Override public int getCatalogStateValue() {
-      return catalogState_;
+      return this.catalogState_;
     }
     /**
      * <pre>
@@ -504,8 +504,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogStateValue(int value) {
-      bitField0_ |= 0x00000001;
-      catalogState_ = value;
+      this.bitField0_ |= 0x00000001;
+      this.catalogState_ = value;
       onChanged();
       return this;
     }
@@ -520,7 +520,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogState getCatalogState() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcCatalogState result = io.evitadb.externalApi.grpc.generated.GrpcCatalogState.valueOf(catalogState_);
+      io.evitadb.externalApi.grpc.generated.GrpcCatalogState result = io.evitadb.externalApi.grpc.generated.GrpcCatalogState.valueOf(this.catalogState_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNRECOGNIZED : result;
     }
     /**
@@ -536,8 +536,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      bitField0_ |= 0x00000001;
-      catalogState_ = value.getNumber();
+      this.bitField0_ |= 0x00000001;
+      this.catalogState_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -550,8 +550,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogState() {
-      bitField0_ = (bitField0_ & ~0x00000001);
-      catalogState_ = 0;
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      this.catalogState_ = 0;
       onChanged();
       return this;
     }

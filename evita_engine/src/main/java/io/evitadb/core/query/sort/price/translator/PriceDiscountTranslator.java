@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -283,7 +283,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 				this.nonSortedEntities.add(o2);
 				return -1;
 			} else {
-				return priceComparator.compare(
+				return this.priceComparator.compare(
 					priceDiscount1,
 					priceDiscount2
 				);
@@ -300,22 +300,22 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		 */
 		@Nonnull
 		private BigDecimal getPriceDiscount(@Nonnull EntityContract entity) {
-			final BigDecimal memoizedResult = memoizedDiscounts.get(entity.getPrimaryKeyOrThrowException());
+			final BigDecimal memoizedResult = this.memoizedDiscounts.get(entity.getPrimaryKeyOrThrowException());
 			if (memoizedResult != null) {
 				return memoizedResult;
 			}
 			final Optional<PriceForSaleWithAccompanyingPrices> calculatedPrices = entity.getPriceForSaleWithAccompanyingPrices(
 				new AccompanyingPrice[]{
-					new AccompanyingPrice(DISCOUNTED_PRICE, discountPriceLists)
+					new AccompanyingPrice(DISCOUNTED_PRICE, this.discountPriceLists)
 				}
 			);
 
 			final BigDecimal calculatedResult = calculatedPrices
 				.map(priceCalculation -> {
-					final BigDecimal priceForSale = priceExtractor.apply(priceCalculation.priceForSale());
+					final BigDecimal priceForSale = this.priceExtractor.apply(priceCalculation.priceForSale());
 					return priceCalculation.accompanyingPrices()
 						.get(DISCOUNTED_PRICE)
-						.map(priceExtractor)
+						.map(this.priceExtractor)
 						.map(discountedPrice -> {
 							final BigDecimal discount = discountedPrice.subtract(priceForSale);
 							return BigDecimal.ZERO.compareTo(discount) < 0 ? discount : BigDecimal.ZERO;
@@ -448,7 +448,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 			} else if (DISCOUNT_CANNOT_BE_CALCULATED == priceDiscount2) {
 				return -1;
 			} else {
-				return priceComparator.compare(priceDiscount1, priceDiscount2);
+				return this.priceComparator.compare(priceDiscount1, priceDiscount2);
 			}
 		}
 
@@ -484,8 +484,8 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 					this.memoizedDiscounts.put(priceRecord.entityPrimaryKey(), DISCOUNT_CANNOT_BE_CALCULATED);
 					return DISCOUNT_CANNOT_BE_CALCULATED;
 				} else {
-					final int sellingPrice = priceExtractor.applyAsInt(this.sellingPriceRecords[sellingPriceIndex]);
-					final int referencePrice = priceExtractor.applyAsInt(this.referencePriceRecords[referencePriceIndex]);
+					final int sellingPrice = this.priceExtractor.applyAsInt(this.sellingPriceRecords[sellingPriceIndex]);
+					final int referencePrice = this.priceExtractor.applyAsInt(this.referencePriceRecords[referencePriceIndex]);
 					final int theDiscount = sellingPrice >= referencePrice ? 0 : referencePrice - sellingPrice;
 					this.memoizedDiscounts.put(priceRecord.entityPrimaryKey(), theDiscount == 0 ? ZERO_DISCOUNT : theDiscount);
 					return theDiscount;

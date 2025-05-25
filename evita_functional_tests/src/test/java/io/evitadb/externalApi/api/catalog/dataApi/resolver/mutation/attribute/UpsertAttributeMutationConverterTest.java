@@ -75,14 +75,14 @@ class UpsertAttributeMutationConverterTest {
 			.withAttribute(ATTRIBUTE_CODE, String.class)
 			.withPrice()
 			.toInstance();
-		converter =  new UpsertAttributeMutationConverter(entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new UpsertAttributeMutationConverter(entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final UpsertAttributeMutation expectedMutation = new UpsertAttributeMutation(ATTRIBUTE_CODE, Locale.ENGLISH, "phone");
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 				.e(UpsertAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
@@ -91,7 +91,7 @@ class UpsertAttributeMutationConverterTest {
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
 				.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 				.e(UpsertAttributeMutationDescriptor.LOCALE.name(), "en")
@@ -103,7 +103,7 @@ class UpsertAttributeMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 				.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
@@ -117,7 +117,7 @@ class UpsertAttributeMutationConverterTest {
 
 	@Test
 	void shouldResolveMutationWithNewAttribute() {
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 				.e(UpsertAttributeMutationDescriptor.VALUE.name(), "1.2")
@@ -136,7 +136,7 @@ class UpsertAttributeMutationConverterTest {
 		range.add(null);
 		range.add(20L);
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(UpsertAttributeMutationDescriptor.NAME.name(), "longNumberRangeAttribute")
 				.e(UpsertAttributeMutationDescriptor.VALUE.name(), range)
@@ -158,7 +158,7 @@ class UpsertAttributeMutationConverterTest {
 		fromRange.add(10L);
 		fromRange.add(null);
 
-		final UpsertAttributeMutation localMutation = (UpsertAttributeMutation) converter.convertFromInput(
+		final UpsertAttributeMutation localMutation = (UpsertAttributeMutation) this.converter.convertFromInput(
 			map()
 				.e(UpsertAttributeMutationDescriptor.NAME.name(), "arrayOfRangesAttribute")
 				.e(
@@ -187,7 +187,7 @@ class UpsertAttributeMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 					.build()
@@ -195,21 +195,21 @@ class UpsertAttributeMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
 	void shouldNotResolveInputWhenIncorrectValueType() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
@@ -223,7 +223,7 @@ class UpsertAttributeMutationConverterTest {
 	void shouldResolveMutationWithNewAttributeWhenValueTypeIsMissing() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "1.2")
@@ -237,7 +237,7 @@ class UpsertAttributeMutationConverterTest {
 		final UpsertAttributeMutation inputMutation = new UpsertAttributeMutation(ATTRIBUTE_CODE, Locale.ENGLISH, "phone");
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

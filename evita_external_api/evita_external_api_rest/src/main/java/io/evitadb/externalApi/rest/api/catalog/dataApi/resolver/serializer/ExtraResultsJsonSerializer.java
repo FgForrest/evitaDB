@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -92,7 +92,7 @@ public class ExtraResultsJsonSerializer {
 	public JsonNode serialize(@Nonnull Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults,
 	                          @Nonnull EntitySchemaContract resultEntitySchema,
 	                          @Nonnull CatalogSchemaContract catalogSchema) {
-		final ObjectNode rootNode = objectJsonSerializer.objectNode();
+		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
 		for (EvitaResponseExtraResult extraResult : extraResults.values()) {
 			if (extraResult instanceof QueryTelemetry queryTelemetry) {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.QUERY_TELEMETRY.name(), serializeQueryTelemetry(queryTelemetry));
@@ -123,7 +123,7 @@ public class ExtraResultsJsonSerializer {
 			}
 		}
 
-		final ObjectNode facetGroupStatsNode = objectJsonSerializer.objectNode();
+		final ObjectNode facetGroupStatsNode = this.objectJsonSerializer.objectNode();
 		groupedStats.forEach((key, value) -> {
 			final String serializableReferenceName = entitySchema.getReference(key)
 				.map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
@@ -147,7 +147,7 @@ public class ExtraResultsJsonSerializer {
 	                                                   @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                   @Nonnull CatalogSchemaContract catalogSchema) {
 		if (referenceSchema.getReferencedGroupType() != null) {
-			final ArrayNode sameGroupStatsNode = objectJsonSerializer.arrayNode();
+			final ArrayNode sameGroupStatsNode = this.objectJsonSerializer.arrayNode();
 			groupStatistics.forEach(stats -> sameGroupStatsNode.add(serializeFacetGroupStatistics(stats, referenceSchema, catalogSchema)));
 			return sameGroupStatsNode;
 		} else {
@@ -163,7 +163,7 @@ public class ExtraResultsJsonSerializer {
 	private JsonNode serializeFacetGroupStatistics(@Nonnull FacetGroupStatistics groupStatistics,
 	                                               @Nonnull ReferenceSchemaContract referenceSchema,
 	                                               @Nonnull CatalogSchemaContract catalogSchema) {
-		final ObjectNode groupStatsNode = objectJsonSerializer.objectNode();
+		final ObjectNode groupStatsNode = this.objectJsonSerializer.objectNode();
 		groupStatsNode.put(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount());
 
 		if (referenceSchema.getReferencedGroupType() != null) {
@@ -171,7 +171,7 @@ public class ExtraResultsJsonSerializer {
 				groupStatistics.getGroupEntity() != null ? serializeEntity(groupStatistics.getGroupEntity(), catalogSchema) : null);
 		}
 
-		final ArrayNode jsonNodes = objectJsonSerializer.arrayNode();
+		final ArrayNode jsonNodes = this.objectJsonSerializer.arrayNode();
 		groupStatistics.getFacetStatistics().forEach(facetStats -> jsonNodes.add(serializeFacetStatistics(facetStats, catalogSchema)));
 		groupStatsNode.putIfAbsent(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), jsonNodes);
 		return groupStatsNode;
@@ -179,15 +179,15 @@ public class ExtraResultsJsonSerializer {
 
 	@Nonnull
 	private JsonNode serializeFacetStatistics(@Nonnull FacetStatistics facetStatistics, @Nonnull CatalogSchemaContract catalogSchema) {
-		final ObjectNode facetStatsNode = objectJsonSerializer.objectNode();
-		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.REQUESTED.name(), objectJsonSerializer.serializeObject(facetStatistics.isRequested()));
-		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.COUNT.name(), objectJsonSerializer.serializeObject(facetStatistics.getCount()));
+		final ObjectNode facetStatsNode = this.objectJsonSerializer.objectNode();
+		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.REQUESTED.name(), this.objectJsonSerializer.serializeObject(facetStatistics.isRequested()));
+		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.COUNT.name(), this.objectJsonSerializer.serializeObject(facetStatistics.getCount()));
 		if (facetStatistics.getImpact() != null) {
-			final ObjectNode impactNode = objectJsonSerializer.objectNode();
+			final ObjectNode impactNode = this.objectJsonSerializer.objectNode();
 			final RequestImpact impact = facetStatistics.getImpact();
-			impactNode.putIfAbsent(FacetRequestImpactDescriptor.DIFFERENCE.name(), objectJsonSerializer.serializeObject(impact.difference()));
-			impactNode.putIfAbsent(FacetRequestImpactDescriptor.MATCH_COUNT.name(), objectJsonSerializer.serializeObject(impact.matchCount()));
-			impactNode.putIfAbsent(FacetRequestImpactDescriptor.HAS_SENSE.name(), objectJsonSerializer.serializeObject(impact.hasSense()));
+			impactNode.putIfAbsent(FacetRequestImpactDescriptor.DIFFERENCE.name(), this.objectJsonSerializer.serializeObject(impact.difference()));
+			impactNode.putIfAbsent(FacetRequestImpactDescriptor.MATCH_COUNT.name(), this.objectJsonSerializer.serializeObject(impact.matchCount()));
+			impactNode.putIfAbsent(FacetRequestImpactDescriptor.HAS_SENSE.name(), this.objectJsonSerializer.serializeObject(impact.hasSense()));
 
 			facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.IMPACT.name(), impactNode);
 		}
@@ -199,7 +199,7 @@ public class ExtraResultsJsonSerializer {
 	private JsonNode serializeHierarchy(@Nonnull Hierarchy hierarchy,
 	                                    @Nonnull CatalogSchemaContract catalogSchema,
 	                                    @Nonnull EntitySchemaContract entitySchema) {
-		final ObjectNode hierarchyNode = objectJsonSerializer.objectNode();
+		final ObjectNode hierarchyNode = this.objectJsonSerializer.objectNode();
 
 		final Map<String, List<LevelInfo>> selfHierarchy = hierarchy.getSelfHierarchy();
 		if (!selfHierarchy.isEmpty()) {
@@ -219,7 +219,7 @@ public class ExtraResultsJsonSerializer {
 
 	@Nonnull
 	private JsonNode serializeHierarchyOf(@Nonnull Map<String, List<LevelInfo>> hierarchyOf, @Nonnull CatalogSchemaContract catalogSchema) {
-		final ObjectNode hierarchyOfNode = objectJsonSerializer.objectNode();
+		final ObjectNode hierarchyOfNode = this.objectJsonSerializer.objectNode();
 		hierarchyOf.forEach((outputName, levelInfos) -> {
 			hierarchyOfNode.putIfAbsent(outputName, serializeLevelInfos(levelInfos, catalogSchema));
 		});
@@ -228,9 +228,9 @@ public class ExtraResultsJsonSerializer {
 
 	@Nonnull
 	private JsonNode serializeLevelInfos(@Nonnull List<LevelInfo> levelInfos, @Nonnull CatalogSchemaContract catalogSchema) {
-		final ArrayNode levelInfoNodes = objectJsonSerializer.arrayNode();
+		final ArrayNode levelInfoNodes = this.objectJsonSerializer.arrayNode();
 		for (LevelInfo levelInfo : levelInfos) {
-			final ObjectNode levelInfoNode = objectJsonSerializer.objectNode();
+			final ObjectNode levelInfoNode = this.objectJsonSerializer.objectNode();
 
 			levelInfoNode.putIfAbsent(LevelInfoDescriptor.ENTITY.name(), serializeEntity(levelInfo.entity(), catalogSchema));
 			levelInfoNode.put(LevelInfoDescriptor.REQUESTED.name(), levelInfo.requested());
@@ -251,31 +251,31 @@ public class ExtraResultsJsonSerializer {
 
 	@Nonnull
 	private JsonNode serializeEntity(@Nonnull EntityClassifier entityDecorator, @Nonnull CatalogSchemaContract catalogSchema) {
-		return entityJsonSerializer.serialize(new EntitySerializationContext(catalogSchema), entityDecorator);
+		return this.entityJsonSerializer.serialize(new EntitySerializationContext(catalogSchema), entityDecorator);
 	}
 
 	@Nonnull
 	private JsonNode serializeQueryTelemetry(@Nonnull QueryTelemetry telemetry) {
-		return objectJsonSerializer.getObjectMapper().valueToTree(QueryTelemetryDto.from(telemetry));
+		return this.objectJsonSerializer.getObjectMapper().valueToTree(QueryTelemetryDto.from(telemetry));
 	}
 
 	@Nonnull
 	private JsonNode serializeAttributeHistogram(@Nonnull AttributeHistogram attributeHistogram,
 	                                             @Nonnull EntitySchemaContract entitySchema) {
-		final ObjectNode histogramNode = objectJsonSerializer.objectNode();
+		final ObjectNode histogramNode = this.objectJsonSerializer.objectNode();
 		for (Entry<String, HistogramContract> entry : attributeHistogram.getHistograms().entrySet()) {
 			final String attributeName = entry.getKey();
 			final String serializableAttributeName = entitySchema.getAttribute(attributeName)
 				.map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 				.orElseThrow(() -> new RestQueryResolvingInternalError("Cannot find attribute schema for `" + attributeName + "` in entity schema `" + entitySchema.getName() + "`."));
 
-			histogramNode.putIfAbsent(serializableAttributeName, objectJsonSerializer.getObjectMapper().valueToTree(entry.getValue()));
+			histogramNode.putIfAbsent(serializableAttributeName, this.objectJsonSerializer.getObjectMapper().valueToTree(entry.getValue()));
 		}
 		return histogramNode;
 	}
 
 	@Nonnull
 	private JsonNode serializePriceHistogram(@Nonnull PriceHistogram priceHistogram) {
-		return objectJsonSerializer.getObjectMapper().valueToTree(priceHistogram);
+		return this.objectJsonSerializer.getObjectMapper().valueToTree(priceHistogram);
 	}
 }

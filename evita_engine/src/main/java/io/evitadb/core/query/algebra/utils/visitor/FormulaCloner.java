@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -109,7 +109,7 @@ public class FormulaCloner implements FormulaVisitor {
 	 * formula.
 	 */
 	public boolean isWithin(@Nonnull Predicate<Formula> formulaTester) {
-		for (Formula parent : parents) {
+		for (Formula parent : this.parents) {
 			if (formulaTester.test(parent)) {
 				return true;
 			}
@@ -121,7 +121,7 @@ public class FormulaCloner implements FormulaVisitor {
 	 * Returns true if all parents match the passed predicate.
 	 */
 	public boolean allParentsMatch(@Nonnull Predicate<Formula> formulaTester) {
-		return parents.stream().allMatch(formulaTester);
+		return this.parents.stream().allMatch(formulaTester);
 	}
 
 	/**
@@ -133,20 +133,20 @@ public class FormulaCloner implements FormulaVisitor {
 
 	@Override
 	public void visit(@Nonnull Formula formula) {
-		final Formula mutatedFormula = mutator.apply(this, formula);
-		final Formula alreadyProcessedFormula = formulasProcessed.get(formula);
+		final Formula mutatedFormula = this.mutator.apply(this, formula);
+		final Formula alreadyProcessedFormula = this.formulasProcessed.get(formula);
 		if (alreadyProcessedFormula != null) {
 			storeFormula(alreadyProcessedFormula);
 		} else {
 			final Formula formulaToStore;
 			if (mutatedFormula == formula) {
-				pushContext(treeStack, formula);
-				parents.push(formula);
+				pushContext(this.treeStack, formula);
+				this.parents.push(formula);
 				for (Formula innerFormula : formula.getInnerFormulas()) {
 					innerFormula.accept(this);
 				}
-				parents.pop();
-				final SubTree subTree = popContext(treeStack);
+				this.parents.pop();
+				final SubTree subTree = popContext(this.treeStack);
 				final Set<Formula> updatedChildren = subTree.getChildren();
 				final boolean childrenHaveNotChanged = updatedChildren.size() == formula.getInnerFormulas().length &&
 					Arrays.stream(formula.getInnerFormulas()).allMatch(updatedChildren::contains);
@@ -167,7 +167,7 @@ public class FormulaCloner implements FormulaVisitor {
 			}
 
 			if (formulaToStore != null) {
-				formulasProcessed.put(formula, formulaToStore);
+				this.formulasProcessed.put(formula, formulaToStore);
 				storeFormula(formulaToStore);
 			}
 		}
@@ -199,10 +199,10 @@ public class FormulaCloner implements FormulaVisitor {
 
 	private void storeFormula(@Nonnull Formula formula) {
 		// store updated formula
-		if (treeStack.isEmpty()) {
+		if (this.treeStack.isEmpty()) {
 			this.resultClone = formula;
 		} else {
-			treeStack.peek().add(formula);
+			this.treeStack.peek().add(formula);
 		}
 	}
 

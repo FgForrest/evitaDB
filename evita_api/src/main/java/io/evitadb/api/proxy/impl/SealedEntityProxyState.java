@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -93,14 +93,14 @@ public class SealedEntityProxyState
 	@Nonnull
 	@Override
 	public String getType() {
-		return entity.getType();
+		return this.entity.getType();
 	}
 
 	@Nullable
 	@Override
 	public Integer getPrimaryKey() {
-		return ofNullable(entity.getPrimaryKey())
-			.orElseGet(() -> ofNullable(entityReference)
+		return ofNullable(this.entity.getPrimaryKey())
+			.orElseGet(() -> ofNullable(this.entityReference)
 				.map(EntityReference::getPrimaryKey)
 				.orElse(null)
 			);
@@ -150,33 +150,33 @@ public class SealedEntityProxyState
 
 	@Nonnull
 	public EntityBuilder getEntityBuilderWithMutations(@Nonnull Collection<LocalMutation<?, ?>> mutations) {
-		Assert.isPremiseValid(entityBuilder == null, "Entity builder already created!");
-		if (entity instanceof EntityDecorator entityDecorator) {
-			entityBuilder = new ExistingEntityBuilder(entityDecorator, mutations);
-		} else if (entity instanceof Entity theEntity) {
-			entityBuilder = new ExistingEntityBuilder(theEntity, mutations);
-		} else if (entity instanceof EntityBuilder) {
+		Assert.isPremiseValid(this.entityBuilder == null, "Entity builder already created!");
+		if (this.entity instanceof EntityDecorator entityDecorator) {
+			this.entityBuilder = new ExistingEntityBuilder(entityDecorator, mutations);
+		} else if (this.entity instanceof Entity theEntity) {
+			this.entityBuilder = new ExistingEntityBuilder(theEntity, mutations);
+		} else if (this.entity instanceof EntityBuilder) {
 			throw new GenericEvitaInternalError("Entity builder already created!");
 		} else {
-			throw new GenericEvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
+			throw new GenericEvitaInternalError("Unexpected entity type: " + this.entity.getClass().getName());
 		}
-		return entityBuilder;
+		return this.entityBuilder;
 	}
 
 	@Nonnull
 	public EntityBuilder entityBuilder() {
-		if (entityBuilder == null) {
-			if (entity instanceof EntityDecorator entityDecorator) {
-				entityBuilder = new ExistingEntityBuilder(entityDecorator);
-			} else if (entity instanceof Entity theEntity) {
-				entityBuilder = new ExistingEntityBuilder(theEntity);
-			} else if (entity instanceof EntityBuilder theBuilder) {
-				entityBuilder = theBuilder;
+		if (this.entityBuilder == null) {
+			if (this.entity instanceof EntityDecorator entityDecorator) {
+				this.entityBuilder = new ExistingEntityBuilder(entityDecorator);
+			} else if (this.entity instanceof Entity theEntity) {
+				this.entityBuilder = new ExistingEntityBuilder(theEntity);
+			} else if (this.entity instanceof EntityBuilder theBuilder) {
+				this.entityBuilder = theBuilder;
 			} else {
-				throw new GenericEvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
+				throw new GenericEvitaInternalError("Unexpected entity type: " + this.entity.getClass().getName());
 			}
 		}
-		return entityBuilder;
+		return this.entityBuilder;
 	}
 
 	@Nonnull
@@ -203,9 +203,9 @@ public class SealedEntityProxyState
 				.map(
 					existingReference -> new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityReferenceProxy(
-							this.getProxyClass(), expectedType, recipes, collectedRecipes,
+							this.getProxyClass(), expectedType, this.recipes, this.collectedRecipes,
 							this.entity, this::getPrimaryKey,
-							referencedEntitySchemas,
+							this.referencedEntitySchemas,
 							new ExistingReferenceBuilder(existingReference, getEntitySchema()),
 							getReflectionLookup(),
 							this.generatedProxyObjects
@@ -214,7 +214,7 @@ public class SealedEntityProxyState
 				)
 				.orElseGet(() -> new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityReferenceProxy(
-							this.getProxyClass(), expectedType, recipes, collectedRecipes,
+							this.getProxyClass(), expectedType, this.recipes, this.collectedRecipes,
 							this.entity, this::getPrimaryKey,
 							getReferencedEntitySchemas(),
 							new InitialReferenceBuilder(
@@ -230,7 +230,7 @@ public class SealedEntityProxyState
 					)
 				);
 		};
-		return generatedProxyObjects.computeIfAbsent(
+		return this.generatedProxyObjects.computeIfAbsent(
 				new ProxyInstanceCacheKey(referenceSchema.getName(), primaryKey, proxyType),
 				key -> instanceSupplier.get()
 			)
@@ -258,8 +258,8 @@ public class SealedEntityProxyState
 
 	@Override
 	public String toString() {
-		return entity instanceof EntityBuilder eb ?
-			eb.toInstance().toString() : entity.toString();
+		return this.entity instanceof EntityBuilder eb ?
+			eb.toInstance().toString() : this.entity.toString();
 	}
 
 }

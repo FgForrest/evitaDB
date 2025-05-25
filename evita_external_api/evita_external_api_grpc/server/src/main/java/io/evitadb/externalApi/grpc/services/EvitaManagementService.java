@@ -174,7 +174,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					.setCatalogsCorrupted(systemStatus.catalogsCorrupted())
 					.setCatalogsOk(systemStatus.catalogsOk())
 					.setReadiness(toGrpcReadinessState(readiness.map(Readiness::state).orElse(ReadinessState.UNKNOWN)))
-					.setReadOnly(evita.getConfiguration().server().readOnly());
+					.setReadOnly(this.evita.getConfiguration().server().readOnly());
 
 				this.externalApiServer.getProbeProviders().stream()
 					.flatMap(probe -> probe.getHealthProblems(this.evita, this.externalApiServer, enabledApiEndpoints).stream())
@@ -389,7 +389,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				final long totalSizeInBytes = request.getTotalSizeInBytes();
 
 				try {
-					final Path workDirectory = evita.getConfiguration().transaction().transactionWorkDirectory();
+					final Path workDirectory = this.evita.getConfiguration().transaction().transactionWorkDirectory();
 					final String catalogNameToRestore = request.getCatalogName();
 					Assert.isPremiseValid(catalogNameToRestore != null, "Catalog name to restore must be provided.");
 
@@ -401,8 +401,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 						}
 
 						fileId = UUIDUtil.randomUUID();
-						backupFilePath = management.exportFileService().createTempFile(fileId + ".zip");
-						restorationTask = management.createRestorationTask(
+						backupFilePath = this.management.exportFileService().createTempFile(fileId + ".zip");
+						restorationTask = this.management.createRestorationTask(
 							catalogNameToRestore,
 							fileId,
 							backupFilePath,
@@ -411,7 +411,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 						);
 						this.management.registerWaitingTask(restorationTask);
 					} else {
-						backupFilePath = management.exportFileService().getTempFile(fileId + ".zip");
+						backupFilePath = this.management.exportFileService().getTempFile(fileId + ".zip");
 						restorationTask = this.management.getWaitingTask(createRestoreTaskFindPredicate(fileId))
 							.orElseThrow(() -> new UnexpectedIOException("Task not found for file: " + backupFilePath, "Task not found for file id!"));
 					}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,18 +61,18 @@ public class NestedOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public Serializable compute(@Nonnull PredicateEvaluationContext context) {
-		return operator.compute(context);
+		return this.operator.compute(context);
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		return operator.determinePossibleRange();
+		return this.operator.determinePossibleRange();
 	}
 
 	@Override
 	public String toString() {
-		return "(" + operator.toString() + ")";
+		return "(" + this.operator.toString() + ")";
 	}
 
 }

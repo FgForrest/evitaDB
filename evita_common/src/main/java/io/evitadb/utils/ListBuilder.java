@@ -56,23 +56,23 @@ public class ListBuilder {
 	@Nonnull
 	public ListBuilder i(@Nonnull Object element) {
 		if (element instanceof MapBuilder mapBuilder) {
-			list.add(mapBuilder.build());
+			this.list.add(mapBuilder.build());
 		} else if (element instanceof ListBuilder listBuilder) {
-			list.add(listBuilder.build());
+			this.list.add(listBuilder.build());
 		} else {
-			list.add(element);
+			this.list.add(element);
 		}
 		return this;
 	}
 
 	@Nonnull
 	public Object build() {
-		if (outputType == OutputType.LIST) {
-			return Collections.unmodifiableList(list);
-		} else if (outputType == OutputType.ARRAY) {
-			return list.toArray();
+		if (this.outputType == OutputType.LIST) {
+			return Collections.unmodifiableList(this.list);
+		} else if (this.outputType == OutputType.ARRAY) {
+			return this.list.toArray();
 		} else {
-			throw new GenericEvitaInternalError("Unsupported output type `" + outputType + "`.");
+			throw new GenericEvitaInternalError("Unsupported output type `" + this.outputType + "`.");
 		}
 	}
 

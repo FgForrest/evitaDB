@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ public class OnDataChangeSubscribingDataFetcher extends ChangeSubscribingDataFet
 				new ChangeCatalogCaptureCriteria(
 					CaptureArea.DATA,
 					new DataSite(
-						entitySchema.getName(),
+						this.entitySchema.getName(),
 						entityPrimaryKey,
 						Optional.ofNullable(operation).map(it -> it.toArray(Operation[]::new)).orElse(null),
 						Optional.ofNullable(containerType).map(it -> it.toArray(ContainerType[]::new)).orElse(null),

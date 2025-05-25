@@ -86,7 +86,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(SUBDIR_NAME);
-		this.exportFileService = new ExportFileService(storageOptions, Mockito.mock(Scheduler.class));
+		this.exportFileService = new ExportFileService(this.storageOptions, Mockito.mock(Scheduler.class));
 	}
 
 	@AfterEach
@@ -99,7 +99,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		writeFile("testFile.txt", "A,B");
 
 		// verify the file was written
-		final PaginatedList<FileForFetch> files = exportFileService.listFilesToFetch(1, Integer.MAX_VALUE, null);
+		final PaginatedList<FileForFetch> files = this.exportFileService.listFilesToFetch(1, Integer.MAX_VALUE, null);
 		assertEquals(1, files.getTotalRecordCount());
 
 		final FileForFetch fileForFetch = files.getData().get(0);
@@ -110,7 +110,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		assertArrayEquals(new String[]{"A", "B"}, fileForFetch.origin());
 
 		// verify the file content
-		assertEquals("testFileContent", Files.readString(fileForFetch.path(storageOptions.exportDirectory()), StandardCharsets.UTF_8));
+		assertEquals("testFileContent", Files.readString(fileForFetch.path(this.storageOptions.exportDirectory()), StandardCharsets.UTF_8));
 	}
 
 	@Test
@@ -167,7 +167,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		}
 
 		assertEquals(
-			11, numberOfFiles(storageOptions.exportDirectory())
+			11, numberOfFiles(this.storageOptions.exportDirectory())
 		);
 
 		final PaginatedList<FileForFetch> filesBeforeDelete = this.exportFileService.listFilesToFetch(1, 20, null);
@@ -179,7 +179,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		assertEquals(3, this.exportFileService.listFilesToFetch(1, 20, null).getTotalRecordCount());
 
 		assertEquals(
-			7, numberOfFiles(storageOptions.exportDirectory())
+			7, numberOfFiles(this.storageOptions.exportDirectory())
 		);
 	}
 
@@ -205,7 +205,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		}
 
 		// Check files before purging
-		int numOfFilesBeforePurge = numberOfFiles(storageOptions.exportDirectory());
+		int numOfFilesBeforePurge = numberOfFiles(this.storageOptions.exportDirectory());
 		int totalFilesBeforePurge = this.exportFileService.listFilesToFetch(1, 20, null).getTotalRecordCount();
 		assertEquals(10, totalFilesBeforePurge);
 		assertEquals(totalFilesBeforePurge * 2 + 5 + 1, numOfFilesBeforePurge);
@@ -214,7 +214,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		this.exportFileService.purgeFiles(OffsetDateTime.now().minusMinutes(2));
 
 		// Check files after purging
-		int numOfFilesAfterPurge = numberOfFiles(storageOptions.exportDirectory());
+		int numOfFilesAfterPurge = numberOfFiles(this.storageOptions.exportDirectory());
 		int totalFilesAfterPurge = this.exportFileService.listFilesToFetch(1, 20, null).getTotalRecordCount();
 		assertEquals(5, totalFilesAfterPurge);
 		assertEquals(totalFilesAfterPurge * 2 + 5 + 1, numOfFilesAfterPurge);
@@ -222,7 +222,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		this.exportFileService.purgeFiles(OffsetDateTime.now());
 
 		// Check files after purging
-		int numOfFilesAfterPurge2 = numberOfFiles(storageOptions.exportDirectory());
+		int numOfFilesAfterPurge2 = numberOfFiles(this.storageOptions.exportDirectory());
 		int totalFilesAfterPurge2 = this.exportFileService.listFilesToFetch(1, 20, null).getTotalRecordCount();
 		assertEquals(0, totalFilesAfterPurge2);
 		assertEquals(totalFilesAfterPurge2 * 2 + 1, numOfFilesAfterPurge2);
@@ -230,7 +230,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 	@Nullable
 	private FileForFetch writeFile(@Nonnull String fileName, @Nonnull String withOrigin) throws IOException {
-		final ExportFileHandle exportFileHandle = exportFileService.storeFile(
+		final ExportFileHandle exportFileHandle = this.exportFileService.storeFile(
 			fileName,
 			"With description ...",
 			"text/plain",

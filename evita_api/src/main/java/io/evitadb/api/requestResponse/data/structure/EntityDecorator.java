@@ -325,7 +325,7 @@ public class EntityDecorator implements SealedEntity {
 	) {
 		this.delegate = decorator.getDelegate();
 		this.parentEntity = ofNullable(parentEntity)
-			.or(() -> of(delegate).filter(Entity::parentAvailable).flatMap(Entity::getParentEntity))
+			.or(() -> of(this.delegate).filter(Entity::parentAvailable).flatMap(Entity::getParentEntity))
 			.orElse(null);
 		this.entitySchema = decorator.getSchema();
 		this.localePredicate = localePredicate;
@@ -539,7 +539,7 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	@Nonnull
 	public LocaleSerializablePredicate createLocalePredicateRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
-		return localePredicate.createRicherCopyWith(evitaRequest);
+		return this.localePredicate.createRicherCopyWith(evitaRequest);
 	}
 
 	/**
@@ -809,7 +809,7 @@ public class EntityDecorator implements SealedEntity {
 			attributeKey = new AttributeKey(attributeName);
 		}
 		this.attributePredicate.checkFetched(attributeKey);
-		return this.delegate.getAttributeValue(attributeKey).filter(attributePredicate);
+		return this.delegate.getAttributeValue(attributeKey).filter(this.attributePredicate);
 	}
 
 	@Nullable
@@ -977,7 +977,7 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
 		return this.delegate.getAssociatedDataValue(associatedDataName, locale)
-			.filter(associatedDataPredicate)
+			.filter(this.associatedDataPredicate)
 			.map(AssociatedDataValue::value)
 			.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
 			.orElse(null);
@@ -1031,7 +1031,7 @@ public class EntityDecorator implements SealedEntity {
 	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull AssociatedDataKey associatedDataKey) {
 		this.associatedDataPredicate.checkFetched(associatedDataKey);
 		return this.delegate.getAssociatedDataValue(associatedDataKey)
-			.filter(associatedDataPredicate);
+			.filter(this.associatedDataPredicate);
 	}
 
 	@Nonnull

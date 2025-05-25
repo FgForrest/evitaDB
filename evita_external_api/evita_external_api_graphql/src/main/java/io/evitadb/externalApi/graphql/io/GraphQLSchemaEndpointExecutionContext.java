@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,27 +55,27 @@ class GraphQLSchemaEndpointExecutionContext extends EndpointExecutionContext {
 			this.requestBodyContentType == null,
 			() -> new GraphQLInternalError("Request body content type already provided.")
 		);
-		requestBodyContentType = contentType;
+		this.requestBodyContentType = contentType;
 	}
 
 	@Nullable
 	@Override
 	public String requestBodyContentType() {
-		return requestBodyContentType;
+		return this.requestBodyContentType;
 	}
 
 	@Override
 	public void providePreferredResponseContentType(@Nonnull String contentType) {
 		Assert.isPremiseValid(
-			preferredResponseContentType == null,
+			this.preferredResponseContentType == null,
 			() -> new GraphQLInternalError("Preferred response content type already provided.")
 		);
-		preferredResponseContentType = contentType;
+		this.preferredResponseContentType = contentType;
 	}
 
 	@Nullable
 	@Override
 	public String preferredResponseContentType() {
-		return preferredResponseContentType;
+		return this.preferredResponseContentType;
 	}
 }

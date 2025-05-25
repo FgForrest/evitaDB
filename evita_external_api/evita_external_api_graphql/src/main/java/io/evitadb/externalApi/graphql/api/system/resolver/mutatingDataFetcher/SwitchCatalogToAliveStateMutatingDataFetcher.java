@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,6 +47,6 @@ public class SwitchCatalogToAliveStateMutatingDataFetcher implements DataFetcher
     @Override
     public Boolean get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final String catalogName = environment.getArgument(SwitchCatalogToAliveStateMutationHeaderDescriptor.NAME.name());
-        return evita.getCatalogInstanceOrThrowException(catalogName).goLive();
+        return this.evita.getCatalogInstanceOrThrowException(catalogName).goLive();
     }
 }

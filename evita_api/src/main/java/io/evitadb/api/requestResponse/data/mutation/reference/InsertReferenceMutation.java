@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -95,55 +95,55 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey> imp
 
 	@Override
 	public void verifyOrEvolveSchema(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaBuilder entitySchemaBuilder) throws InvalidMutationException {
-		final Optional<ReferenceSchemaContract> existingSchema = entitySchemaBuilder.getReference(referenceKey.referenceName());
+		final Optional<ReferenceSchemaContract> existingSchema = entitySchemaBuilder.getReference(this.referenceKey.referenceName());
 		if (existingSchema.isEmpty()) {
 			Assert.isTrue(
 				entitySchemaBuilder.allows(EvolutionMode.ADDING_REFERENCES),
 				() -> new InvalidMutationException(
-					"Entity `" + entitySchemaBuilder.getName() + "` doesn't support references of type `" + referenceKey.referenceName() +
+					"Entity `" + entitySchemaBuilder.getName() + "` doesn't support references of type `" + this.referenceKey.referenceName() +
 						"`, you need to change the schema definition for it first."
 				)
 			);
 			Assert.isTrue(
-				referencedEntityType != null && referenceCardinality != null,
+				this.referencedEntityType != null && this.referenceCardinality != null,
 				() -> new InvalidMutationException(
-					"Entity `" + entitySchemaBuilder.getName() + "` doesn't know the reference of type `" + referenceKey.referenceName() +
+					"Entity `" + entitySchemaBuilder.getName() + "` doesn't know the reference of type `" + this.referenceKey.referenceName() +
 						"` but it can be automatically created, in order to do so, you need to specify the cardinality and referenced entity type."
 				)
 			);
-			final Optional<EntitySchemaContract> targetEntity = catalogSchema.getEntitySchema(referencedEntityType);
+			final Optional<EntitySchemaContract> targetEntity = catalogSchema.getEntitySchema(this.referencedEntityType);
 			if (targetEntity.isEmpty()) {
 				entitySchemaBuilder.withReferenceTo(
-					referenceKey.referenceName(),
-					referencedEntityType,
-					referenceCardinality,
+					this.referenceKey.referenceName(),
+					this.referencedEntityType,
+					this.referenceCardinality,
 					ReferenceSchemaEditor::indexed
 				);
 			} else {
 				entitySchemaBuilder.withReferenceToEntity(
-					referenceKey.referenceName(),
-					referencedEntityType,
-					referenceCardinality,
+					this.referenceKey.referenceName(),
+					this.referencedEntityType,
+					this.referenceCardinality,
 					ReferenceSchemaEditor::indexed
 				);
 			}
 		} else {
 			final ReferenceSchemaContract referenceSchema = existingSchema.get();
-			if (referencedEntityType != null) {
+			if (this.referencedEntityType != null) {
 				Assert.isTrue(
-					referencedEntityType.equals(referenceSchema.getReferencedEntityType()),
+					this.referencedEntityType.equals(referenceSchema.getReferencedEntityType()),
 					() -> new InvalidMutationException(
-						"Entity `" + entitySchemaBuilder.getName() + "` has got the reference of type `" + referenceKey.referenceName() +
-							"` already linked to entity type `" + referenceSchema.getReferencedEntityType() + "`, but passed mutation declares relation to type `" + referencedEntityType + "`."
+						"Entity `" + entitySchemaBuilder.getName() + "` has got the reference of type `" + this.referenceKey.referenceName() +
+							"` already linked to entity type `" + referenceSchema.getReferencedEntityType() + "`, but passed mutation declares relation to type `" + this.referencedEntityType + "`."
 					)
 				);
 			}
-			if (referenceCardinality != null) {
+			if (this.referenceCardinality != null) {
 				Assert.isTrue(
-					referenceCardinality.equals(referenceSchema.getCardinality()),
+					this.referenceCardinality.equals(referenceSchema.getCardinality()),
 					() -> new InvalidMutationException(
-						"Entity `" + entitySchemaBuilder.getName() + "` has got the reference of type `" + referenceKey.referenceName() +
-							"` already linked to cardinality `" + referenceSchema.getCardinality() + "`, but passed mutation declares cardinality `" + referenceCardinality + "`."
+						"Entity `" + entitySchemaBuilder.getName() + "` has got the reference of type `" + this.referenceKey.referenceName() +
+							"` already linked to cardinality `" + referenceSchema.getCardinality() + "`, but passed mutation declares cardinality `" + this.referenceCardinality + "`."
 					)
 				);
 			}
@@ -153,7 +153,7 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey> imp
 	@Nonnull
 	@Override
 	public Serializable getSkipToken(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
-		return new ReferenceSkipToken(referenceKey.referenceName());
+		return new ReferenceSkipToken(this.referenceKey.referenceName());
 	}
 
 	@Nonnull
@@ -163,10 +163,10 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey> imp
 			return new Reference(
 				entitySchema,
 				1,
-				referenceKey.referenceName(),
-				referenceKey.primaryKey(),
-				referencedEntityType,
-				referenceCardinality,
+				this.referenceKey.referenceName(),
+				this.referenceKey.primaryKey(),
+				this.referencedEntityType,
+				this.referenceCardinality,
 				null,
 				// attributes are inserted in separate mutation
 				Collections.emptyList(),
@@ -176,7 +176,7 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey> imp
 			return new Reference(
 				entitySchema,
 				existingValue.version() + 1,
-				referenceKey.referenceName(), referenceKey.primaryKey(),
+				this.referenceKey.referenceName(), this.referenceKey.primaryKey(),
 				existingValue.getReferencedEntityType(),
 				existingValue.getReferenceCardinality(),
 				existingValue.getGroup()
@@ -202,7 +202,7 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey> imp
 
 	@Override
 	public ReferenceKey getComparableKey() {
-		return referenceKey;
+		return this.referenceKey;
 	}
 
 	@Nonnull
@@ -213,8 +213,8 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey> imp
 
 	@Override
 	public String toString() {
-		return "insert reference `" + referenceKey + "` " +
-			(referenceCardinality == null ? "" : " with cardinality `" + referenceCardinality + "`") +
-			(referencedEntityType == null ? "" : " referencing type `" + referencedEntityType + "`");
+		return "insert reference `" + this.referenceKey + "` " +
+			(this.referenceCardinality == null ? "" : " with cardinality `" + this.referenceCardinality + "`") +
+			(this.referencedEntityType == null ? "" : " referencing type `" + this.referencedEntityType + "`");
 	}
 }

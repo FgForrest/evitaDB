@@ -106,7 +106,7 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 	public HttpServiceDefinition[] getHttpServiceDefinitions() {
 		return new HttpServiceDefinition[]{
 			new HttpServiceDefinition(
-				apiHandler,
+				this.apiHandler,
 				PathHandlingMode.DYNAMIC_PATH_HANDLING
 			)
 		};
@@ -161,7 +161,7 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 		writeLine("   - client certificate served at: ", CLIENT_CERTIFICATE_URL);
 		writeLine("   - client private key served at: ", CLIENT_PRIVATE_KEY_URL);
 
-		if (!ArrayUtils.isEmpty(endpoints.get(CLIENT_CERTIFICATE_URL))) {
+		if (!ArrayUtils.isEmpty(this.endpoints.get(CLIENT_CERTIFICATE_URL))) {
 			ConsoleWriter.write("""
 					
 					************************* WARNING!!! *************************
@@ -183,7 +183,7 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 	 * @param endpointKey key of the endpoint
 	 */
 	private void writeLine(@Nonnull String label, @Nonnull String endpointKey) {
-		final String[] urls = endpoints.get(endpointKey);
+		final String[] urls = this.endpoints.get(endpointKey);
 		if (!ArrayUtils.isEmpty(urls)) {
 			ConsoleWriter.write(StringUtils.rightPad(label, " ", ExternalApiServer.PADDING_START_UP));
 			for (int i = 0; i < urls.length; i++) {

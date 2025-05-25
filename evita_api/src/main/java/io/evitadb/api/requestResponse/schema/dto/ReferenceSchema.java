@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -416,32 +416,32 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	@Override
 	@Nonnull
 	public String getReferencedEntityTypeNameVariant(@Nonnull NamingConvention namingConvention, @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
-		return referencedEntityTypeManaged ?
-			Objects.requireNonNull(entitySchemaFetcher.apply(referencedEntityType)).getNameVariant(namingConvention) :
+		return this.referencedEntityTypeManaged ?
+			Objects.requireNonNull(entitySchemaFetcher.apply(this.referencedEntityType)).getNameVariant(namingConvention) :
 			this.entityTypeNameVariants.get(namingConvention);
 	}
 
 	@Override
 	@Nonnull
 	public String getReferencedGroupTypeNameVariant(@Nonnull NamingConvention namingConvention, @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
-		return referencedGroupTypeManaged ?
-			Objects.requireNonNull(entitySchemaFetcher.apply(referencedGroupType)).getNameVariant(namingConvention) :
+		return this.referencedGroupTypeManaged ?
+			Objects.requireNonNull(entitySchemaFetcher.apply(this.referencedGroupType)).getNameVariant(namingConvention) :
 			this.groupTypeNameVariants.get(namingConvention);
 	}
 
 	@Nonnull
 	@Override
 	public Map<NamingConvention, String> getEntityTypeNameVariants(@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
-		return referencedEntityTypeManaged ?
-			Objects.requireNonNull(entitySchemaFetcher.apply(referencedEntityType)).getNameVariants() :
+		return this.referencedEntityTypeManaged ?
+			Objects.requireNonNull(entitySchemaFetcher.apply(this.referencedEntityType)).getNameVariants() :
 			this.entityTypeNameVariants;
 	}
 
 	@Nonnull
 	@Override
 	public Map<NamingConvention, String> getGroupTypeNameVariants(@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
-		return referencedGroupTypeManaged ?
-			Objects.requireNonNull(entitySchemaFetcher.apply(referencedGroupType)).getNameVariants() :
+		return this.referencedGroupTypeManaged ?
+			Objects.requireNonNull(entitySchemaFetcher.apply(this.referencedGroupType)).getNameVariants() :
 			this.groupTypeNameVariants;
 	}
 
@@ -519,7 +519,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	@Nonnull
 	@Override
 	public Optional<AttributeSchemaContract> getAttributeByName(@Nonnull String attributeName, @Nonnull NamingConvention namingConvention) {
-		return ofNullable(attributeNameIndex.get(attributeName))
+		return ofNullable(this.attributeNameIndex.get(attributeName))
 			.map(it -> it[namingConvention.ordinal()]);
 	}
 
@@ -537,20 +537,20 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	@Nonnull
 	@Override
 	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompound(@Nonnull String name) {
-		return ofNullable(sortableAttributeCompounds.get(name));
+		return ofNullable(this.sortableAttributeCompounds.get(name));
 	}
 
 	@Nonnull
 	@Override
 	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundByName(@Nonnull String name, @Nonnull NamingConvention namingConvention) {
-		return ofNullable(sortableAttributeCompoundNameIndex.get(name))
+		return ofNullable(this.sortableAttributeCompoundNameIndex.get(name))
 			.map(it -> it[namingConvention.ordinal()]);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundsForAttribute(@Nonnull String attributeName) {
-		return ofNullable(attributeToSortableAttributeCompoundIndex.get(attributeName))
+		return ofNullable(this.attributeToSortableAttributeCompoundIndex.get(attributeName))
 			.orElse(Collections.emptyList());
 	}
 
@@ -622,21 +622,21 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 
 	@Override
 	public int hashCode() {
-		int result = name.hashCode();
-		result = 31 * result + nameVariants.hashCode();
-		result = 31 * result + Objects.hashCode(description);
-		result = 31 * result + Objects.hashCode(deprecationNotice);
-		result = 31 * result + Objects.hashCode(cardinality);
-		result = 31 * result + referencedEntityType.hashCode();
-		result = 31 * result + entityTypeNameVariants.hashCode();
-		result = 31 * result + Boolean.hashCode(referencedEntityTypeManaged);
-		result = 31 * result + Objects.hashCode(referencedGroupType);
-		result = 31 * result + groupTypeNameVariants.hashCode();
-		result = 31 * result + Boolean.hashCode(referencedGroupTypeManaged);
-		result = 31 * result + indexedInScopes.hashCode();
-		result = 31 * result + facetedInScopes.hashCode();
-		result = 31 * result + sortableAttributeCompounds.hashCode();
-		result = 31 * result + attributes.hashCode();
+		int result = this.name.hashCode();
+		result = 31 * result + this.nameVariants.hashCode();
+		result = 31 * result + Objects.hashCode(this.description);
+		result = 31 * result + Objects.hashCode(this.deprecationNotice);
+		result = 31 * result + Objects.hashCode(this.cardinality);
+		result = 31 * result + this.referencedEntityType.hashCode();
+		result = 31 * result + this.entityTypeNameVariants.hashCode();
+		result = 31 * result + Boolean.hashCode(this.referencedEntityTypeManaged);
+		result = 31 * result + Objects.hashCode(this.referencedGroupType);
+		result = 31 * result + this.groupTypeNameVariants.hashCode();
+		result = 31 * result + Boolean.hashCode(this.referencedGroupTypeManaged);
+		result = 31 * result + this.indexedInScopes.hashCode();
+		result = 31 * result + this.facetedInScopes.hashCode();
+		result = 31 * result + this.sortableAttributeCompounds.hashCode();
+		result = 31 * result + this.attributes.hashCode();
 		return result;
 	}
 
@@ -646,21 +646,21 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		if (o == null || getClass() != o.getClass()) return false;
 
 		ReferenceSchema that = (ReferenceSchema) o;
-		return referencedEntityTypeManaged == that.referencedEntityTypeManaged &&
-			referencedGroupTypeManaged == that.referencedGroupTypeManaged &&
-			indexedInScopes.equals(that.indexedInScopes) &&
-			facetedInScopes.equals(that.facetedInScopes) &&
-			name.equals(that.name) &&
-			nameVariants.equals(that.nameVariants) &&
-			Objects.equals(description, that.description) &&
-			Objects.equals(deprecationNotice, that.deprecationNotice) &&
-			cardinality == that.cardinality &&
-			referencedEntityType.equals(that.referencedEntityType) &&
-			entityTypeNameVariants.equals(that.entityTypeNameVariants) &&
-			Objects.equals(referencedGroupType, that.referencedGroupType) &&
-			groupTypeNameVariants.equals(that.groupTypeNameVariants) &&
-			sortableAttributeCompounds.equals(that.sortableAttributeCompounds) &&
-			attributes.equals(that.attributes);
+		return this.referencedEntityTypeManaged == that.referencedEntityTypeManaged &&
+			this.referencedGroupTypeManaged == that.referencedGroupTypeManaged &&
+			this.indexedInScopes.equals(that.indexedInScopes) &&
+			this.facetedInScopes.equals(that.facetedInScopes) &&
+			this.name.equals(that.name) &&
+			this.nameVariants.equals(that.nameVariants) &&
+			Objects.equals(this.description, that.description) &&
+			Objects.equals(this.deprecationNotice, that.deprecationNotice) &&
+			this.cardinality == that.cardinality &&
+			this.referencedEntityType.equals(that.referencedEntityType) &&
+			this.entityTypeNameVariants.equals(that.entityTypeNameVariants) &&
+			Objects.equals(this.referencedGroupType, that.referencedGroupType) &&
+			this.groupTypeNameVariants.equals(that.groupTypeNameVariants) &&
+			this.sortableAttributeCompounds.equals(that.sortableAttributeCompounds) &&
+			this.attributes.equals(that.attributes);
 	}
 
 	/**

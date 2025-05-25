@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -311,7 +311,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns count of records in this index.
 	 */
 	public int size() {
-		return invertedIndex.getLength();
+		return this.invertedIndex.getLength();
 	}
 
 	/**
@@ -321,7 +321,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nonnull
 	public Formula getRecordsWhoseValuesStartWith(@Nonnull String prefix) {
-		final ValueToRecordBitmap[] buckets = invertedIndex.getValueToRecordBitmap();
+		final ValueToRecordBitmap[] buckets = this.invertedIndex.getValueToRecordBitmap();
 		final int matchIndex = ArrayUtils.binarySearch(
 			buckets,
 			prefix,
@@ -405,7 +405,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	public <T extends Serializable> void addRecord(int recordId, @Nonnull Object value) throws EvitaInvalidUsageException {
 		// if current attribute is Range based assign record also to range index
-		if (rangeIndex != null) {
+		if (this.rangeIndex != null) {
 			if (value instanceof Range[] valueArray) {
 				addRange(recordId, valueArray);
 			} else {
@@ -413,7 +413,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 					value instanceof Range,
 					() -> new EvitaInvalidUsageException("Value `" + unknownToString(value) + "` is expected to be Range but it is not!"));
 				final Range range = (Range) value;
-				rangeIndex.addRecord(range.getFrom(), range.getTo(), recordId);
+				this.rangeIndex.addRecord(range.getFrom(), range.getTo(), recordId);
 			}
 		}
 
@@ -560,7 +560,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Nonnull
 	public <T> Bitmap getRecordsEqualTo(@Nonnull T attributeValue) {
 		return ofNullable(getValueIndex().get(this.normalizer.apply(attributeValue)))
-			.map(invertedIndex::getRecordsAtIndex)
+			.map(this.invertedIndex::getRecordsAtIndex)
 			.orElse(EmptyBitmap.INSTANCE);
 	}
 
@@ -845,16 +845,16 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 
 	@Nonnull
 	private Map<Serializable, Integer> getValueIndex() {
-		if (valueIndex == null) {
-			final Map<Serializable, Integer> bucketValueToPositionIndex = createHashMap(invertedIndex.getBucketCount());
-			final ValueToRecordBitmap[] buckets = invertedIndex.getValueToRecordBitmap();
+		if (this.valueIndex == null) {
+			final Map<Serializable, Integer> bucketValueToPositionIndex = createHashMap(this.invertedIndex.getBucketCount());
+			final ValueToRecordBitmap[] buckets = this.invertedIndex.getValueToRecordBitmap();
 			for (int i = 0; i < buckets.length; i++) {
 				final ValueToRecordBitmap bucket = buckets[i];
 				bucketValueToPositionIndex.put(bucket.getValue(), i);
 			}
 			this.valueIndex = bucketValueToPositionIndex;
 		}
-		return valueIndex;
+		return this.valueIndex;
 	}
 
 	private <T extends Serializable> void addRecordToHistogramAndValueIndex(int recordId, @Nonnull T value) {

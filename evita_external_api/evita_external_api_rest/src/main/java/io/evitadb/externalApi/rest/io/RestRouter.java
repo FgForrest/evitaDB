@@ -85,7 +85,7 @@ public class RestRouter implements HttpService {
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-		return delegateRouter.serve(ctx, req);
+		return this.delegateRouter.serve(ctx, req);
 	}
 
 	/**
@@ -116,9 +116,9 @@ public class RestRouter implements HttpService {
 	 * Unregisters all APIs associated with the defined catalog.
 	 */
 	public void unregisterCatalogApi(@Nonnull String catalogName) {
-		final boolean catalogRegistered = registeredApis.remove(catalogName);
+		final boolean catalogRegistered = this.registeredApis.remove(catalogName);
 		if (catalogRegistered) {
-			delegateRouter.removePrefixPath(constructApiPath(catalogName).toString());
+			this.delegateRouter.removePrefixPath(constructApiPath(catalogName).toString());
 		}
 	}
 
@@ -133,7 +133,7 @@ public class RestRouter implements HttpService {
 			endpoint.path().toString(),
 			CorsService.standaloneFilter(
 				endpoint.handler()
-					.decorate(service -> new RestExceptionHandler(objectMapper, service))
+					.decorate(service -> new RestExceptionHandler(this.objectMapper, service))
 			)
 		);
 	}

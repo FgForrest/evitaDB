@@ -57,7 +57,7 @@ public record CertificateOptions(
 
 	@Nonnull
 	public Path getFolderPath() {
-		final String fp = folderPath == null ? ServerCertificateManager.getDefaultServerCertificateFolderPath() : folderPath;
+		final String fp = this.folderPath == null ? ServerCertificateManager.getDefaultServerCertificateFolderPath() : this.folderPath;
 		return fp.endsWith(File.separator) ? Path.of(fp) : Path.of(fp + File.separator);
 	}
 
@@ -82,7 +82,7 @@ public record CertificateOptions(
 		}
 
 		public CertificateOptions build() {
-			return new CertificateOptions(generateAndUseSelfSigned, folderPath, custom);
+			return new CertificateOptions(this.generateAndUseSelfSigned, this.folderPath, this.custom);
 		}
 	}
 }

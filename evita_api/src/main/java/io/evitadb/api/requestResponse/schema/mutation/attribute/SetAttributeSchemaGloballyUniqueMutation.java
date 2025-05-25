@@ -99,7 +99,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
-		if (existingMutation instanceof SetAttributeSchemaGloballyUniqueMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof SetAttributeSchemaGloballyUniqueMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -143,16 +143,16 @@ public class SetAttributeSchemaGloballyUniqueMutation
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
-		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name)
+		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(this.name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
+				"The attribute `" + this.name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
 			));
 
 		final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
 			catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor,
 			// this leads to refresh of the attribute schema
-			new UseGlobalAttributeSchemaMutation(name)
+			new UseGlobalAttributeSchemaMutation(this.name)
 		);
 	}
 
@@ -164,7 +164,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 
 	@Override
 	public String toString() {
-		return "Set attribute `" + name + "` schema: " +
+		return "Set attribute `" + this.name + "` schema: " +
 			", uniqueGlobally=(" + (Arrays.stream(this.uniqueGloballyInScopes).map(it -> it.scope() + ": " + it.uniquenessType().name())) + ")";
 	}
 

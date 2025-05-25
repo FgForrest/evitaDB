@@ -59,7 +59,7 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 		final Long uniquePartId = sortIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(keyCompressor.getId(sortIndex.getAttributeKey()), true);
+		output.writeVarInt(this.keyCompressor.getId(sortIndex.getAttributeKey()), true);
 
 		final ComparatorSource[] comparatorBase = sortIndex.getComparatorBase();
 		output.writeVarInt(comparatorBase.length, true);

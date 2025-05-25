@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -275,19 +275,19 @@ public final class CatalogSchema implements CatalogSchemaContract {
 
 	@Override
 	public int version() {
-		return version;
+		return this.version;
 	}
 
 	@Nonnull
 	@Override
 	public Collection<EntitySchemaContract> getEntitySchemas() {
-		return entitySchemaAccessor.getEntitySchemas();
+		return this.entitySchemaAccessor.getEntitySchemas();
 	}
 
 	@Nonnull
 	@Override
 	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-		return entitySchemaAccessor.getEntitySchema(entityType);
+		return this.entitySchemaAccessor.getEntitySchema(entityType);
 	}
 
 	@Override
@@ -316,7 +316,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	@Nonnull
 	@Override
 	public Optional<GlobalAttributeSchemaContract> getAttributeByName(@Nonnull String attributeName, @Nonnull NamingConvention namingConvention) {
-		return ofNullable(attributeNameIndex.get(attributeName))
+		return ofNullable(this.attributeNameIndex.get(attributeName))
 			.map(it -> it[namingConvention.ordinal()]);
 	}
 
@@ -324,15 +324,15 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	public boolean differsFrom(CatalogSchemaContract otherObject) {
 		if (this == otherObject) return false;
 		return !(
-			version == otherObject.version() &&
-				name.equals(otherObject.getName()) &&
-				attributes.equals(otherObject.getAttributes())
+			this.version == otherObject.version() &&
+				this.name.equals(otherObject.getName()) &&
+				this.attributes.equals(otherObject.getAttributes())
 		);
 	}
 
 	@Override
 	public void validate() throws SchemaAlteringException {
-		final Collection<EntitySchemaContract> entitySchemas = entitySchemaAccessor.getEntitySchemas();
+		final Collection<EntitySchemaContract> entitySchemas = this.entitySchemaAccessor.getEntitySchemas();
 		for (EntitySchemaContract entitySchema : entitySchemas) {
 			entitySchema.validate(this);
 		}

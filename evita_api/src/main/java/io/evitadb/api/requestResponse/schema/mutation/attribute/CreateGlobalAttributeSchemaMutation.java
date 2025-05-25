@@ -273,7 +273,7 @@ public class CreateGlobalAttributeSchemaMutation
 							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::isRepresentative,
-							newValue -> new SetAttributeSchemaRepresentativeMutation(name, newValue)
+							newValue -> new SetAttributeSchemaRepresentativeMutation(this.name, newValue)
 						)
 					)
 					.filter(Objects::nonNull)

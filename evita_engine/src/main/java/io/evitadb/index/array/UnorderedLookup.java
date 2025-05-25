@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ public class UnorderedLookup implements Serializable {
 	 * Returns ordered array of record ids in ascending order.
 	 */
 	public int[] getRecordIds() {
-		return recordIds;
+		return this.recordIds;
 	}
 
 	/**
@@ -159,9 +159,9 @@ public class UnorderedLookup implements Serializable {
 		}
 
 		// increment all positions that are same or equal to newPosition to maintain monotonic row or positions
-		for (int i = 0; i < positions.length; i++) {
-			if (positions[i] >= newPosition) {
-				positions[i]++;
+		for (int i = 0; i < this.positions.length; i++) {
+			if (this.positions[i] >= newPosition) {
+				this.positions[i]++;
 			}
 		}
 		// now place new record id into ordered array of other record ids on proper place
@@ -186,9 +186,9 @@ public class UnorderedLookup implements Serializable {
 		final InsertionPosition leadingPosition = computeInsertPositionOfIntInOrderedArray(recordId, this.recordIds);
 
 		// increment all positions that are same or equal to newPosition to maintain monotonic row or positions
-		for (int i = 0; i < positions.length; i++) {
-			if (positions[i] >= index) {
-				positions[i]++;
+		for (int i = 0; i < this.positions.length; i++) {
+			if (this.positions[i] >= index) {
+				this.positions[i]++;
 			}
 		}
 		// now place new record id into ordered array of other record ids on proper place
@@ -233,12 +233,12 @@ public class UnorderedLookup implements Serializable {
 			final InsertionPosition ins = computeInsertPositionOfIntInOrderedArray(newRecordId, this.recordIds);
 			final int position = ins.position();
 			final int length = position - lastSourcePosition;
-			System.arraycopy(recordIds, lastSourcePosition, aggregatedOrderedRecordIds, lastDestinationPosition, length);
+			System.arraycopy(this.recordIds, lastSourcePosition, aggregatedOrderedRecordIds, lastDestinationPosition, length);
 			lastDestinationPosition += length;
 			aggregatedOrderedRecordIds[lastDestinationPosition++] = newRecordId;
 			lastSourcePosition = position;
 		}
-		System.arraycopy(recordIds, lastSourcePosition, aggregatedOrderedRecordIds, lastDestinationPosition, recordIds.length - lastSourcePosition);
+		System.arraycopy(this.recordIds, lastSourcePosition, aggregatedOrderedRecordIds, lastDestinationPosition, this.recordIds.length - lastSourcePosition);
 		this.recordIds = aggregatedOrderedRecordIds;
 
 		// we have to reset memoized result - modification has occurred
@@ -261,9 +261,9 @@ public class UnorderedLookup implements Serializable {
 			// remove the same position and shrink the array
 			this.positions = ArrayUtils.removeIntFromArrayOnIndex(this.positions, index);
 			// now lower all positions above removed position by one to fill the gap after record and maintain monotonic row of positions
-			for (int i = 0; i < positions.length; i++) {
-				if (positions[i] > position) {
-					positions[i]--;
+			for (int i = 0; i < this.positions.length; i++) {
+				if (this.positions[i] > position) {
+					this.positions[i]--;
 				}
 			}
 		} else {
@@ -335,14 +335,14 @@ public class UnorderedLookup implements Serializable {
 	 * @throws ArrayIndexOutOfBoundsException when array is empty
 	 */
 	public int getLastRecordId() throws ArrayIndexOutOfBoundsException {
-		if (memoizedUnorderedArray != null) {
-			return memoizedUnorderedArray[memoizedUnorderedArray.length - 1];
+		if (this.memoizedUnorderedArray != null) {
+			return this.memoizedUnorderedArray[this.memoizedUnorderedArray.length - 1];
 		} else {
-			final int lastPosition = recordIds.length - 1;
-			for (int i = 0; i < positions.length; i++) {
-				int position = positions[i];
+			final int lastPosition = this.recordIds.length - 1;
+			for (int i = 0; i < this.positions.length; i++) {
+				int position = this.positions[i];
 				if (position == lastPosition) {
-					return recordIds[i];
+					return this.recordIds[i];
 				}
 			}
 			throw new ArrayIndexOutOfBoundsException("Array is empty!");
@@ -375,8 +375,8 @@ public class UnorderedLookup implements Serializable {
 	@Override
 	public String toString() {
 		return "UnorderedLookup{" +
-			"positions=" + Arrays.toString(positions) +
-			", recordIds=" + Arrays.toString(recordIds) +
+			"positions=" + Arrays.toString(this.positions) +
+			", recordIds=" + Arrays.toString(this.recordIds) +
 			'}';
 	}
 
@@ -391,18 +391,18 @@ public class UnorderedLookup implements Serializable {
 
 		@Override
 		public Integer get(int index) {
-			return elements[index];
+			return this.elements[index];
 		}
 
 		@Override
 		public int size() {
-			return elements.length;
+			return this.elements.length;
 		}
 
 		@Override
 		public Integer set(int index, Integer element) {
-			int v = elements[index];
-			elements[index] = element;
+			int v = this.elements[index];
+			this.elements[index] = element;
 			return v;
 		}
 
@@ -412,13 +412,13 @@ public class UnorderedLookup implements Serializable {
 			if (o == null || getClass() != o.getClass()) return false;
 			if (!super.equals(o)) return false;
 			IntArrayWrapper integers = (IntArrayWrapper) o;
-			return Arrays.equals(elements, integers.elements);
+			return Arrays.equals(this.elements, integers.elements);
 		}
 
 		@Override
 		public int hashCode() {
 			int result = super.hashCode();
-			result = 31 * result + Arrays.hashCode(elements);
+			result = 31 * result + Arrays.hashCode(this.elements);
 			return result;
 		}
 	}

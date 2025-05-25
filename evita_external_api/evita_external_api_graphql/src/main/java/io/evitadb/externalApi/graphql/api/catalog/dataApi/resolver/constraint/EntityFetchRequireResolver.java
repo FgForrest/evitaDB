@@ -256,7 +256,7 @@ public class EntityFetchRequireResolver {
 			.map(parentsField -> {
 				final DataLocator hierarchyDataLocator = new HierarchyDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()));
 				final HierarchyStopAt stopAt = Optional.ofNullable(parentsField.getArguments().get(ParentsFieldHeaderDescriptor.STOP_AT.name()))
-					.map(it -> (HierarchyStopAt) requireConstraintResolver.resolve(
+					.map(it -> (HierarchyStopAt) this.requireConstraintResolver.resolve(
 						hierarchyDataLocator,
 						hierarchyDataLocator,
 						ParentsFieldHeaderDescriptor.STOP_AT.name(),
@@ -439,7 +439,7 @@ public class EntityFetchRequireResolver {
 		);
 
 		return Optional.ofNullable(
-			(FilterBy) filterConstraintResolver.resolve(
+			(FilterBy) this.filterConstraintResolver.resolve(
 				new InlineReferenceDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()), fieldsForReferenceHolder.referenceSchema().getName()),
 				ReferenceFieldHeaderDescriptor.FILTER_BY.name(),
 				fields.get(0).getArguments().get(ReferenceFieldHeaderDescriptor.FILTER_BY.name())
@@ -462,7 +462,7 @@ public class EntityFetchRequireResolver {
 		);
 
 		return Optional.ofNullable(
-			(OrderBy) orderConstraintResolver.resolve(
+			(OrderBy) this.orderConstraintResolver.resolve(
 				new InlineReferenceDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()), fieldsForReferenceHolder.referenceSchema().getName()),
 				ReferenceFieldHeaderDescriptor.ORDER_BY.name(),
 				fieldsForReferenceHolder.fields().get(0).getArguments().get(ReferenceFieldHeaderDescriptor.ORDER_BY.name())
@@ -500,7 +500,7 @@ public class EntityFetchRequireResolver {
 		final SelectionSetAggregator referencedEntitySelectionSet = resolveReferencedEntitySelectionSet(fieldsForReference, ReferenceDescriptor.REFERENCED_ENTITY);
 
 		final EntitySchemaContract referencedEntitySchema = fieldsForReference.referenceSchema().isReferencedEntityTypeManaged()
-			? entitySchemaFetcher.apply(fieldsForReference.referenceSchema().getReferencedEntityType())
+			? this.entitySchemaFetcher.apply(fieldsForReference.referenceSchema().getReferencedEntityType())
 			: null;
 
 		final Optional<EntityFetch> referencedEntityRequirement = resolveEntityFetch(referencedEntitySelectionSet, desiredLocale, referencedEntitySchema);
@@ -517,7 +517,7 @@ public class EntityFetchRequireResolver {
 		final SelectionSetAggregator referencedGroupSelectionSet = resolveReferencedEntitySelectionSet(fieldsForReference, ReferenceDescriptor.GROUP_ENTITY);
 
 		final EntitySchemaContract referencedEntitySchema = fieldsForReference.referenceSchema().isReferencedGroupTypeManaged() ?
-			entitySchemaFetcher.apply(fieldsForReference.referenceSchema().getReferencedGroupType()) :
+			this.entitySchemaFetcher.apply(fieldsForReference.referenceSchema().getReferencedGroupType()) :
 			null;
 
 		return resolveGroupFetch(referencedGroupSelectionSet, desiredLocale, referencedEntitySchema);

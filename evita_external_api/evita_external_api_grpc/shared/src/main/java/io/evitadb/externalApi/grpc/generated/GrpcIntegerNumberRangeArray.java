@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcIntegerNumberRangeArray() {
-    value_ = java.util.Collections.emptyList();
+    this.value_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -79,10 +79,10 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              value_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange>();
+              this.value_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange>();
               mutable_bitField0_ |= 0x00000001;
             }
-            value_.add(
+            this.value_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.parser(), extensionRegistry));
             break;
           }
@@ -102,7 +102,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        value_ = java.util.Collections.unmodifiableList(value_);
+        this.value_ = java.util.Collections.unmodifiableList(this.value_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange> getValueList() {
-    return value_;
+    return this.value_;
   }
   /**
    * <pre>
@@ -142,9 +142,9 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder>
       getValueOrBuilderList() {
-    return value_;
+    return this.value_;
   }
   /**
    * <pre>
@@ -155,7 +155,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getValueCount() {
-    return value_.size();
+    return this.value_.size();
   }
   /**
    * <pre>
@@ -166,7 +166,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange getValue(int index) {
-    return value_.get(index);
+    return this.value_.get(index);
   }
   /**
    * <pre>
@@ -178,41 +178,41 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder getValueOrBuilder(
       int index) {
-    return value_.get(index);
+    return this.value_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    for (int i = 0; i < value_.size(); i++) {
-      output.writeMessage(1, value_.get(i));
+    for (int i = 0; i < this.value_.size(); i++) {
+      output.writeMessage(1, this.value_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    for (int i = 0; i < value_.size(); i++) {
+    for (int i = 0; i < this.value_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(1, value_.get(i));
+        .computeMessageSize(1, this.value_.get(i));
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -228,14 +228,14 @@ private static final long serialVersionUID = 0L;
 
     if (!getValueList()
         .equals(other.getValueList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -243,8 +243,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + VALUE_FIELD_NUMBER;
       hash = (53 * hash) + getValueList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -381,11 +381,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (valueBuilder_ == null) {
-        value_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.valueBuilder_ == null) {
+        this.value_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       } else {
-        valueBuilder_.clear();
+        this.valueBuilder_.clear();
       }
       return this;
     }
@@ -413,15 +413,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray result = new io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray(this);
-      int from_bitField0_ = bitField0_;
-      if (valueBuilder_ == null) {
-        if (((bitField0_ & 0x00000001) != 0)) {
-          value_ = java.util.Collections.unmodifiableList(value_);
-          bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      if (this.valueBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000001) != 0)) {
+          this.value_ = java.util.Collections.unmodifiableList(this.value_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         }
-        result.value_ = value_;
+        result.value_ = this.value_;
       } else {
-        result.value_ = valueBuilder_.build();
+        result.value_ = this.valueBuilder_.build();
       }
       onBuilt();
       return result;
@@ -471,29 +471,29 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance()) return this;
-      if (valueBuilder_ == null) {
+      if (this.valueBuilder_ == null) {
         if (!other.value_.isEmpty()) {
-          if (value_.isEmpty()) {
-            value_ = other.value_;
-            bitField0_ = (bitField0_ & ~0x00000001);
+          if (this.value_.isEmpty()) {
+            this.value_ = other.value_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
           } else {
             ensureValueIsMutable();
-            value_.addAll(other.value_);
+            this.value_.addAll(other.value_);
           }
           onChanged();
         }
       } else {
         if (!other.value_.isEmpty()) {
-          if (valueBuilder_.isEmpty()) {
-            valueBuilder_.dispose();
-            valueBuilder_ = null;
-            value_ = other.value_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-            valueBuilder_ = 
+          if (this.valueBuilder_.isEmpty()) {
+            this.valueBuilder_.dispose();
+            this.valueBuilder_ = null;
+            this.value_ = other.value_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+            this.valueBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getValueFieldBuilder() : null;
           } else {
-            valueBuilder_.addAllMessages(other.value_);
+            this.valueBuilder_.addAllMessages(other.value_);
           }
         }
       }
@@ -530,9 +530,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange> value_ =
       java.util.Collections.emptyList();
     private void ensureValueIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        value_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange>(value_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.value_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange>(this.value_);
+        this.bitField0_ |= 0x00000001;
        }
     }
 
@@ -547,10 +547,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange> getValueList() {
-      if (valueBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(value_);
+      if (this.valueBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.value_);
       } else {
-        return valueBuilder_.getMessageList();
+        return this.valueBuilder_.getMessageList();
       }
     }
     /**
@@ -561,10 +561,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
      */
     public int getValueCount() {
-      if (valueBuilder_ == null) {
-        return value_.size();
+      if (this.valueBuilder_ == null) {
+        return this.value_.size();
       } else {
-        return valueBuilder_.getCount();
+        return this.valueBuilder_.getCount();
       }
     }
     /**
@@ -575,10 +575,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange getValue(int index) {
-      if (valueBuilder_ == null) {
-        return value_.get(index);
+      if (this.valueBuilder_ == null) {
+        return this.value_.get(index);
       } else {
-        return valueBuilder_.getMessage(index);
+        return this.valueBuilder_.getMessage(index);
       }
     }
     /**
@@ -590,15 +590,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setValue(
         int index, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value) {
-      if (valueBuilder_ == null) {
+      if (this.valueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureValueIsMutable();
-        value_.set(index, value);
+        this.value_.set(index, value);
         onChanged();
       } else {
-        valueBuilder_.setMessage(index, value);
+        this.valueBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -611,12 +611,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setValue(
         int index, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder builderForValue) {
-      if (valueBuilder_ == null) {
+      if (this.valueBuilder_ == null) {
         ensureValueIsMutable();
-        value_.set(index, builderForValue.build());
+        this.value_.set(index, builderForValue.build());
         onChanged();
       } else {
-        valueBuilder_.setMessage(index, builderForValue.build());
+        this.valueBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -628,15 +628,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
      */
     public Builder addValue(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value) {
-      if (valueBuilder_ == null) {
+      if (this.valueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureValueIsMutable();
-        value_.add(value);
+        this.value_.add(value);
         onChanged();
       } else {
-        valueBuilder_.addMessage(value);
+        this.valueBuilder_.addMessage(value);
       }
       return this;
     }
@@ -649,15 +649,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addValue(
         int index, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value) {
-      if (valueBuilder_ == null) {
+      if (this.valueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureValueIsMutable();
-        value_.add(index, value);
+        this.value_.add(index, value);
         onChanged();
       } else {
-        valueBuilder_.addMessage(index, value);
+        this.valueBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -670,12 +670,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addValue(
         io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder builderForValue) {
-      if (valueBuilder_ == null) {
+      if (this.valueBuilder_ == null) {
         ensureValueIsMutable();
-        value_.add(builderForValue.build());
+        this.value_.add(builderForValue.build());
         onChanged();
       } else {
-        valueBuilder_.addMessage(builderForValue.build());
+        this.valueBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -688,12 +688,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addValue(
         int index, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder builderForValue) {
-      if (valueBuilder_ == null) {
+      if (this.valueBuilder_ == null) {
         ensureValueIsMutable();
-        value_.add(index, builderForValue.build());
+        this.value_.add(index, builderForValue.build());
         onChanged();
       } else {
-        valueBuilder_.addMessage(index, builderForValue.build());
+        this.valueBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -706,13 +706,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllValue(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange> values) {
-      if (valueBuilder_ == null) {
+      if (this.valueBuilder_ == null) {
         ensureValueIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, value_);
+            values, this.value_);
         onChanged();
       } else {
-        valueBuilder_.addAllMessages(values);
+        this.valueBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -724,12 +724,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
      */
     public Builder clearValue() {
-      if (valueBuilder_ == null) {
-        value_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.valueBuilder_ == null) {
+        this.value_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        valueBuilder_.clear();
+        this.valueBuilder_.clear();
       }
       return this;
     }
@@ -741,12 +741,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
      */
     public Builder removeValue(int index) {
-      if (valueBuilder_ == null) {
+      if (this.valueBuilder_ == null) {
         ensureValueIsMutable();
-        value_.remove(index);
+        this.value_.remove(index);
         onChanged();
       } else {
-        valueBuilder_.remove(index);
+        this.valueBuilder_.remove(index);
       }
       return this;
     }
@@ -770,9 +770,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder getValueOrBuilder(
         int index) {
-      if (valueBuilder_ == null) {
-        return value_.get(index);  } else {
-        return valueBuilder_.getMessageOrBuilder(index);
+      if (this.valueBuilder_ == null) {
+        return this.value_.get(index);  } else {
+        return this.valueBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -782,12 +782,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder>
          getValueOrBuilderList() {
-      if (valueBuilder_ != null) {
-        return valueBuilder_.getMessageOrBuilderList();
+      if (this.valueBuilder_ != null) {
+        return this.valueBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(value_);
+        return java.util.Collections.unmodifiableList(this.value_);
       }
     }
     /**
@@ -820,23 +820,23 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder>
          getValueBuilderList() {
       return getValueFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder>
         getValueFieldBuilder() {
-      if (valueBuilder_ == null) {
-        valueBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.valueBuilder_ == null) {
+        this.valueBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder>(
-                value_,
-                ((bitField0_ & 0x00000001) != 0),
+                this.value_,
+                ((this.bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        value_ = null;
+        this.value_ = null;
       }
-      return valueBuilder_;
+      return this.valueBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

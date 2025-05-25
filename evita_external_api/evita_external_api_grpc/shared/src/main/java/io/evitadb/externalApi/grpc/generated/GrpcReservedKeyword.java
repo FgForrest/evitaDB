@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,9 +43,9 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcReservedKeyword() {
-    classifierType_ = 0;
-    classifier_ = "";
-    words_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+    this.classifierType_ = 0;
+    this.classifier_ = "";
+    this.words_ = com.google.protobuf.LazyStringArrayList.EMPTY;
   }
 
   @java.lang.Override
@@ -82,22 +82,22 @@ private static final long serialVersionUID = 0L;
           case 8: {
             int rawValue = input.readEnum();
 
-            classifierType_ = rawValue;
+            this.classifierType_ = rawValue;
             break;
           }
           case 18: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            classifier_ = s;
+            this.classifier_ = s;
             break;
           }
           case 26: {
             java.lang.String s = input.readStringRequireUtf8();
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              words_ = new com.google.protobuf.LazyStringArrayList();
+              this.words_ = new com.google.protobuf.LazyStringArrayList();
               mutable_bitField0_ |= 0x00000001;
             }
-            words_.add(s);
+            this.words_.add(s);
             break;
           }
           default: {
@@ -116,7 +116,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        words_ = words_.getUnmodifiableView();
+        this.words_ = this.words_.getUnmodifiableView();
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -146,7 +146,7 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for classifierType.
    */
   @java.lang.Override public int getClassifierTypeValue() {
-    return classifierType_;
+    return this.classifierType_;
   }
   /**
    * <pre>
@@ -158,7 +158,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcClassifierType getClassifierType() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcClassifierType result = io.evitadb.externalApi.grpc.generated.GrpcClassifierType.valueOf(classifierType_);
+    io.evitadb.externalApi.grpc.generated.GrpcClassifierType result = io.evitadb.externalApi.grpc.generated.GrpcClassifierType.valueOf(this.classifierType_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcClassifierType.UNRECOGNIZED : result;
   }
 
@@ -174,14 +174,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getClassifier() {
-    java.lang.Object ref = classifier_;
+    java.lang.Object ref = this.classifier_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      classifier_ = s;
+      this.classifier_ = s;
       return s;
     }
   }
@@ -196,12 +196,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getClassifierBytes() {
-    java.lang.Object ref = classifier_;
+    java.lang.Object ref = this.classifier_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      classifier_ = b;
+      this.classifier_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -220,7 +220,7 @@ private static final long serialVersionUID = 0L;
    */
   public com.google.protobuf.ProtocolStringList
       getWordsList() {
-    return words_;
+    return this.words_;
   }
   /**
    * <pre>
@@ -231,7 +231,7 @@ private static final long serialVersionUID = 0L;
    * @return The count of words.
    */
   public int getWordsCount() {
-    return words_.size();
+    return this.words_.size();
   }
   /**
    * <pre>
@@ -243,7 +243,7 @@ private static final long serialVersionUID = 0L;
    * @return The words at the given index.
    */
   public java.lang.String getWords(int index) {
-    return words_.get(index);
+    return this.words_.get(index);
   }
   /**
    * <pre>
@@ -256,58 +256,58 @@ private static final long serialVersionUID = 0L;
    */
   public com.google.protobuf.ByteString
       getWordsBytes(int index) {
-    return words_.getByteString(index);
+    return this.words_.getByteString(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (classifierType_ != io.evitadb.externalApi.grpc.generated.GrpcClassifierType.CLASSIFIER_TYPE_SERVER_NAME.getNumber()) {
-      output.writeEnum(1, classifierType_);
+    if (this.classifierType_ != io.evitadb.externalApi.grpc.generated.GrpcClassifierType.CLASSIFIER_TYPE_SERVER_NAME.getNumber()) {
+      output.writeEnum(1, this.classifierType_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(classifier_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, classifier_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.classifier_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, this.classifier_);
     }
-    for (int i = 0; i < words_.size(); i++) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 3, words_.getRaw(i));
+    for (int i = 0; i < this.words_.size(); i++) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 3, this.words_.getRaw(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (classifierType_ != io.evitadb.externalApi.grpc.generated.GrpcClassifierType.CLASSIFIER_TYPE_SERVER_NAME.getNumber()) {
+    if (this.classifierType_ != io.evitadb.externalApi.grpc.generated.GrpcClassifierType.CLASSIFIER_TYPE_SERVER_NAME.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(1, classifierType_);
+        .computeEnumSize(1, this.classifierType_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(classifier_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, classifier_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.classifier_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, this.classifier_);
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < words_.size(); i++) {
-        dataSize += computeStringSizeNoTag(words_.getRaw(i));
+      for (int i = 0; i < this.words_.size(); i++) {
+        dataSize += computeStringSizeNoTag(this.words_.getRaw(i));
       }
       size += dataSize;
       size += 1 * getWordsList().size();
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -321,32 +321,32 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword other = (io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword) obj;
 
-    if (classifierType_ != other.classifierType_) return false;
+    if (this.classifierType_ != other.classifierType_) return false;
     if (!getClassifier()
         .equals(other.getClassifier())) return false;
     if (!getWordsList()
         .equals(other.getWordsList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + CLASSIFIERTYPE_FIELD_NUMBER;
-    hash = (53 * hash) + classifierType_;
+    hash = (53 * hash) + this.classifierType_;
     hash = (37 * hash) + CLASSIFIER_FIELD_NUMBER;
     hash = (53 * hash) + getClassifier().hashCode();
     if (getWordsCount() > 0) {
       hash = (37 * hash) + WORDS_FIELD_NUMBER;
       hash = (53 * hash) + getWordsList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -482,12 +482,12 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      classifierType_ = 0;
+      this.classifierType_ = 0;
 
-      classifier_ = "";
+      this.classifier_ = "";
 
-      words_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.words_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       return this;
     }
 
@@ -514,14 +514,14 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword result = new io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword(this);
-      int from_bitField0_ = bitField0_;
-      result.classifierType_ = classifierType_;
-      result.classifier_ = classifier_;
-      if (((bitField0_ & 0x00000001) != 0)) {
-        words_ = words_.getUnmodifiableView();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      result.classifierType_ = this.classifierType_;
+      result.classifier_ = this.classifier_;
+      if (((this.bitField0_ & 0x00000001) != 0)) {
+        this.words_ = this.words_.getUnmodifiableView();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       }
-      result.words_ = words_;
+      result.words_ = this.words_;
       onBuilt();
       return result;
     }
@@ -574,16 +574,16 @@ private static final long serialVersionUID = 0L;
         setClassifierTypeValue(other.getClassifierTypeValue());
       }
       if (!other.getClassifier().isEmpty()) {
-        classifier_ = other.classifier_;
+        this.classifier_ = other.classifier_;
         onChanged();
       }
       if (!other.words_.isEmpty()) {
-        if (words_.isEmpty()) {
-          words_ = other.words_;
-          bitField0_ = (bitField0_ & ~0x00000001);
+        if (this.words_.isEmpty()) {
+          this.words_ = other.words_;
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         } else {
           ensureWordsIsMutable();
-          words_.addAll(other.words_);
+          this.words_.addAll(other.words_);
         }
         onChanged();
       }
@@ -627,7 +627,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire for classifierType.
      */
     @java.lang.Override public int getClassifierTypeValue() {
-      return classifierType_;
+      return this.classifierType_;
     }
     /**
      * <pre>
@@ -639,8 +639,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setClassifierTypeValue(int value) {
-      
-      classifierType_ = value;
+
+      this.classifierType_ = value;
       onChanged();
       return this;
     }
@@ -655,7 +655,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcClassifierType getClassifierType() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcClassifierType result = io.evitadb.externalApi.grpc.generated.GrpcClassifierType.valueOf(classifierType_);
+      io.evitadb.externalApi.grpc.generated.GrpcClassifierType result = io.evitadb.externalApi.grpc.generated.GrpcClassifierType.valueOf(this.classifierType_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcClassifierType.UNRECOGNIZED : result;
     }
     /**
@@ -671,8 +671,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
-      classifierType_ = value.getNumber();
+
+      this.classifierType_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -685,8 +685,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearClassifierType() {
-      
-      classifierType_ = 0;
+
+      this.classifierType_ = 0;
       onChanged();
       return this;
     }
@@ -701,12 +701,12 @@ private static final long serialVersionUID = 0L;
      * @return The classifier.
      */
     public java.lang.String getClassifier() {
-      java.lang.Object ref = classifier_;
+      java.lang.Object ref = this.classifier_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        classifier_ = s;
+        this.classifier_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -722,12 +722,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getClassifierBytes() {
-      java.lang.Object ref = classifier_;
+      java.lang.Object ref = this.classifier_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        classifier_ = b;
+        this.classifier_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -747,8 +747,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      classifier_ = value;
+
+      this.classifier_ = value;
       onChanged();
       return this;
     }
@@ -761,8 +761,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearClassifier() {
-      
-      classifier_ = getDefaultInstance().getClassifier();
+
+      this.classifier_ = getDefaultInstance().getClassifier();
       onChanged();
       return this;
     }
@@ -781,17 +781,17 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      classifier_ = value;
+
+      this.classifier_ = value;
       onChanged();
       return this;
     }
 
     private com.google.protobuf.LazyStringList words_ = com.google.protobuf.LazyStringArrayList.EMPTY;
     private void ensureWordsIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        words_ = new com.google.protobuf.LazyStringArrayList(words_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.words_ = new com.google.protobuf.LazyStringArrayList(this.words_);
+        this.bitField0_ |= 0x00000001;
        }
     }
     /**
@@ -804,7 +804,7 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ProtocolStringList
         getWordsList() {
-      return words_.getUnmodifiableView();
+      return this.words_.getUnmodifiableView();
     }
     /**
      * <pre>
@@ -815,7 +815,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of words.
      */
     public int getWordsCount() {
-      return words_.size();
+      return this.words_.size();
     }
     /**
      * <pre>
@@ -827,7 +827,7 @@ private static final long serialVersionUID = 0L;
      * @return The words at the given index.
      */
     public java.lang.String getWords(int index) {
-      return words_.get(index);
+      return this.words_.get(index);
     }
     /**
      * <pre>
@@ -840,7 +840,7 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getWordsBytes(int index) {
-      return words_.getByteString(index);
+      return this.words_.getByteString(index);
     }
     /**
      * <pre>
@@ -858,7 +858,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   ensureWordsIsMutable();
-      words_.set(index, value);
+      this.words_.set(index, value);
       onChanged();
       return this;
     }
@@ -877,7 +877,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   ensureWordsIsMutable();
-      words_.add(value);
+      this.words_.add(value);
       onChanged();
       return this;
     }
@@ -894,7 +894,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<java.lang.String> values) {
       ensureWordsIsMutable();
       com.google.protobuf.AbstractMessageLite.Builder.addAll(
-          values, words_);
+          values, this.words_);
       onChanged();
       return this;
     }
@@ -907,8 +907,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearWords() {
-      words_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.words_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
@@ -928,7 +928,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
       ensureWordsIsMutable();
-      words_.add(value);
+      this.words_.add(value);
       onChanged();
       return this;
     }

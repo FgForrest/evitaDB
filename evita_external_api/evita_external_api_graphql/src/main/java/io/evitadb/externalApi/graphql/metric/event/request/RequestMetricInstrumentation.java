@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ public class RequestMetricInstrumentation extends SimplePerformantInstrumentatio
 	                                                              InstrumentationState state) {
 		final ExecutedEvent requestExecutedEvent = parameters.getGraphQLContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 		if (requestExecutedEvent != null) {
-			requestExecutedEvent.provideCatalogName(catalogName);
+			requestExecutedEvent.provideCatalogName(this.catalogName);
 		}
 		return super.beginExecution(parameters, state);
 	}

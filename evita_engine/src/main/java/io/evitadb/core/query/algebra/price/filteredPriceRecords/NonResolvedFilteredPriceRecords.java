@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -99,21 +99,21 @@ public class NonResolvedFilteredPriceRecords implements FilteredPriceRecords {
 	 */
 	@Nonnull
 	public ResolvedFilteredPriceRecords toResolvedFilteredPriceRecords() {
-		Assert.isPremiseValid(!alreadyResolved, "This instance was already resolved!");
-		final PriceRecordContract[] result = new PriceRecordContract[cumulatedPriceRecords.length + priceRecordsIds.size()];
-		System.arraycopy(cumulatedPriceRecords, 0, result, 0, cumulatedPriceRecords.length);
-		final AtomicInteger resultPeek = new AtomicInteger(cumulatedPriceRecords.length);
+		Assert.isPremiseValid(!this.alreadyResolved, "This instance was already resolved!");
+		final PriceRecordContract[] result = new PriceRecordContract[this.cumulatedPriceRecords.length + this.priceRecordsIds.size()];
+		System.arraycopy(this.cumulatedPriceRecords, 0, result, 0, this.cumulatedPriceRecords.length);
+		final AtomicInteger resultPeek = new AtomicInteger(this.cumulatedPriceRecords.length);
 
 		final RoaringBitmapWriter<RoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
-		for (PriceListAndCurrencyPriceIndex<?,?> priceIndex : priceIndexes) {
+		for (PriceListAndCurrencyPriceIndex<?,?> priceIndex : this.priceIndexes) {
 			priceIndex.getPriceRecords(
-				priceRecordsIds,
+				this.priceRecordsIds,
 				priceRecordContract -> result[resultPeek.getAndIncrement()] = priceRecordContract,
 				notFound::add
 			);
 		}
 		Assert.isPremiseValid(resultPeek.get() == result.length, "Not all records were resolved!");
-		alreadyResolved = true;
+		this.alreadyResolved = true;
 		return new ResolvedFilteredPriceRecords(result, SortingForm.NOT_SORTED);
 	}
 

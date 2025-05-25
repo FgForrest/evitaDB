@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcModifyReferenceSchemaDeprecationNoticeMutation() {
-    name_ = "";
+    this.name_ = "";
   }
 
   @java.lang.Override
@@ -79,18 +79,18 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            name_ = s;
+            this.name_ = s;
             break;
           }
           case 18: {
             com.google.protobuf.StringValue.Builder subBuilder = null;
-            if (deprecationNotice_ != null) {
-              subBuilder = deprecationNotice_.toBuilder();
+            if (this.deprecationNotice_ != null) {
+              subBuilder = this.deprecationNotice_.toBuilder();
             }
-            deprecationNotice_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
+            this.deprecationNotice_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(deprecationNotice_);
-              deprecationNotice_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.deprecationNotice_);
+              this.deprecationNotice_ = subBuilder.buildPartial();
             }
 
             break;
@@ -139,14 +139,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getName() {
-    java.lang.Object ref = name_;
+    java.lang.Object ref = this.name_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      name_ = s;
+      this.name_ = s;
       return s;
     }
   }
@@ -161,12 +161,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getNameBytes() {
-    java.lang.Object ref = name_;
+    java.lang.Object ref = this.name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      name_ = b;
+      this.name_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -186,7 +186,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasDeprecationNotice() {
-    return deprecationNotice_ != null;
+    return this.deprecationNotice_ != null;
   }
   /**
    * <pre>
@@ -199,7 +199,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.StringValue getDeprecationNotice() {
-    return deprecationNotice_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : deprecationNotice_;
+    return this.deprecationNotice_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : this.deprecationNotice_;
   }
   /**
    * <pre>
@@ -217,41 +217,41 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, name_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.name_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.name_);
     }
-    if (deprecationNotice_ != null) {
+    if (this.deprecationNotice_ != null) {
       output.writeMessage(2, getDeprecationNotice());
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, name_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.name_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.name_);
     }
-    if (deprecationNotice_ != null) {
+    if (this.deprecationNotice_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getDeprecationNotice());
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -272,14 +272,14 @@ private static final long serialVersionUID = 0L;
       if (!getDeprecationNotice()
           .equals(other.getDeprecationNotice())) return false;
     }
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -289,8 +289,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + DEPRECATIONNOTICE_FIELD_NUMBER;
       hash = (53 * hash) + getDeprecationNotice().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -426,13 +426,13 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      name_ = "";
+      this.name_ = "";
 
-      if (deprecationNoticeBuilder_ == null) {
-        deprecationNotice_ = null;
+      if (this.deprecationNoticeBuilder_ == null) {
+        this.deprecationNotice_ = null;
       } else {
-        deprecationNotice_ = null;
-        deprecationNoticeBuilder_ = null;
+        this.deprecationNotice_ = null;
+        this.deprecationNoticeBuilder_ = null;
       }
       return this;
     }
@@ -460,11 +460,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutation result = new io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutation(this);
-      result.name_ = name_;
-      if (deprecationNoticeBuilder_ == null) {
-        result.deprecationNotice_ = deprecationNotice_;
+      result.name_ = this.name_;
+      if (this.deprecationNoticeBuilder_ == null) {
+        result.deprecationNotice_ = this.deprecationNotice_;
       } else {
-        result.deprecationNotice_ = deprecationNoticeBuilder_.build();
+        result.deprecationNotice_ = this.deprecationNoticeBuilder_.build();
       }
       onBuilt();
       return result;
@@ -515,7 +515,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutation other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSchemaDeprecationNoticeMutation.getDefaultInstance()) return this;
       if (!other.getName().isEmpty()) {
-        name_ = other.name_;
+        this.name_ = other.name_;
         onChanged();
       }
       if (other.hasDeprecationNotice()) {
@@ -560,12 +560,12 @@ private static final long serialVersionUID = 0L;
      * @return The name.
      */
     public java.lang.String getName() {
-      java.lang.Object ref = name_;
+      java.lang.Object ref = this.name_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        name_ = s;
+        this.name_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -581,12 +581,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getNameBytes() {
-      java.lang.Object ref = name_;
+      java.lang.Object ref = this.name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        name_ = b;
+        this.name_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -606,8 +606,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      name_ = value;
+
+      this.name_ = value;
       onChanged();
       return this;
     }
@@ -620,8 +620,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-      
-      name_ = getDefaultInstance().getName();
+
+      this.name_ = getDefaultInstance().getName();
       onChanged();
       return this;
     }
@@ -640,8 +640,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      name_ = value;
+
+      this.name_ = value;
       onChanged();
       return this;
     }
@@ -659,7 +659,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the deprecationNotice field is set.
      */
     public boolean hasDeprecationNotice() {
-      return deprecationNoticeBuilder_ != null || deprecationNotice_ != null;
+      return this.deprecationNoticeBuilder_ != null || this.deprecationNotice_ != null;
     }
     /**
      * <pre>
@@ -671,10 +671,10 @@ private static final long serialVersionUID = 0L;
      * @return The deprecationNotice.
      */
     public com.google.protobuf.StringValue getDeprecationNotice() {
-      if (deprecationNoticeBuilder_ == null) {
-        return deprecationNotice_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : deprecationNotice_;
+      if (this.deprecationNoticeBuilder_ == null) {
+        return this.deprecationNotice_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : this.deprecationNotice_;
       } else {
-        return deprecationNoticeBuilder_.getMessage();
+        return this.deprecationNoticeBuilder_.getMessage();
       }
     }
     /**
@@ -686,14 +686,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      */
     public Builder setDeprecationNotice(com.google.protobuf.StringValue value) {
-      if (deprecationNoticeBuilder_ == null) {
+      if (this.deprecationNoticeBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        deprecationNotice_ = value;
+        this.deprecationNotice_ = value;
         onChanged();
       } else {
-        deprecationNoticeBuilder_.setMessage(value);
+        this.deprecationNoticeBuilder_.setMessage(value);
       }
 
       return this;
@@ -708,11 +708,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setDeprecationNotice(
         com.google.protobuf.StringValue.Builder builderForValue) {
-      if (deprecationNoticeBuilder_ == null) {
-        deprecationNotice_ = builderForValue.build();
+      if (this.deprecationNoticeBuilder_ == null) {
+        this.deprecationNotice_ = builderForValue.build();
         onChanged();
       } else {
-        deprecationNoticeBuilder_.setMessage(builderForValue.build());
+        this.deprecationNoticeBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -726,16 +726,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      */
     public Builder mergeDeprecationNotice(com.google.protobuf.StringValue value) {
-      if (deprecationNoticeBuilder_ == null) {
-        if (deprecationNotice_ != null) {
-          deprecationNotice_ =
-            com.google.protobuf.StringValue.newBuilder(deprecationNotice_).mergeFrom(value).buildPartial();
+      if (this.deprecationNoticeBuilder_ == null) {
+        if (this.deprecationNotice_ != null) {
+          this.deprecationNotice_ =
+            com.google.protobuf.StringValue.newBuilder(this.deprecationNotice_).mergeFrom(value).buildPartial();
         } else {
-          deprecationNotice_ = value;
+          this.deprecationNotice_ = value;
         }
         onChanged();
       } else {
-        deprecationNoticeBuilder_.mergeFrom(value);
+        this.deprecationNoticeBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -749,12 +749,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      */
     public Builder clearDeprecationNotice() {
-      if (deprecationNoticeBuilder_ == null) {
-        deprecationNotice_ = null;
+      if (this.deprecationNoticeBuilder_ == null) {
+        this.deprecationNotice_ = null;
         onChanged();
       } else {
-        deprecationNotice_ = null;
-        deprecationNoticeBuilder_ = null;
+        this.deprecationNotice_ = null;
+        this.deprecationNoticeBuilder_ = null;
       }
 
       return this;
@@ -768,7 +768,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
-      
+
       onChanged();
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
@@ -781,11 +781,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder() {
-      if (deprecationNoticeBuilder_ != null) {
-        return deprecationNoticeBuilder_.getMessageOrBuilder();
+      if (this.deprecationNoticeBuilder_ != null) {
+        return this.deprecationNoticeBuilder_.getMessageOrBuilder();
       } else {
-        return deprecationNotice_ == null ?
-            com.google.protobuf.StringValue.getDefaultInstance() : deprecationNotice_;
+        return this.deprecationNotice_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : this.deprecationNotice_;
       }
     }
     /**
@@ -797,17 +797,17 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDeprecationNoticeFieldBuilder() {
-      if (deprecationNoticeBuilder_ == null) {
-        deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.deprecationNoticeBuilder_ == null) {
+        this.deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
                 getDeprecationNotice(),
                 getParentForChildren(),
                 isClean());
-        deprecationNotice_ = null;
+        this.deprecationNotice_ = null;
       }
-      return deprecationNoticeBuilder_;
+      return this.deprecationNoticeBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

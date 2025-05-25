@@ -114,8 +114,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				return primaryKey == 0 ? null : primaryKey;
 			};
 
-			final List<EntityReference> storedCategories = dataGenerator.generateEntities(
-					dataGenerator.getSampleCategorySchema(
+			final List<EntityReference> storedCategories = this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleCategorySchema(
 						session,
 						schemaBuilder -> {
 							schemaBuilder
@@ -136,7 +136,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 			return new DataCarrier(
 				tuple("originalCategoryEntities", categoriesAvailable),
 				tuple("originalCategoryIndex", categoriesAvailable.stream().collect(Collectors.toMap(EntityContract::getPrimaryKey, Function.identity()))),
-				tuple("categoryHierarchy", dataGenerator.getHierarchy(Entities.CATEGORY))
+				tuple("categoryHierarchy", this.dataGenerator.getHierarchy(Entities.CATEGORY))
 			);
 		});
 	}
@@ -2834,31 +2834,31 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		private final EmptyHierarchicalEntityBehaviour emptyBehaviour = REMOVE_EMPTY;
 
 		public void record(int categoryId) {
-			itemCardinality.put(categoryId, 0);
-			childrenItemCount.put(categoryId, 0);
+			this.itemCardinality.put(categoryId, 0);
+			this.childrenItemCount.put(categoryId, 0);
 		}
 
 		public void recordChild(int categoryId) {
-			itemCardinality.merge(categoryId, 1, Integer::sum);
-			childrenItemCount.merge(categoryId, 1, Integer::sum);
+			this.itemCardinality.merge(categoryId, 1, Integer::sum);
+			this.childrenItemCount.merge(categoryId, 1, Integer::sum);
 		}
 
 		public void recordDistantChild(int categoryId) {
-			itemCardinality.merge(categoryId, 1, Integer::sum);
+			this.itemCardinality.merge(categoryId, 1, Integer::sum);
 		}
 
 		public boolean isValid(int categoryId) {
-			return emptyBehaviour == LEAVE_EMPTY || itemCardinality.containsKey(categoryId);
+			return this.emptyBehaviour == LEAVE_EMPTY || this.itemCardinality.containsKey(categoryId);
 		}
 
 		@Override
 		public int getCardinality(int categoryId) {
-			return ofNullable(itemCardinality.get(categoryId)).orElse(0);
+			return ofNullable(this.itemCardinality.get(categoryId)).orElse(0);
 		}
 
 		@Override
 		public int getChildrenCount(int categoryId) {
-			return ofNullable(childrenItemCount.get(categoryId)).orElse(0);
+			return ofNullable(this.childrenItemCount.get(categoryId)).orElse(0);
 		}
 
 	}

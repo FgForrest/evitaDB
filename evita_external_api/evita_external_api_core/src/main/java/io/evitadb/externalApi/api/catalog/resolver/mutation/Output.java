@@ -67,19 +67,19 @@ public class Output {
 
 	@Nullable
 	public Object getOutputMutationObject() {
-		if (outputMutationObject instanceof MapBuilder builder) {
+		if (this.outputMutationObject instanceof MapBuilder builder) {
 			return builder.build();
 		}
-		return outputMutationObject;
+		return this.outputMutationObject;
 	}
 
 	public void setValue(@Nullable Object value) {
 		Assert.isPremiseValid(
-			outputMutationObject == null,
-			() -> exceptionFactory.createInternalError("Output mutation `" + mutationName + "` of is already set to specific value.")
+			this.outputMutationObject == null,
+			() -> this.exceptionFactory.createInternalError("Output mutation `" + this.mutationName + "` of is already set to specific value.")
 		);
 		if (value != null) {
-			outputMutationObject = toSerializableValue(value);
+			this.outputMutationObject = toSerializableValue(value);
 		}
 	}
 
@@ -110,27 +110,27 @@ public class Output {
 
 	@Nonnull
 	private List<Object> getOutputValuesBuilder() {
-		if (outputMutationObject == null) {
-			outputMutationObject = new LinkedList<>();
+		if (this.outputMutationObject == null) {
+			this.outputMutationObject = new LinkedList<>();
 		}
 		Assert.isPremiseValid(
-			outputMutationObject instanceof List<?>,
-			() -> exceptionFactory.createInternalError("Output mutation `" + mutationName + "` is already set to a `" + outputMutationObject.getClass().getName() + "`.")
+			this.outputMutationObject instanceof List<?>,
+			() -> this.exceptionFactory.createInternalError("Output mutation `" + this.mutationName + "` is already set to a `" + this.outputMutationObject.getClass().getName() + "`.")
 		);
 		//noinspection unchecked
-		return (List<Object>) outputMutationObject;
+		return (List<Object>) this.outputMutationObject;
 	}
 
 	@Nonnull
 	private MapBuilder getOutputPropertiesBuilder() {
-		if (outputMutationObject == null) {
-			outputMutationObject = map();
+		if (this.outputMutationObject == null) {
+			this.outputMutationObject = map();
 		}
 		Assert.isPremiseValid(
-			outputMutationObject instanceof MapBuilder,
-			() -> exceptionFactory.createInternalError("Output mutation `" + mutationName + "` is already set to a `" + outputMutationObject.getClass().getName() + "`.")
+			this.outputMutationObject instanceof MapBuilder,
+			() -> this.exceptionFactory.createInternalError("Output mutation `" + this.mutationName + "` is already set to a `" + this.outputMutationObject.getClass().getName() + "`.")
 		);
-		return (MapBuilder) outputMutationObject;
+		return (MapBuilder) this.outputMutationObject;
 	}
 
 	/**
@@ -163,7 +163,7 @@ public class Output {
 		if (value.getClass().isEnum()) return toSerializableValue((Enum<?>) value);
 		if (value instanceof Class<?> type) return toSerializableValue(type);
 
-		throw exceptionFactory.createInternalError("Serialization of value of class: " + value.getClass().getName() + " is not implemented yet.");
+		throw this.exceptionFactory.createInternalError("Serialization of value of class: " + value.getClass().getName() + " is not implemented yet.");
 	}
 
 	/**

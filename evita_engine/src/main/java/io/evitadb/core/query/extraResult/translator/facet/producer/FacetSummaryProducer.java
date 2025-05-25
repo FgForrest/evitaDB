@@ -235,7 +235,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
 		// create facet calculators - in reaction to requested depth level
 		final MemoizingFacetCalculator universalCalculator = new MemoizingFacetCalculator(
-			context, filterFormula, filterFormulaWithoutUserFilter
+			context, this.filterFormula, this.filterFormulaWithoutUserFilter
 		);
 		// fabrication is a little transformation hell
 		final AtomicInteger counter = new AtomicInteger();
@@ -244,7 +244,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 				.stream()
 				// we need Stream<FacetReferenceIndex>
 				.flatMap(it -> it.values().stream())
-				.filter(it -> defaultRequest != null || facetSummaryRequests.containsKey(it.getReferenceName()))
+				.filter(it -> this.defaultRequest != null || this.facetSummaryRequests.containsKey(it.getReferenceName()))
 				.collect(
 					Collectors.groupingBy(
 						// group them by Facet#type
@@ -351,10 +351,10 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	@Nonnull
 	@Override
 	public String getDescription() {
-		if (facetSummaryRequests.size() == 1) {
-			return "facet summary for `" + facetSummaryRequests.keySet().iterator().next() + "` references";
+		if (this.facetSummaryRequests.size() == 1) {
+			return "facet summary for `" + this.facetSummaryRequests.keySet().iterator().next() + "` references";
 		} else {
-			return "facet summary for " + facetSummaryRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) + " references";
+			return "facet summary for " + this.facetSummaryRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) + " references";
 		}
 	}
 
@@ -616,7 +616,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		 * Returns TRUE if facet with `facetId` of specified `referenceName` was requested by the user.
 		 */
 		public boolean isRequested(@Nonnull String referenceName, int facetId) {
-			return ofNullable(requestedFacets.get(referenceName))
+			return ofNullable(this.requestedFacets.get(referenceName))
 				.map(it -> it.contains(facetId))
 				.orElse(false);
 		}
@@ -629,10 +629,10 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		@Override
 		public BiConsumer<LinkedHashMap<Integer, GroupAccumulator>, FacetReferenceIndex> accumulator() {
 			return (acc, facetEntityTypeIndex) -> {
-				final ReferenceSchemaContract referenceSchema = referenceSchemaLocator.apply(
+				final ReferenceSchemaContract referenceSchema = this.referenceSchemaLocator.apply(
 					facetEntityTypeIndex.getReferenceName()
 				);
-				final FacetSummaryRequest facetSummaryRequest = referenceRequestLocator.apply(referenceSchema);
+				final FacetSummaryRequest facetSummaryRequest = this.referenceRequestLocator.apply(referenceSchema);
 
 				final Stream<FacetGroupIndex> groupIndexesAsStream = ofNullable(facetSummaryRequest.groupPredicate())
 					.map(
@@ -651,8 +651,8 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 								referenceSchema,
 								facetSummaryRequest,
 								gId,
-								countCalculator,
-								impactCalculator
+								this.countCalculator,
+								this.impactCalculator
 							)
 						);
 						// create fct that can resolve whether the facet is requested for this entity type
@@ -687,8 +687,8 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		@Override
 		public Function<LinkedHashMap<Integer, GroupAccumulator>, Collection<FacetGroupStatistics>> finisher() {
 			return entityAcc -> {
-				final Map<String, Map<Integer, EntityClassifier>> groupEntities = getGroupEntitiesIndexedByReferenceName(context, entityAcc.values());
-				final Map<String, Map<Integer, EntityClassifier>> facetEntities = getFacetEntitiesIndexedByReferenceName(context, entityAcc.values());
+				final Map<String, Map<Integer, EntityClassifier>> groupEntities = getGroupEntitiesIndexedByReferenceName(this.context, entityAcc.values());
+				final Map<String, Map<Integer, EntityClassifier>> facetEntities = getFacetEntitiesIndexedByReferenceName(this.context, entityAcc.values());
 				final Map<String, Bitmap> groupIdIndex = getGroupIdsByReferenceName(entityAcc);
 
 				final Map<String, int[]> sortedGroupIds = new HashMap<>(groupIdIndex.size());
@@ -705,7 +705,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 						} else {
 							final ReferenceSchemaContract referenceSchema = groupAcc.getReferenceSchema();
 							// compute overall count for group
-							final Formula entityMatchingAnyOfGroupFacetFormula = countCalculator.createGroupCountFormula(
+							final Formula entityMatchingAnyOfGroupFacetFormula = this.countCalculator.createGroupCountFormula(
 								referenceSchema, groupAcc.getGroupId(),
 								groupAcc.getFacetStatistics()
 									.values()
@@ -834,13 +834,13 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 				facetIx.getFacetId(),
 				(fId, facetAccumulator) -> {
 					final FacetAccumulator newAccumulator = new FacetAccumulator(
-						referenceSchema,
+						this.referenceSchema,
 						fId,
-						groupId,
+						this.groupId,
 						requestedResolver.apply(fId),
 						facetIx.getRecords(),
-						countCalculator,
-						impactCalculator
+						this.countCalculator,
+						this.impactCalculator
 					);
 					if (facetAccumulator == null) {
 						return newAccumulator;
@@ -856,8 +856,8 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		 * instance and returns self.
 		 */
 		public GroupAccumulator combine(GroupAccumulator otherAccumulator) {
-			Assert.isPremiseValid(referenceSchema.equals(otherAccumulator.referenceSchema), ERROR_SANITY_CHECK);
-			Assert.isPremiseValid(Objects.equals(groupId, otherAccumulator.groupId), ERROR_SANITY_CHECK);
+			Assert.isPremiseValid(this.referenceSchema.equals(otherAccumulator.referenceSchema), ERROR_SANITY_CHECK);
+			Assert.isPremiseValid(Objects.equals(this.groupId, otherAccumulator.groupId), ERROR_SANITY_CHECK);
 			otherAccumulator.getFacetStatistics()
 				.forEach((key, value) -> this.facetStatistics.merge(key, value, FacetAccumulator::combine));
 			return this;
@@ -945,8 +945,8 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		 * instance and returns self.
 		 */
 		public FacetAccumulator combine(FacetAccumulator otherAccumulator) {
-			Assert.isPremiseValid(facetId == otherAccumulator.facetId, ERROR_SANITY_CHECK);
-			Assert.isPremiseValid(requested == otherAccumulator.requested, ERROR_SANITY_CHECK);
+			Assert.isPremiseValid(this.facetId == otherAccumulator.facetId, ERROR_SANITY_CHECK);
+			Assert.isPremiseValid(this.requested == otherAccumulator.requested, ERROR_SANITY_CHECK);
 			this.facetEntityIds.addAll(otherAccumulator.getFacetEntityIds());
 			return this;
 		}
@@ -962,16 +962,16 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		 * Returns count of all entities in the query response that has this facet.
 		 */
 		public int getCount() {
-			if (resultFormula == null) {
+			if (this.resultFormula == null) {
 				// we need to combine all collected facet formulas and then AND them with base formula to get rid
 				// of entity primary keys that haven't passed the filter logic
-				resultFormula = countCalculator.createCountFormula(
-					referenceSchema, facetId, facetGroupId,
-					facetEntityIds.toArray(EMPTY_BITMAP)
+				this.resultFormula = this.countCalculator.createCountFormula(
+					this.referenceSchema, this.facetId, this.facetGroupId,
+					this.facetEntityIds.toArray(EMPTY_BITMAP)
 				);
 			}
 			// this is the most expensive call in this very class
-			return resultFormula.compute().size();
+			return this.resultFormula.compute().size();
 		}
 	}
 
@@ -1000,7 +1000,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 			@Nonnull ReferenceSchemaContract referenceSchema
 		) {
 			return referenceSchema.isReferencedEntityTypeManaged() ?
-				facetIds -> facetEntityFetcher.apply(context, referenceSchema.getReferencedEntityType(), facetIds) :
+				facetIds -> this.facetEntityFetcher.apply(context, referenceSchema.getReferencedEntityType(), facetIds) :
 				facetIds -> ENTITY_REFERENCE_CONVERTER.apply(context, referenceSchema.getReferencedEntityType(), facetIds);
 		}
 
@@ -1010,7 +1010,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 			@Nonnull ReferenceSchemaContract referenceSchema
 		) {
 			return referenceSchema.isReferencedGroupTypeManaged() ?
-				groupIds -> groupEntityFetcher.apply(context, Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupIds) :
+				groupIds -> this.groupEntityFetcher.apply(context, Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupIds) :
 				groupIds -> ENTITY_REFERENCE_CONVERTER.apply(context, Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupIds);
 		}
 

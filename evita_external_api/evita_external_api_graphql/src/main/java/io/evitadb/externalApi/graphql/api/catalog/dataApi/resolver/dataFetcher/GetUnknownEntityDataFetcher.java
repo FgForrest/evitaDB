@@ -139,7 +139,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
             new AtomicReference<>(filterConstraintResolver)
         );
         this.entityFetchRequireResolver = new EntityFetchRequireResolver(
-            entitySchemaFetcher,
+	        this.entitySchemaFetcher,
             filterConstraintResolver,
             orderConstraintResolver,
             requireConstraintResolver
@@ -149,7 +149,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
     @Nonnull
     @Override
     public DataFetcherResult<SealedEntity> get(DataFetchingEnvironment environment) {
-        final Arguments arguments = Arguments.from(environment, catalogSchema);
+        final Arguments arguments = Arguments.from(environment, this.catalogSchema);
         final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
         final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
@@ -247,11 +247,11 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
 
     @Nonnull
     private Require buildInitialRequire(@Nonnull DataFetchingEnvironment environment) {
-        final EntityFetch entityFetch = entityFetchRequireResolver.resolveEntityFetch(
+        final EntityFetch entityFetch = this.entityFetchRequireResolver.resolveEntityFetch(
                 SelectionSetAggregator.from(environment.getSelectionSet()),
                 null,
-                catalogSchema,
-                allPossibleLocales
+		        this.catalogSchema,
+		        this.allPossibleLocales
             )
             // we need to have at least a body, so we can enrich it later if needed
             .orElse(entityFetch());
@@ -270,13 +270,13 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
             return Optional.empty();
         }
 
-        final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
+        final Optional<EntityFetch> entityFetch = this.entityFetchRequireResolver.resolveEntityFetch(
             SelectionSetAggregator.from(
                 targetEntityFields.stream().map(SelectedField::getSelectionSet).toList(),
-                entityDtoObjectTypeNameByEntityType.get(entityType)
+	            this.entityDtoObjectTypeNameByEntityType.get(entityType)
             ),
             null,
-            entitySchemaFetcher.apply(entityType)
+	        this.entitySchemaFetcher.apply(entityType)
         );
 
         return Optional.of(

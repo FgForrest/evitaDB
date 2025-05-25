@@ -59,7 +59,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new CreateGlobalAttributeSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new CreateGlobalAttributeSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -84,7 +84,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			2
 		);
 
-		final CreateGlobalAttributeSchemaMutation convertedMutation1 = converter.convertFromInput(
+		final CreateGlobalAttributeSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -111,7 +111,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final CreateGlobalAttributeSchemaMutation convertedMutation2 = converter.convertFromInput(
+		final CreateGlobalAttributeSchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -157,7 +157,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			0
 		);
 
-		final CreateGlobalAttributeSchemaMutation convertedMutation1 = converter.convertFromInput(
+		final CreateGlobalAttributeSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
@@ -170,7 +170,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
 					.build()
@@ -178,14 +178,14 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -211,7 +211,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 		);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ public class AttributeHistogramsDataFetcher implements DataFetcher<List<Map<Stri
 			.entrySet()
 			.stream()
 			.filter(h -> {
-				final String attributeName = entitySchema
+				final String attributeName = this.entitySchema
 					.getAttribute(h.getKey())
 					.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + h.getKey() + "`."))
 					.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION);

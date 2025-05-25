@@ -177,8 +177,8 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		this.dirty.setToTrue();
 		for (Integer rootNode : rootNodes) {
 			final HierarchyNode newHierarchyNode = new HierarchyNode(rootNode, null);
-			itemIndex.put(rootNode, newHierarchyNode);
-			roots.add(rootNode);
+			this.itemIndex.put(rootNode, newHierarchyNode);
+			this.roots.add(rootNode);
 			this.levelIndex.put(rootNode, new TransactionalIntArray());
 		}
 	}
@@ -196,14 +196,14 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		// remove previous location
 		internalRemoveHierarchy(entityPrimaryKey);
 		// register new location
-		itemIndex.put(entityPrimaryKey, newHierarchyNode);
+		this.itemIndex.put(entityPrimaryKey, newHierarchyNode);
 
 		if (parentPrimaryKey == null) {
-			roots.add(entityPrimaryKey);
+			this.roots.add(entityPrimaryKey);
 			// create the children set
 			createChildrenSetFromOrphansRecursively(entityPrimaryKey);
 		} else {
-			final Optional<TransactionalIntArray> parentRef = ofNullable(levelIndex.get(parentPrimaryKey));
+			final Optional<TransactionalIntArray> parentRef = ofNullable(this.levelIndex.get(parentPrimaryKey));
 			if (parentRef.isPresent()) {
 				parentRef.get().add(entityPrimaryKey);
 				// create the children set
@@ -546,10 +546,10 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		if (isTransactionAvailable() && this.dirty.isTrue()) {
 			return createAllHierarchyNodesFormula();
 		} else {
-			if (memoizedAllNodeFormula == null) {
-				memoizedAllNodeFormula = createAllHierarchyNodesFormula();
+			if (this.memoizedAllNodeFormula == null) {
+				this.memoizedAllNodeFormula = createAllHierarchyNodesFormula();
 			}
-			return memoizedAllNodeFormula;
+			return this.memoizedAllNodeFormula;
 		}
 	}
 
@@ -634,9 +634,9 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		final StringBuilder sb = new StringBuilder(128);
 		for (Integer rootId : this.roots.getArray()) {
 			sb.append(rootId).append("\n");
-			toStringChildrenRecursively(levelIndex.get(rootId), 1, sb);
+			toStringChildrenRecursively(this.levelIndex.get(rootId), 1, sb);
 		}
-		sb.append("Orphans: ").append(orphans);
+		sb.append("Orphans: ").append(this.orphans);
 		return sb.toString();
 	}
 
@@ -704,8 +704,8 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Nullable
 	private HierarchyNode internalRemoveHierarchy(int entityPrimaryKey) {
 		// remove optional previous location
-		if (itemIndex.containsKey(entityPrimaryKey)) {
-			final HierarchyNode previousLocation = itemIndex.remove(entityPrimaryKey);
+		if (this.itemIndex.containsKey(entityPrimaryKey)) {
+			final HierarchyNode previousLocation = this.itemIndex.remove(entityPrimaryKey);
 			if (this.orphans.contains(entityPrimaryKey)) {
 				// the node was already orphan - we can safely remove the information
 				this.orphans.remove(entityPrimaryKey);
@@ -717,9 +717,9 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 				makeOrphansRecursively(entityPrimaryKey);
 				// clear references in parent node
 				if (previousLocation.parentEntityPrimaryKey() == null) {
-					roots.remove(entityPrimaryKey);
+					this.roots.remove(entityPrimaryKey);
 				} else {
-					final TransactionalIntArray recomputedValue = levelIndex.computeIfPresent(
+					final TransactionalIntArray recomputedValue = this.levelIndex.computeIfPresent(
 						previousLocation.parentEntityPrimaryKey(),
 						(epk, parentNodeChildren) -> {
 							parentNodeChildren.remove(entityPrimaryKey);
@@ -761,7 +761,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	}
 
 	private void makeOrphansRecursively(int entityPrimaryKey) {
-		final TransactionalIntArray removedNodeChildren = levelIndex.remove(entityPrimaryKey);
+		final TransactionalIntArray removedNodeChildren = this.levelIndex.remove(entityPrimaryKey);
 		if (removedNodeChildren != null) {
 			final OfInt it = removedNodeChildren.iterator();
 			while (it.hasNext()) {
@@ -778,7 +778,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		final OfInt it = this.orphans.iterator();
 		while (it.hasNext()) {
 			final int orphanId = it.next();
-			final HierarchyNode orphan = itemIndex.get(orphanId);
+			final HierarchyNode orphan = this.itemIndex.get(orphanId);
 			if (Objects.equals(entityPrimaryKey, orphan.parentEntityPrimaryKey())) {
 				children.add(orphanId);
 			}
@@ -831,7 +831,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		final OfInt it = nodeIds.iterator();
 		while (it.hasNext()) {
 			int nodeId = it.nextInt();
-			ofNullable(levelIndex.get(nodeId))
+			ofNullable(this.levelIndex.get(nodeId))
 				.ifPresent(node -> {
 					sb.append(" ".repeat(3 * indent)).append(nodeId).append("\n");
 					toStringChildrenRecursively(node, indent + 1, sb);
@@ -950,7 +950,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		}
 		final RoaringBitmap roaringBitmap = writer.get();
 
-		final OfInt it = orphans.iterator();
+		final OfInt it = this.orphans.iterator();
 		while (it.hasNext()) {
 			roaringBitmap.remove(it.next());
 		}

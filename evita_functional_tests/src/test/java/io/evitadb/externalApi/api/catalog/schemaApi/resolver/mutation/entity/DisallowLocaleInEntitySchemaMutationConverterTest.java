@@ -51,7 +51,7 @@ class DisallowLocaleInEntitySchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new DisallowLocaleInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new DisallowLocaleInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -61,7 +61,7 @@ class DisallowLocaleInEntitySchemaMutationConverterTest {
 			Locale.GERMAN
 		);
 
-		final DisallowLocaleInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
+		final DisallowLocaleInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
 					Locale.ENGLISH,
@@ -71,7 +71,7 @@ class DisallowLocaleInEntitySchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final DisallowLocaleInEntitySchemaMutation convertedMutation2 = converter.convertFromInput(
+		final DisallowLocaleInEntitySchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of("en", "de"))
 				.build()
@@ -82,7 +82,7 @@ class DisallowLocaleInEntitySchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final DisallowLocaleInEntitySchemaMutation expectedMutation = new DisallowLocaleInEntitySchemaMutation();
 
-		final DisallowLocaleInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
+		final DisallowLocaleInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of())
 				.build()
@@ -92,8 +92,8 @@ class DisallowLocaleInEntitySchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -104,7 +104,7 @@ class DisallowLocaleInEntitySchemaMutationConverterTest {
 		);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

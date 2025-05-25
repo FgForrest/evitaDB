@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcBooleanArray() {
-    value_ = emptyBooleanList();
+    this.value_ = emptyBooleanList();
   }
 
   @java.lang.Override
@@ -79,21 +79,21 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              value_ = newBooleanList();
+              this.value_ = newBooleanList();
               mutable_bitField0_ |= 0x00000001;
             }
-            value_.addBoolean(input.readBool());
+            this.value_.addBoolean(input.readBool());
             break;
           }
           case 10: {
             int length = input.readRawVarint32();
             int limit = input.pushLimit(length);
             if (!((mutable_bitField0_ & 0x00000001) != 0) && input.getBytesUntilLimit() > 0) {
-              value_ = newBooleanList();
+              this.value_ = newBooleanList();
               mutable_bitField0_ |= 0x00000001;
             }
             while (input.getBytesUntilLimit() > 0) {
-              value_.addBoolean(input.readBool());
+              this.value_.addBoolean(input.readBool());
             }
             input.popLimit(limit);
             break;
@@ -114,7 +114,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        value_.makeImmutable(); // C
+        this.value_.makeImmutable(); // C
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -146,7 +146,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<java.lang.Boolean>
       getValueList() {
-    return value_;
+    return this.value_;
   }
   /**
    * <pre>
@@ -157,7 +157,7 @@ private static final long serialVersionUID = 0L;
    * @return The count of value.
    */
   public int getValueCount() {
-    return value_.size();
+    return this.value_.size();
   }
   /**
    * <pre>
@@ -169,18 +169,18 @@ private static final long serialVersionUID = 0L;
    * @return The value at the given index.
    */
   public boolean getValue(int index) {
-    return value_.getBoolean(index);
+    return this.value_.getBoolean(index);
   }
   private int valueMemoizedSerializedSize = -1;
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
@@ -190,17 +190,17 @@ private static final long serialVersionUID = 0L;
     getSerializedSize();
     if (getValueList().size() > 0) {
       output.writeUInt32NoTag(10);
-      output.writeUInt32NoTag(valueMemoizedSerializedSize);
+      output.writeUInt32NoTag(this.valueMemoizedSerializedSize);
     }
-    for (int i = 0; i < value_.size(); i++) {
-      output.writeBoolNoTag(value_.getBoolean(i));
+    for (int i = 0; i < this.value_.size(); i++) {
+      output.writeBoolNoTag(this.value_.getBoolean(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
@@ -213,10 +213,10 @@ private static final long serialVersionUID = 0L;
         size += com.google.protobuf.CodedOutputStream
             .computeInt32SizeNoTag(dataSize);
       }
-      valueMemoizedSerializedSize = dataSize;
+      this.valueMemoizedSerializedSize = dataSize;
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -232,14 +232,14 @@ private static final long serialVersionUID = 0L;
 
     if (!getValueList()
         .equals(other.getValueList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -247,8 +247,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + VALUE_FIELD_NUMBER;
       hash = (53 * hash) + getValueList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -384,8 +384,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      value_ = emptyBooleanList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.value_ = emptyBooleanList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       return this;
     }
 
@@ -412,12 +412,12 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBooleanArray buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcBooleanArray result = new io.evitadb.externalApi.grpc.generated.GrpcBooleanArray(this);
-      int from_bitField0_ = bitField0_;
-      if (((bitField0_ & 0x00000001) != 0)) {
-        value_.makeImmutable();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      if (((this.bitField0_ & 0x00000001) != 0)) {
+        this.value_.makeImmutable();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       }
-      result.value_ = value_;
+      result.value_ = this.value_;
       onBuilt();
       return result;
     }
@@ -467,12 +467,12 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcBooleanArray other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance()) return this;
       if (!other.value_.isEmpty()) {
-        if (value_.isEmpty()) {
-          value_ = other.value_;
-          bitField0_ = (bitField0_ & ~0x00000001);
+        if (this.value_.isEmpty()) {
+          this.value_ = other.value_;
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         } else {
           ensureValueIsMutable();
-          value_.addAll(other.value_);
+          this.value_.addAll(other.value_);
         }
         onChanged();
       }
@@ -508,9 +508,9 @@ private static final long serialVersionUID = 0L;
 
     private com.google.protobuf.Internal.BooleanList value_ = emptyBooleanList();
     private void ensureValueIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        value_ = mutableCopy(value_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.value_ = mutableCopy(this.value_);
+        this.bitField0_ |= 0x00000001;
        }
     }
     /**
@@ -523,8 +523,8 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<java.lang.Boolean>
         getValueList() {
-      return ((bitField0_ & 0x00000001) != 0) ?
-               java.util.Collections.unmodifiableList(value_) : value_;
+      return ((this.bitField0_ & 0x00000001) != 0) ?
+               java.util.Collections.unmodifiableList(this.value_) : this.value_;
     }
     /**
      * <pre>
@@ -535,7 +535,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of value.
      */
     public int getValueCount() {
-      return value_.size();
+      return this.value_.size();
     }
     /**
      * <pre>
@@ -547,7 +547,7 @@ private static final long serialVersionUID = 0L;
      * @return The value at the given index.
      */
     public boolean getValue(int index) {
-      return value_.getBoolean(index);
+      return this.value_.getBoolean(index);
     }
     /**
      * <pre>
@@ -562,7 +562,7 @@ private static final long serialVersionUID = 0L;
     public Builder setValue(
         int index, boolean value) {
       ensureValueIsMutable();
-      value_.setBoolean(index, value);
+      this.value_.setBoolean(index, value);
       onChanged();
       return this;
     }
@@ -577,7 +577,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addValue(boolean value) {
       ensureValueIsMutable();
-      value_.addBoolean(value);
+      this.value_.addBoolean(value);
       onChanged();
       return this;
     }
@@ -594,7 +594,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<? extends java.lang.Boolean> values) {
       ensureValueIsMutable();
       com.google.protobuf.AbstractMessageLite.Builder.addAll(
-          values, value_);
+          values, this.value_);
       onChanged();
       return this;
     }
@@ -607,8 +607,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearValue() {
-      value_ = emptyBooleanList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.value_ = emptyBooleanList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }

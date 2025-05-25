@@ -125,7 +125,7 @@ public class DataLocatorResolver {
 					};
 				} else {
 					//noinspection DataFlowIssue
-					final ReferenceSchemaContract referenceSchema = catalogSchema.getEntitySchemaOrThrowException(dataLocatorWithReference.entityType())
+					final ReferenceSchemaContract referenceSchema = this.catalogSchema.getEntitySchemaOrThrowException(dataLocatorWithReference.entityType())
 						.getReferenceOrThrowException(dataLocatorWithReference.referenceName());
 
 					final String referencedEntityType = referenceSchema.getReferencedEntityType();
@@ -188,7 +188,7 @@ public class DataLocatorResolver {
 						// should point to itself, so we just pass the existing pointer
 						yield new EntityDataLocator(dataLocatorWithReference.entityTypePointer());
 					} else {
-						final ReferenceSchemaContract referenceSchema = catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType())
+						final ReferenceSchemaContract referenceSchema = this.catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType())
 							.getReferenceOrThrowException(dataLocatorWithReference.referenceName());
 						if (referenceSchema.isReferencedEntityTypeManaged()) {
 							yield new EntityDataLocator(new ManagedEntityTypePointer(referenceSchema.getReferencedEntityType()));
@@ -229,7 +229,7 @@ public class DataLocatorResolver {
 							yield parentDataLocator;
 						}
 						if (parentDataLocator instanceof EntityDataLocator &&
-							catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType()).isWithHierarchy()) {
+							this.catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType()).isWithHierarchy()) {
 							yield new HierarchyDataLocator(parentDataLocator.entityTypePointer());
 						}
 						throw new ExternalApiInternalError("Hierarchy constraints must have specified hierarchy");

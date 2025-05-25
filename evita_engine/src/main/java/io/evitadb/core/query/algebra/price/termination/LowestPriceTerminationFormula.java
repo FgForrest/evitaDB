@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -188,11 +188,11 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 		@Nonnull Predicate<PriceRecordContract> individualPricePredicate
 	) {
 		return new LowestPriceTerminationFormula(
-			computationCallback,
+			this.computationCallback,
 			getDelegate(),
-			priceEvaluationContext,
-			queryPriceMode,
-			sellingPricePredicate,
+			this.priceEvaluationContext,
+			this.queryPriceMode,
+			this.sellingPricePredicate,
 			individualPricePredicate
 		);
 	}
@@ -206,7 +206,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	@Nullable
 	@Override
 	public PriceAmountPredicate getRequestedPredicate() {
-		return sellingPricePredicate.getRequestedPredicate();
+		return this.sellingPricePredicate.getRequestedPredicate();
 	}
 
 	/**
@@ -221,9 +221,9 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new LowestPriceTerminationFormula(
-			computationCallback,
+			this.computationCallback,
 			innerFormulas[0],
-			priceEvaluationContext, queryPriceMode, sellingPricePredicate, individualPricePredicate
+			this.priceEvaluationContext, this.queryPriceMode, this.sellingPricePredicate, this.individualPricePredicate
 		);
 	}
 
@@ -236,9 +236,9 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	@Override
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
 		return new LowestPriceTerminationFormula(
-			computationCallback, innerFormulas[0],
-			priceEvaluationContext, queryPriceMode, PricePredicate.ALL_RECORD_FILTER, individualPricePredicate,
-			recordsFilteredOutByPredicate
+			this.computationCallback, this.innerFormulas[0],
+			this.priceEvaluationContext, this.queryPriceMode, PricePredicate.ALL_RECORD_FILTER, this.individualPricePredicate,
+			this.recordsFilteredOutByPredicate
 		);
 	}
 
@@ -249,18 +249,18 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 		return new LowestPriceTerminationFormula(
 			selfOperator,
 			innerFormulas[0],
-			priceEvaluationContext, queryPriceMode, sellingPricePredicate, individualPricePredicate
+			this.priceEvaluationContext, this.queryPriceMode, this.sellingPricePredicate, this.individualPricePredicate
 		);
 	}
 
 	@Nonnull
 	@Override
 	public FilteredPriceRecords getFilteredPriceRecords(@Nonnull QueryExecutionContext context) {
-		if (filteredPriceRecords == null) {
+		if (this.filteredPriceRecords == null) {
 			// init the records first
 			compute();
 		}
-		return filteredPriceRecords;
+		return this.filteredPriceRecords;
 	}
 
 	@Override
@@ -351,7 +351,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 									// we need to filter the price using individual price predicate
 									// this handles the situation when we want to consider only prices that relate
 									// for previously selected selling price (e.g. when we calculate the discount)
-									if (innerRecordPrice == null && individualPricePredicate.test(foundPrice)) {
+									if (innerRecordPrice == null && this.individualPricePredicate.test(foundPrice)) {
 										entityInnerRecordPrice.put(innerRecordId, foundPrice);
 									}
 								}
@@ -370,8 +370,8 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 						for (ObjectCursor<PriceRecordContract> value : values) {
 							final PriceRecordContract innerRecordPrice = value.value;
 							// test whether inner entity price matches the filter
-							anyPriceMatchesTheFilter |= sellingPricePredicate.test(innerRecordPrice);
-							if (lowestPrice == null || priceRecordComparator.compare(innerRecordPrice, lowestPrice) < 0) {
+							anyPriceMatchesTheFilter |= this.sellingPricePredicate.test(innerRecordPrice);
+							if (lowestPrice == null || this.priceRecordComparator.compare(innerRecordPrice, lowestPrice) < 0) {
 								lowestPrice = innerRecordPrice;
 							}
 						}
@@ -414,8 +414,8 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			new long[]{
-				priceEvaluationContext.computeHash(hashFunction),
-				sellingPricePredicate.computeHash(hashFunction)
+				this.priceEvaluationContext.computeHash(hashFunction),
+				this.sellingPricePredicate.computeHash(hashFunction)
 			}
 		);
 	}

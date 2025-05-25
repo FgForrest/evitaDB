@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -139,7 +139,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	@Nullable
 	@Override
 	public Long getStoragePartPK() {
-		return (long) primaryKey;
+		return (long) this.primaryKey;
 	}
 
 	@Override
@@ -149,18 +149,18 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		return primaryKey;
+		return this.primaryKey;
 	}
 
 	@Override
 	public boolean isEmpty() {
-		return markedForRemoval;
+		return this.markedForRemoval;
 	}
 
 	@Nonnull
 	@Override
 	public OptionalInt sizeInBytes() {
-		return sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(sizeInBytes);
+		return this.sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(this.sizeInBytes);
 	}
 
 	/**
@@ -205,7 +205,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	public Set<Locale> getLocales() {
-		return Collections.unmodifiableSet(locales);
+		return Collections.unmodifiableSet(this.locales);
 	}
 
 	/**
@@ -215,7 +215,7 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	public Set<Locale> getAttributeLocales() {
-		return Collections.unmodifiableSet(attributeLocales);
+		return Collections.unmodifiableSet(this.attributeLocales);
 	}
 
 	/**
@@ -294,8 +294,8 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 */
 	private boolean recomputeLocales() {
 		final LinkedHashSet<Locale> recomputedLocales = Stream.concat(
-				attributeLocales.stream(),
-				associatedDataKeys.stream()
+				this.attributeLocales.stream(),
+				this.associatedDataKeys.stream()
 					.map(AssociatedDataKey::locale)
 					.filter(Objects::nonNull)
 			)

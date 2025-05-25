@@ -107,6 +107,6 @@ public class LocalMutationAggregateConverter extends MutationAggregateConverter<
 	@Override
 	protected String getMutationAggregateName() {
 		// we need separate converter for each schema because each schema has different mutations allowed
-		return LocalMutationAggregateDescriptor.THIS.name(entitySchema);
+		return LocalMutationAggregateDescriptor.THIS.name(this.entitySchema);
 	}
 }

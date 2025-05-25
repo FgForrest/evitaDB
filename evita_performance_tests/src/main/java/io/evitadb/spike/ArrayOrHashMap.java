@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -142,8 +142,8 @@ public class ArrayOrHashMap {
 	private record ArraySet(@Nonnull String[] names, @Nonnull Integer[] values) implements ValueLookup {
 		@Override
 		public Integer getValue(@Nonnull String key) {
-			final int index = Arrays.binarySearch(names, key);
-			return index >= 0 ? values[index] : null;
+			final int index = Arrays.binarySearch(this.names, key);
+			return index >= 0 ? this.values[index] : null;
 		}
 	}
 
@@ -155,16 +155,16 @@ public class ArrayOrHashMap {
 		private final Map<String, Integer> keyValues;
 
 		public HashMapArraySet(String[] names, Integer[] values) {
-			keyValues = new HashMap<>(names.length);
+			this.keyValues = new HashMap<>(names.length);
 			for (int i = 0; i < names.length; i++) {
 				final String name = names[i];
-				keyValues.put(name, values[i]);
+				this.keyValues.put(name, values[i]);
 			}
 		}
 
 		@Override
 		public Integer getValue(String key) {
-			return keyValues.get(key);
+			return this.keyValues.get(key);
 		}
 	}
 
@@ -188,8 +188,8 @@ public class ArrayOrHashMap {
 		 */
 		@Setup(Level.Trial)
 		public void setUp() {
-			valueHolder = createValueHolder(
-				valueCount,
+			this.valueHolder = createValueHolder(
+				this.valueCount,
 				HashMapArraySet::new
 			);
 		}
@@ -216,8 +216,8 @@ public class ArrayOrHashMap {
 		 */
 		@Setup(Level.Trial)
 		public void setUp() {
-			valueHolder = createValueHolder(
-				valueCount,
+			this.valueHolder = createValueHolder(
+				this.valueCount,
 				ArraySet::new
 			);
 		}
@@ -234,7 +234,7 @@ public class ArrayOrHashMap {
 		 */
 		@Setup(Level.Invocation)
 		public void setUp(HashMapState plan) {
-			key = String.valueOf(100 + random.nextInt((int) (plan.valueCount * 1.25)));
+			this.key = String.valueOf(100 + random.nextInt((int) (plan.valueCount * 1.25)));
 		}
 
 	}

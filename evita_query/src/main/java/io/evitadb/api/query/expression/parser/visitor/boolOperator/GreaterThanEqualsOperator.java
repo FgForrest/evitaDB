@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,12 +61,12 @@ public class GreaterThanEqualsOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public Boolean compute(@Nonnull PredicateEvaluationContext context) {
-		final Serializable value1 = leftOperator.compute(context);
+		final Serializable value1 = this.leftOperator.compute(context);
 		Assert.isTrue(
 			value1 instanceof Comparable,
 			() -> new ParserException("Greater than or equals function operand must be comparable!")
 		);
-		final Serializable value2 = rightOperator.compute(context);
+		final Serializable value2 = this.rightOperator.compute(context);
 		Assert.isTrue(
 			value2 instanceof Comparable,
 			() -> new ParserException("Greater than or equals function operand must be comparable!")
@@ -79,8 +79,8 @@ public class GreaterThanEqualsOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		final BigDecimal from1 = leftOperator.determinePossibleRange().getPreciseFrom();
-		final BigDecimal from2 = rightOperator.determinePossibleRange().getPreciseFrom();
+		final BigDecimal from1 = this.leftOperator.determinePossibleRange().getPreciseFrom();
+		final BigDecimal from2 = this.rightOperator.determinePossibleRange().getPreciseFrom();
 		if (from1 == null && from2 == null) {
 			return BigDecimalNumberRange.INFINITE;
 		} else if (from1 == null) {
@@ -96,6 +96,6 @@ public class GreaterThanEqualsOperator implements ExpressionNode {
 
 	@Override
 	public String toString() {
-		return leftOperator.toString() + " >= " + rightOperator.toString();
+		return this.leftOperator.toString() + " >= " + this.rightOperator.toString();
 	}
 }

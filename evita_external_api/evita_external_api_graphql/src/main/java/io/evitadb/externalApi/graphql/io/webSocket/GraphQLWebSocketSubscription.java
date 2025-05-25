@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -58,30 +58,30 @@ public class GraphQLWebSocketSubscription implements Subscriber<ExecutionResult>
 	@Override
 	public void onNext(ExecutionResult item) {
 		final GraphQLResponse<?> graphQLResponse = GraphQLResponse.fromExecutionResult(item);
-		session.sendMessage(GraphQLWebSocketMessage.next(id, graphQLResponse));
+		this.session.sendMessage(GraphQLWebSocketMessage.next(this.id, graphQLResponse));
 		this.cdcSubscription.request(1);
 	}
 
 	@SneakyThrows
 	@Override
 	public void onError(Throwable e) {
-		session.removeSubscription(id);
-		final EvitaGraphQLError graphQLError = exceptionHandler.toGraphQLError(e);
-		session.sendMessage(GraphQLWebSocketMessage.error(id, graphQLError));
+		this.session.removeSubscription(this.id);
+		final EvitaGraphQLError graphQLError = this.exceptionHandler.toGraphQLError(e);
+		this.session.sendMessage(GraphQLWebSocketMessage.error(this.id, graphQLError));
 	}
 
 	@SneakyThrows
 	@Override
 	public void onComplete() {
-		session.removeSubscription(id);
-		session.sendMessage(GraphQLWebSocketMessage.complete(id));
+		this.session.removeSubscription(this.id);
+		this.session.sendMessage(GraphQLWebSocketMessage.complete(this.id));
 	}
 
 	/**
 	 * Manually complete the subscription by client.
 	 */
 	public void complete() {
-		cdcSubscription.cancel();
-		session.removeSubscription(id);
+		this.cdcSubscription.cancel();
+		this.session.removeSubscription(this.id);
 	}
 }

@@ -129,7 +129,7 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 */
 	@Nonnull
 	public String getDescription() {
-		return targetIndexes.getIndexDescription();
+		return this.targetIndexes.getIndexDescription();
 	}
 
 	/**
@@ -137,7 +137,7 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 */
 	@Nonnull
 	public String getDescriptionWithCosts() {
-		return targetIndexes.toStringWithCosts(getEstimatedCost());
+		return this.targetIndexes.toStringWithCosts(getEstimatedCost());
 	}
 
 	/**
@@ -146,7 +146,7 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 * @see Formula#getEstimatedCost()
 	 */
 	public long getEstimatedCost() {
-		return filterFormula.getEstimatedCost();
+		return this.filterFormula.getEstimatedCost();
 	}
 
 	/**

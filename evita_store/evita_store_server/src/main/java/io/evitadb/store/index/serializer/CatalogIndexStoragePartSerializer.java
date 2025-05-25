@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ public class CatalogIndexStoragePartSerializer extends Serializer<CatalogIndexSt
 		final Set<AttributeKey> attributeKeys = catalogIndex.getSharedAttributeUniqueIndexes();
 		output.writeVarInt(attributeKeys.size(), true);
 		for (AttributeKey attributeKey : attributeKeys) {
-			output.writeVarInt(keyCompressor.getId(attributeKey), true);
+			output.writeVarInt(this.keyCompressor.getId(attributeKey), true);
 		}
 	}
 
@@ -68,7 +68,7 @@ public class CatalogIndexStoragePartSerializer extends Serializer<CatalogIndexSt
 		final Set<AttributeKey> attributeKeys = CollectionUtils.createHashSet(attributeCount);
 		for (int i = 0; i < attributeCount; i++) {
 			attributeKeys.add(
-				keyCompressor.getKeyForId(input.readVarInt(true))
+				this.keyCompressor.getKeyForId(input.readVarInt(true))
 			);
 		}
 

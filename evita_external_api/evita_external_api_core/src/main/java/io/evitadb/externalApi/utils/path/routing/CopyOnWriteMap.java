@@ -91,27 +91,27 @@ public class CopyOnWriteMap<K,V> implements ConcurrentMap<K, V> {
 
 	@Override
 	public int size() {
-		return delegate.size();
+		return this.delegate.size();
 	}
 
 	@Override
 	public boolean isEmpty() {
-		return delegate.isEmpty();
+		return this.delegate.isEmpty();
 	}
 
 	@Override
 	public boolean containsKey(Object key) {
-		return delegate.containsKey(key);
+		return this.delegate.containsKey(key);
 	}
 
 	@Override
 	public boolean containsValue(Object value) {
-		return delegate.containsValue(value);
+		return this.delegate.containsValue(value);
 	}
 
 	@Override
 	public V get(Object key) {
-		return delegate.get(key);
+		return this.delegate.get(key);
 	}
 
 	@Override
@@ -135,22 +135,22 @@ public class CopyOnWriteMap<K,V> implements ConcurrentMap<K, V> {
 
 	@Override
 	public synchronized void clear() {
-		delegate = Collections.emptyMap();
+		this.delegate = Collections.emptyMap();
 	}
 
 	@Override
 	public Set<K> keySet() {
-		return delegate.keySet();
+		return this.delegate.keySet();
 	}
 
 	@Override
 	public Collection<V> values() {
-		return delegate.values();
+		return this.delegate.values();
 	}
 
 	@Override
 	public Set<Entry<K, V>> entrySet() {
-		return delegate.entrySet();
+		return this.delegate.entrySet();
 	}
 
 	//must be called under lock

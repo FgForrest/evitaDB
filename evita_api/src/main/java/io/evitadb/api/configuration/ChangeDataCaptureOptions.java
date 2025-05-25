@@ -114,9 +114,9 @@ public record ChangeDataCaptureOptions(
 		@Nonnull
 		public ChangeDataCaptureOptions build() {
 			return new ChangeDataCaptureOptions(
-				enabled,
-				recentEventsCacheLimit,
-				subscriberBufferSize
+				this.enabled,
+				this.recentEventsCacheLimit,
+				this.subscriberBufferSize
 			);
 		}
 	}

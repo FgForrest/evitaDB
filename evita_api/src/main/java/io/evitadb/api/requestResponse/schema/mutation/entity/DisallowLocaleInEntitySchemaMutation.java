@@ -86,7 +86,7 @@ public class DisallowLocaleInEntitySchemaMutation implements CombinableLocalEnti
 				new DisallowLocaleInEntitySchemaMutation(
 					Stream.concat(
 							disallowLocaleInEntitySchema.getLocales().stream(),
-							locales.stream()
+							this.locales.stream()
 						)
 						.distinct()
 						.toArray(Locale[]::new)
@@ -94,15 +94,15 @@ public class DisallowLocaleInEntitySchemaMutation implements CombinableLocalEnti
 			);
 		} else if (existingMutation instanceof AllowLocaleInEntitySchemaMutation allowLocaleInEntitySchema) {
 			final Locale[] localesToAdd = Arrays.stream(allowLocaleInEntitySchema.getLocales())
-				.filter(added -> !locales.contains(added))
+				.filter(added -> !this.locales.contains(added))
 				.toArray(Locale[]::new);
-			final Set<Locale> localesToRemove = locales.stream()
+			final Set<Locale> localesToRemove = this.locales.stream()
 				.filter(it -> currentEntitySchema.getLocales().contains(it))
 				.collect(Collectors.toSet());
 
 			return new MutationCombinationResult<>(
 				localesToAdd.length == 0 ? null : (localesToAdd.length == ((AllowLocaleInEntitySchemaMutation) existingMutation).getLocales().length ? existingMutation : new AllowLocaleInEntitySchemaMutation(localesToAdd)),
-				localesToRemove.size() == locales.size() ? this : (localesToRemove.isEmpty() ? null : new DisallowLocaleInEntitySchemaMutation(localesToRemove))
+				localesToRemove.size() == this.locales.size() ? this : (localesToRemove.isEmpty() ? null : new DisallowLocaleInEntitySchemaMutation(localesToRemove))
 			);
 		} else {
 			return null;
@@ -113,7 +113,7 @@ public class DisallowLocaleInEntitySchemaMutation implements CombinableLocalEnti
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (entitySchema.getLocales().stream().noneMatch(locales::contains)) {
+		if (entitySchema.getLocales().stream().noneMatch(this.locales::contains)) {
 			// no need to change the schema
 			return entitySchema;
 		} else {
@@ -151,6 +151,6 @@ public class DisallowLocaleInEntitySchemaMutation implements CombinableLocalEnti
 
 	@Override
 	public String toString() {
-		return "Disallow: locales=" + locales;
+		return "Disallow: locales=" + this.locales;
 	}
 }

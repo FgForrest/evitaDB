@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcEvitaCatalogStatisticsResponse() {
-    catalogStatistics_ = java.util.Collections.emptyList();
+    this.catalogStatistics_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -79,10 +79,10 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              catalogStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics>();
+              this.catalogStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics>();
               mutable_bitField0_ |= 0x00000001;
             }
-            catalogStatistics_.add(
+            this.catalogStatistics_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.parser(), extensionRegistry));
             break;
           }
@@ -102,7 +102,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        catalogStatistics_ = java.util.Collections.unmodifiableList(catalogStatistics_);
+        this.catalogStatistics_ = java.util.Collections.unmodifiableList(this.catalogStatistics_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics> getCatalogStatisticsList() {
-    return catalogStatistics_;
+    return this.catalogStatistics_;
   }
   /**
    * <pre>
@@ -142,9 +142,9 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder>
       getCatalogStatisticsOrBuilderList() {
-    return catalogStatistics_;
+    return this.catalogStatistics_;
   }
   /**
    * <pre>
@@ -155,7 +155,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getCatalogStatisticsCount() {
-    return catalogStatistics_.size();
+    return this.catalogStatistics_.size();
   }
   /**
    * <pre>
@@ -166,7 +166,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics getCatalogStatistics(int index) {
-    return catalogStatistics_.get(index);
+    return this.catalogStatistics_.get(index);
   }
   /**
    * <pre>
@@ -178,41 +178,41 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder getCatalogStatisticsOrBuilder(
       int index) {
-    return catalogStatistics_.get(index);
+    return this.catalogStatistics_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    for (int i = 0; i < catalogStatistics_.size(); i++) {
-      output.writeMessage(1, catalogStatistics_.get(i));
+    for (int i = 0; i < this.catalogStatistics_.size(); i++) {
+      output.writeMessage(1, this.catalogStatistics_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    for (int i = 0; i < catalogStatistics_.size(); i++) {
+    for (int i = 0; i < this.catalogStatistics_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(1, catalogStatistics_.get(i));
+        .computeMessageSize(1, this.catalogStatistics_.get(i));
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -228,14 +228,14 @@ private static final long serialVersionUID = 0L;
 
     if (!getCatalogStatisticsList()
         .equals(other.getCatalogStatisticsList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -243,8 +243,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CATALOGSTATISTICS_FIELD_NUMBER;
       hash = (53 * hash) + getCatalogStatisticsList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -381,11 +381,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (catalogStatisticsBuilder_ == null) {
-        catalogStatistics_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.catalogStatisticsBuilder_ == null) {
+        this.catalogStatistics_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       } else {
-        catalogStatisticsBuilder_.clear();
+        this.catalogStatisticsBuilder_.clear();
       }
       return this;
     }
@@ -413,15 +413,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse result = new io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse(this);
-      int from_bitField0_ = bitField0_;
-      if (catalogStatisticsBuilder_ == null) {
-        if (((bitField0_ & 0x00000001) != 0)) {
-          catalogStatistics_ = java.util.Collections.unmodifiableList(catalogStatistics_);
-          bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      if (this.catalogStatisticsBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000001) != 0)) {
+          this.catalogStatistics_ = java.util.Collections.unmodifiableList(this.catalogStatistics_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         }
-        result.catalogStatistics_ = catalogStatistics_;
+        result.catalogStatistics_ = this.catalogStatistics_;
       } else {
-        result.catalogStatistics_ = catalogStatisticsBuilder_.build();
+        result.catalogStatistics_ = this.catalogStatisticsBuilder_.build();
       }
       onBuilt();
       return result;
@@ -471,29 +471,29 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse.getDefaultInstance()) return this;
-      if (catalogStatisticsBuilder_ == null) {
+      if (this.catalogStatisticsBuilder_ == null) {
         if (!other.catalogStatistics_.isEmpty()) {
-          if (catalogStatistics_.isEmpty()) {
-            catalogStatistics_ = other.catalogStatistics_;
-            bitField0_ = (bitField0_ & ~0x00000001);
+          if (this.catalogStatistics_.isEmpty()) {
+            this.catalogStatistics_ = other.catalogStatistics_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
           } else {
             ensureCatalogStatisticsIsMutable();
-            catalogStatistics_.addAll(other.catalogStatistics_);
+            this.catalogStatistics_.addAll(other.catalogStatistics_);
           }
           onChanged();
         }
       } else {
         if (!other.catalogStatistics_.isEmpty()) {
-          if (catalogStatisticsBuilder_.isEmpty()) {
-            catalogStatisticsBuilder_.dispose();
-            catalogStatisticsBuilder_ = null;
-            catalogStatistics_ = other.catalogStatistics_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-            catalogStatisticsBuilder_ = 
+          if (this.catalogStatisticsBuilder_.isEmpty()) {
+            this.catalogStatisticsBuilder_.dispose();
+            this.catalogStatisticsBuilder_ = null;
+            this.catalogStatistics_ = other.catalogStatistics_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+            this.catalogStatisticsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getCatalogStatisticsFieldBuilder() : null;
           } else {
-            catalogStatisticsBuilder_.addAllMessages(other.catalogStatistics_);
+            this.catalogStatisticsBuilder_.addAllMessages(other.catalogStatistics_);
           }
         }
       }
@@ -530,9 +530,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics> catalogStatistics_ =
       java.util.Collections.emptyList();
     private void ensureCatalogStatisticsIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        catalogStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics>(catalogStatistics_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.catalogStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics>(this.catalogStatistics_);
+        this.bitField0_ |= 0x00000001;
        }
     }
 
@@ -547,10 +547,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics> getCatalogStatisticsList() {
-      if (catalogStatisticsBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(catalogStatistics_);
+      if (this.catalogStatisticsBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.catalogStatistics_);
       } else {
-        return catalogStatisticsBuilder_.getMessageList();
+        return this.catalogStatisticsBuilder_.getMessageList();
       }
     }
     /**
@@ -561,10 +561,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
      */
     public int getCatalogStatisticsCount() {
-      if (catalogStatisticsBuilder_ == null) {
-        return catalogStatistics_.size();
+      if (this.catalogStatisticsBuilder_ == null) {
+        return this.catalogStatistics_.size();
       } else {
-        return catalogStatisticsBuilder_.getCount();
+        return this.catalogStatisticsBuilder_.getCount();
       }
     }
     /**
@@ -575,10 +575,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics getCatalogStatistics(int index) {
-      if (catalogStatisticsBuilder_ == null) {
-        return catalogStatistics_.get(index);
+      if (this.catalogStatisticsBuilder_ == null) {
+        return this.catalogStatistics_.get(index);
       } else {
-        return catalogStatisticsBuilder_.getMessage(index);
+        return this.catalogStatisticsBuilder_.getMessage(index);
       }
     }
     /**
@@ -590,15 +590,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCatalogStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics value) {
-      if (catalogStatisticsBuilder_ == null) {
+      if (this.catalogStatisticsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureCatalogStatisticsIsMutable();
-        catalogStatistics_.set(index, value);
+        this.catalogStatistics_.set(index, value);
         onChanged();
       } else {
-        catalogStatisticsBuilder_.setMessage(index, value);
+        this.catalogStatisticsBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -611,12 +611,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCatalogStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.Builder builderForValue) {
-      if (catalogStatisticsBuilder_ == null) {
+      if (this.catalogStatisticsBuilder_ == null) {
         ensureCatalogStatisticsIsMutable();
-        catalogStatistics_.set(index, builderForValue.build());
+        this.catalogStatistics_.set(index, builderForValue.build());
         onChanged();
       } else {
-        catalogStatisticsBuilder_.setMessage(index, builderForValue.build());
+        this.catalogStatisticsBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -628,15 +628,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
      */
     public Builder addCatalogStatistics(io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics value) {
-      if (catalogStatisticsBuilder_ == null) {
+      if (this.catalogStatisticsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureCatalogStatisticsIsMutable();
-        catalogStatistics_.add(value);
+        this.catalogStatistics_.add(value);
         onChanged();
       } else {
-        catalogStatisticsBuilder_.addMessage(value);
+        this.catalogStatisticsBuilder_.addMessage(value);
       }
       return this;
     }
@@ -649,15 +649,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addCatalogStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics value) {
-      if (catalogStatisticsBuilder_ == null) {
+      if (this.catalogStatisticsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureCatalogStatisticsIsMutable();
-        catalogStatistics_.add(index, value);
+        this.catalogStatistics_.add(index, value);
         onChanged();
       } else {
-        catalogStatisticsBuilder_.addMessage(index, value);
+        this.catalogStatisticsBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -670,12 +670,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addCatalogStatistics(
         io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.Builder builderForValue) {
-      if (catalogStatisticsBuilder_ == null) {
+      if (this.catalogStatisticsBuilder_ == null) {
         ensureCatalogStatisticsIsMutable();
-        catalogStatistics_.add(builderForValue.build());
+        this.catalogStatistics_.add(builderForValue.build());
         onChanged();
       } else {
-        catalogStatisticsBuilder_.addMessage(builderForValue.build());
+        this.catalogStatisticsBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -688,12 +688,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addCatalogStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.Builder builderForValue) {
-      if (catalogStatisticsBuilder_ == null) {
+      if (this.catalogStatisticsBuilder_ == null) {
         ensureCatalogStatisticsIsMutable();
-        catalogStatistics_.add(index, builderForValue.build());
+        this.catalogStatistics_.add(index, builderForValue.build());
         onChanged();
       } else {
-        catalogStatisticsBuilder_.addMessage(index, builderForValue.build());
+        this.catalogStatisticsBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -706,13 +706,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllCatalogStatistics(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics> values) {
-      if (catalogStatisticsBuilder_ == null) {
+      if (this.catalogStatisticsBuilder_ == null) {
         ensureCatalogStatisticsIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, catalogStatistics_);
+            values, this.catalogStatistics_);
         onChanged();
       } else {
-        catalogStatisticsBuilder_.addAllMessages(values);
+        this.catalogStatisticsBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -724,12 +724,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
      */
     public Builder clearCatalogStatistics() {
-      if (catalogStatisticsBuilder_ == null) {
-        catalogStatistics_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.catalogStatisticsBuilder_ == null) {
+        this.catalogStatistics_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        catalogStatisticsBuilder_.clear();
+        this.catalogStatisticsBuilder_.clear();
       }
       return this;
     }
@@ -741,12 +741,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
      */
     public Builder removeCatalogStatistics(int index) {
-      if (catalogStatisticsBuilder_ == null) {
+      if (this.catalogStatisticsBuilder_ == null) {
         ensureCatalogStatisticsIsMutable();
-        catalogStatistics_.remove(index);
+        this.catalogStatistics_.remove(index);
         onChanged();
       } else {
-        catalogStatisticsBuilder_.remove(index);
+        this.catalogStatisticsBuilder_.remove(index);
       }
       return this;
     }
@@ -770,9 +770,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder getCatalogStatisticsOrBuilder(
         int index) {
-      if (catalogStatisticsBuilder_ == null) {
-        return catalogStatistics_.get(index);  } else {
-        return catalogStatisticsBuilder_.getMessageOrBuilder(index);
+      if (this.catalogStatisticsBuilder_ == null) {
+        return this.catalogStatistics_.get(index);  } else {
+        return this.catalogStatisticsBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -782,12 +782,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder>
          getCatalogStatisticsOrBuilderList() {
-      if (catalogStatisticsBuilder_ != null) {
-        return catalogStatisticsBuilder_.getMessageOrBuilderList();
+      if (this.catalogStatisticsBuilder_ != null) {
+        return this.catalogStatisticsBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(catalogStatistics_);
+        return java.util.Collections.unmodifiableList(this.catalogStatistics_);
       }
     }
     /**
@@ -820,23 +820,23 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.Builder>
          getCatalogStatisticsBuilderList() {
       return getCatalogStatisticsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder>
         getCatalogStatisticsFieldBuilder() {
-      if (catalogStatisticsBuilder_ == null) {
-        catalogStatisticsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.catalogStatisticsBuilder_ == null) {
+        this.catalogStatisticsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsOrBuilder>(
-                catalogStatistics_,
-                ((bitField0_ & 0x00000001) != 0),
+                this.catalogStatistics_,
+                ((this.bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        catalogStatistics_ = null;
+        this.catalogStatistics_ = null;
       }
-      return catalogStatisticsBuilder_;
+      return this.catalogStatisticsBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

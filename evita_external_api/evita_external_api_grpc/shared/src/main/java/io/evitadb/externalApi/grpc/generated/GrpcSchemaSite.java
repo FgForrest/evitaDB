@@ -39,8 +39,8 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcSchemaSite() {
-    entityType_ = "";
-    operations_ = java.util.Collections.emptyList();
+    this.entityType_ = "";
+    this.operations_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -77,16 +77,16 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            entityType_ = s;
+            this.entityType_ = s;
             break;
           }
           case 16: {
             int rawValue = input.readEnum();
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              operations_ = new java.util.ArrayList<java.lang.Integer>();
+              this.operations_ = new java.util.ArrayList<java.lang.Integer>();
               mutable_bitField0_ |= 0x00000001;
             }
-            operations_.add(rawValue);
+            this.operations_.add(rawValue);
             break;
           }
           case 18: {
@@ -95,10 +95,10 @@ private static final long serialVersionUID = 0L;
             while(input.getBytesUntilLimit() > 0) {
               int rawValue = input.readEnum();
               if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-                operations_ = new java.util.ArrayList<java.lang.Integer>();
+                this.operations_ = new java.util.ArrayList<java.lang.Integer>();
                 mutable_bitField0_ |= 0x00000001;
               }
-              operations_.add(rawValue);
+              this.operations_.add(rawValue);
             }
             input.popLimit(oldLimit);
             break;
@@ -119,7 +119,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        operations_ = java.util.Collections.unmodifiableList(operations_);
+        this.operations_ = java.util.Collections.unmodifiableList(this.operations_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -146,14 +146,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getEntityType() {
-    java.lang.Object ref = entityType_;
+    java.lang.Object ref = this.entityType_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      entityType_ = s;
+      this.entityType_ = s;
       return s;
     }
   }
@@ -164,12 +164,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getEntityTypeBytes() {
-    java.lang.Object ref = entityType_;
+    java.lang.Object ref = this.entityType_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      entityType_ = b;
+      this.entityType_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -195,7 +195,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcOperation> getOperationsList() {
     return new com.google.protobuf.Internal.ListAdapter<
-        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcOperation>(operations_, operations_converter_);
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcOperation>(this.operations_, operations_converter_);
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 2;</code>
@@ -203,7 +203,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getOperationsCount() {
-    return operations_.size();
+    return this.operations_.size();
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 2;</code>
@@ -212,7 +212,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcOperation getOperations(int index) {
-    return operations_converter_.convert(operations_.get(index));
+    return operations_converter_.convert(this.operations_.get(index));
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 2;</code>
@@ -221,7 +221,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<java.lang.Integer>
   getOperationsValueList() {
-    return operations_;
+    return this.operations_;
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 2;</code>
@@ -230,18 +230,18 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getOperationsValue(int index) {
-    return operations_.get(index);
+    return this.operations_.get(index);
   }
   private int operationsMemoizedSerializedSize;
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
@@ -249,42 +249,42 @@ private static final long serialVersionUID = 0L;
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
     getSerializedSize();
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, entityType_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.entityType_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.entityType_);
     }
     if (getOperationsList().size() > 0) {
       output.writeUInt32NoTag(18);
-      output.writeUInt32NoTag(operationsMemoizedSerializedSize);
+      output.writeUInt32NoTag(this.operationsMemoizedSerializedSize);
     }
-    for (int i = 0; i < operations_.size(); i++) {
-      output.writeEnumNoTag(operations_.get(i));
+    for (int i = 0; i < this.operations_.size(); i++) {
+      output.writeEnumNoTag(this.operations_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, entityType_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.entityType_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.entityType_);
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < operations_.size(); i++) {
+      for (int i = 0; i < this.operations_.size(); i++) {
         dataSize += com.google.protobuf.CodedOutputStream
-          .computeEnumSizeNoTag(operations_.get(i));
+          .computeEnumSizeNoTag(this.operations_.get(i));
       }
       size += dataSize;
       if (!getOperationsList().isEmpty()) {  size += 1;
         size += com.google.protobuf.CodedOutputStream
           .computeUInt32SizeNoTag(dataSize);
-      }operationsMemoizedSerializedSize = dataSize;
+      }this.operationsMemoizedSerializedSize = dataSize;
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -300,15 +300,15 @@ private static final long serialVersionUID = 0L;
 
     if (!getEntityType()
         .equals(other.getEntityType())) return false;
-    if (!operations_.equals(other.operations_)) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.operations_.equals(other.operations_)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -316,10 +316,10 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getEntityType().hashCode();
     if (getOperationsCount() > 0) {
       hash = (37 * hash) + OPERATIONS_FIELD_NUMBER;
-      hash = (53 * hash) + operations_.hashCode();
+      hash = (53 * hash) + this.operations_.hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -451,10 +451,10 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      entityType_ = "";
+      this.entityType_ = "";
 
-      operations_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.operations_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       return this;
     }
 
@@ -481,13 +481,13 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSchemaSite buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcSchemaSite result = new io.evitadb.externalApi.grpc.generated.GrpcSchemaSite(this);
-      int from_bitField0_ = bitField0_;
-      result.entityType_ = entityType_;
-      if (((bitField0_ & 0x00000001) != 0)) {
-        operations_ = java.util.Collections.unmodifiableList(operations_);
-        bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      result.entityType_ = this.entityType_;
+      if (((this.bitField0_ & 0x00000001) != 0)) {
+        this.operations_ = java.util.Collections.unmodifiableList(this.operations_);
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       }
-      result.operations_ = operations_;
+      result.operations_ = this.operations_;
       onBuilt();
       return result;
     }
@@ -537,16 +537,16 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcSchemaSite other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcSchemaSite.getDefaultInstance()) return this;
       if (!other.getEntityType().isEmpty()) {
-        entityType_ = other.entityType_;
+        this.entityType_ = other.entityType_;
         onChanged();
       }
       if (!other.operations_.isEmpty()) {
-        if (operations_.isEmpty()) {
-          operations_ = other.operations_;
-          bitField0_ = (bitField0_ & ~0x00000001);
+        if (this.operations_.isEmpty()) {
+          this.operations_ = other.operations_;
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         } else {
           ensureOperationsIsMutable();
-          operations_.addAll(other.operations_);
+          this.operations_.addAll(other.operations_);
         }
         onChanged();
       }
@@ -586,12 +586,12 @@ private static final long serialVersionUID = 0L;
      * @return The entityType.
      */
     public java.lang.String getEntityType() {
-      java.lang.Object ref = entityType_;
+      java.lang.Object ref = this.entityType_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        entityType_ = s;
+        this.entityType_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -603,12 +603,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getEntityTypeBytes() {
-      java.lang.Object ref = entityType_;
+      java.lang.Object ref = this.entityType_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        entityType_ = b;
+        this.entityType_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -625,7 +625,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      entityType_ = value;
+      this.entityType_ = value;
       onChanged();
       return this;
     }
@@ -635,7 +635,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearEntityType() {
 
-      entityType_ = getDefaultInstance().getEntityType();
+      this.entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
     }
@@ -651,7 +651,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      entityType_ = value;
+      this.entityType_ = value;
       onChanged();
       return this;
     }
@@ -659,9 +659,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<java.lang.Integer> operations_ =
       java.util.Collections.emptyList();
     private void ensureOperationsIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        operations_ = new java.util.ArrayList<java.lang.Integer>(operations_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.operations_ = new java.util.ArrayList<java.lang.Integer>(this.operations_);
+        this.bitField0_ |= 0x00000001;
       }
     }
     /**
@@ -670,14 +670,14 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcOperation> getOperationsList() {
       return new com.google.protobuf.Internal.ListAdapter<
-          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcOperation>(operations_, operations_converter_);
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcOperation>(this.operations_, operations_converter_);
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 2;</code>
      * @return The count of operations.
      */
     public int getOperationsCount() {
-      return operations_.size();
+      return this.operations_.size();
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 2;</code>
@@ -685,7 +685,7 @@ private static final long serialVersionUID = 0L;
      * @return The operations at the given index.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOperation getOperations(int index) {
-      return operations_converter_.convert(operations_.get(index));
+      return operations_converter_.convert(this.operations_.get(index));
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 2;</code>
@@ -699,7 +699,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureOperationsIsMutable();
-      operations_.set(index, value.getNumber());
+      this.operations_.set(index, value.getNumber());
       onChanged();
       return this;
     }
@@ -713,7 +713,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureOperationsIsMutable();
-      operations_.add(value.getNumber());
+      this.operations_.add(value.getNumber());
       onChanged();
       return this;
     }
@@ -726,7 +726,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcOperation> values) {
       ensureOperationsIsMutable();
       for (io.evitadb.externalApi.grpc.generated.GrpcOperation value : values) {
-        operations_.add(value.getNumber());
+        this.operations_.add(value.getNumber());
       }
       onChanged();
       return this;
@@ -736,8 +736,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearOperations() {
-      operations_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.operations_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
@@ -747,7 +747,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<java.lang.Integer>
     getOperationsValueList() {
-      return java.util.Collections.unmodifiableList(operations_);
+      return java.util.Collections.unmodifiableList(this.operations_);
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 2;</code>
@@ -755,7 +755,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire of operations at the given index.
      */
     public int getOperationsValue(int index) {
-      return operations_.get(index);
+      return this.operations_.get(index);
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 2;</code>
@@ -766,7 +766,7 @@ private static final long serialVersionUID = 0L;
     public Builder setOperationsValue(
         int index, int value) {
       ensureOperationsIsMutable();
-      operations_.set(index, value);
+      this.operations_.set(index, value);
       onChanged();
       return this;
     }
@@ -777,7 +777,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addOperationsValue(int value) {
       ensureOperationsIsMutable();
-      operations_.add(value);
+      this.operations_.add(value);
       onChanged();
       return this;
     }
@@ -790,7 +790,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<java.lang.Integer> values) {
       ensureOperationsIsMutable();
       for (int value : values) {
-        operations_.add(value);
+        this.operations_.add(value);
       }
       onChanged();
       return this;

@@ -562,11 +562,11 @@ public class EvitaServer {
 		this.evita = evita;
 		this.evitaConfiguration = evita.getConfiguration();
 		this.evitaServerConfiguration = new EvitaServerConfiguration(
-			evitaConfiguration.name(),
-			evitaConfiguration.server(),
-			evitaConfiguration.storage(),
-			evitaConfiguration.transaction(),
-			evitaConfiguration.cache(),
+			this.evitaConfiguration.name(),
+			this.evitaConfiguration.server(),
+			this.evitaConfiguration.storage(),
+			this.evitaConfiguration.transaction(),
+			this.evitaConfiguration.cache(),
 			apiOptions
 		);
 	}

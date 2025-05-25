@@ -50,7 +50,7 @@ class TransactionalObjArrayIterator<T> implements Iterator<T> {
 
 	@Override
 	public T next() {
-		if (nextRecord == null) {
+		if (this.nextRecord == null) {
 			throw new NoSuchElementException("Stream exhausted!");
 		}
 		T recordToReturn = this.nextRecord;
@@ -60,7 +60,7 @@ class TransactionalObjArrayIterator<T> implements Iterator<T> {
 
 	@Override
 	public boolean hasNext() {
-		return nextRecord != null;
+		return this.nextRecord != null;
 	}
 
 	/**
@@ -71,12 +71,12 @@ class TransactionalObjArrayIterator<T> implements Iterator<T> {
 	private T computeNextRecord() {
 		// if insertion happens on this spot - first exhaust the insertion
 		if (this.insertion != null) {
-			if (this.insertion.length > insertionPosition + 1) {
-				return this.insertion[++insertionPosition];
+			if (this.insertion.length > this.insertionPosition + 1) {
+				return this.insertion[++this.insertionPosition];
 			} else {
 				// if the original record should not be removed, return it
 				this.insertion = null;
-				boolean originalRemoved = changes.isRemovalOnPosition(this.position);
+				boolean originalRemoved = this.changes.isRemovalOnPosition(this.position);
 				if (!originalRemoved && this.original.length > this.position) {
 					return this.original[this.position];
 				}
@@ -87,15 +87,15 @@ class TransactionalObjArrayIterator<T> implements Iterator<T> {
 			this.position++;
 
 			// if insertion should happen on this place, init insertion set and return first inserted element
-			this.insertion = changes.getInsertionOnPosition(this.position);
+			this.insertion = this.changes.getInsertionOnPosition(this.position);
 			if (this.insertion != null) {
 				this.insertionPosition = -1;
-				return this.insertion[++insertionPosition];
+				return this.insertion[++this.insertionPosition];
 			}
 
 			// if original record should be removed skip it - otherwise return
 			if (this.position < this.original.length) {
-				boolean removalPosition = changes.isRemovalOnPosition(this.position);
+				boolean removalPosition = this.changes.isRemovalOnPosition(this.position);
 				if (!removalPosition) {
 					return this.original[this.position];
 				}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -97,21 +97,21 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	@Nullable
 	@Override
 	public EntityFetchRequire getEntityRequire() {
-		return alternative.getEntityRequire();
+		return this.alternative.getEntityRequire();
 	}
 
 	/**
 	 * Returns delegate formula that computes the result in a standard way.
 	 */
 	public Formula getDelegate() {
-		return innerFormulas[0];
+		return this.innerFormulas[0];
 	}
 
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isTrue(innerFormulas.length == 1, "Exactly one inner formula is expected!");
-		return new SelectionFormula(innerFormulas[0], alternative);
+		return new SelectionFormula(innerFormulas[0], this.alternative);
 	}
 
 	@Override
@@ -122,23 +122,23 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 			.orElse(null);
 		this.prefetchEstimatedCost = Optional.ofNullable(executionContext.getPrefetchedEntities())
 			.map(it -> {
-				if (alternative.getEntityRequire() == null) {
+				if (this.alternative.getEntityRequire() == null) {
 					return 0L;
 				}
-				return (1 + alternative.getEntityRequire().getRequirements().length) * 148L;
+				return (1 + this.alternative.getEntityRequire().getRequirements().length) * 148L;
 			})
 			.orElse(null);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Optional.ofNullable(prefetchEstimatedCardinality)
+		return Optional.ofNullable(this.prefetchEstimatedCardinality)
 			.orElseGet(() -> getDelegate().getEstimatedCardinality());
 	}
 
 	@Override
 	public long getEstimatedCost() {
-		return Optional.ofNullable(prefetchEstimatedCost)
+		return Optional.ofNullable(this.prefetchEstimatedCost)
 			.orElseGet(() -> getDelegate().getEstimatedCost());
 	}
 
@@ -158,11 +158,11 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		if (this.memoizedPredicate == null) {
 			Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
 			// if the entities were prefetched we passed the "is it worthwhile" check
-			this.memoizedPredicate = Optional.ofNullable(executionContext.getPrefetchedEntities())
+			this.memoizedPredicate = Optional.ofNullable(this.executionContext.getPrefetchedEntities())
 				// ask the alternative solution for filtered price records
 				.map(it ->
-					alternative instanceof FilteredOutPriceRecordAccessor ?
-						((FilteredOutPriceRecordAccessor) alternative).getRequestedPredicate() :
+					this.alternative instanceof FilteredOutPriceRecordAccessor ?
+						((FilteredOutPriceRecordAccessor) this.alternative).getRequestedPredicate() :
 						PriceAmountPredicate.ALL
 				)
 				// otherwise collect the filtered records from the delegate
@@ -195,11 +195,11 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		if (this.memoizedClone == null) {
 			Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
 			// if the entities were prefetched we passed the "is it worthwhile" check
-			this.memoizedClone = Optional.ofNullable(executionContext.getPrefetchedEntities())
+			this.memoizedClone = Optional.ofNullable(this.executionContext.getPrefetchedEntities())
 				// ask the alternative solution for filtered price records
 				.map(it ->
-					alternative instanceof FilteredOutPriceRecordAccessor ?
-						((FilteredOutPriceRecordAccessor) alternative).getCloneWithPricePredicateFilteredOutResults() :
+					this.alternative instanceof FilteredOutPriceRecordAccessor ?
+						((FilteredOutPriceRecordAccessor) this.alternative).getCloneWithPricePredicateFilteredOutResults() :
 						EmptyFormula.INSTANCE
 				)
 				// otherwise collect the filtered records from the delegate
@@ -257,11 +257,11 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
 		return Optional.ofNullable(this.executionContext.getPrefetchedEntities())
 			.map(it -> {
-				if (alternative.getEntityRequire() == null) {
+				if (this.alternative.getEntityRequire() == null) {
 					return 0L;
 				}
 
-				return (1 + alternative.getEntityRequire().getRequirements().length) * 148L;
+				return (1 + this.alternative.getEntityRequire().getRequirements().length) * 148L;
 			})
 			.orElseGet(() -> getDelegate().getCost());
 	}

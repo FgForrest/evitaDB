@@ -226,7 +226,7 @@ public class ProxyUtils {
 			try {
 				return resultProducer.get();
 			} catch (Exception ex) {
-				for (Class<?> declaredException : declaredExceptions) {
+				for (Class<?> declaredException : this.declaredExceptions) {
 					if (declaredException.isInstance(ex)) {
 						throw ex;
 					}
@@ -273,7 +273,7 @@ public class ProxyUtils {
 				final Object value = resultProducer.get();
 				return value == null ? OptionalInt.empty() : OptionalInt.of((Integer) value);
 			} catch (Exception ex) {
-				for (Class<?> declaredException : declaredExceptions) {
+				for (Class<?> declaredException : this.declaredExceptions) {
 					if (declaredException.isInstance(ex)) {
 						throw ex;
 					}
@@ -320,7 +320,7 @@ public class ProxyUtils {
 				final Object value = resultProducer.get();
 				return value == null ? OptionalLong.empty() : OptionalLong.of((Long) value);
 			} catch (Exception ex) {
-				for (Class<?> declaredException : declaredExceptions) {
+				for (Class<?> declaredException : this.declaredExceptions) {
 					if (declaredException.isInstance(ex)) {
 						throw ex;
 					}
@@ -379,7 +379,7 @@ public class ProxyUtils {
 					return Optional.ofNullable(value);
 				}
 			} catch (Exception ex) {
-				for (Class<?> declaredException : declaredExceptions) {
+				for (Class<?> declaredException : this.declaredExceptions) {
 					if (declaredException.isInstance(ex)) {
 						throw ex;
 					}

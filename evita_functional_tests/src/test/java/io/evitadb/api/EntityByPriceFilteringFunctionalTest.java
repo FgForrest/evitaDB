@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -428,12 +428,12 @@ public class EntityByPriceFilteringFunctionalTest {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> null;
 
-			dataGenerator.getSampleCategorySchema(session);
-			dataGenerator.getSampleBrandSchema(session);
-			dataGenerator.getSampleStoreSchema(session);
+			this.dataGenerator.getSampleCategorySchema(session);
+			this.dataGenerator.getSampleBrandSchema(session);
+			this.dataGenerator.getSampleStoreSchema(session);
 
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
-					dataGenerator.getSampleProductSchema(session),
+			final List<EntityReference> storedProducts = this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleProductSchema(session),
 					randomEntityPicker,
 					SEED
 				)

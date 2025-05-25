@@ -246,7 +246,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		final ReferenceSchemaContract referenceToInsert = referencedReferenceSchema
 			.map(newReferenceSchema::withReferencedSchema)
 			.orElse(newReferenceSchema);
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
+		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {
 			return EntitySchema._internalBuild(
 				entitySchema.version() + 1,
@@ -283,7 +283,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		} else {
 			// ups, there is conflict in associated data settings
 			throw new InvalidSchemaMutationException(
-				"The reference `" + name + "` already exists in entity `" + entitySchema.getName() + "` schema and" +
+				"The reference `" + this.name + "` already exists in entity `" + entitySchema.getName() + "` schema and" +
 					" has different definition. To alter existing reference schema you need to use different mutations."
 			);
 		}

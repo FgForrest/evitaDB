@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcAllowEvolutionModeInEntitySchemaMutation() {
-    evolutionModes_ = java.util.Collections.emptyList();
+    this.evolutionModes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -80,10 +80,10 @@ private static final long serialVersionUID = 0L;
           case 8: {
             int rawValue = input.readEnum();
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              evolutionModes_ = new java.util.ArrayList<java.lang.Integer>();
+              this.evolutionModes_ = new java.util.ArrayList<java.lang.Integer>();
               mutable_bitField0_ |= 0x00000001;
             }
-            evolutionModes_.add(rawValue);
+            this.evolutionModes_.add(rawValue);
             break;
           }
           case 10: {
@@ -92,10 +92,10 @@ private static final long serialVersionUID = 0L;
             while(input.getBytesUntilLimit() > 0) {
               int rawValue = input.readEnum();
               if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-                evolutionModes_ = new java.util.ArrayList<java.lang.Integer>();
+                this.evolutionModes_ = new java.util.ArrayList<java.lang.Integer>();
                 mutable_bitField0_ |= 0x00000001;
               }
-              evolutionModes_.add(rawValue);
+              this.evolutionModes_.add(rawValue);
             }
             input.popLimit(oldLimit);
             break;
@@ -116,7 +116,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        evolutionModes_ = java.util.Collections.unmodifiableList(evolutionModes_);
+        this.evolutionModes_ = java.util.Collections.unmodifiableList(this.evolutionModes_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -160,7 +160,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode> getEvolutionModesList() {
     return new com.google.protobuf.Internal.ListAdapter<
-        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode>(evolutionModes_, evolutionModes_converter_);
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode>(this.evolutionModes_, evolutionModes_converter_);
   }
   /**
    * <pre>
@@ -174,7 +174,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getEvolutionModesCount() {
-    return evolutionModes_.size();
+    return this.evolutionModes_.size();
   }
   /**
    * <pre>
@@ -189,7 +189,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode getEvolutionModes(int index) {
-    return evolutionModes_converter_.convert(evolutionModes_.get(index));
+    return evolutionModes_converter_.convert(this.evolutionModes_.get(index));
   }
   /**
    * <pre>
@@ -204,7 +204,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<java.lang.Integer>
   getEvolutionModesValueList() {
-    return evolutionModes_;
+    return this.evolutionModes_;
   }
   /**
    * <pre>
@@ -219,18 +219,18 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getEvolutionModesValue(int index) {
-    return evolutionModes_.get(index);
+    return this.evolutionModes_.get(index);
   }
   private int evolutionModesMemoizedSerializedSize;
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
@@ -240,34 +240,34 @@ private static final long serialVersionUID = 0L;
     getSerializedSize();
     if (getEvolutionModesList().size() > 0) {
       output.writeUInt32NoTag(10);
-      output.writeUInt32NoTag(evolutionModesMemoizedSerializedSize);
+      output.writeUInt32NoTag(this.evolutionModesMemoizedSerializedSize);
     }
-    for (int i = 0; i < evolutionModes_.size(); i++) {
-      output.writeEnumNoTag(evolutionModes_.get(i));
+    for (int i = 0; i < this.evolutionModes_.size(); i++) {
+      output.writeEnumNoTag(this.evolutionModes_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
     {
       int dataSize = 0;
-      for (int i = 0; i < evolutionModes_.size(); i++) {
+      for (int i = 0; i < this.evolutionModes_.size(); i++) {
         dataSize += com.google.protobuf.CodedOutputStream
-          .computeEnumSizeNoTag(evolutionModes_.get(i));
+          .computeEnumSizeNoTag(this.evolutionModes_.get(i));
       }
       size += dataSize;
       if (!getEvolutionModesList().isEmpty()) {  size += 1;
         size += com.google.protobuf.CodedOutputStream
           .computeUInt32SizeNoTag(dataSize);
-      }evolutionModesMemoizedSerializedSize = dataSize;
+      }this.evolutionModesMemoizedSerializedSize = dataSize;
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -281,24 +281,24 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation other = (io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation) obj;
 
-    if (!evolutionModes_.equals(other.evolutionModes_)) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.evolutionModes_.equals(other.evolutionModes_)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
     if (getEvolutionModesCount() > 0) {
       hash = (37 * hash) + EVOLUTIONMODES_FIELD_NUMBER;
-      hash = (53 * hash) + evolutionModes_.hashCode();
+      hash = (53 * hash) + this.evolutionModes_.hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -434,8 +434,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      evolutionModes_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.evolutionModes_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       return this;
     }
 
@@ -462,12 +462,12 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation result = new io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation(this);
-      int from_bitField0_ = bitField0_;
-      if (((bitField0_ & 0x00000001) != 0)) {
-        evolutionModes_ = java.util.Collections.unmodifiableList(evolutionModes_);
-        bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      if (((this.bitField0_ & 0x00000001) != 0)) {
+        this.evolutionModes_ = java.util.Collections.unmodifiableList(this.evolutionModes_);
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       }
-      result.evolutionModes_ = evolutionModes_;
+      result.evolutionModes_ = this.evolutionModes_;
       onBuilt();
       return result;
     }
@@ -517,12 +517,12 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcAllowEvolutionModeInEntitySchemaMutation.getDefaultInstance()) return this;
       if (!other.evolutionModes_.isEmpty()) {
-        if (evolutionModes_.isEmpty()) {
-          evolutionModes_ = other.evolutionModes_;
-          bitField0_ = (bitField0_ & ~0x00000001);
+        if (this.evolutionModes_.isEmpty()) {
+          this.evolutionModes_ = other.evolutionModes_;
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         } else {
           ensureEvolutionModesIsMutable();
-          evolutionModes_.addAll(other.evolutionModes_);
+          this.evolutionModes_.addAll(other.evolutionModes_);
         }
         onChanged();
       }
@@ -559,9 +559,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<java.lang.Integer> evolutionModes_ =
       java.util.Collections.emptyList();
     private void ensureEvolutionModesIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        evolutionModes_ = new java.util.ArrayList<java.lang.Integer>(evolutionModes_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.evolutionModes_ = new java.util.ArrayList<java.lang.Integer>(this.evolutionModes_);
+        this.bitField0_ |= 0x00000001;
       }
     }
     /**
@@ -576,7 +576,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode> getEvolutionModesList() {
       return new com.google.protobuf.Internal.ListAdapter<
-          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode>(evolutionModes_, evolutionModes_converter_);
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode>(this.evolutionModes_, evolutionModes_converter_);
     }
     /**
      * <pre>
@@ -589,7 +589,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of evolutionModes.
      */
     public int getEvolutionModesCount() {
-      return evolutionModes_.size();
+      return this.evolutionModes_.size();
     }
     /**
      * <pre>
@@ -603,7 +603,7 @@ private static final long serialVersionUID = 0L;
      * @return The evolutionModes at the given index.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode getEvolutionModes(int index) {
-      return evolutionModes_converter_.convert(evolutionModes_.get(index));
+      return evolutionModes_converter_.convert(this.evolutionModes_.get(index));
     }
     /**
      * <pre>
@@ -623,7 +623,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureEvolutionModesIsMutable();
-      evolutionModes_.set(index, value.getNumber());
+      this.evolutionModes_.set(index, value.getNumber());
       onChanged();
       return this;
     }
@@ -643,7 +643,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureEvolutionModesIsMutable();
-      evolutionModes_.add(value.getNumber());
+      this.evolutionModes_.add(value.getNumber());
       onChanged();
       return this;
     }
@@ -662,7 +662,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode> values) {
       ensureEvolutionModesIsMutable();
       for (io.evitadb.externalApi.grpc.generated.GrpcEvolutionMode value : values) {
-        evolutionModes_.add(value.getNumber());
+        this.evolutionModes_.add(value.getNumber());
       }
       onChanged();
       return this;
@@ -678,8 +678,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEvolutionModes() {
-      evolutionModes_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.evolutionModes_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
@@ -695,7 +695,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<java.lang.Integer>
     getEvolutionModesValueList() {
-      return java.util.Collections.unmodifiableList(evolutionModes_);
+      return java.util.Collections.unmodifiableList(this.evolutionModes_);
     }
     /**
      * <pre>
@@ -709,7 +709,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire of evolutionModes at the given index.
      */
     public int getEvolutionModesValue(int index) {
-      return evolutionModes_.get(index);
+      return this.evolutionModes_.get(index);
     }
     /**
      * <pre>
@@ -726,7 +726,7 @@ private static final long serialVersionUID = 0L;
     public Builder setEvolutionModesValue(
         int index, int value) {
       ensureEvolutionModesIsMutable();
-      evolutionModes_.set(index, value);
+      this.evolutionModes_.set(index, value);
       onChanged();
       return this;
     }
@@ -743,7 +743,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addEvolutionModesValue(int value) {
       ensureEvolutionModesIsMutable();
-      evolutionModes_.add(value);
+      this.evolutionModes_.add(value);
       onChanged();
       return this;
     }
@@ -762,7 +762,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<java.lang.Integer> values) {
       ensureEvolutionModesIsMutable();
       for (int value : values) {
-        evolutionModes_.add(value);
+        this.evolutionModes_.add(value);
       }
       onChanged();
       return this;

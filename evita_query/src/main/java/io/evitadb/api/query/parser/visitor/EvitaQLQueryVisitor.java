@@ -62,7 +62,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
             () -> {
                 final List<Constraint<?>> constraints = ctx.args.constraints
                     .stream()
-                    .map(con -> con.accept(constraintVisitor))
+                    .map(con -> con.accept(this.constraintVisitor))
                     .collect(Collectors.toList());
 
                 final HeadConstraint headConstraint = findHeadConstraint(ctx, constraints);

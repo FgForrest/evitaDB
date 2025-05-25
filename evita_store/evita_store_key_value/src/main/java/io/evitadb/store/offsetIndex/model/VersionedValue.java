@@ -56,7 +56,7 @@ public record VersionedValue(
 	 * Returns true if this non-flushed value represents removal of the record.
 	 */
 	public boolean removed() {
-		return recordType < 0;
+		return this.recordType < 0;
 	}
 
 	@Override
@@ -64,17 +64,17 @@ public record VersionedValue(
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		VersionedValue that = (VersionedValue) o;
-		return primaryKey == that.primaryKey &&
-			Math.abs(recordType) == Math.abs(that.recordType) &&
-			fileLocation.equals(that.fileLocation);
+		return this.primaryKey == that.primaryKey &&
+			Math.abs(this.recordType) == Math.abs(that.recordType) &&
+			this.fileLocation.equals(that.fileLocation);
 	}
 
 	@Override
 	public int hashCode() {
 		int result = 1;
-		result = 31 * result + Long.hashCode(primaryKey);
-		result = 31 * result + Byte.hashCode(recordType < 0 ? (byte) (recordType * -1) : recordType);
-		result = 31 * result + fileLocation.hashCode();
+		result = 31 * result + Long.hashCode(this.primaryKey);
+		result = 31 * result + Byte.hashCode(this.recordType < 0 ? (byte) (this.recordType * -1) : this.recordType);
+		result = 31 * result + this.fileLocation.hashCode();
 		return result;
 	}
 }

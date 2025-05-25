@@ -102,7 +102,7 @@ class ComplexDataObjectConverterTest {
 				}
 			)
 		);
-		final ComplexDataObjectConverter<ComplexDataObject> converter = new ComplexDataObjectConverter<>(ComplexDataObject.class, reflectionLookup);
+		final ComplexDataObjectConverter<ComplexDataObject> converter = new ComplexDataObjectConverter<>(ComplexDataObject.class, this.reflectionLookup);
 		final Serializable deserializedForm = converter.getOriginalForm(cdo);
 
 		assertEquals(cdo, deserializedForm);
@@ -121,7 +121,7 @@ class ComplexDataObjectConverterTest {
 		final ComplexDataObjectConverter<String[]> converter = new ComplexDataObjectConverter<>(new String[]{"ABC", "DEF"});
 		final Serializable serializedForm = converter.getSerializableForm();
 
-		assertArrayEquals(new String[]{"ABC", "DEF"}, ComplexDataObjectConverter.getOriginalForm(serializedForm, String[].class, reflectionLookup));
+		assertArrayEquals(new String[]{"ABC", "DEF"}, ComplexDataObjectConverter.getOriginalForm(serializedForm, String[].class, this.reflectionLookup));
 	}
 
 	@Test
@@ -166,7 +166,7 @@ class ComplexDataObjectConverterTest {
 		final ComplexDataObjectConverter<TestComplexObject> serializer = new ComplexDataObjectConverter<>(veryComplexObject);
 		final Serializable serializedForm = serializer.getSerializableForm();
 
-		final ComplexDataObjectConverter<TestComplexObject> deserializer = new ComplexDataObjectConverter<>(TestComplexObject.class, reflectionLookup);
+		final ComplexDataObjectConverter<TestComplexObject> deserializer = new ComplexDataObjectConverter<>(TestComplexObject.class, this.reflectionLookup);
 		final TestComplexObject deserializedObject = deserializer.getOriginalForm(serializedForm);
 		assertEquals(createVeryComplexObject(), deserializedObject);
 	}
@@ -177,7 +177,7 @@ class ComplexDataObjectConverterTest {
 		final ComplexDataObjectConverter<TestComplexRecord> serializer = new ComplexDataObjectConverter<>(veryComplexRecord);
 		final Serializable serializedForm = serializer.getSerializableForm();
 
-		final ComplexDataObjectConverter<TestComplexRecord> deserializer = new ComplexDataObjectConverter<>(TestComplexRecord.class, reflectionLookup);
+		final ComplexDataObjectConverter<TestComplexRecord> deserializer = new ComplexDataObjectConverter<>(TestComplexRecord.class, this.reflectionLookup);
 		final TestComplexRecord deserializedObject = deserializer.getOriginalForm(serializedForm);
 		assertEquals(createVeryComplexRecord(), deserializedObject);
 	}
@@ -188,7 +188,7 @@ class ComplexDataObjectConverterTest {
 		final ComplexDataObjectConverter<TestComplexObject[]> converter = new ComplexDataObjectConverter<>(new TestComplexObject[]{veryComplexObject, veryComplexObject});
 		final Serializable serializedForm = converter.getSerializableForm();
 
-		final ComplexDataObjectConverter<TestComplexObject[]> deserializer = new ComplexDataObjectConverter<>(TestComplexObject[].class, reflectionLookup);
+		final ComplexDataObjectConverter<TestComplexObject[]> deserializer = new ComplexDataObjectConverter<>(TestComplexObject[].class, this.reflectionLookup);
 		final TestComplexObject[] deserializedObject = deserializer.getOriginalForm(serializedForm);
 		final TestComplexObject matrixObject = createVeryComplexObject();
 		assertArrayEquals(new TestComplexObject[]{matrixObject, matrixObject}, deserializedObject);
@@ -200,7 +200,7 @@ class ComplexDataObjectConverterTest {
 		final ComplexDataObjectConverter<TestComplexObject> serializer = new ComplexDataObjectConverter<>(veryComplexObject);
 		final Serializable serializedForm = replaceAllValuesWithFormattedStrings((ComplexDataObject) serializer.getSerializableForm());
 
-		final ComplexDataObjectConverter<TestComplexObject> deserializer = new ComplexDataObjectConverter<>(TestComplexObject.class, reflectionLookup);
+		final ComplexDataObjectConverter<TestComplexObject> deserializer = new ComplexDataObjectConverter<>(TestComplexObject.class, this.reflectionLookup);
 		final TestComplexObject deserializedObject = deserializer.getOriginalForm(serializedForm);
 		assertEquals(createVeryComplexObject(), deserializedObject);
 	}
@@ -211,7 +211,7 @@ class ComplexDataObjectConverterTest {
 		final ComplexDataObjectConverter<TestComplexRecord> serializer = new ComplexDataObjectConverter<>(veryComplexRecord);
 		final Serializable serializedForm = replaceAllValuesWithFormattedStrings((ComplexDataObject) serializer.getSerializableForm());
 
-		final ComplexDataObjectConverter<TestComplexRecord> deserializer = new ComplexDataObjectConverter<>(TestComplexRecord.class, reflectionLookup);
+		final ComplexDataObjectConverter<TestComplexRecord> deserializer = new ComplexDataObjectConverter<>(TestComplexRecord.class, this.reflectionLookup);
 		final TestComplexRecord deserializedObject = deserializer.getOriginalForm(serializedForm);
 		assertEquals(createVeryComplexRecord(), deserializedObject);
 	}
@@ -222,7 +222,7 @@ class ComplexDataObjectConverterTest {
 		final ComplexDataObjectConverter<TestComplexObject[]> converter = new ComplexDataObjectConverter<>(new TestComplexObject[]{veryComplexObject, veryComplexObject});
 		final Serializable serializedForm = replaceAllValuesWithFormattedStrings((ComplexDataObject) converter.getSerializableForm());
 
-		final ComplexDataObjectConverter<TestComplexObject[]> deserializer = new ComplexDataObjectConverter<>(TestComplexObject[].class, reflectionLookup);
+		final ComplexDataObjectConverter<TestComplexObject[]> deserializer = new ComplexDataObjectConverter<>(TestComplexObject[].class, this.reflectionLookup);
 		final TestComplexObject[] deserializedObject = deserializer.getOriginalForm(serializedForm);
 		final TestComplexObject matrixObject = createVeryComplexObject();
 		assertArrayEquals(new TestComplexObject[]{matrixObject, matrixObject}, deserializedObject);
@@ -234,7 +234,7 @@ class ComplexDataObjectConverterTest {
 		final Serializable serializedForm = new ComplexDataObjectConverter<>(dto).getSerializableForm();
 		assertNotNull(serializedForm);
 
-		final ContainerWithUnsupportedJavaTypes deserialized = ComplexDataObjectConverter.getOriginalForm(serializedForm, ContainerWithUnsupportedJavaTypes.class, reflectionLookup);
+		final ContainerWithUnsupportedJavaTypes deserialized = ComplexDataObjectConverter.getOriginalForm(serializedForm, ContainerWithUnsupportedJavaTypes.class, this.reflectionLookup);
 		assertEquals(1.2f, deserialized.getFFloat());
 		assertEquals(1.7d, deserialized.getFDouble());
 	}
@@ -266,7 +266,7 @@ class ComplexDataObjectConverterTest {
 		final ComplexDataObjectConverter<TestComplexImmutableObject> serializer = new ComplexDataObjectConverter<>(veryComplexObject);
 		final Serializable serializedForm = serializer.getSerializableForm();
 
-		final ComplexDataObjectConverter<TestComplexImmutableObject> deserializer = new ComplexDataObjectConverter<>(TestComplexImmutableObject.class, reflectionLookup);
+		final ComplexDataObjectConverter<TestComplexImmutableObject> deserializer = new ComplexDataObjectConverter<>(TestComplexImmutableObject.class, this.reflectionLookup);
 		final TestComplexImmutableObject deserializedObject = deserializer.getOriginalForm(serializedForm);
 		assertEquals(createVeryComplexImmutableObject(), deserializedObject);
 	}
@@ -276,7 +276,7 @@ class ComplexDataObjectConverterTest {
 		final OriginalClass beforeRename = new OriginalClass("ABC", 1, new URL("https", "www.fg.cz", 80, "/index.html"));
 		final Serializable serializedForm = new ComplexDataObjectConverter<>(beforeRename).getSerializableForm();
 
-		final ClassAfterRename deserializedClass = new ComplexDataObjectConverter<>(ClassAfterRename.class, reflectionLookup).getOriginalForm(serializedForm);
+		final ClassAfterRename deserializedClass = new ComplexDataObjectConverter<>(ClassAfterRename.class, this.reflectionLookup).getOriginalForm(serializedForm);
 		assertEquals("ABC", deserializedClass.getRenamedField());
 		assertEquals(1, deserializedClass.getSomeNumber());
 	}
@@ -286,7 +286,7 @@ class ComplexDataObjectConverterTest {
 		final OriginalImmutableClass beforeRename = new OriginalImmutableClass("ABC", 1, new URL("https", "www.fg.cz", 80, "/index.html"));
 		final Serializable serializedForm = new ComplexDataObjectConverter<>(beforeRename).getSerializableForm();
 
-		final ImmutableClassAfterRename deserializedClass = new ComplexDataObjectConverter<>(ImmutableClassAfterRename.class, reflectionLookup).getOriginalForm(serializedForm);
+		final ImmutableClassAfterRename deserializedClass = new ComplexDataObjectConverter<>(ImmutableClassAfterRename.class, this.reflectionLookup).getOriginalForm(serializedForm);
 		assertEquals("ABC", deserializedClass.getRenamedField());
 		assertEquals(1, deserializedClass.getSomeNumber());
 	}
@@ -298,7 +298,7 @@ class ComplexDataObjectConverterTest {
 
 		assertThrows(
 			IncompleteDeserializationException.class,
-			() -> new ComplexDataObjectConverter<>(ClassAfterNonDeclaredDiscard.class, reflectionLookup).getOriginalForm(serializedForm)
+			() -> new ComplexDataObjectConverter<>(ClassAfterNonDeclaredDiscard.class, this.reflectionLookup).getOriginalForm(serializedForm)
 		);
 	}
 
@@ -307,7 +307,7 @@ class ComplexDataObjectConverterTest {
 		final OriginalClass beforeRename = new OriginalClass("ABC", 1, new URL("https", "www.fg.cz", 80, "/index.html"));
 		final Serializable serializedForm = new ComplexDataObjectConverter<>(beforeRename).getSerializableForm();
 
-		final ClassAfterDiscard deserializedClass = new ComplexDataObjectConverter<>(ClassAfterDiscard.class, reflectionLookup).getOriginalForm(serializedForm);
+		final ClassAfterDiscard deserializedClass = new ComplexDataObjectConverter<>(ClassAfterDiscard.class, this.reflectionLookup).getOriginalForm(serializedForm);
 		assertEquals(1, deserializedClass.getSomeNumber());
 	}
 
@@ -316,7 +316,7 @@ class ComplexDataObjectConverterTest {
 		final OriginalClass beforeRename = new OriginalClass("ABC", 1, new URL("https", "www.fg.cz", 80, "/index.html"));
 		final Serializable serializedForm = new ComplexDataObjectConverter<>(beforeRename).getSerializableForm();
 
-		final ImmutableClassAfterDiscard deserializedClass = new ComplexDataObjectConverter<>(ImmutableClassAfterDiscard.class, reflectionLookup).getOriginalForm(serializedForm);
+		final ImmutableClassAfterDiscard deserializedClass = new ComplexDataObjectConverter<>(ImmutableClassAfterDiscard.class, this.reflectionLookup).getOriginalForm(serializedForm);
 		assertEquals(1, deserializedClass.getSomeNumber());
 	}
 

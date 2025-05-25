@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -130,9 +130,9 @@ public class CleaningTestExecutionListener implements TestExecutionListener, Evi
 				}
 			});
 
-		if (!failedTests.isEmpty()) {
+		if (!this.failedTests.isEmpty()) {
 			ConsoleWriter.write(
-				"\nFailed test count: " + failedTests.size() + ":\n" + failedTests.stream().map(it -> "\t - " + it + "\n").collect(Collectors.joining()),
+				"\nFailed test count: " + this.failedTests.size() + ":\n" + this.failedTests.stream().map(it -> "\t - " + it + "\n").collect(Collectors.joining()),
 				ConsoleColor.BRIGHT_RED
 			);
 		}
@@ -161,7 +161,7 @@ public class CleaningTestExecutionListener implements TestExecutionListener, Evi
 	@Override
 	public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult testExecutionResult) {
 		if (testExecutionResult.getStatus() == Status.FAILED) {
-			failedTests.add(testIdentifier.getLegacyReportingName());
+			this.failedTests.add(testIdentifier.getLegacyReportingName());
 		}
 	}
 

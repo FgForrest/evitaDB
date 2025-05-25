@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ public class OperationTracingInstrumentation extends SimplePerformantInstrumenta
 
         // this block is closed in GraphQLHandler because instrumentation doesn't provide way of executing code
         // in same thread as this callback (if parallel query execution is used), which is needed by the tracing tooling
-        final TracingBlockReference blockReference = tracingContext.createAndActivateBlockIfParentContextAvailable(
+        final TracingBlockReference blockReference = this.tracingContext.createAndActivateBlockIfParentContextAvailable(
             "GraphQL " + operation.name().toLowerCase() + " - " + operationName,
             new SpanAttribute("operation", operation.name()),
             new SpanAttribute("operationName", operationName)

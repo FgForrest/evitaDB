@@ -53,7 +53,7 @@ class ModifyEntitySchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -63,7 +63,7 @@ class ModifyEntitySchemaMutationConverterTest {
 			new ModifyEntitySchemaDescriptionMutation("desc")
 		);
 
-		final ModifyEntitySchemaMutation convertedMutation = converter.convertFromInput(
+		final ModifyEntitySchemaMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
 				.e(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
@@ -81,7 +81,7 @@ class ModifyEntitySchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final ModifyEntitySchemaMutation expectedMutation = new ModifyEntitySchemaMutation("product");
 
-		final ModifyEntitySchemaMutation convertedMutation = converter.convertFromInput(
+		final ModifyEntitySchemaMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
 				.e(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of())
@@ -94,7 +94,7 @@ class ModifyEntitySchemaMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
 						map()
@@ -108,14 +108,14 @@ class ModifyEntitySchemaMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -126,7 +126,7 @@ class ModifyEntitySchemaMutationConverterTest {
 		);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

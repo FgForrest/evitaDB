@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcModifyAttributeSchemaDefaultValueMutation() {
-    name_ = "";
+    this.name_ = "";
   }
 
   @java.lang.Override
@@ -80,18 +80,18 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            name_ = s;
+            this.name_ = s;
             break;
           }
           case 18: {
             io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder subBuilder = null;
-            if (defaultValue_ != null) {
-              subBuilder = defaultValue_.toBuilder();
+            if (this.defaultValue_ != null) {
+              subBuilder = this.defaultValue_.toBuilder();
             }
-            defaultValue_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.parser(), extensionRegistry);
+            this.defaultValue_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(defaultValue_);
-              defaultValue_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.defaultValue_);
+              this.defaultValue_ = subBuilder.buildPartial();
             }
 
             break;
@@ -140,14 +140,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getName() {
-    java.lang.Object ref = name_;
+    java.lang.Object ref = this.name_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      name_ = s;
+      this.name_ = s;
       return s;
     }
   }
@@ -162,12 +162,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getNameBytes() {
-    java.lang.Object ref = name_;
+    java.lang.Object ref = this.name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      name_ = b;
+      this.name_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -187,7 +187,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasDefaultValue() {
-    return defaultValue_ != null;
+    return this.defaultValue_ != null;
   }
   /**
    * <pre>
@@ -200,7 +200,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEvitaValue getDefaultValue() {
-    return defaultValue_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.getDefaultInstance() : defaultValue_;
+    return this.defaultValue_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.getDefaultInstance() : this.defaultValue_;
   }
   /**
    * <pre>
@@ -218,41 +218,41 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, name_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.name_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.name_);
     }
-    if (defaultValue_ != null) {
+    if (this.defaultValue_ != null) {
       output.writeMessage(2, getDefaultValue());
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, name_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.name_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.name_);
     }
-    if (defaultValue_ != null) {
+    if (this.defaultValue_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getDefaultValue());
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -273,14 +273,14 @@ private static final long serialVersionUID = 0L;
       if (!getDefaultValue()
           .equals(other.getDefaultValue())) return false;
     }
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -290,8 +290,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + DEFAULTVALUE_FIELD_NUMBER;
       hash = (53 * hash) + getDefaultValue().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -428,13 +428,13 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      name_ = "";
+      this.name_ = "";
 
-      if (defaultValueBuilder_ == null) {
-        defaultValue_ = null;
+      if (this.defaultValueBuilder_ == null) {
+        this.defaultValue_ = null;
       } else {
-        defaultValue_ = null;
-        defaultValueBuilder_ = null;
+        this.defaultValue_ = null;
+        this.defaultValueBuilder_ = null;
       }
       return this;
     }
@@ -462,11 +462,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutation result = new io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutation(this);
-      result.name_ = name_;
-      if (defaultValueBuilder_ == null) {
-        result.defaultValue_ = defaultValue_;
+      result.name_ = this.name_;
+      if (this.defaultValueBuilder_ == null) {
+        result.defaultValue_ = this.defaultValue_;
       } else {
-        result.defaultValue_ = defaultValueBuilder_.build();
+        result.defaultValue_ = this.defaultValueBuilder_.build();
       }
       onBuilt();
       return result;
@@ -517,7 +517,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutation other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcModifyAttributeSchemaDefaultValueMutation.getDefaultInstance()) return this;
       if (!other.getName().isEmpty()) {
-        name_ = other.name_;
+        this.name_ = other.name_;
         onChanged();
       }
       if (other.hasDefaultValue()) {
@@ -562,12 +562,12 @@ private static final long serialVersionUID = 0L;
      * @return The name.
      */
     public java.lang.String getName() {
-      java.lang.Object ref = name_;
+      java.lang.Object ref = this.name_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        name_ = s;
+        this.name_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -583,12 +583,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getNameBytes() {
-      java.lang.Object ref = name_;
+      java.lang.Object ref = this.name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        name_ = b;
+        this.name_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -608,8 +608,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      name_ = value;
+
+      this.name_ = value;
       onChanged();
       return this;
     }
@@ -622,8 +622,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-      
-      name_ = getDefaultInstance().getName();
+
+      this.name_ = getDefaultInstance().getName();
       onChanged();
       return this;
     }
@@ -642,8 +642,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      name_ = value;
+
+      this.name_ = value;
       onChanged();
       return this;
     }
@@ -661,7 +661,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the defaultValue field is set.
      */
     public boolean hasDefaultValue() {
-      return defaultValueBuilder_ != null || defaultValue_ != null;
+      return this.defaultValueBuilder_ != null || this.defaultValue_ != null;
     }
     /**
      * <pre>
@@ -673,10 +673,10 @@ private static final long serialVersionUID = 0L;
      * @return The defaultValue.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaValue getDefaultValue() {
-      if (defaultValueBuilder_ == null) {
-        return defaultValue_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.getDefaultInstance() : defaultValue_;
+      if (this.defaultValueBuilder_ == null) {
+        return this.defaultValue_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.getDefaultInstance() : this.defaultValue_;
       } else {
-        return defaultValueBuilder_.getMessage();
+        return this.defaultValueBuilder_.getMessage();
       }
     }
     /**
@@ -688,14 +688,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 2;</code>
      */
     public Builder setDefaultValue(io.evitadb.externalApi.grpc.generated.GrpcEvitaValue value) {
-      if (defaultValueBuilder_ == null) {
+      if (this.defaultValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        defaultValue_ = value;
+        this.defaultValue_ = value;
         onChanged();
       } else {
-        defaultValueBuilder_.setMessage(value);
+        this.defaultValueBuilder_.setMessage(value);
       }
 
       return this;
@@ -710,11 +710,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setDefaultValue(
         io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder builderForValue) {
-      if (defaultValueBuilder_ == null) {
-        defaultValue_ = builderForValue.build();
+      if (this.defaultValueBuilder_ == null) {
+        this.defaultValue_ = builderForValue.build();
         onChanged();
       } else {
-        defaultValueBuilder_.setMessage(builderForValue.build());
+        this.defaultValueBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -728,16 +728,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 2;</code>
      */
     public Builder mergeDefaultValue(io.evitadb.externalApi.grpc.generated.GrpcEvitaValue value) {
-      if (defaultValueBuilder_ == null) {
-        if (defaultValue_ != null) {
-          defaultValue_ =
-            io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.newBuilder(defaultValue_).mergeFrom(value).buildPartial();
+      if (this.defaultValueBuilder_ == null) {
+        if (this.defaultValue_ != null) {
+          this.defaultValue_ =
+            io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.newBuilder(this.defaultValue_).mergeFrom(value).buildPartial();
         } else {
-          defaultValue_ = value;
+          this.defaultValue_ = value;
         }
         onChanged();
       } else {
-        defaultValueBuilder_.mergeFrom(value);
+        this.defaultValueBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -751,12 +751,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 2;</code>
      */
     public Builder clearDefaultValue() {
-      if (defaultValueBuilder_ == null) {
-        defaultValue_ = null;
+      if (this.defaultValueBuilder_ == null) {
+        this.defaultValue_ = null;
         onChanged();
       } else {
-        defaultValue_ = null;
-        defaultValueBuilder_ = null;
+        this.defaultValue_ = null;
+        this.defaultValueBuilder_ = null;
       }
 
       return this;
@@ -770,7 +770,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder getDefaultValueBuilder() {
-      
+
       onChanged();
       return getDefaultValueFieldBuilder().getBuilder();
     }
@@ -783,11 +783,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder getDefaultValueOrBuilder() {
-      if (defaultValueBuilder_ != null) {
-        return defaultValueBuilder_.getMessageOrBuilder();
+      if (this.defaultValueBuilder_ != null) {
+        return this.defaultValueBuilder_.getMessageOrBuilder();
       } else {
-        return defaultValue_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.getDefaultInstance() : defaultValue_;
+        return this.defaultValue_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.getDefaultInstance() : this.defaultValue_;
       }
     }
     /**
@@ -799,17 +799,17 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder>
         getDefaultValueFieldBuilder() {
-      if (defaultValueBuilder_ == null) {
-        defaultValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.defaultValueBuilder_ == null) {
+        this.defaultValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder>(
                 getDefaultValue(),
                 getParentForChildren(),
                 isClean());
-        defaultValue_ = null;
+        this.defaultValue_ = null;
       }
-      return defaultValueBuilder_;
+      return this.defaultValueBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

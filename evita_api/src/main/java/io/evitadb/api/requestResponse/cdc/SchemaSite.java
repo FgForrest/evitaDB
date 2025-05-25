@@ -67,7 +67,7 @@ public record SchemaSite(
 				(other.operation == null ? 1 : ArrayUtils.compare(this.operation, other.operation));
 		}
 		if (result == 0) {
-			result = containerType == null ?
+			result = this.containerType == null ?
 				(other.containerType == null ? 0 : -1) :
 				(other.containerType == null ? 1 : ArrayUtils.compare(this.containerType, other.containerType));
 		}

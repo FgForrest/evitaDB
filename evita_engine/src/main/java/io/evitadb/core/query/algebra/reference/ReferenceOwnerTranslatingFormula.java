@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -99,7 +99,7 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return referencedEntityTypeTransactionalId;
+		return this.referencedEntityTypeTransactionalId;
 	}
 
 	@Override
@@ -110,18 +110,18 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula {
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		final Bitmap referencedEntityIds = innerFormulas[0].compute();
+		final Bitmap referencedEntityIds = this.innerFormulas[0].compute();
 		final int cnt = referencedEntityIds.size();
 		if (cnt == 0) {
 			return EmptyBitmap.INSTANCE;
 		} else if (cnt == 1) {
-			return primaryKeyExpander.apply(referencedEntityIds.getFirst());
+			return this.primaryKeyExpander.apply(referencedEntityIds.getFirst());
 		} else {
 			final RoaringBitmap[] theBitmaps = new RoaringBitmap[cnt];
 			final OfInt it = referencedEntityIds.iterator();
 			for (int i = 0; i < cnt; i++) {
 				theBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(
-					primaryKeyExpander.apply(it.next())
+					this.primaryKeyExpander.apply(it.next())
 				);
 			}
 			return new BaseBitmap(RoaringBitmap.or(theBitmaps));
@@ -133,13 +133,13 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula {
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
 		return new ReferenceOwnerTranslatingFormula(
-			referencedEntityTypeTransactionalId, worstCardinality, innerFormulas[0], primaryKeyExpander
+			this.referencedEntityTypeTransactionalId, this.worstCardinality, innerFormulas[0], this.primaryKeyExpander
 		);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return worstCardinality;
+		return this.worstCardinality;
 	}
 
 	@Override

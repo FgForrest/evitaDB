@@ -109,16 +109,16 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	@Override
 	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
 		return new Hierarchy(
-			ofNullable(selfHierarchyRequest)
-				.map(it -> it.createStatistics(context, language))
+			ofNullable(this.selfHierarchyRequest)
+				.map(it -> it.createStatistics(context, this.language))
 				.orElse(null),
-			hierarchyRequests
+			this.hierarchyRequests
 				.entrySet()
 				.stream()
 				.collect(
 					Collectors.toMap(
 						Entry::getKey,
-						it -> it.getValue().createStatistics(context, language)
+						it -> it.getValue().createStatistics(context, this.language)
 					)
 				)
 		);
@@ -127,14 +127,14 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	@Nonnull
 	@Override
 	public String getDescription() {
-		if (selfHierarchyRequest == null && hierarchyRequests.isEmpty()) {
+		if (this.selfHierarchyRequest == null && this.hierarchyRequests.isEmpty()) {
 			return "empty hierarchy";
-		} else if (selfHierarchyRequest != null && hierarchyRequests.isEmpty()) {
+		} else if (this.selfHierarchyRequest != null && this.hierarchyRequests.isEmpty()) {
 			return "self hierarchy";
-		} else if (selfHierarchyRequest == null) {
-			return "referenced entity " + hierarchyRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) + " hierarchies";
+		} else if (this.selfHierarchyRequest == null) {
+			return "referenced entity " + this.hierarchyRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) + " hierarchies";
 		} else {
-			return "referenced entity " + hierarchyRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) + " hierarchies and self";
+			return "referenced entity " + this.hierarchyRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) + " hierarchies and self";
 		}
 	}
 
@@ -167,9 +167,9 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		@Nullable NestedContextSorter sorter,
 		@Nonnull Runnable interpretationLambda
 	) {
-		Assert.isTrue(context.get() == null, "HierarchyOfSelf / HierarchyOfReference cannot be nested inside each other!");
+		Assert.isTrue(this.context.get() == null, "HierarchyOfSelf / HierarchyOfReference cannot be nested inside each other!");
 		try {
-			context.set(
+			this.context.set(
 				new HierarchyProducerContext(
 					rootHierarchyNodesSupplier,
 					entitySchema,
@@ -192,7 +192,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 					.ifPresent(it -> it.setSorter(sorter));
 			}
 		} finally {
-			context.set(null);
+			this.context.set(null);
 		}
 	}
 
@@ -226,7 +226,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	 */
 	@Nonnull
 	public HierarchyProducerContext getContext(@Nonnull String constraintName) {
-		return ofNullable(context.get())
+		return ofNullable(this.context.get())
 			.orElseThrow(
 				() -> new EvitaInvalidUsageException(
 					constraintName + " constraint must be used inside HierarchyOfSelf or HierarchyOfReference " +

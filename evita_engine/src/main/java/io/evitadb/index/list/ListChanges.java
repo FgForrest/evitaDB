@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,14 +72,14 @@ class ListChanges<V> implements Serializable {
 	 * Returns count of elements in the list with applied changes.
 	 */
 	public int size() {
-		return this.listDelegate.size() - removedItems.size() + addedItems.size();
+		return this.listDelegate.size() - this.removedItems.size() + this.addedItems.size();
 	}
 
 	/**
 	 * Returns true if list with applied changes is empty.
 	 */
 	public boolean isEmpty() {
-		return (this.listDelegate.size() - removedItems.size() == 0) && addedItems.isEmpty();
+		return (this.listDelegate.size() - this.removedItems.size() == 0) && this.addedItems.isEmpty();
 	}
 
 	/**
@@ -87,16 +87,16 @@ class ListChanges<V> implements Serializable {
 	 */
 	public boolean contains(@Nonnull Object obj) {
 		// scan original contents of the list and compare them
-		for (int i = 0; i < listDelegate.size(); i++) {
-			V examinedValue = listDelegate.get(i);
+		for (int i = 0; i < this.listDelegate.size(); i++) {
+			V examinedValue = this.listDelegate.get(i);
 			// avoid items that are known to be removed
-			if (!removedItems.contains(i) && Objects.equals(obj, examinedValue)) {
+			if (!this.removedItems.contains(i) && Objects.equals(obj, examinedValue)) {
 				return true;
 			}
 		}
 		// scan newly added items of the list
 		//noinspection SuspiciousMethodCalls
-		return addedItems.containsValue(obj);
+		return this.addedItems.containsValue(obj);
 	}
 
 	/**
@@ -248,7 +248,7 @@ class ListChanges<V> implements Serializable {
 	 */
 	private void lowerIndexesGreaterThan(Integer position) {
 		final Map<Integer, V> items = new HashMap<>();
-		final Iterator<Entry<Integer, V>> it = addedItems.entrySet().iterator();
+		final Iterator<Entry<Integer, V>> it = this.addedItems.entrySet().iterator();
 		while (it.hasNext()) {
 			final Entry<Integer, V> removedPosition = it.next();
 			if (removedPosition.getKey() > position) {
@@ -260,7 +260,7 @@ class ListChanges<V> implements Serializable {
 				it.remove();
 			}
 		}
-		addedItems.putAll(items);
+		this.addedItems.putAll(items);
 	}
 
 	/**
@@ -268,7 +268,7 @@ class ListChanges<V> implements Serializable {
 	 */
 	private void increaseIndexesGreaterThanOrEquals(Integer position) {
 		final Map<Integer, V> items = new HashMap<>();
-		final Iterator<Entry<Integer, V>> it = addedItems.entrySet().iterator();
+		final Iterator<Entry<Integer, V>> it = this.addedItems.entrySet().iterator();
 		while (it.hasNext()) {
 			final Entry<Integer, V> removedPosition = it.next();
 			if (removedPosition.getKey() >= position) {
@@ -276,7 +276,7 @@ class ListChanges<V> implements Serializable {
 				it.remove();
 			}
 		}
-		addedItems.putAll(items);
+		this.addedItems.putAll(items);
 	}
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ class MockStorageContainerAccessor implements WritableEntityStorageContainerAcce
 
 	@Override
 	public boolean isEntityRemovedEntirely() {
-		return entityStorageContainer.isMarkedForRemoval();
+		return this.entityStorageContainer.isMarkedForRemoval();
 	}
 
 	@Override
@@ -76,7 +76,7 @@ class MockStorageContainerAccessor implements WritableEntityStorageContainerAcce
 	@Nonnull
 	@Override
 	public OptionalInt findExistingInternalId(@Nonnull String entityType, int entityPrimaryKey, @Nonnull PriceKey priceKey) {
-		Integer internalPriceId = assignedInternalPriceIdIndex == null ? null : assignedInternalPriceIdIndex.get(priceKey);
+		Integer internalPriceId = this.assignedInternalPriceIdIndex == null ? null : this.assignedInternalPriceIdIndex.get(priceKey);
 		if (internalPriceId == null) {
 			final PricesStoragePart priceStorageContainer = getPriceStoragePart(entityType, entityPrimaryKey);
 			return priceStorageContainer.findExistingInternalIds(priceKey);
@@ -88,49 +88,49 @@ class MockStorageContainerAccessor implements WritableEntityStorageContainerAcce
 	@Nonnull
 	@Override
 	public EntityBodyStoragePart getEntityStoragePart(@Nonnull String entityType, int entityPrimaryKey, @Nonnull EntityExistence expects) {
-		if (entityStorageContainer == null) {
-			entityStorageContainer = new EntityBodyStoragePart(entityPrimaryKey);
+		if (this.entityStorageContainer == null) {
+			this.entityStorageContainer = new EntityBodyStoragePart(entityPrimaryKey);
 		}
-		return entityStorageContainer;
+		return this.entityStorageContainer;
 	}
 
 	@Nonnull
 	@Override
 	public AttributesStoragePart getAttributeStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
-		if (attributesStorageContainer == null) {
-			attributesStorageContainer = new AttributesStoragePart(entityPrimaryKey);
+		if (this.attributesStorageContainer == null) {
+			this.attributesStorageContainer = new AttributesStoragePart(entityPrimaryKey);
 		}
-		return attributesStorageContainer;
+		return this.attributesStorageContainer;
 	}
 
 	@Nonnull
 	@Override
 	public AttributesStoragePart getAttributeStoragePart(@Nonnull String entityType, int entityPrimaryKey, @Nullable Locale locale) {
-		return localizedAttributesStorageContainer.computeIfAbsent(locale, loc -> new AttributesStoragePart(entityPrimaryKey, loc));
+		return this.localizedAttributesStorageContainer.computeIfAbsent(locale, loc -> new AttributesStoragePart(entityPrimaryKey, loc));
 	}
 
 	@Nonnull
 	@Override
 	public AssociatedDataStoragePart getAssociatedDataStoragePart(@Nonnull String entityType, int entityPrimaryKey, @Nonnull AssociatedDataKey key) {
-		return associatedDataStorageContainer.computeIfAbsent(key, keyRef -> new AssociatedDataStoragePart(entityPrimaryKey, keyRef));
+		return this.associatedDataStorageContainer.computeIfAbsent(key, keyRef -> new AssociatedDataStoragePart(entityPrimaryKey, keyRef));
 	}
 
 	@Nonnull
 	@Override
 	public ReferencesStoragePart getReferencesStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
-		if (referencesStorageContainer == null) {
-			referencesStorageContainer = new ReferencesStoragePart(entityPrimaryKey);
+		if (this.referencesStorageContainer == null) {
+			this.referencesStorageContainer = new ReferencesStoragePart(entityPrimaryKey);
 		}
-		return referencesStorageContainer;
+		return this.referencesStorageContainer;
 	}
 
 	@Nonnull
 	@Override
 	public PricesStoragePart getPriceStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
-		if (pricesStorageContainer == null) {
-			pricesStorageContainer = new PricesStoragePart(entityPrimaryKey);
+		if (this.pricesStorageContainer == null) {
+			this.pricesStorageContainer = new PricesStoragePart(entityPrimaryKey);
 		}
-		return pricesStorageContainer;
+		return this.pricesStorageContainer;
 	}
 
 	public void reset() {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,14 +52,14 @@ public class DataCarrier {
 
 	public DataCarrier(Object... value) {
 		for (Object valueItem : value) {
-			valuesByType.put(valueItem.getClass(), valueItem);
+			this.valuesByType.put(valueItem.getClass(), valueItem);
 		}
 	}
 
 	public DataCarrier(Tuple... entry) {
 		for (Tuple tuple : entry) {
-			valuesByName.put(tuple.name(), tuple.value());
-			valuesByType.put(tuple.value().getClass(), tuple.value());
+			this.valuesByName.put(tuple.name(), tuple.value());
+			this.valuesByType.put(tuple.value().getClass(), tuple.value());
 		}
 	}
 
@@ -107,9 +107,9 @@ public class DataCarrier {
 
 	@Nonnull
 	public DataCarrier put(@Nonnull String name, @Nonnull Object value) {
-		Assert.isPremiseValid(!valuesByName.containsKey(name), () -> "Value with name `" + name + "` already exists!");
+		Assert.isPremiseValid(!this.valuesByName.containsKey(name), () -> "Value with name `" + name + "` already exists!");
 		this.valuesByName.put(name, value);
-		if (!valuesByType.containsKey(value.getClass())) {
+		if (!this.valuesByType.containsKey(value.getClass())) {
 			this.valuesByType.put(value.getClass(), value);
 		}
 		return this;
@@ -117,9 +117,9 @@ public class DataCarrier {
 
 	@Nullable
 	public Object getValueByType(Class<?> valueType) {
-		return ofNullable(valuesByType.get(valueType))
+		return ofNullable(this.valuesByType.get(valueType))
 			.orElseGet(() ->
-				valuesByType
+				this.valuesByType
 					.entrySet()
 					.stream()
 					.filter(it -> valueType.isAssignableFrom(it.getKey()))
@@ -131,17 +131,17 @@ public class DataCarrier {
 
 	@Nullable
 	public Object getValueByName(String name) {
-		return valuesByName.get(name);
+		return this.valuesByName.get(name);
 	}
 
 	@Nonnull
 	public Set<Entry<String, Object>> entrySet() {
-		return valuesByName.entrySet();
+		return this.valuesByName.entrySet();
 	}
 
 	@Nonnull
 	public Collection<Object> anonymousValues() {
-		return valuesByName.isEmpty() ? valuesByType.values() : Collections.emptySet();
+		return this.valuesByName.isEmpty() ? this.valuesByType.values() : Collections.emptySet();
 	}
 
 	public record Tuple(@Nonnull String name, @Nonnull Object value) {}

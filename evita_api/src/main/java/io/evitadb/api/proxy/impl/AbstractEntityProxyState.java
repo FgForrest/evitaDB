@@ -155,7 +155,7 @@ abstract class AbstractEntityProxyState implements
 	 */
 	@Nonnull
 	public EntityContract getEntity() {
-		return entity;
+		return this.entity;
 	}
 
 	/**
@@ -164,7 +164,7 @@ abstract class AbstractEntityProxyState implements
 	@Override
 	@Nullable
 	public Integer getPrimaryKey() {
-		return entity.getPrimaryKey();
+		return this.entity.getPrimaryKey();
 	}
 
 	/**
@@ -180,7 +180,7 @@ abstract class AbstractEntityProxyState implements
 	 */
 	@Nonnull
 	public Class<?> getProxyClass() {
-		return proxyClass;
+		return this.proxyClass;
 	}
 
 	/**
@@ -188,7 +188,7 @@ abstract class AbstractEntityProxyState implements
 	 */
 	@Nonnull
 	public ReflectionLookup getReflectionLookup() {
-		return reflectionLookup;
+		return this.reflectionLookup;
 	}
 
 	/**
@@ -196,7 +196,7 @@ abstract class AbstractEntityProxyState implements
 	 */
 	@Nonnull
 	public EntitySchemaContract getEntitySchema() {
-		return entity.getSchema();
+		return this.entity.getSchema();
 	}
 
 	/**
@@ -207,7 +207,7 @@ abstract class AbstractEntityProxyState implements
 	 */
 	@Nonnull
 	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-		return ofNullable(referencedEntitySchemas.get(entityType));
+		return ofNullable(this.referencedEntitySchemas.get(entityType));
 	}
 
 	/**
@@ -218,7 +218,7 @@ abstract class AbstractEntityProxyState implements
 	 */
 	@Nonnull
 	public EntitySchemaContract getEntitySchemaOrThrow(@Nonnull String entityType) throws CollectionNotFoundException {
-		return ofNullable(referencedEntitySchemas.get(entityType))
+		return ofNullable(this.referencedEntitySchemas.get(entityType))
 			.orElseThrow(() -> new CollectionNotFoundException(entityType));
 	}
 
@@ -227,10 +227,10 @@ abstract class AbstractEntityProxyState implements
 	 */
 	@Override
 	public Map<String, Serializable> getOrCreateLocalDataStore() {
-		if (localDataStore == null) {
-			localDataStore = new ConcurrentHashMap<>();
+		if (this.localDataStore == null) {
+			this.localDataStore = new ConcurrentHashMap<>();
 		}
-		return localDataStore;
+		return this.localDataStore;
 	}
 
 	/**
@@ -239,7 +239,7 @@ abstract class AbstractEntityProxyState implements
 	 */
 	@Override
 	public Map<String, Serializable> getLocalDataStoreIfPresent() {
-		return localDataStore;
+		return this.localDataStore;
 	}
 
 	/**
@@ -266,9 +266,9 @@ abstract class AbstractEntityProxyState implements
 	) throws EntityClassInvalidException {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
 			ProxycianFactory.createEntityProxy(
-				expectedType, recipes, collectedRecipes,
+				expectedType, this.recipes, this.collectedRecipes,
 				new InitialEntityBuilder(entitySchema, primaryKey),
-				referencedEntitySchemas,
+				this.referencedEntitySchemas,
 				getReflectionLookup()
 			)
 		);
@@ -332,9 +332,9 @@ abstract class AbstractEntityProxyState implements
 	) throws EntityClassInvalidException {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
 			ProxycianFactory.createEntityProxy(
-				expectedType, recipes, collectedRecipes,
+				expectedType, this.recipes, this.collectedRecipes,
 				new InitialEntityBuilder(entitySchema),
-				referencedEntitySchemas,
+				this.referencedEntitySchemas,
 				getReflectionLookup()
 			),
 			callback
@@ -360,7 +360,7 @@ abstract class AbstractEntityProxyState implements
 		@Nonnull EntityContract entity
 	) {
 		return ProxycianFactory.createEntityProxy(
-			expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, getReflectionLookup()
+			expectedType, this.recipes, this.collectedRecipes, entity, this.referencedEntitySchemas, getReflectionLookup()
 		);
 	}
 
@@ -556,7 +556,7 @@ abstract class AbstractEntityProxyState implements
 	private void readObject(@Nonnull ObjectInputStream ois) throws ClassNotFoundException, IOException {
 		ois.defaultReadObject();
 		this.reflectionLookup = ReflectionLookup.NO_CACHE_INSTANCE;
-		this.collectedRecipes = new ConcurrentHashMap<>(recipes);
+		this.collectedRecipes = new ConcurrentHashMap<>(this.recipes);
 		this.generatedProxyObjects = new ConcurrentHashMap<>();
 	}
 
@@ -598,13 +598,13 @@ abstract class AbstractEntityProxyState implements
 
 		@Nonnull
 		public Consumer<EntityReference> callback() {
-			return callback;
+			return this.callback;
 		}
 
 		@SuppressWarnings("unchecked")
 		@Nonnull
 		public <T> T proxy(@Nonnull Class<T> classToImplement, @Nonnull Supplier<ProxyWithUpsertCallback> newInstanceSupplier) {
-			for (Object proxy : proxies) {
+			for (Object proxy : this.proxies) {
 				if (classToImplement.isInstance(proxy)) {
 					return (T) proxy;
 				}
@@ -627,7 +627,7 @@ abstract class AbstractEntityProxyState implements
 		@SuppressWarnings("unchecked")
 		@Nonnull
 		public <T> Optional<? extends T> proxyIfPossible(@Nonnull Class<T> classToImplement) {
-			for (Object proxy : proxies) {
+			for (Object proxy : this.proxies) {
 				if (classToImplement.isInstance(proxy)) {
 					return of((T) proxy);
 				}
@@ -637,12 +637,12 @@ abstract class AbstractEntityProxyState implements
 
 		@Nonnull
 		public Collection<Object> proxies() {
-			return proxies;
+			return this.proxies;
 		}
 
 		@Nonnull
 		public Stream<SealedEntityProxy> getSealedEntityProxies() {
-			return proxies.stream().filter(SealedEntityProxy.class::isInstance).map(SealedEntityProxy.class::cast);
+			return this.proxies.stream().filter(SealedEntityProxy.class::isInstance).map(SealedEntityProxy.class::cast);
 		}
 
 	}

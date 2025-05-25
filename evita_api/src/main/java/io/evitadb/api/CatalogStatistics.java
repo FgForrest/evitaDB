@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -62,33 +62,33 @@ public record CatalogStatistics(
 		if (o == null || getClass() != o.getClass()) return false;
 
 		CatalogStatistics that = (CatalogStatistics) o;
-		return indexCount == that.indexCount && corrupted == that.corrupted && totalRecords == that.totalRecords && catalogVersion == that.catalogVersion && sizeOnDiskInBytes == that.sizeOnDiskInBytes && catalogName.equals(that.catalogName) && catalogState == that.catalogState && Arrays.equals(entityCollectionStatistics, that.entityCollectionStatistics);
+		return this.indexCount == that.indexCount && this.corrupted == that.corrupted && this.totalRecords == that.totalRecords && this.catalogVersion == that.catalogVersion && this.sizeOnDiskInBytes == that.sizeOnDiskInBytes && this.catalogName.equals(that.catalogName) && this.catalogState == that.catalogState && Arrays.equals(this.entityCollectionStatistics, that.entityCollectionStatistics);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = catalogName.hashCode();
-		result = 31 * result + Boolean.hashCode(corrupted);
-		result = 31 * result + Objects.hashCode(catalogState);
-		result = 31 * result + Long.hashCode(catalogVersion);
-		result = 31 * result + Long.hashCode(totalRecords);
-		result = 31 * result + Long.hashCode(indexCount);
-		result = 31 * result + Long.hashCode(sizeOnDiskInBytes);
-		result = 31 * result + Arrays.hashCode(entityCollectionStatistics);
+		int result = this.catalogName.hashCode();
+		result = 31 * result + Boolean.hashCode(this.corrupted);
+		result = 31 * result + Objects.hashCode(this.catalogState);
+		result = 31 * result + Long.hashCode(this.catalogVersion);
+		result = 31 * result + Long.hashCode(this.totalRecords);
+		result = 31 * result + Long.hashCode(this.indexCount);
+		result = 31 * result + Long.hashCode(this.sizeOnDiskInBytes);
+		result = 31 * result + Arrays.hashCode(this.entityCollectionStatistics);
 		return result;
 	}
 
 	@Override
 	public String toString() {
 		return "CatalogStatistics{" +
-			"catalogName='" + catalogName + '\'' +
-			", corrupted=" + corrupted +
-			", catalogState=" + catalogState +
-			", catalogVersion=" + catalogVersion +
-			", totalRecords=" + totalRecords +
-			", indexCount=" + indexCount +
-			", sizeOnDiskInBytes=" + sizeOnDiskInBytes +
-			", entityCollectionStatistics=" + Arrays.toString(entityCollectionStatistics) +
+			"catalogName='" + this.catalogName + '\'' +
+			", corrupted=" + this.corrupted +
+			", catalogState=" + this.catalogState +
+			", catalogVersion=" + this.catalogVersion +
+			", totalRecords=" + this.totalRecords +
+			", indexCount=" + this.indexCount +
+			", sizeOnDiskInBytes=" + this.sizeOnDiskInBytes +
+			", entityCollectionStatistics=" + Arrays.toString(this.entityCollectionStatistics) +
 			'}';
 	}
 

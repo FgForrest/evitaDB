@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,13 +77,13 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.Builder subBuilder = null;
-            if (criteria_ != null) {
-              subBuilder = criteria_.toBuilder();
+            if (this.criteria_ != null) {
+              subBuilder = this.criteria_.toBuilder();
             }
-            criteria_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.parser(), extensionRegistry);
+            this.criteria_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(criteria_);
-              criteria_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.criteria_);
+              this.criteria_ = subBuilder.buildPartial();
             }
 
             break;
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasCriteria() {
-    return criteria_ != null;
+    return this.criteria_ != null;
   }
   /**
    * <pre>
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria getCriteria() {
-    return criteria_ == null ? io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.getDefaultInstance() : criteria_;
+    return this.criteria_ == null ? io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.getDefaultInstance() : this.criteria_;
   }
   /**
    * <pre>
@@ -161,35 +161,35 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (criteria_ != null) {
+    if (this.criteria_ != null) {
       output.writeMessage(1, getCriteria());
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (criteria_ != null) {
+    if (this.criteria_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getCriteria());
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -208,14 +208,14 @@ private static final long serialVersionUID = 0L;
       if (!getCriteria()
           .equals(other.getCriteria())) return false;
     }
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -223,8 +223,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CRITERIA_FIELD_NUMBER;
       hash = (53 * hash) + getCriteria().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -360,11 +360,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (criteriaBuilder_ == null) {
-        criteria_ = null;
+      if (this.criteriaBuilder_ == null) {
+        this.criteria_ = null;
       } else {
-        criteria_ = null;
-        criteriaBuilder_ = null;
+        this.criteria_ = null;
+        this.criteriaBuilder_ = null;
       }
       return this;
     }
@@ -392,10 +392,10 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GetTrafficHistoryRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GetTrafficHistoryRequest result = new io.evitadb.externalApi.grpc.generated.GetTrafficHistoryRequest(this);
-      if (criteriaBuilder_ == null) {
-        result.criteria_ = criteria_;
+      if (this.criteriaBuilder_ == null) {
+        result.criteria_ = this.criteria_;
       } else {
-        result.criteria_ = criteriaBuilder_.build();
+        result.criteria_ = this.criteriaBuilder_.build();
       }
       onBuilt();
       return result;
@@ -489,7 +489,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the criteria field is set.
      */
     public boolean hasCriteria() {
-      return criteriaBuilder_ != null || criteria_ != null;
+      return this.criteriaBuilder_ != null || this.criteria_ != null;
     }
     /**
      * <pre>
@@ -500,10 +500,10 @@ private static final long serialVersionUID = 0L;
      * @return The criteria.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria getCriteria() {
-      if (criteriaBuilder_ == null) {
-        return criteria_ == null ? io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.getDefaultInstance() : criteria_;
+      if (this.criteriaBuilder_ == null) {
+        return this.criteria_ == null ? io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.getDefaultInstance() : this.criteria_;
       } else {
-        return criteriaBuilder_.getMessage();
+        return this.criteriaBuilder_.getMessage();
       }
     }
     /**
@@ -514,14 +514,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 1;</code>
      */
     public Builder setCriteria(io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria value) {
-      if (criteriaBuilder_ == null) {
+      if (this.criteriaBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        criteria_ = value;
+        this.criteria_ = value;
         onChanged();
       } else {
-        criteriaBuilder_.setMessage(value);
+        this.criteriaBuilder_.setMessage(value);
       }
 
       return this;
@@ -535,11 +535,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCriteria(
         io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.Builder builderForValue) {
-      if (criteriaBuilder_ == null) {
-        criteria_ = builderForValue.build();
+      if (this.criteriaBuilder_ == null) {
+        this.criteria_ = builderForValue.build();
         onChanged();
       } else {
-        criteriaBuilder_.setMessage(builderForValue.build());
+        this.criteriaBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -552,16 +552,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 1;</code>
      */
     public Builder mergeCriteria(io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria value) {
-      if (criteriaBuilder_ == null) {
-        if (criteria_ != null) {
-          criteria_ =
-            io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.newBuilder(criteria_).mergeFrom(value).buildPartial();
+      if (this.criteriaBuilder_ == null) {
+        if (this.criteria_ != null) {
+          this.criteria_ =
+            io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.newBuilder(this.criteria_).mergeFrom(value).buildPartial();
         } else {
-          criteria_ = value;
+          this.criteria_ = value;
         }
         onChanged();
       } else {
-        criteriaBuilder_.mergeFrom(value);
+        this.criteriaBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -574,12 +574,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 1;</code>
      */
     public Builder clearCriteria() {
-      if (criteriaBuilder_ == null) {
-        criteria_ = null;
+      if (this.criteriaBuilder_ == null) {
+        this.criteria_ = null;
         onChanged();
       } else {
-        criteria_ = null;
-        criteriaBuilder_ = null;
+        this.criteria_ = null;
+        this.criteriaBuilder_ = null;
       }
 
       return this;
@@ -592,7 +592,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.Builder getCriteriaBuilder() {
-      
+
       onChanged();
       return getCriteriaFieldBuilder().getBuilder();
     }
@@ -604,11 +604,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteriaOrBuilder getCriteriaOrBuilder() {
-      if (criteriaBuilder_ != null) {
-        return criteriaBuilder_.getMessageOrBuilder();
+      if (this.criteriaBuilder_ != null) {
+        return this.criteriaBuilder_.getMessageOrBuilder();
       } else {
-        return criteria_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.getDefaultInstance() : criteria_;
+        return this.criteria_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.getDefaultInstance() : this.criteria_;
       }
     }
     /**
@@ -619,17 +619,17 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteriaOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteriaOrBuilder>
         getCriteriaFieldBuilder() {
-      if (criteriaBuilder_ == null) {
-        criteriaBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.criteriaBuilder_ == null) {
+        this.criteriaBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteriaOrBuilder>(
                 getCriteria(),
                 getParentForChildren(),
                 isClean());
-        criteria_ = null;
+        this.criteria_ = null;
       }
-      return criteriaBuilder_;
+      return this.criteriaBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

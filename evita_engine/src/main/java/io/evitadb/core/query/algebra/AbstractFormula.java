@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -117,7 +117,7 @@ public abstract class AbstractFormula implements Formula {
 	@Override
 	public void initialize(@Nonnull QueryExecutionContext executionContext) {
 		this.executionContext = executionContext;
-		for (Formula innerFormula : innerFormulas) {
+		for (Formula innerFormula : this.innerFormulas) {
 			innerFormula.initialize(executionContext);
 		}
 	}
@@ -221,7 +221,7 @@ public abstract class AbstractFormula implements Formula {
 	 */
 	@Nonnull
 	protected long[] gatherBitmapIdsInternal() {
-		return Arrays.stream(innerFormulas)
+		return Arrays.stream(this.innerFormulas)
 			.flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
 			.toArray();
 	}
@@ -235,7 +235,7 @@ public abstract class AbstractFormula implements Formula {
 	protected long getEstimatedCostInternal() {
 		try {
 			long costs = getEstimatedBaseCost();
-			for (Formula innerFormula : innerFormulas) {
+			for (Formula innerFormula : this.innerFormulas) {
 				costs = Math.addExact(costs, innerFormula.getEstimatedCost());
 			}
 			return getEstimatedBaseCost() + getOperationCost() * getEstimatedCardinality() + costs;
@@ -273,8 +273,8 @@ public abstract class AbstractFormula implements Formula {
 	 * bitmaps multiplied by known {@link #getOperationCost()} of this operation. This method triggers formula computation.
 	 */
 	protected long getCostInternal() {
-		return Arrays.stream(innerFormulas).mapToLong(TransactionalDataRelatedStructure::getCost).sum() +
-			Arrays.stream(innerFormulas)
+		return Arrays.stream(this.innerFormulas).mapToLong(TransactionalDataRelatedStructure::getCost).sum() +
+			Arrays.stream(this.innerFormulas)
 				.map(Formula::compute)
 				.mapToLong(Bitmap::size)
 				.sum() * getOperationCost();
@@ -287,7 +287,7 @@ public abstract class AbstractFormula implements Formula {
 	 * more resources than caching outputs of formulas with lesser ratio.
 	 */
 	protected long getCostToPerformanceInternal() {
-		return Arrays.stream(innerFormulas)
+		return Arrays.stream(this.innerFormulas)
 			.mapToLong(TransactionalDataRelatedStructure::getCostToPerformanceRatio)
 			.sum() + (getCost() / Math.max(1, compute().size()));
 	}

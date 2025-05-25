@@ -43,64 +43,64 @@ public class CountingInputStreamTest {
 
 	@BeforeEach
 	public void setup() {
-		byteArrayInputStream = new ByteArrayInputStream(new byte[]{1, 2, 3, 4, 5});
-		countingInputStream = new CountingInputStream(byteArrayInputStream);
+		this.byteArrayInputStream = new ByteArrayInputStream(new byte[]{1, 2, 3, 4, 5});
+		this.countingInputStream = new CountingInputStream(this.byteArrayInputStream);
 	}
 
 	@Test
 	public void readIncreasesCount() throws IOException {
-		countingInputStream.read();
-		assertEquals(1, countingInputStream.getCount());
+		this.countingInputStream.read();
+		assertEquals(1, this.countingInputStream.getCount());
 	}
 
 	@Test
 	public void readArrayIncreasesCountByArrayLength() throws IOException {
 		byte[] b = new byte[3];
-		countingInputStream.read(b);
-		assertEquals(3, countingInputStream.getCount());
+		this.countingInputStream.read(b);
+		assertEquals(3, this.countingInputStream.getCount());
 	}
 
 	@Test
 	public void readArrayWithOffsetAndLengthIncreasesCountByLength() throws IOException {
 		byte[] b = new byte[5];
-		countingInputStream.read(b, 1, 3);
-		assertEquals(3, countingInputStream.getCount());
+		this.countingInputStream.read(b, 1, 3);
+		assertEquals(3, this.countingInputStream.getCount());
 	}
 
 	@Test
 	public void skipIncreasesCountBySkippedBytes() throws IOException {
-		countingInputStream.skip(2);
-		assertEquals(2, countingInputStream.getCount());
+		this.countingInputStream.skip(2);
+		assertEquals(2, this.countingInputStream.getCount());
 	}
 
 	@Test
 	public void readAllBytesIncreasesCountByAllBytes() throws IOException {
-		countingInputStream.readAllBytes();
-		assertEquals(5, countingInputStream.getCount());
+		this.countingInputStream.readAllBytes();
+		assertEquals(5, this.countingInputStream.getCount());
 	}
 
 	@Test
 	public void readNBytesIncreasesCountByNBytes() throws IOException {
-		countingInputStream.readNBytes(3);
-		assertEquals(3, countingInputStream.getCount());
+		this.countingInputStream.readNBytes(3);
+		assertEquals(3, this.countingInputStream.getCount());
 	}
 
 	@Test
 	public void readNBytesWithOffsetAndLengthIncreasesCountByLength() throws IOException {
 		byte[] b = new byte[5];
-		countingInputStream.readNBytes(b, 1, 3);
-		assertEquals(3, countingInputStream.getCount());
+		this.countingInputStream.readNBytes(b, 1, 3);
+		assertEquals(3, this.countingInputStream.getCount());
 	}
 
 	@Test
 	public void skipNBytesIncreasesCountByNBytes() throws IOException {
-		countingInputStream.skipNBytes(2);
-		assertEquals(2, countingInputStream.getCount());
+		this.countingInputStream.skipNBytes(2);
+		assertEquals(2, this.countingInputStream.getCount());
 	}
 
 	@Test
 	public void transferToIncreasesCountByTransferredBytes() throws IOException {
-		countingInputStream.transferTo(new ByteArrayOutputStream());
-		assertEquals(5, countingInputStream.getCount());
+		this.countingInputStream.transferTo(new ByteArrayOutputStream());
+		assertEquals(5, this.countingInputStream.getCount());
 	}
 }

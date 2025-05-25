@@ -169,7 +169,7 @@ abstract class AbstractServerTask<S, T> implements ServerTask<S, T> {
 	@Nonnull
 	@Override
 	public TaskStatus<S, T> getStatus() {
-		return status.get();
+		return this.status.get();
 	}
 
 	@Nonnull

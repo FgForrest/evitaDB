@@ -85,7 +85,7 @@ class ReferenceAttributeMutationConverterTest {
 					.withAttribute(ATTRIBUTE_QUANTITY, Integer.class)
 			)
 			.toInstance();
-		converter =  new ReferenceAttributeMutationConverter(entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new ReferenceAttributeMutationConverter(entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -95,7 +95,7 @@ class ReferenceAttributeMutationConverterTest {
 			new RemoveAttributeMutation(ATTRIBUTE_CODE)
 		);
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -116,7 +116,7 @@ class ReferenceAttributeMutationConverterTest {
 			new UpsertAttributeMutation(ATTRIBUTE_ALT_CODE, "phone")
 		);
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -139,7 +139,7 @@ class ReferenceAttributeMutationConverterTest {
 			new ApplyDeltaAttributeMutation<>(ATTRIBUTE_QUANTITY, 10)
 		);
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -158,7 +158,7 @@ class ReferenceAttributeMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
@@ -171,7 +171,7 @@ class ReferenceAttributeMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
@@ -184,22 +184,22 @@ class ReferenceAttributeMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMultipleAttributeMutationsArePresent() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -226,7 +226,7 @@ class ReferenceAttributeMutationConverterTest {
 		);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

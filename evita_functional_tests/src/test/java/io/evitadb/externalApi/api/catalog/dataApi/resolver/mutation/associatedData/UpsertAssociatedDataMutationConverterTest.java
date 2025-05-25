@@ -83,14 +83,14 @@ class UpsertAssociatedDataMutationConverterTest {
 			.withAssociatedData(ASSOCIATED_DATA_LABELS, Dummy.class)
 			.withAssociatedData(ASSOCIATED_DATA_CODE, String.class)
 			.toInstance();
-		converter =  new UpsertAssociatedDataMutationConverter(new ObjectMapper(), entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new UpsertAssociatedDataMutationConverter(new ObjectMapper(), entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final UpsertAssociatedDataMutation expectedMutation = new UpsertAssociatedDataMutation(ASSOCIATED_DATA_CODE, Locale.ENGLISH, "phone");
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_CODE)
 				.e(UpsertAssociatedDataMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
@@ -99,7 +99,7 @@ class UpsertAssociatedDataMutationConverterTest {
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
 				.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_CODE)
 				.e(UpsertAssociatedDataMutationDescriptor.LOCALE.name(), "en")
@@ -111,7 +111,7 @@ class UpsertAssociatedDataMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_CODE)
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "some")
@@ -125,7 +125,7 @@ class UpsertAssociatedDataMutationConverterTest {
 
 	@Test
 	void shouldResolveMutationWithNewAssociatedData() {
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_QUANTITY)
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "1.2")
@@ -141,7 +141,7 @@ class UpsertAssociatedDataMutationConverterTest {
 
 	@Test
 	void shouldResolveMutationWithComplexDataObject() {
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), map()
@@ -165,7 +165,7 @@ class UpsertAssociatedDataMutationConverterTest {
 		range.add(null);
 		range.add(20L);
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), "longNumberRangeAttribute")
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), range)
@@ -187,7 +187,7 @@ class UpsertAssociatedDataMutationConverterTest {
 		fromRange.add(10L);
 		fromRange.add(null);
 
-		final UpsertAssociatedDataMutation localMutation = (UpsertAssociatedDataMutation) converter.convertFromInput(
+		final UpsertAssociatedDataMutation localMutation = (UpsertAssociatedDataMutation) this.converter.convertFromInput(
 			map()
 				.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), "arrayOfRangesAttribute")
 				.e(
@@ -216,7 +216,7 @@ class UpsertAssociatedDataMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), "labels")
 					.build()
@@ -224,7 +224,7 @@ class UpsertAssociatedDataMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "some")
 					.build()
@@ -236,7 +236,7 @@ class UpsertAssociatedDataMutationConverterTest {
 	void shouldNotResolveInputWhenIncorrectValueType() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_CODE)
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "phone")
@@ -250,7 +250,7 @@ class UpsertAssociatedDataMutationConverterTest {
 	void shouldResolveMutationWithNewAssociatedDataWhenValueTypeIsMissing() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_QUANTITY)
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "1.2")
@@ -261,8 +261,8 @@ class UpsertAssociatedDataMutationConverterTest {
 
 	@Test
 	void shouldNotConvertIfInputMutationIsEmpty() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -270,7 +270,7 @@ class UpsertAssociatedDataMutationConverterTest {
 		final UpsertAssociatedDataMutation inputMutation = new UpsertAssociatedDataMutation(ASSOCIATED_DATA_CODE, Locale.ENGLISH, "phone");
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

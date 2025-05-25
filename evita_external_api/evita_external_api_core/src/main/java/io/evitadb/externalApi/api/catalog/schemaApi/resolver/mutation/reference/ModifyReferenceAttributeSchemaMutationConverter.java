@@ -75,7 +75,7 @@ public class ModifyReferenceAttributeSchemaMutationConverter extends ReferenceSc
 				return (Map<String, Object>) m;
 			})
 			.get();
-		final List<ReferenceAttributeSchemaMutation> attributeSchemaMutations = referenceAttributeSchemaMutationAggregateResolver.convertFromInput(inputAttributeSchemaMutation);
+		final List<ReferenceAttributeSchemaMutation> attributeSchemaMutations = this.referenceAttributeSchemaMutationAggregateResolver.convertFromInput(inputAttributeSchemaMutation);
 		Assert.isTrue(
 			attributeSchemaMutations.size() == 1,
 			() -> getExceptionFactory().createInvalidArgumentException("Field `" + ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name() + "` in mutation `" + getMutationName() + "` is required and is expected to have exactly one mutation")
@@ -91,7 +91,7 @@ public class ModifyReferenceAttributeSchemaMutationConverter extends ReferenceSc
 	protected void convertToOutput(@Nonnull ModifyReferenceAttributeSchemaMutation mutation, @Nonnull Output output) {
 		output.setProperty(
 			ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION,
-			referenceAttributeSchemaMutationAggregateResolver.convertToOutput(mutation.getAttributeSchemaMutation())
+			this.referenceAttributeSchemaMutationAggregateResolver.convertToOutput(mutation.getAttributeSchemaMutation())
 		);
 		super.convertToOutput(mutation, output);
 	}

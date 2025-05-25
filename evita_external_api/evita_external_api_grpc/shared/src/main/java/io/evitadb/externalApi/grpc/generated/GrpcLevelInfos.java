@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcLevelInfos() {
-    levelInfos_ = java.util.Collections.emptyList();
+    this.levelInfos_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -79,10 +79,10 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              levelInfos_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo>();
+              this.levelInfos_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo>();
               mutable_bitField0_ |= 0x00000001;
             }
-            levelInfos_.add(
+            this.levelInfos_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.parser(), extensionRegistry));
             break;
           }
@@ -102,7 +102,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        levelInfos_ = java.util.Collections.unmodifiableList(levelInfos_);
+        this.levelInfos_ = java.util.Collections.unmodifiableList(this.levelInfos_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> getLevelInfosList() {
-    return levelInfos_;
+    return this.levelInfos_;
   }
   /**
    * <pre>
@@ -142,9 +142,9 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder>
       getLevelInfosOrBuilderList() {
-    return levelInfos_;
+    return this.levelInfos_;
   }
   /**
    * <pre>
@@ -155,7 +155,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getLevelInfosCount() {
-    return levelInfos_.size();
+    return this.levelInfos_.size();
   }
   /**
    * <pre>
@@ -166,7 +166,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo getLevelInfos(int index) {
-    return levelInfos_.get(index);
+    return this.levelInfos_.get(index);
   }
   /**
    * <pre>
@@ -178,41 +178,41 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder getLevelInfosOrBuilder(
       int index) {
-    return levelInfos_.get(index);
+    return this.levelInfos_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    for (int i = 0; i < levelInfos_.size(); i++) {
-      output.writeMessage(1, levelInfos_.get(i));
+    for (int i = 0; i < this.levelInfos_.size(); i++) {
+      output.writeMessage(1, this.levelInfos_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    for (int i = 0; i < levelInfos_.size(); i++) {
+    for (int i = 0; i < this.levelInfos_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(1, levelInfos_.get(i));
+        .computeMessageSize(1, this.levelInfos_.get(i));
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -228,14 +228,14 @@ private static final long serialVersionUID = 0L;
 
     if (!getLevelInfosList()
         .equals(other.getLevelInfosList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -243,8 +243,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + LEVELINFOS_FIELD_NUMBER;
       hash = (53 * hash) + getLevelInfosList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -381,11 +381,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (levelInfosBuilder_ == null) {
-        levelInfos_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.levelInfosBuilder_ == null) {
+        this.levelInfos_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       } else {
-        levelInfosBuilder_.clear();
+        this.levelInfosBuilder_.clear();
       }
       return this;
     }
@@ -413,15 +413,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLevelInfos buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcLevelInfos result = new io.evitadb.externalApi.grpc.generated.GrpcLevelInfos(this);
-      int from_bitField0_ = bitField0_;
-      if (levelInfosBuilder_ == null) {
-        if (((bitField0_ & 0x00000001) != 0)) {
-          levelInfos_ = java.util.Collections.unmodifiableList(levelInfos_);
-          bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      if (this.levelInfosBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000001) != 0)) {
+          this.levelInfos_ = java.util.Collections.unmodifiableList(this.levelInfos_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         }
-        result.levelInfos_ = levelInfos_;
+        result.levelInfos_ = this.levelInfos_;
       } else {
-        result.levelInfos_ = levelInfosBuilder_.build();
+        result.levelInfos_ = this.levelInfosBuilder_.build();
       }
       onBuilt();
       return result;
@@ -471,29 +471,29 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcLevelInfos other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcLevelInfos.getDefaultInstance()) return this;
-      if (levelInfosBuilder_ == null) {
+      if (this.levelInfosBuilder_ == null) {
         if (!other.levelInfos_.isEmpty()) {
-          if (levelInfos_.isEmpty()) {
-            levelInfos_ = other.levelInfos_;
-            bitField0_ = (bitField0_ & ~0x00000001);
+          if (this.levelInfos_.isEmpty()) {
+            this.levelInfos_ = other.levelInfos_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
           } else {
             ensureLevelInfosIsMutable();
-            levelInfos_.addAll(other.levelInfos_);
+            this.levelInfos_.addAll(other.levelInfos_);
           }
           onChanged();
         }
       } else {
         if (!other.levelInfos_.isEmpty()) {
-          if (levelInfosBuilder_.isEmpty()) {
-            levelInfosBuilder_.dispose();
-            levelInfosBuilder_ = null;
-            levelInfos_ = other.levelInfos_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-            levelInfosBuilder_ = 
+          if (this.levelInfosBuilder_.isEmpty()) {
+            this.levelInfosBuilder_.dispose();
+            this.levelInfosBuilder_ = null;
+            this.levelInfos_ = other.levelInfos_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+            this.levelInfosBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getLevelInfosFieldBuilder() : null;
           } else {
-            levelInfosBuilder_.addAllMessages(other.levelInfos_);
+            this.levelInfosBuilder_.addAllMessages(other.levelInfos_);
           }
         }
       }
@@ -530,9 +530,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> levelInfos_ =
       java.util.Collections.emptyList();
     private void ensureLevelInfosIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        levelInfos_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo>(levelInfos_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.levelInfos_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo>(this.levelInfos_);
+        this.bitField0_ |= 0x00000001;
        }
     }
 
@@ -547,10 +547,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> getLevelInfosList() {
-      if (levelInfosBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(levelInfos_);
+      if (this.levelInfosBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.levelInfos_);
       } else {
-        return levelInfosBuilder_.getMessageList();
+        return this.levelInfosBuilder_.getMessageList();
       }
     }
     /**
@@ -561,10 +561,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public int getLevelInfosCount() {
-      if (levelInfosBuilder_ == null) {
-        return levelInfos_.size();
+      if (this.levelInfosBuilder_ == null) {
+        return this.levelInfos_.size();
       } else {
-        return levelInfosBuilder_.getCount();
+        return this.levelInfosBuilder_.getCount();
       }
     }
     /**
@@ -575,10 +575,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo getLevelInfos(int index) {
-      if (levelInfosBuilder_ == null) {
-        return levelInfos_.get(index);
+      if (this.levelInfosBuilder_ == null) {
+        return this.levelInfos_.get(index);
       } else {
-        return levelInfosBuilder_.getMessage(index);
+        return this.levelInfosBuilder_.getMessage(index);
       }
     }
     /**
@@ -590,15 +590,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setLevelInfos(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo value) {
-      if (levelInfosBuilder_ == null) {
+      if (this.levelInfosBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureLevelInfosIsMutable();
-        levelInfos_.set(index, value);
+        this.levelInfos_.set(index, value);
         onChanged();
       } else {
-        levelInfosBuilder_.setMessage(index, value);
+        this.levelInfosBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -611,12 +611,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setLevelInfos(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder builderForValue) {
-      if (levelInfosBuilder_ == null) {
+      if (this.levelInfosBuilder_ == null) {
         ensureLevelInfosIsMutable();
-        levelInfos_.set(index, builderForValue.build());
+        this.levelInfos_.set(index, builderForValue.build());
         onChanged();
       } else {
-        levelInfosBuilder_.setMessage(index, builderForValue.build());
+        this.levelInfosBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -628,15 +628,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public Builder addLevelInfos(io.evitadb.externalApi.grpc.generated.GrpcLevelInfo value) {
-      if (levelInfosBuilder_ == null) {
+      if (this.levelInfosBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureLevelInfosIsMutable();
-        levelInfos_.add(value);
+        this.levelInfos_.add(value);
         onChanged();
       } else {
-        levelInfosBuilder_.addMessage(value);
+        this.levelInfosBuilder_.addMessage(value);
       }
       return this;
     }
@@ -649,15 +649,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addLevelInfos(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo value) {
-      if (levelInfosBuilder_ == null) {
+      if (this.levelInfosBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureLevelInfosIsMutable();
-        levelInfos_.add(index, value);
+        this.levelInfos_.add(index, value);
         onChanged();
       } else {
-        levelInfosBuilder_.addMessage(index, value);
+        this.levelInfosBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -670,12 +670,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addLevelInfos(
         io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder builderForValue) {
-      if (levelInfosBuilder_ == null) {
+      if (this.levelInfosBuilder_ == null) {
         ensureLevelInfosIsMutable();
-        levelInfos_.add(builderForValue.build());
+        this.levelInfos_.add(builderForValue.build());
         onChanged();
       } else {
-        levelInfosBuilder_.addMessage(builderForValue.build());
+        this.levelInfosBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -688,12 +688,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addLevelInfos(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder builderForValue) {
-      if (levelInfosBuilder_ == null) {
+      if (this.levelInfosBuilder_ == null) {
         ensureLevelInfosIsMutable();
-        levelInfos_.add(index, builderForValue.build());
+        this.levelInfos_.add(index, builderForValue.build());
         onChanged();
       } else {
-        levelInfosBuilder_.addMessage(index, builderForValue.build());
+        this.levelInfosBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -706,13 +706,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllLevelInfos(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> values) {
-      if (levelInfosBuilder_ == null) {
+      if (this.levelInfosBuilder_ == null) {
         ensureLevelInfosIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, levelInfos_);
+            values, this.levelInfos_);
         onChanged();
       } else {
-        levelInfosBuilder_.addAllMessages(values);
+        this.levelInfosBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -724,12 +724,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public Builder clearLevelInfos() {
-      if (levelInfosBuilder_ == null) {
-        levelInfos_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.levelInfosBuilder_ == null) {
+        this.levelInfos_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        levelInfosBuilder_.clear();
+        this.levelInfosBuilder_.clear();
       }
       return this;
     }
@@ -741,12 +741,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
     public Builder removeLevelInfos(int index) {
-      if (levelInfosBuilder_ == null) {
+      if (this.levelInfosBuilder_ == null) {
         ensureLevelInfosIsMutable();
-        levelInfos_.remove(index);
+        this.levelInfos_.remove(index);
         onChanged();
       } else {
-        levelInfosBuilder_.remove(index);
+        this.levelInfosBuilder_.remove(index);
       }
       return this;
     }
@@ -770,9 +770,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder getLevelInfosOrBuilder(
         int index) {
-      if (levelInfosBuilder_ == null) {
-        return levelInfos_.get(index);  } else {
-        return levelInfosBuilder_.getMessageOrBuilder(index);
+      if (this.levelInfosBuilder_ == null) {
+        return this.levelInfos_.get(index);  } else {
+        return this.levelInfosBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -782,12 +782,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder>
          getLevelInfosOrBuilderList() {
-      if (levelInfosBuilder_ != null) {
-        return levelInfosBuilder_.getMessageOrBuilderList();
+      if (this.levelInfosBuilder_ != null) {
+        return this.levelInfosBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(levelInfos_);
+        return java.util.Collections.unmodifiableList(this.levelInfos_);
       }
     }
     /**
@@ -820,23 +820,23 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo levelInfos = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder>
          getLevelInfosBuilderList() {
       return getLevelInfosFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLevelInfo, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLevelInfo, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder>
         getLevelInfosFieldBuilder() {
-      if (levelInfosBuilder_ == null) {
-        levelInfosBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.levelInfosBuilder_ == null) {
+        this.levelInfosBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcLevelInfo, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder>(
-                levelInfos_,
-                ((bitField0_ & 0x00000001) != 0),
+                this.levelInfos_,
+                ((this.bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        levelInfos_ = null;
+        this.levelInfos_ = null;
       }
-      return levelInfosBuilder_;
+      return this.levelInfosBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

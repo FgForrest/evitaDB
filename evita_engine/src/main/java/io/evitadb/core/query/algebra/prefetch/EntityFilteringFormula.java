@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -84,9 +84,9 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 		Assert.isPremiseValid(this.executionContext != null, "The formula hasn't been initialized!");
 		Assert.isTrue(
 			this.executionContext.getPrefetchedEntities() != null,
-			() -> new EntityCollectionRequiredException(reason)
+			() -> new EntityCollectionRequiredException(this.reason)
 		);
-		return alternative.filter(this.executionContext);
+		return this.alternative.filter(this.executionContext);
 	}
 
 	@Nonnull
@@ -107,7 +107,7 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	@Nullable
 	@Override
 	public EntityFetchRequire getEntityRequire() {
-		return alternative.getEntityRequire();
+		return this.alternative.getEntityRequire();
 	}
 
 	@Override
@@ -126,10 +126,10 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 
 	@Override
 	protected long getCostInternal() {
-		if (alternative.getEntityRequire() == null) {
+		if (this.alternative.getEntityRequire() == null) {
 			return 0;
 		}
-		return ((1 + alternative.getEntityRequire().getRequirements().length) * 148L) * compute().size();
+		return ((1 + this.alternative.getEntityRequire().getRequirements().length) * 148L) * compute().size();
 	}
 
 	@Override

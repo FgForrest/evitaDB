@@ -79,7 +79,7 @@ public class FacetSummaryConverter extends RequireConverter {
 			return;
 		}
 
-		final EntitySchemaContract entitySchema = catalogSchema.getEntitySchemaOrThrowException(entityType);
+		final EntitySchemaContract entitySchema = this.catalogSchema.getEntitySchemaOrThrowException(entityType);
 
 		fieldsBuilder.addObjectField(
 			ExtraResultsDescriptor.FACET_SUMMARY,
@@ -226,7 +226,7 @@ public class FacetSummaryConverter extends RequireConverter {
 		if (referenceSchema.getReferencedGroupType() != null) {
 			facetSummaryOfReferenceBuilder.addObjectField(
 				FacetGroupStatisticsDescriptor.GROUP_ENTITY,
-				groupEntityBuilder -> entityFetchBuilder.convert(
+				groupEntityBuilder -> this.entityFetchBuilder.convert(
 					groupEntityBuilder,
 					referenceSchema.getReferencedGroupType(),
 					locale,
@@ -317,7 +317,7 @@ public class FacetSummaryConverter extends RequireConverter {
 
 		facetStatisticsBuilder.addObjectField(
 			FacetStatisticsDescriptor.FACET_ENTITY,
-			facetEntityBuilder -> entityFetchBuilder.convert(
+			facetEntityBuilder -> this.entityFetchBuilder.convert(
 				facetEntityBuilder,
 				referenceSchema.getReferencedEntityType(),
 				locale,

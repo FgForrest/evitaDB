@@ -67,23 +67,23 @@ class CatalogWriteAheadLogTest {
 	private final CatalogWriteAheadLog tested = new CatalogWriteAheadLog(
 		0L,
 		TEST_CATALOG,
-		walDirectory,
-		catalogKryoPool,
+		this.walDirectory,
+		this.catalogKryoPool,
 		StorageOptions.builder().build(),
 		TransactionOptions.builder().build(),
 		Mockito.mock(Scheduler.class),
 		offsetDateTime -> {},
 		null
 	);
-	private final Path walFilePath = walDirectory.resolve(getWalFileName(TEST_CATALOG, walFileReference.fileIndex()));
+	private final Path walFilePath = this.walDirectory.resolve(getWalFileName(TEST_CATALOG, this.walFileReference.fileIndex()));
 	private final int[] txSizes = new int[] {55, 152, 199, 46};
 
 	@BeforeEach
 	void setUp() {
 		// and then write to the WAL a few times
 		final ByteBuffer byteBuffer = ByteBuffer.allocate(200);
-		for (int i = 0; i < txSizes.length; i++) {
-			final int txSize = txSizes[i];
+		for (int i = 0; i < this.txSizes.length; i++) {
+			final int txSize = this.txSizes[i];
 			byteBuffer.clear();
 			for (int j = 0; j < txSize; j++) {
 				byteBuffer.put((byte) j);
@@ -94,7 +94,7 @@ class CatalogWriteAheadLogTest {
 			);
 
 			byteBuffer.flip();
-			tested.append(
+			this.tested.append(
 				writtenTransactionMutation,
 				OffHeapWithFileBackupReference.withByteBuffer(
 					byteBuffer, txSize, byteBuffer::clear
@@ -105,33 +105,33 @@ class CatalogWriteAheadLogTest {
 
 	@AfterEach
 	void tearDown() throws IOException {
-		tested.close();
-		walFilePath.toFile().delete();
+		this.tested.close();
+		this.walFilePath.toFile().delete();
 	}
 
 	@Test
 	void shouldVerifyWalIsOk() {
 		// should not throw any exception
-		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, StorageOptions.temporary());
+		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, this.walFilePath, this.catalogKryoPool, StorageOptions.temporary());
 	}
 
 	@Test
 	void shouldTruncatePartiallyWrittenWal() throws IOException {
 		// truncate the WAL to simulate a partially written WAL
-		final File walFile = walFilePath.toFile();
+		final File walFile = this.walFilePath.toFile();
 		final long originalWalFileLength = walFile.length();
-		final long newLength = originalWalFileLength - (txSizes[txSizes.length - 1] / 2);
+		final long newLength = originalWalFileLength - (this.txSizes[this.txSizes.length - 1] / 2);
 		try (final var raf = new java.io.RandomAccessFile(walFile, "rw")) {
 			raf.setLength(newLength);
 		}
 		// should not throw any exception
-		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, StorageOptions.temporary());
+		CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, this.walFilePath, this.catalogKryoPool, StorageOptions.temporary());
 
 		final int txLengthBytes = 4;
 		final int classIdBytes = 2;
 		final int offsetDateTimeBytesDelta = 11;
 		assertEquals(
-			originalWalFileLength - txSizes[txSizes.length - 1] - (CatalogWriteAheadLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeBytesDelta) - txLengthBytes - classIdBytes,
+			originalWalFileLength - this.txSizes[this.txSizes.length - 1] - (CatalogWriteAheadLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeBytesDelta) - txLengthBytes - classIdBytes,
 			walFile.length()
 		);
 	}
@@ -139,9 +139,9 @@ class CatalogWriteAheadLogTest {
 	@Test
 	void shouldThrowExceptionWhenLeadingTxMutationIsDamaged() throws IOException {
 		// truncate the WAL to simulate a damaged leading record
-		final File walFile = walFilePath.toFile();
+		final File walFile = this.walFilePath.toFile();
 		final long originalWalFileLength = walFile.length();
-		final long leadPosition = originalWalFileLength - (txSizes[txSizes.length - 1] + 10);
+		final long leadPosition = originalWalFileLength - (this.txSizes[this.txSizes.length - 1] + 10);
 		// damage the leading transaction mutation
 		try (final var raf = new java.io.RandomAccessFile(walFile, "rw")) {
 			raf.seek(leadPosition);
@@ -150,7 +150,7 @@ class CatalogWriteAheadLogTest {
 		// should throw an exception
 		assertThrows(
 			WriteAheadLogCorruptedException.class,
-			() -> CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, walFilePath, catalogKryoPool, StorageOptions.temporary())
+			() -> CatalogWriteAheadLog.checkAndTruncate(TEST_CATALOG, this.walFilePath, this.catalogKryoPool, StorageOptions.temporary())
 		);
 	}
 }

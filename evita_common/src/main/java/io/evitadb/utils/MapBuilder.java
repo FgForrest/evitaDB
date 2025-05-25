@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,31 +50,31 @@ public class MapBuilder {
 
 	@Nullable
 	public Object get(@Nonnull String key) {
-		return map.get(key);
+		return this.map.get(key);
 	}
 
 	@Nonnull
 	public MapBuilder e(@Nonnull String key, @Nullable Object value) {
 		if (value instanceof MapBuilder mapBuilder) {
-			map.put(key, mapBuilder.build());
+			this.map.put(key, mapBuilder.build());
 		} else if (value instanceof ListBuilder listBuilder) {
-			map.put(key, listBuilder.build());
+			this.map.put(key, listBuilder.build());
 		} else {
-			map.put(key, value);
+			this.map.put(key, value);
 		}
 		return this;
 	}
 
 	public boolean containsKey(@Nonnull String key) {
-		return map.containsKey(key);
+		return this.map.containsKey(key);
 	}
 
 	public boolean isEmpty() {
-		return map.isEmpty();
+		return this.map.isEmpty();
 	}
 
 	@Nonnull
 	public Map<String, Object> build() {
-		return Collections.unmodifiableMap(map);
+		return Collections.unmodifiableMap(this.map);
 	}
 }

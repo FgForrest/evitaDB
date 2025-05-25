@@ -65,7 +65,7 @@ public class LocaleEntityToBitmapFilter implements EntityToBitmapFilter {
 			} else {
 				this.memoizedResult = new BaseBitmap(
 					entities.stream()
-						.filter(it -> it.getLocales().contains(locale))
+						.filter(it -> it.getLocales().contains(this.locale))
 						.mapToInt(context::translateEntity)
 						.toArray()
 				);
@@ -77,6 +77,6 @@ public class LocaleEntityToBitmapFilter implements EntityToBitmapFilter {
 	@Nonnull
 	@Override
 	public EntityFetchRequire getEntityRequire() {
-		return entityFetch(dataInLocales(locale));
+		return entityFetch(dataInLocales(this.locale));
 	}
 }

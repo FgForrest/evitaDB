@@ -55,7 +55,7 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new SetAttributeSchemaGloballyUniqueMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new SetAttributeSchemaGloballyUniqueMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -67,7 +67,7 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 			}
 		);
 
-		final SetAttributeSchemaGloballyUniqueMutation convertedMutation1 = converter.convertFromInput(
+		final SetAttributeSchemaGloballyUniqueMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
@@ -78,7 +78,7 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final SetAttributeSchemaGloballyUniqueMutation convertedMutation2 = converter.convertFromInput(
+		final SetAttributeSchemaGloballyUniqueMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
@@ -97,7 +97,7 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 			(ScopedGlobalAttributeUniquenessType[]) null
 		);
 
-		final SetAttributeSchemaGloballyUniqueMutation convertedMutation1 = converter.convertFromInput(
+		final SetAttributeSchemaGloballyUniqueMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.build()
@@ -109,14 +109,14 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), true)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -129,7 +129,7 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 		);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

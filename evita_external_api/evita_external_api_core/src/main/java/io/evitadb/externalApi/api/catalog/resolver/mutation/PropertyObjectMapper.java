@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -84,10 +84,10 @@ public class PropertyObjectMapper<T extends Serializable> implements Function<Ob
 	public T apply(@Nonnull Object rawPropertyValue) {
 		Assert.isTrue(
 			rawPropertyValue instanceof Map<?, ?>,
-			() -> exceptionFactory.createInvalidArgumentException("Item in property `" + propertyName + "` of mutation `" + mutationName + "` is expected to be an object.")
+			() -> this.exceptionFactory.createInvalidArgumentException("Item in property `" + this.propertyName + "` of mutation `" + this.mutationName + "` is expected to be an object.")
 		);
 
 		final Map<String, Object> element = (Map<String, Object>) rawPropertyValue;
-		return objectMapper.apply(new Input(mutationName, element, exceptionFactory));
+		return this.objectMapper.apply(new Input(this.mutationName, element, this.exceptionFactory));
 	}
 }

@@ -1286,7 +1286,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * of all {@link EntityIndex#getAllPrimaryKeys()} would produce the correct result for passed query).
 	 */
 	public boolean isTargetIndexRepresentingConstraint(@Nonnull FilterConstraint filterConstraint) {
-		return indexSetToUse.getRepresentedConstraint() == filterConstraint;
+		return this.indexSetToUse.getRepresentedConstraint() == filterConstraint;
 	}
 
 	/**
@@ -1295,7 +1295,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	@Nullable
 	public TargetIndexes<?> findTargetIndexSet(@Nonnull FilterConstraint filterConstraint) {
-		return targetIndexes
+		return this.targetIndexes
 			.stream()
 			.filter(it -> it.getRepresentedConstraint() == filterConstraint)
 			.findFirst()
@@ -1335,7 +1335,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Registers another formula to the current level of the formula calculation tree.
 	 */
 	private void addFormula(@Nonnull Formula formula) {
-		final List<Formula> peekFormulas = stack.peek();
+		final List<Formula> peekFormulas = this.stack.peek();
 		isPremiseValid(peekFormulas != null, "Top formulas unexpectedly empty!");
 		if (!(formula instanceof SkipFormula)) {
 			peekFormulas.add(formula);

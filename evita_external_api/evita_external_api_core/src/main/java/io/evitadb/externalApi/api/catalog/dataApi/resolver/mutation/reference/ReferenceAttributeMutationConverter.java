@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -85,11 +85,11 @@ public class ReferenceAttributeMutationConverter extends ReferenceMutationConver
 		);
 
 		Assert.isPremiseValid(
-			entitySchema != null,
+			this.entitySchema != null,
 			() -> getExceptionFactory().createInternalError("Entity schema is required for conversion from input.")
 		);
 		final ReferenceAttributeMutationAggregateConverter attributeMutationAggregateResolver = new ReferenceAttributeMutationAggregateConverter(
-			entitySchema.getReferenceOrThrowException(referenceKey.referenceName()),
+			this.entitySchema.getReferenceOrThrowException(referenceKey.referenceName()),
 			getObjectParser(),
 			getExceptionFactory()
 		);
@@ -105,7 +105,7 @@ public class ReferenceAttributeMutationConverter extends ReferenceMutationConver
 	@Override
 	protected void convertToOutput(@Nonnull ReferenceAttributeMutation mutation, @Nonnull Output output) {
 		final ReferenceAttributeMutationAggregateConverter attributeMutationAggregateResolver = new ReferenceAttributeMutationAggregateConverter(
-			Optional.ofNullable(entitySchema)
+			Optional.ofNullable(this.entitySchema)
 				.map(it -> it.getReferenceOrThrowException(mutation.getReferenceKey().referenceName()))
 				.orElse(null),
 			getObjectParser(),

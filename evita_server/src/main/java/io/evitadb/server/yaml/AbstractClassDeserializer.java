@@ -72,7 +72,7 @@ public class AbstractClassDeserializer<T> extends StdDeserializer<T> {
 	 */
 	public void registerConcreteClass(String keyValue, Class<? extends T> concreteClass) {
 		Assert.isTrue(this._valueClass.isAssignableFrom(concreteClass), "The class `" + concreteClass + "` must implement `" + this._valueClass + "`.");
-		registry.put(keyValue, concreteClass);
+		this.registry.put(keyValue, concreteClass);
 	}
 
 	@Nullable

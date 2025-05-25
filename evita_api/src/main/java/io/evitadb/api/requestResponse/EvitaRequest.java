@@ -422,7 +422,7 @@ public class EvitaRequest {
 	 */
 	@Nullable
 	public Locale getImplicitLocale() {
-		return implicitLocale;
+		return this.implicitLocale;
 	}
 
 	/**
@@ -556,7 +556,7 @@ public class EvitaRequest {
 	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
 	 */
 	public boolean isRequiresEntityAttributes() {
-		if (entityAttributes == null) {
+		if (this.entityAttributes == null) {
 			final EntityFetch entityFetch = getEntityRequirement();
 			if (entityFetch == null) {
 				this.entityAttributes = false;
@@ -569,7 +569,7 @@ public class EvitaRequest {
 					Collections.emptySet();
 			}
 		}
-		return entityAttributes;
+		return this.entityAttributes;
 	}
 
 	/**
@@ -589,7 +589,7 @@ public class EvitaRequest {
 	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
 	 */
 	public boolean isRequiresEntityAssociatedData() {
-		if (entityAssociatedData == null) {
+		if (this.entityAssociatedData == null) {
 			final EntityFetch entityFetch = getEntityRequirement();
 			if (entityFetch == null) {
 				this.entityAssociatedData = false;
@@ -602,7 +602,7 @@ public class EvitaRequest {
 					Collections.emptySet();
 			}
 		}
-		return entityAssociatedData;
+		return this.entityAssociatedData;
 	}
 
 	/**
@@ -622,10 +622,10 @@ public class EvitaRequest {
 	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
 	 */
 	public boolean isRequiresEntityReferences() {
-		if (entityReference == null) {
+		if (this.entityReference == null) {
 			getReferenceEntityFetch();
 		}
-		return entityReference;
+		return this.entityReference;
 	}
 
 	/**
@@ -858,10 +858,10 @@ public class EvitaRequest {
 	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
 	 */
 	public boolean isQueryTelemetryRequested() {
-		if (queryTelemetryRequested == null) {
+		if (this.queryTelemetryRequested == null) {
 			this.queryTelemetryRequested = QueryUtils.findRequire(this.query, QueryTelemetry.class) != null;
 		}
-		return queryTelemetryRequested;
+		return this.queryTelemetryRequested;
 	}
 
 	/**
@@ -869,32 +869,32 @@ public class EvitaRequest {
 	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
 	 */
 	public boolean isDebugModeEnabled(@Nonnull DebugMode debugMode) {
-		if (debugModes == null) {
+		if (this.debugModes == null) {
 			this.debugModes = ofNullable(QueryUtils.findRequire(this.query, Debug.class))
 				.map(Debug::getDebugMode)
 				.orElseGet(() -> EnumSet.noneOf(DebugMode.class));
 		}
-		return debugModes.contains(debugMode);
+		return this.debugModes.contains(debugMode);
 	}
 
 	/**
 	 * Returns count of records required in the result (i.e. number of records on a single page).
 	 */
 	public int getLimit() {
-		if (limit == null) {
+		if (this.limit == null) {
 			initPagination();
 		}
-		return limit;
+		return this.limit;
 	}
 
 	/**
 	 * Returns requested record offset of the records required in the result.
 	 */
 	public int getStart() {
-		if (start == null) {
+		if (this.start == null) {
 			initPagination();
 		}
-		return start;
+		return this.start;
 	}
 
 	/**
@@ -905,10 +905,10 @@ public class EvitaRequest {
 	 */
 	@Nonnull
 	public ResultForm getResultForm() {
-		if (resultForm == null) {
+		if (this.resultForm == null) {
 			initPagination();
 		}
-		return resultForm;
+		return this.resultForm;
 	}
 
 	/**
@@ -924,10 +924,10 @@ public class EvitaRequest {
 	 */
 	@Nonnull
 	public ConditionalGap[] getConditionalGaps() {
-		if (conditionalGaps == null) {
+		if (this.conditionalGaps == null) {
 			initPagination();
 		}
-		return conditionalGaps;
+		return this.conditionalGaps;
 	}
 
 	/**
@@ -936,7 +936,7 @@ public class EvitaRequest {
 	@Nullable
 	public RequirementContext getDefaultReferenceRequirement() {
 		getReferenceEntityFetch();
-		return defaultReferenceRequirement;
+		return this.defaultReferenceRequirement;
 	}
 
 	/**
@@ -945,8 +945,8 @@ public class EvitaRequest {
 	 */
 	@Nonnull
 	public Map<String, RequirementContext> getReferenceEntityFetch() {
-		if (entityFetchRequirements == null) {
-			entityFetchRequirements = ofNullable(getEntityRequirement())
+		if (this.entityFetchRequirements == null) {
+			this.entityFetchRequirements = ofNullable(getEntityRequirement())
 				.map(
 					entityRequirement -> {
 						final List<ReferenceContent> referenceContent = QueryUtils.findConstraints(entityRequirement, ReferenceContent.class, SeparateEntityContentRequireContainer.class);
@@ -982,7 +982,7 @@ public class EvitaRequest {
 					return Collections.emptyMap();
 				});
 		}
-		return entityFetchRequirements;
+		return this.entityFetchRequirements;
 	}
 
 	/**
@@ -991,12 +991,12 @@ public class EvitaRequest {
 	 */
 	@Nonnull
 	public ChunkTransformer getReferenceChunkTransformer(@Nonnull String referenceName) {
-		if (referenceChunkTransformer == null) {
+		if (this.referenceChunkTransformer == null) {
 			this.referenceChunkTransformer = refName -> ofNullable(getReferenceEntityFetch().get(refName))
 				.map(RequirementContext::referenceChunkTransformer)
 				.orElse(NoTransformer.INSTANCE);
 		}
-		return referenceChunkTransformer.apply(referenceName);
+		return this.referenceChunkTransformer.apply(referenceName);
 	}
 
 	/**
@@ -1010,7 +1010,7 @@ public class EvitaRequest {
 			} else {
 				this.hierarchyWithin = new HashMap<>();
 				QueryUtils.findConstraints(
-						query.getFilterBy(),
+						this.query.getFilterBy(),
 						HierarchyFilterConstraint.class
 					)
 					.forEach(it -> this.hierarchyWithin.put(it.getReferenceName().orElse(null), it));
@@ -1167,8 +1167,8 @@ public class EvitaRequest {
 		@Nonnull
 		public AttributeRequest attributeRequest() {
 			return new AttributeRequest(
-				attributeContent == null ? Collections.emptySet() : attributeContent.getAttributeNamesAsSet(),
-				attributeContent != null
+				this.attributeContent == null ? Collections.emptySet() : this.attributeContent.getAttributeNamesAsSet(),
+				this.attributeContent != null
 			);
 		}
 
@@ -1177,8 +1177,8 @@ public class EvitaRequest {
 		 * @return true if the settings require initialization of referenced entities
 		 */
 		public boolean requiresInit() {
-			return managedReferencesBehaviour != ManagedReferencesBehaviour.ANY ||
-				entityFetch != null || entityGroupFetch != null || filterBy != null || orderBy != null;
+			return this.managedReferencesBehaviour != ManagedReferencesBehaviour.ANY ||
+				this.entityFetch != null || this.entityGroupFetch != null || this.filterBy != null || this.orderBy != null;
 		}
 
 	}

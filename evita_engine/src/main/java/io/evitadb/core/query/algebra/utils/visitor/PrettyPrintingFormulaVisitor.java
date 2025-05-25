@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -94,41 +94,41 @@ public class PrettyPrintingFormulaVisitor implements FormulaVisitor {
 
 	@Override
 	public void visit(@Nonnull Formula formula) {
-		result.append(" ".repeat(Math.max(0, level * indent)));
-		final FormulaInstance alreadySeenFormula = formulasSeen.get(formula);
+		this.result.append(" ".repeat(Math.max(0, this.level * this.indent)));
+		final FormulaInstance alreadySeenFormula = this.formulasSeen.get(formula);
 		if (alreadySeenFormula != null) {
-			result.append("[Ref to #").append(alreadySeenFormula.getId()).append("] ");
+			this.result.append("[Ref to #").append(alreadySeenFormula.getId()).append("] ");
 		} else {
-			final int id = formulasSeen.size();
-			formulasSeen.put(formula, new FormulaInstance(id, formula));
-			result.append("[#").append(id).append("] ");
+			final int id = this.formulasSeen.size();
+			this.formulasSeen.put(formula, new FormulaInstance(id, formula));
+			this.result.append("[#").append(id).append("] ");
 		}
-		if (style == PrettyPrintStyle.VERBOSE) {
-			result.append(formula.toStringVerbose());
+		if (this.style == PrettyPrintStyle.VERBOSE) {
+			this.result.append(formula.toStringVerbose());
 		} else {
-			result.append(formula);
+			this.result.append(formula);
 		}
 		if (formula.getInnerFormulas().length > 0) {
 			try {
-				result.append(" → ")
-					.append(style == PrettyPrintStyle.VERBOSE ? formula.compute() : " result count " + formula.compute().size());
+				this.result.append(" → ")
+					.append(this.style == PrettyPrintStyle.VERBOSE ? formula.compute() : " result count " + formula.compute().size());
 			} catch (Exception ex) {
-				result.append(" → ?");
+				this.result.append(" → ?");
 			}
 		}
-		result.append("\n");
-		level++;
+		this.result.append("\n");
+		this.level++;
 		for (Formula innerFormula : formula.getInnerFormulas()) {
 			innerFormula.accept(this);
 		}
-		level--;
+		this.level--;
 	}
 
 	/**
 	 * Returns string with formula description.
 	 */
 	public String getResult() {
-		return result.toString();
+		return this.result.toString();
 	}
 
 	@Data

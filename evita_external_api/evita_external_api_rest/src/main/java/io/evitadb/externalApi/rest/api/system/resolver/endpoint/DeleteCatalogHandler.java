@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ public class DeleteCatalogHandler extends JsonRestHandler<SystemRestHandlingCont
 		return executionContext.executeAsyncInTransactionThreadPool(
 			() -> {
 				final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-					restHandlingContext.getEvita().getCatalogInstance(catalogName));
+					this.restHandlingContext.getEvita().getCatalogInstance(catalogName));
 				if (catalog.isEmpty()) {
 					requestExecutedEvent.finishOperationExecution();
 					requestExecutedEvent.finishResultSerialization();
@@ -77,7 +77,7 @@ public class DeleteCatalogHandler extends JsonRestHandler<SystemRestHandlingCont
 				}
 
 				final boolean deleted = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-					restHandlingContext.getEvita().deleteCatalogIfExists(catalog.get().getName()));
+					this.restHandlingContext.getEvita().deleteCatalogIfExists(catalog.get().getName()));
 				Assert.isPremiseValid(
 					deleted,
 					() -> new RestInternalError("Could not delete catalog `" + catalog.get().getName() + "`, even though it should exist.")

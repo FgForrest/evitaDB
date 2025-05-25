@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,17 +77,17 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            pageSize_ = input.readInt32();
+            this.pageSize_ = input.readInt32();
             break;
           }
           case 16: {
 
-            pageNumber_ = input.readInt32();
+            this.pageNumber_ = input.readInt32();
             break;
           }
           case 24: {
 
-            lastPageNumber_ = input.readInt32();
+            this.lastPageNumber_ = input.readInt32();
             break;
           }
           default: {
@@ -134,7 +134,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getPageSize() {
-    return pageSize_;
+    return this.pageSize_;
   }
 
   public static final int PAGENUMBER_FIELD_NUMBER = 2;
@@ -149,7 +149,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getPageNumber() {
-    return pageNumber_;
+    return this.pageNumber_;
   }
 
   public static final int LASTPAGENUMBER_FIELD_NUMBER = 3;
@@ -164,55 +164,55 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getLastPageNumber() {
-    return lastPageNumber_;
+    return this.lastPageNumber_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (pageSize_ != 0) {
-      output.writeInt32(1, pageSize_);
+    if (this.pageSize_ != 0) {
+      output.writeInt32(1, this.pageSize_);
     }
-    if (pageNumber_ != 0) {
-      output.writeInt32(2, pageNumber_);
+    if (this.pageNumber_ != 0) {
+      output.writeInt32(2, this.pageNumber_);
     }
-    if (lastPageNumber_ != 0) {
-      output.writeInt32(3, lastPageNumber_);
+    if (this.lastPageNumber_ != 0) {
+      output.writeInt32(3, this.lastPageNumber_);
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (pageSize_ != 0) {
+    if (this.pageSize_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, pageSize_);
+        .computeInt32Size(1, this.pageSize_);
     }
-    if (pageNumber_ != 0) {
+    if (this.pageNumber_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, pageNumber_);
+        .computeInt32Size(2, this.pageNumber_);
     }
-    if (lastPageNumber_ != 0) {
+    if (this.lastPageNumber_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(3, lastPageNumber_);
+        .computeInt32Size(3, this.lastPageNumber_);
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -232,14 +232,14 @@ private static final long serialVersionUID = 0L;
         != other.getPageNumber()) return false;
     if (getLastPageNumber()
         != other.getLastPageNumber()) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -249,8 +249,8 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getPageNumber();
     hash = (37 * hash) + LASTPAGENUMBER_FIELD_NUMBER;
     hash = (53 * hash) + getLastPageNumber();
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -386,11 +386,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      pageSize_ = 0;
+      this.pageSize_ = 0;
 
-      pageNumber_ = 0;
+      this.pageNumber_ = 0;
 
-      lastPageNumber_ = 0;
+      this.lastPageNumber_ = 0;
 
       return this;
     }
@@ -418,9 +418,9 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcPaginatedList buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcPaginatedList result = new io.evitadb.externalApi.grpc.generated.GrpcPaginatedList(this);
-      result.pageSize_ = pageSize_;
-      result.pageNumber_ = pageNumber_;
-      result.lastPageNumber_ = lastPageNumber_;
+      result.pageSize_ = this.pageSize_;
+      result.pageNumber_ = this.pageNumber_;
+      result.lastPageNumber_ = this.lastPageNumber_;
       onBuilt();
       return result;
     }
@@ -518,7 +518,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getPageSize() {
-      return pageSize_;
+      return this.pageSize_;
     }
     /**
      * <pre>
@@ -530,8 +530,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPageSize(int value) {
-      
-      pageSize_ = value;
+
+      this.pageSize_ = value;
       onChanged();
       return this;
     }
@@ -544,8 +544,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPageSize() {
-      
-      pageSize_ = 0;
+
+      this.pageSize_ = 0;
       onChanged();
       return this;
     }
@@ -561,7 +561,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getPageNumber() {
-      return pageNumber_;
+      return this.pageNumber_;
     }
     /**
      * <pre>
@@ -573,8 +573,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPageNumber(int value) {
-      
-      pageNumber_ = value;
+
+      this.pageNumber_ = value;
       onChanged();
       return this;
     }
@@ -587,8 +587,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPageNumber() {
-      
-      pageNumber_ = 0;
+
+      this.pageNumber_ = 0;
       onChanged();
       return this;
     }
@@ -604,7 +604,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getLastPageNumber() {
-      return lastPageNumber_;
+      return this.lastPageNumber_;
     }
     /**
      * <pre>
@@ -616,8 +616,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setLastPageNumber(int value) {
-      
-      lastPageNumber_ = value;
+
+      this.lastPageNumber_ = value;
       onChanged();
       return this;
     }
@@ -630,8 +630,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearLastPageNumber() {
-      
-      lastPageNumber_ = 0;
+
+      this.lastPageNumber_ = 0;
       onChanged();
       return this;
     }

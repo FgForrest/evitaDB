@@ -71,7 +71,7 @@ public class AttributeHistogramResolver {
 		attributeHistogramFields.stream()
 			.flatMap(f -> SelectionSetAggregator.getImmediateFields(f.getSelectionSet()).stream())
 			.forEach(f -> {
-				final AttributeSchemaContract attributeSchema = entitySchema
+				final AttributeSchemaContract attributeSchema = this.entitySchema
 					.getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION)
 					.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + f.getName() + "`."));
 				final String originalAttributeName = attributeSchema.getName();
@@ -106,7 +106,7 @@ public class AttributeHistogramResolver {
 				final List<String> attributes = ((List<String>) f.getArguments().get("attributes"))
 					.stream()
 					.map(a -> {
-						final AttributeSchemaContract attributeSchema = entitySchema
+						final AttributeSchemaContract attributeSchema = this.entitySchema
 							.getAttributeByName(a, PROPERTY_NAME_NAMING_CONVENTION)
 							.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + a + "`."));
 						return attributeSchema.getName();

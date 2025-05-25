@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ public class BigDecimalDataFetcher implements DataFetcher<FormattableBigDecimal>
     @Nullable
     @Override
     public FormattableBigDecimal get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        return Optional.ofNullable(delegate.get(environment))
+        return Optional.ofNullable(this.delegate.get(environment))
             .map(value -> {
                 final boolean shouldBeFormatted = shouldBeFormatted(environment);
                 if (!shouldBeFormatted) {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -89,14 +89,14 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 	protected GraphQLSchemaBuilder(@Nonnull C buildingContext) {
 		this.buildingContext = buildingContext;
 		this.propertyDataTypeBuilderTransformer = new PropertyDataTypeDescriptorToGraphQLTypeTransformer(buildingContext);
-		this.staticEndpointBuilderTransformer = new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer);
-		this.argumentBuilderTransformer = new PropertyDescriptorToGraphQLArgumentTransformer(propertyDataTypeBuilderTransformer);
-		this.fieldBuilderTransformer = new PropertyDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer);
-		this.inputFieldBuilderTransformer = new PropertyDescriptorToGraphQLInputFieldTransformer(propertyDataTypeBuilderTransformer);
-		this.interfaceBuilderTransformer = new ObjectDescriptorToGraphQLInterfaceTransformer(fieldBuilderTransformer);
-		this.objectBuilderTransformer = new ObjectDescriptorToGraphQLObjectTransformer(fieldBuilderTransformer);
+		this.staticEndpointBuilderTransformer = new EndpointDescriptorToGraphQLFieldTransformer(this.propertyDataTypeBuilderTransformer);
+		this.argumentBuilderTransformer = new PropertyDescriptorToGraphQLArgumentTransformer(this.propertyDataTypeBuilderTransformer);
+		this.fieldBuilderTransformer = new PropertyDescriptorToGraphQLFieldTransformer(this.propertyDataTypeBuilderTransformer);
+		this.inputFieldBuilderTransformer = new PropertyDescriptorToGraphQLInputFieldTransformer(this.propertyDataTypeBuilderTransformer);
+		this.interfaceBuilderTransformer = new ObjectDescriptorToGraphQLInterfaceTransformer(this.fieldBuilderTransformer);
+		this.objectBuilderTransformer = new ObjectDescriptorToGraphQLObjectTransformer(this.fieldBuilderTransformer);
 		this.unionBuilderTransformer = new ObjectDescriptorToGraphQLUnionTransformer();
-		this.inputObjectBuilderTransformer = new ObjectDescriptorToGraphQLInputObjectTransformer(inputFieldBuilderTransformer);
+		this.inputObjectBuilderTransformer = new ObjectDescriptorToGraphQLInputObjectTransformer(this.inputFieldBuilderTransformer);
 	}
 
 

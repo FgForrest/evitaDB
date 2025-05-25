@@ -61,7 +61,7 @@ class LocalCatalogSchemaMutationAggregateConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new LocalCatalogSchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new LocalCatalogSchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -73,7 +73,7 @@ class LocalCatalogSchemaMutationAggregateConverterTest {
 			new DisallowEvolutionModeInCatalogSchemaMutation(CatalogEvolutionMode.ADDING_ENTITY_TYPES)
 		);
 
-		final List<LocalCatalogSchemaMutation> convertedMutations1 = converter.convertFromInput(
+		final List<LocalCatalogSchemaMutation> convertedMutations1 = this.converter.convertFromInput(
 			map()
 				.e(LocalCatalogSchemaMutationAggregateDescriptor.MODIFY_ATTRIBUTE_SCHEMA_DESCRIPTION_MUTATION.name(), map()
 					.e(ModifyAttributeSchemaDescriptionMutationDescriptor.NAME.name(), "code")
@@ -94,13 +94,13 @@ class LocalCatalogSchemaMutationAggregateConverterTest {
 	}
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final List<LocalCatalogSchemaMutation> convertedMutations = converter.convertFromInput(Map.of());
+		final List<LocalCatalogSchemaMutation> convertedMutations = this.converter.convertFromInput(Map.of());
 		assertEquals(List.of(), convertedMutations);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(null));
 	}
 
 	@Test
@@ -113,7 +113,7 @@ class LocalCatalogSchemaMutationAggregateConverterTest {
 		);
 
 		//noinspection unchecked
-		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) converter.convertToOutput(inputMutation);
+		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

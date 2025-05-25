@@ -61,13 +61,13 @@ public class CatalogGraphQLBuilder implements GraphQLBuilder {
     public GraphQL build(@Nonnull GraphQLOptions config) {
         final Instrumentation instrumentation = new ChainedInstrumentation(
             new OperationTracingInstrumentation(),
-            new RequestMetricInstrumentation(catalog.getName()),
-            new EvitaSessionManagingInstrumentation(evita, catalog.getName()),
-            new SourceQueryRecordingInstrumentation(objectMapper, evita.getConfiguration().server().trafficRecording())
+            new RequestMetricInstrumentation(this.catalog.getName()),
+            new EvitaSessionManagingInstrumentation(this.evita, this.catalog.getName()),
+            new SourceQueryRecordingInstrumentation(this.objectMapper, this.evita.getConfiguration().server().trafficRecording())
         );
         final EvitaDataFetcherExceptionHandler dataFetcherExceptionHandler = new EvitaDataFetcherExceptionHandler();
 
-        return GraphQL.newGraphQL(graphQLSchema)
+        return GraphQL.newGraphQL(this.graphQLSchema)
             .instrumentation(instrumentation)
             .defaultDataFetcherExceptionHandler(dataFetcherExceptionHandler)
             .build();

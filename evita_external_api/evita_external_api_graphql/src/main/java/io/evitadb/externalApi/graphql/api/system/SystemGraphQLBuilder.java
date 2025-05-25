@@ -55,7 +55,7 @@ public class SystemGraphQLBuilder implements GraphQLBuilder {
 
         final EvitaDataFetcherExceptionHandler dataFetcherExceptionHandler = new EvitaDataFetcherExceptionHandler();
 
-        return GraphQL.newGraphQL(graphQLSchema)
+        return GraphQL.newGraphQL(this.graphQLSchema)
             .instrumentation(instrumentation)
             .defaultDataFetcherExceptionHandler(dataFetcherExceptionHandler)
             .build();

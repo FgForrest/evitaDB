@@ -50,14 +50,14 @@ class RemovePriceMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter =  new RemovePriceMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new RemovePriceMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final RemovePriceMutation expectedMutation = new RemovePriceMutation(1, "basic", Currency.getInstance("CZK"));
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
 				.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -66,7 +66,7 @@ class RemovePriceMutationConverterTest {
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
 				.e(RemovePriceMutationDescriptor.PRICE_ID.name(), "1")
 				.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -80,7 +80,7 @@ class RemovePriceMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -89,7 +89,7 @@ class RemovePriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(RemovePriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
@@ -98,15 +98,15 @@ class RemovePriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
 					.e(RemovePriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -119,7 +119,7 @@ class RemovePriceMutationConverterTest {
 				.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
 				.e(RemovePriceMutationDescriptor.CURRENCY.name(), "CZK")
 				.build(),
-			converter.convertToOutput(inputMutation)
+			this.converter.convertToOutput(inputMutation)
 		);
 	}
 }

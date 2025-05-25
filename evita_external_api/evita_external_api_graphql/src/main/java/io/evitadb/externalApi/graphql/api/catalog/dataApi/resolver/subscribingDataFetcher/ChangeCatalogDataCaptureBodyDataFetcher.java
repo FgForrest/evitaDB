@@ -68,7 +68,7 @@ public class ChangeCatalogDataCaptureBodyDataFetcher implements DataFetcher<Obje
 			body != null,
 			() -> new GraphQLQueryResolvingInternalError("ChangeCatalogCapture body is null even though it was requested.")
 		);
-		final Object convertedBody = bodyConverter.convertToOutput(body);
+		final Object convertedBody = this.bodyConverter.convertToOutput(body);
 		Assert.isPremiseValid(
 			convertedBody != null,
 			() -> new GraphQLQueryResolvingInternalError("Converter body is null even though source body is present.")

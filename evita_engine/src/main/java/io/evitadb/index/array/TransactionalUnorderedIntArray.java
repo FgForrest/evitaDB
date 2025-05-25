@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -75,14 +75,14 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 	 * Returns array of positions that corresponds to the monotonic record id array {@link #getRecordIds()}.
 	 */
 	public int[] getPositions() {
-		return lookup.getPositions();
+		return this.lookup.getPositions();
 	}
 
 	/**
 	 * Monotonic record array (i.e. record ids sorted by their id rather than the original order).
 	 */
 	public Bitmap getRecordIds() {
-		return new BaseBitmap(lookup.getRecordIds());
+		return new BaseBitmap(this.lookup.getRecordIds());
 	}
 
 	/**

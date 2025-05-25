@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ public class OnSchemaChangeSubscribingDataFetcher extends ChangeSubscribingDataF
 				new ChangeCatalogCaptureCriteria(
 					CaptureArea.SCHEMA,
 					new SchemaSite(
-						Optional.ofNullable(entitySchema).map(NamedSchemaContract::getName).orElse(null),
+						Optional.ofNullable(this.entitySchema).map(NamedSchemaContract::getName).orElse(null),
 						Optional.ofNullable(operation).map(it -> it.toArray(Operation[]::new)).orElse(null),
 						/* TODO JNO - ADD container type */
 						null

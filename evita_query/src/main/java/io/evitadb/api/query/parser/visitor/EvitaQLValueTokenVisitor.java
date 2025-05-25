@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -180,7 +180,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
         return parse(
             ctx,
             () -> {
-                final Object argument = ctx.positionalParameter().accept(parameterVisitor);
+                final Object argument = ctx.positionalParameter().accept(this.parameterVisitor);
                 return parseVariadicArguments(ctx, argument);
             }
         );
@@ -191,7 +191,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
         return parse(
             ctx,
             () -> {
-                final Object argument = ctx.namedParameter().accept(parameterVisitor);
+                final Object argument = ctx.namedParameter().accept(this.parameterVisitor);
                 return parseVariadicArguments(ctx, argument);
             }
         );
@@ -215,7 +215,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
         return parse(
             ctx,
             () -> {
-                final Object argument = ctx.positionalParameter().accept(parameterVisitor);
+                final Object argument = ctx.positionalParameter().accept(this.parameterVisitor);
                 assertDataTypeIsAllowed(ctx, argument.getClass());
                 return new Value(argument);
             }
@@ -227,7 +227,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
         return parse(
             ctx,
             () -> {
-                final Object argument = ctx.namedParameter().accept(parameterVisitor);
+                final Object argument = ctx.namedParameter().accept(this.parameterVisitor);
                 assertDataTypeIsAllowed(ctx, argument.getClass());
                 return new Value(argument);
             }
@@ -411,7 +411,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
      * @param dataType data type to check
      */
     protected void assertDataTypeIsAllowed(@Nonnull ParserRuleContext ctx, @Nonnull Class<?> dataType) {
-        if ((allowedDataTypes != null) && allowedDataTypes.stream().anyMatch(type -> type.isAssignableFrom(dataType))) {
+        if ((this.allowedDataTypes != null) && this.allowedDataTypes.stream().anyMatch(type -> type.isAssignableFrom(dataType))) {
             return;
         }
 
@@ -432,7 +432,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
      * @param dataType data type to check
      */
     protected void assertSubclassOfDataTypeIsAllowed(@Nonnull ParserRuleContext ctx, @Nonnull Class<?> dataType) {
-        if ((allowedDataTypes != null) && allowedDataTypes.stream().anyMatch(dataType::isAssignableFrom)) {
+        if ((this.allowedDataTypes != null) && this.allowedDataTypes.stream().anyMatch(dataType::isAssignableFrom)) {
             return;
         }
 

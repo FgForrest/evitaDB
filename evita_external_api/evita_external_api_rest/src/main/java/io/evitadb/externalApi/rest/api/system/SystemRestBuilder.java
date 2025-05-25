@@ -77,34 +77,34 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		buildCommonTypes();
 		buildEndpoints();
 
-		return buildingContext.buildRest();
+		return this.buildingContext.buildRest();
 	}
 
 	private void buildCommonTypes() {
-		buildingContext.registerType(ErrorDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(LivenessDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(NameVariantsDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(CatalogDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(buildCatalogUnion());
-		buildingContext.registerType(CorruptedCatalogDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(CreateCatalogRequestDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(UpdateCatalogRequestDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(ErrorDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(LivenessDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(NameVariantsDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(CatalogDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(buildCatalogUnion());
+		this.buildingContext.registerType(CorruptedCatalogDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(CreateCatalogRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(UpdateCatalogRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
 	}
 
 	private void buildEndpoints() {
-		buildingContext.registerEndpoint(endpointBuilder.buildOpenApiSpecificationEndpoint());
-		buildingContext.registerEndpoint(endpointBuilder.buildLivenessEndpoint());
-		buildingContext.registerEndpoint(endpointBuilder.buildGetCatalogEndpoint());
-		buildingContext.registerEndpoint(endpointBuilder.buildListCatalogsEndpoint());
-		buildingContext.registerEndpoint(endpointBuilder.buildCreateCatalogEndpoint());
-		buildingContext.registerEndpoint(endpointBuilder.buildUpdateCatalogEndpoint());
-		buildingContext.registerEndpoint(endpointBuilder.buildDeleteCatalogEndpoint());
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildOpenApiSpecificationEndpoint());
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildLivenessEndpoint());
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildGetCatalogEndpoint());
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildListCatalogsEndpoint());
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildCreateCatalogEndpoint());
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildUpdateCatalogEndpoint());
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildDeleteCatalogEndpoint());
 	}
 
 	@Nonnull
 	private OpenApiUnion buildCatalogUnion() {
 		return CatalogUnionDescriptor.THIS
-			.to(unionBuilderTransformer)
+			.to(this.unionBuilderTransformer)
 			.type(OpenApiObjectUnionType.ONE_OF)
 			.object(typeRefTo(CatalogDescriptor.THIS.name()))
 			.object(typeRefTo(CorruptedCatalogDescriptor.THIS.name()))

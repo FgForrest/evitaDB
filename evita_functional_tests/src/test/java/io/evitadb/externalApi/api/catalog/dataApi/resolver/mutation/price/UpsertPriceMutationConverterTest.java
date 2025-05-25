@@ -57,7 +57,7 @@ class UpsertPriceMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter =  new UpsertPriceMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new UpsertPriceMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -78,7 +78,7 @@ class UpsertPriceMutationConverterTest {
 			true
 		);
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 				.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -93,7 +93,7 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
 				.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 				.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -123,7 +123,7 @@ class UpsertPriceMutationConverterTest {
 			false
 		);
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 				.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -141,7 +141,7 @@ class UpsertPriceMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -154,7 +154,7 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -167,7 +167,7 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -180,7 +180,7 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -193,7 +193,7 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -206,7 +206,7 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
@@ -219,7 +219,7 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
 					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
@@ -230,8 +230,8 @@ class UpsertPriceMutationConverterTest {
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -253,7 +253,7 @@ class UpsertPriceMutationConverterTest {
 		);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

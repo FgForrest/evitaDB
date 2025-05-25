@@ -96,7 +96,7 @@ public class GraphQLInputJsonPrinter {
 	public String print(@Nonnull JsonNode node) {
 		String graphQLJson;
 		try {
-			graphQLJson = constraintWriter.writeValueAsString(node);
+			graphQLJson = this.constraintWriter.writeValueAsString(node);
 		} catch (JsonProcessingException e) {
 			throw new IllegalStateException(e);
 		}
@@ -108,7 +108,7 @@ public class GraphQLInputJsonPrinter {
 
 	@Nonnull
 	private String correctEnumValues(@Nonnull String graphQLJson) {
-		final Matcher enumMatcher = knownEnumItemsPattern.matcher(graphQLJson);
+		final Matcher enumMatcher = this.knownEnumItemsPattern.matcher(graphQLJson);
 		return enumMatcher.replaceAll(mr -> mr.group(1));
 	}
 
@@ -127,7 +127,7 @@ public class GraphQLInputJsonPrinter {
 	private class CustomPrettyPrinter extends DefaultPrettyPrinter {
 		public CustomPrettyPrinter() {
 			super._arrayIndenter = new DefaultIndenter();
-			super._objectFieldValueSeparatorWithSpaces = _separators.getObjectFieldValueSeparator() + " ";
+			super._objectFieldValueSeparatorWithSpaces = this._separators.getObjectFieldValueSeparator() + " ";
 		}
 
 		@Override

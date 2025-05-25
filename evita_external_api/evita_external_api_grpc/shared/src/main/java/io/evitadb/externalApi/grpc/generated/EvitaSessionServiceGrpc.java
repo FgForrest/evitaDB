@@ -3183,145 +3183,145 @@ public final class EvitaSessionServiceGrpc {
     @java.lang.Override
     @java.lang.SuppressWarnings("unchecked")
     public void invoke(Req request, io.grpc.stub.StreamObserver<Resp> responseObserver) {
-      switch (methodId) {
+      switch (this.methodId) {
         case METHODID_GET_CATALOG_SCHEMA:
-          serviceImpl.getCatalogSchema((io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest) request,
+          this.serviceImpl.getCatalogSchema((io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse>) responseObserver);
           break;
         case METHODID_GET_CATALOG_STATE:
-          serviceImpl.getCatalogState((com.google.protobuf.Empty) request,
+          this.serviceImpl.getCatalogState((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse>) responseObserver);
           break;
         case METHODID_GET_CATALOG_VERSION_AT:
-          serviceImpl.getCatalogVersionAt((io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtRequest) request,
+          this.serviceImpl.getCatalogVersionAt((io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtResponse>) responseObserver);
           break;
         case METHODID_GET_MUTATIONS_HISTORY_PAGE:
-          serviceImpl.getMutationsHistoryPage((io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest) request,
+          this.serviceImpl.getMutationsHistoryPage((io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse>) responseObserver);
           break;
         case METHODID_GET_MUTATIONS_HISTORY:
-          serviceImpl.getMutationsHistory((io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest) request,
+          this.serviceImpl.getMutationsHistory((io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse>) responseObserver);
           break;
         case METHODID_GET_ENTITY_SCHEMA:
-          serviceImpl.getEntitySchema((io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest) request,
+          this.serviceImpl.getEntitySchema((io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse>) responseObserver);
           break;
         case METHODID_GET_ALL_ENTITY_TYPES:
-          serviceImpl.getAllEntityTypes((com.google.protobuf.Empty) request,
+          this.serviceImpl.getAllEntityTypes((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityTypesResponse>) responseObserver);
           break;
         case METHODID_GO_LIVE_AND_CLOSE:
-          serviceImpl.goLiveAndClose((com.google.protobuf.Empty) request,
+          this.serviceImpl.goLiveAndClose((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse>) responseObserver);
           break;
         case METHODID_BACKUP_CATALOG:
-          serviceImpl.backupCatalog((io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest) request,
+          this.serviceImpl.backupCatalog((io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse>) responseObserver);
           break;
         case METHODID_CLOSE:
-          serviceImpl.close((io.evitadb.externalApi.grpc.generated.GrpcCloseRequest) request,
+          this.serviceImpl.close((io.evitadb.externalApi.grpc.generated.GrpcCloseRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseResponse>) responseObserver);
           break;
         case METHODID_CLOSE_WITH_PROGRESS:
-          serviceImpl.closeWithProgress((com.google.protobuf.Empty) request,
+          this.serviceImpl.closeWithProgress((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse>) responseObserver);
           break;
         case METHODID_QUERY_ONE:
-          serviceImpl.queryOne((io.evitadb.externalApi.grpc.generated.GrpcQueryRequest) request,
+          this.serviceImpl.queryOne((io.evitadb.externalApi.grpc.generated.GrpcQueryRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse>) responseObserver);
           break;
         case METHODID_QUERY_LIST:
-          serviceImpl.queryList((io.evitadb.externalApi.grpc.generated.GrpcQueryRequest) request,
+          this.serviceImpl.queryList((io.evitadb.externalApi.grpc.generated.GrpcQueryRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse>) responseObserver);
           break;
         case METHODID_QUERY:
-          serviceImpl.query((io.evitadb.externalApi.grpc.generated.GrpcQueryRequest) request,
+          this.serviceImpl.query((io.evitadb.externalApi.grpc.generated.GrpcQueryRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryResponse>) responseObserver);
           break;
         case METHODID_QUERY_ONE_UNSAFE:
-          serviceImpl.queryOneUnsafe((io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest) request,
+          this.serviceImpl.queryOneUnsafe((io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse>) responseObserver);
           break;
         case METHODID_QUERY_LIST_UNSAFE:
-          serviceImpl.queryListUnsafe((io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest) request,
+          this.serviceImpl.queryListUnsafe((io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse>) responseObserver);
           break;
         case METHODID_QUERY_UNSAFE:
-          serviceImpl.queryUnsafe((io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest) request,
+          this.serviceImpl.queryUnsafe((io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcQueryResponse>) responseObserver);
           break;
         case METHODID_GET_ENTITY:
-          serviceImpl.getEntity((io.evitadb.externalApi.grpc.generated.GrpcEntityRequest) request,
+          this.serviceImpl.getEntity((io.evitadb.externalApi.grpc.generated.GrpcEntityRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityResponse>) responseObserver);
           break;
         case METHODID_UPDATE_CATALOG_SCHEMA:
-          serviceImpl.updateCatalogSchema((io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest) request,
+          this.serviceImpl.updateCatalogSchema((io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse>) responseObserver);
           break;
         case METHODID_UPDATE_AND_FETCH_CATALOG_SCHEMA:
-          serviceImpl.updateAndFetchCatalogSchema((io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest) request,
+          this.serviceImpl.updateAndFetchCatalogSchema((io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchCatalogSchemaResponse>) responseObserver);
           break;
         case METHODID_DEFINE_ENTITY_SCHEMA:
-          serviceImpl.defineEntitySchema((io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaRequest) request,
+          this.serviceImpl.defineEntitySchema((io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaResponse>) responseObserver);
           break;
         case METHODID_UPDATE_ENTITY_SCHEMA:
-          serviceImpl.updateEntitySchema((io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest) request,
+          this.serviceImpl.updateEntitySchema((io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaResponse>) responseObserver);
           break;
         case METHODID_UPDATE_AND_FETCH_ENTITY_SCHEMA:
-          serviceImpl.updateAndFetchEntitySchema((io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest) request,
+          this.serviceImpl.updateAndFetchEntitySchema((io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchEntitySchemaResponse>) responseObserver);
           break;
         case METHODID_DELETE_COLLECTION:
-          serviceImpl.deleteCollection((io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionRequest) request,
+          this.serviceImpl.deleteCollection((io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionResponse>) responseObserver);
           break;
         case METHODID_RENAME_COLLECTION:
-          serviceImpl.renameCollection((io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionRequest) request,
+          this.serviceImpl.renameCollection((io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionResponse>) responseObserver);
           break;
         case METHODID_REPLACE_COLLECTION:
-          serviceImpl.replaceCollection((io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest) request,
+          this.serviceImpl.replaceCollection((io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionResponse>) responseObserver);
           break;
         case METHODID_GET_ENTITY_COLLECTION_SIZE:
-          serviceImpl.getEntityCollectionSize((io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeRequest) request,
+          this.serviceImpl.getEntityCollectionSize((io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeResponse>) responseObserver);
           break;
         case METHODID_UPSERT_ENTITY:
-          serviceImpl.upsertEntity((io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest) request,
+          this.serviceImpl.upsertEntity((io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityResponse>) responseObserver);
           break;
         case METHODID_DELETE_ENTITY:
-          serviceImpl.deleteEntity((io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest) request,
+          this.serviceImpl.deleteEntity((io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityResponse>) responseObserver);
           break;
         case METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY:
-          serviceImpl.deleteEntityAndItsHierarchy((io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest) request,
+          this.serviceImpl.deleteEntityAndItsHierarchy((io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse>) responseObserver);
           break;
         case METHODID_DELETE_ENTITIES:
-          serviceImpl.deleteEntities((io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest) request,
+          this.serviceImpl.deleteEntities((io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse>) responseObserver);
           break;
         case METHODID_ARCHIVE_ENTITY:
-          serviceImpl.archiveEntity((io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest) request,
+          this.serviceImpl.archiveEntity((io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse>) responseObserver);
           break;
         case METHODID_RESTORE_ENTITY:
-          serviceImpl.restoreEntity((io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest) request,
+          this.serviceImpl.restoreEntity((io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse>) responseObserver);
           break;
         case METHODID_GET_TRANSACTION_ID:
-          serviceImpl.getTransactionId((com.google.protobuf.Empty) request,
+          this.serviceImpl.getTransactionId((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse>) responseObserver);
           break;
         case METHODID_REGISTER_CHANGE_CATALOG_CAPTURE:
-          serviceImpl.registerChangeCatalogCapture((io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest) request,
+          this.serviceImpl.registerChangeCatalogCapture((io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse>) responseObserver);
           break;
         default:
@@ -3333,7 +3333,7 @@ public final class EvitaSessionServiceGrpc {
     @java.lang.SuppressWarnings("unchecked")
     public io.grpc.stub.StreamObserver<Req> invoke(
         io.grpc.stub.StreamObserver<Resp> responseObserver) {
-      switch (methodId) {
+      switch (this.methodId) {
         default:
           throw new AssertionError();
       }
@@ -3621,7 +3621,7 @@ public final class EvitaSessionServiceGrpc {
 
     @java.lang.Override
     public com.google.protobuf.Descriptors.MethodDescriptor getMethodDescriptor() {
-      return getServiceDescriptor().findMethodByName(methodName);
+      return getServiceDescriptor().findMethodByName(this.methodName);
     }
   }
 

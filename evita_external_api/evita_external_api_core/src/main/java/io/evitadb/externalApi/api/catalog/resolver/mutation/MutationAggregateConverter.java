@@ -83,29 +83,29 @@ public abstract class MutationAggregateConverter<M extends Mutation, C extends M
 	 */
 	@Nonnull
 	public List<M> convertFromInput(@Nullable Object rawInputMutationObject) {
-		final Object inputMutationObject = objectParser.parse(rawInputMutationObject);
-		return convertFromInput(new Input(getMutationAggregateName(), inputMutationObject, exceptionFactory));
+		final Object inputMutationObject = this.objectParser.parse(rawInputMutationObject);
+		return convertFromInput(new Input(getMutationAggregateName(), inputMutationObject, this.exceptionFactory));
 	}
 
 	@Nullable
 	public Object convertToOutput(@Nonnull M mutation) {
 		final Output output = new Output(getMutationAggregateName(), getExceptionFactory());
 		convertToOutput(mutation, output);
-		return objectParser.serialize(output.getOutputMutationObject());
+		return this.objectParser.serialize(output.getOutputMutationObject());
 	}
 
 	@Nullable
 	public Object convertToOutput(@Nonnull M[] mutations) {
 		final Output output = new Output(getMutationAggregateName(), getExceptionFactory());
 		convertToOutput(List.of(mutations), output);
-		return objectParser.serialize(output.getOutputMutationObject());
+		return this.objectParser.serialize(output.getOutputMutationObject());
 	}
 
 	@Nullable
 	public Object convertToOutput(@Nonnull Collection<M> mutations) {
 		final Output output = new Output(getMutationAggregateName(), getExceptionFactory());
 		convertToOutput(mutations, output);
-		return objectParser.serialize(output.getOutputMutationObject());
+		return this.objectParser.serialize(output.getOutputMutationObject());
 	}
 
 	protected void convertToOutput(@Nonnull M mutation, @Nonnull Output output) {

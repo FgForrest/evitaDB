@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,69 +77,69 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder subBuilder = null;
-            if (facetEntityReference_ != null) {
-              subBuilder = facetEntityReference_.toBuilder();
+            if (this.facetEntityReference_ != null) {
+              subBuilder = this.facetEntityReference_.toBuilder();
             }
-            facetEntityReference_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEntityReference.parser(), extensionRegistry);
+            this.facetEntityReference_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEntityReference.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(facetEntityReference_);
-              facetEntityReference_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.facetEntityReference_);
+              this.facetEntityReference_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 18: {
             io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder subBuilder = null;
-            if (facetEntity_ != null) {
-              subBuilder = facetEntity_.toBuilder();
+            if (this.facetEntity_ != null) {
+              subBuilder = this.facetEntity_.toBuilder();
             }
-            facetEntity_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.parser(), extensionRegistry);
+            this.facetEntity_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(facetEntity_);
-              facetEntity_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.facetEntity_);
+              this.facetEntity_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 24: {
 
-            requested_ = input.readBool();
+            this.requested_ = input.readBool();
             break;
           }
           case 32: {
 
-            count_ = input.readInt32();
+            this.count_ = input.readInt32();
             break;
           }
           case 42: {
             com.google.protobuf.Int32Value.Builder subBuilder = null;
-            if (impact_ != null) {
-              subBuilder = impact_.toBuilder();
+            if (this.impact_ != null) {
+              subBuilder = this.impact_.toBuilder();
             }
-            impact_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            this.impact_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(impact_);
-              impact_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.impact_);
+              this.impact_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 50: {
             com.google.protobuf.Int32Value.Builder subBuilder = null;
-            if (matchCount_ != null) {
-              subBuilder = matchCount_.toBuilder();
+            if (this.matchCount_ != null) {
+              subBuilder = this.matchCount_.toBuilder();
             }
-            matchCount_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            this.matchCount_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(matchCount_);
-              matchCount_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.matchCount_);
+              this.matchCount_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 56: {
 
-            hasSense_ = input.readBool();
+            this.hasSense_ = input.readBool();
             break;
           }
           default: {
@@ -186,7 +186,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasFacetEntityReference() {
-    return facetEntityReference_ != null;
+    return this.facetEntityReference_ != null;
   }
   /**
    * <pre>
@@ -198,7 +198,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityReference getFacetEntityReference() {
-    return facetEntityReference_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : facetEntityReference_;
+    return this.facetEntityReference_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : this.facetEntityReference_;
   }
   /**
    * <pre>
@@ -224,7 +224,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasFacetEntity() {
-    return facetEntity_ != null;
+    return this.facetEntity_ != null;
   }
   /**
    * <pre>
@@ -236,7 +236,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getFacetEntity() {
-    return facetEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : facetEntity_;
+    return this.facetEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : this.facetEntity_;
   }
   /**
    * <pre>
@@ -262,7 +262,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean getRequested() {
-    return requested_;
+    return this.requested_;
   }
 
   public static final int COUNT_FIELD_NUMBER = 4;
@@ -277,7 +277,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getCount() {
-    return count_;
+    return this.count_;
   }
 
   public static final int IMPACT_FIELD_NUMBER = 5;
@@ -293,7 +293,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasImpact() {
-    return impact_ != null;
+    return this.impact_ != null;
   }
   /**
    * <pre>
@@ -306,7 +306,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.Int32Value getImpact() {
-    return impact_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : impact_;
+    return this.impact_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : this.impact_;
   }
   /**
    * <pre>
@@ -333,7 +333,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasMatchCount() {
-    return matchCount_ != null;
+    return this.matchCount_ != null;
   }
   /**
    * <pre>
@@ -345,7 +345,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.Int32Value getMatchCount() {
-    return matchCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : matchCount_;
+    return this.matchCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : this.matchCount_;
   }
   /**
    * <pre>
@@ -374,83 +374,83 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean getHasSense() {
-    return hasSense_;
+    return this.hasSense_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (facetEntityReference_ != null) {
+    if (this.facetEntityReference_ != null) {
       output.writeMessage(1, getFacetEntityReference());
     }
-    if (facetEntity_ != null) {
+    if (this.facetEntity_ != null) {
       output.writeMessage(2, getFacetEntity());
     }
-    if (requested_ != false) {
-      output.writeBool(3, requested_);
+    if (this.requested_ != false) {
+      output.writeBool(3, this.requested_);
     }
-    if (count_ != 0) {
-      output.writeInt32(4, count_);
+    if (this.count_ != 0) {
+      output.writeInt32(4, this.count_);
     }
-    if (impact_ != null) {
+    if (this.impact_ != null) {
       output.writeMessage(5, getImpact());
     }
-    if (matchCount_ != null) {
+    if (this.matchCount_ != null) {
       output.writeMessage(6, getMatchCount());
     }
-    if (hasSense_ != false) {
-      output.writeBool(7, hasSense_);
+    if (this.hasSense_ != false) {
+      output.writeBool(7, this.hasSense_);
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (facetEntityReference_ != null) {
+    if (this.facetEntityReference_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getFacetEntityReference());
     }
-    if (facetEntity_ != null) {
+    if (this.facetEntity_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getFacetEntity());
     }
-    if (requested_ != false) {
+    if (this.requested_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(3, requested_);
+        .computeBoolSize(3, this.requested_);
     }
-    if (count_ != 0) {
+    if (this.count_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(4, count_);
+        .computeInt32Size(4, this.count_);
     }
-    if (impact_ != null) {
+    if (this.impact_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(5, getImpact());
     }
-    if (matchCount_ != null) {
+    if (this.matchCount_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(6, getMatchCount());
     }
-    if (hasSense_ != false) {
+    if (this.hasSense_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(7, hasSense_);
+        .computeBoolSize(7, this.hasSense_);
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -490,14 +490,14 @@ private static final long serialVersionUID = 0L;
     }
     if (getHasSense()
         != other.getHasSense()) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -525,8 +525,8 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + HASSENSE_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getHasSense());
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -662,35 +662,35 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (facetEntityReferenceBuilder_ == null) {
-        facetEntityReference_ = null;
+      if (this.facetEntityReferenceBuilder_ == null) {
+        this.facetEntityReference_ = null;
       } else {
-        facetEntityReference_ = null;
-        facetEntityReferenceBuilder_ = null;
+        this.facetEntityReference_ = null;
+        this.facetEntityReferenceBuilder_ = null;
       }
-      if (facetEntityBuilder_ == null) {
-        facetEntity_ = null;
+      if (this.facetEntityBuilder_ == null) {
+        this.facetEntity_ = null;
       } else {
-        facetEntity_ = null;
-        facetEntityBuilder_ = null;
+        this.facetEntity_ = null;
+        this.facetEntityBuilder_ = null;
       }
-      requested_ = false;
+      this.requested_ = false;
 
-      count_ = 0;
+      this.count_ = 0;
 
-      if (impactBuilder_ == null) {
-        impact_ = null;
+      if (this.impactBuilder_ == null) {
+        this.impact_ = null;
       } else {
-        impact_ = null;
-        impactBuilder_ = null;
+        this.impact_ = null;
+        this.impactBuilder_ = null;
       }
-      if (matchCountBuilder_ == null) {
-        matchCount_ = null;
+      if (this.matchCountBuilder_ == null) {
+        this.matchCount_ = null;
       } else {
-        matchCount_ = null;
-        matchCountBuilder_ = null;
+        this.matchCount_ = null;
+        this.matchCountBuilder_ = null;
       }
-      hasSense_ = false;
+      this.hasSense_ = false;
 
       return this;
     }
@@ -718,29 +718,29 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics result = new io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics(this);
-      if (facetEntityReferenceBuilder_ == null) {
-        result.facetEntityReference_ = facetEntityReference_;
+      if (this.facetEntityReferenceBuilder_ == null) {
+        result.facetEntityReference_ = this.facetEntityReference_;
       } else {
-        result.facetEntityReference_ = facetEntityReferenceBuilder_.build();
+        result.facetEntityReference_ = this.facetEntityReferenceBuilder_.build();
       }
-      if (facetEntityBuilder_ == null) {
-        result.facetEntity_ = facetEntity_;
+      if (this.facetEntityBuilder_ == null) {
+        result.facetEntity_ = this.facetEntity_;
       } else {
-        result.facetEntity_ = facetEntityBuilder_.build();
+        result.facetEntity_ = this.facetEntityBuilder_.build();
       }
-      result.requested_ = requested_;
-      result.count_ = count_;
-      if (impactBuilder_ == null) {
-        result.impact_ = impact_;
+      result.requested_ = this.requested_;
+      result.count_ = this.count_;
+      if (this.impactBuilder_ == null) {
+        result.impact_ = this.impact_;
       } else {
-        result.impact_ = impactBuilder_.build();
+        result.impact_ = this.impactBuilder_.build();
       }
-      if (matchCountBuilder_ == null) {
-        result.matchCount_ = matchCount_;
+      if (this.matchCountBuilder_ == null) {
+        result.matchCount_ = this.matchCount_;
       } else {
-        result.matchCount_ = matchCountBuilder_.build();
+        result.matchCount_ = this.matchCountBuilder_.build();
       }
-      result.hasSense_ = hasSense_;
+      result.hasSense_ = this.hasSense_;
       onBuilt();
       return result;
     }
@@ -851,7 +851,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the facetEntityReference field is set.
      */
     public boolean hasFacetEntityReference() {
-      return facetEntityReferenceBuilder_ != null || facetEntityReference_ != null;
+      return this.facetEntityReferenceBuilder_ != null || this.facetEntityReference_ != null;
     }
     /**
      * <pre>
@@ -862,10 +862,10 @@ private static final long serialVersionUID = 0L;
      * @return The facetEntityReference.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference getFacetEntityReference() {
-      if (facetEntityReferenceBuilder_ == null) {
-        return facetEntityReference_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : facetEntityReference_;
+      if (this.facetEntityReferenceBuilder_ == null) {
+        return this.facetEntityReference_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : this.facetEntityReference_;
       } else {
-        return facetEntityReferenceBuilder_.getMessage();
+        return this.facetEntityReferenceBuilder_.getMessage();
       }
     }
     /**
@@ -876,14 +876,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     public Builder setFacetEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
-      if (facetEntityReferenceBuilder_ == null) {
+      if (this.facetEntityReferenceBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        facetEntityReference_ = value;
+        this.facetEntityReference_ = value;
         onChanged();
       } else {
-        facetEntityReferenceBuilder_.setMessage(value);
+        this.facetEntityReferenceBuilder_.setMessage(value);
       }
 
       return this;
@@ -897,11 +897,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setFacetEntityReference(
         io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder builderForValue) {
-      if (facetEntityReferenceBuilder_ == null) {
-        facetEntityReference_ = builderForValue.build();
+      if (this.facetEntityReferenceBuilder_ == null) {
+        this.facetEntityReference_ = builderForValue.build();
         onChanged();
       } else {
-        facetEntityReferenceBuilder_.setMessage(builderForValue.build());
+        this.facetEntityReferenceBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -914,16 +914,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     public Builder mergeFacetEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
-      if (facetEntityReferenceBuilder_ == null) {
-        if (facetEntityReference_ != null) {
-          facetEntityReference_ =
-            io.evitadb.externalApi.grpc.generated.GrpcEntityReference.newBuilder(facetEntityReference_).mergeFrom(value).buildPartial();
+      if (this.facetEntityReferenceBuilder_ == null) {
+        if (this.facetEntityReference_ != null) {
+          this.facetEntityReference_ =
+            io.evitadb.externalApi.grpc.generated.GrpcEntityReference.newBuilder(this.facetEntityReference_).mergeFrom(value).buildPartial();
         } else {
-          facetEntityReference_ = value;
+          this.facetEntityReference_ = value;
         }
         onChanged();
       } else {
-        facetEntityReferenceBuilder_.mergeFrom(value);
+        this.facetEntityReferenceBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -936,12 +936,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     public Builder clearFacetEntityReference() {
-      if (facetEntityReferenceBuilder_ == null) {
-        facetEntityReference_ = null;
+      if (this.facetEntityReferenceBuilder_ == null) {
+        this.facetEntityReference_ = null;
         onChanged();
       } else {
-        facetEntityReference_ = null;
-        facetEntityReferenceBuilder_ = null;
+        this.facetEntityReference_ = null;
+        this.facetEntityReferenceBuilder_ = null;
       }
 
       return this;
@@ -954,7 +954,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder getFacetEntityReferenceBuilder() {
-      
+
       onChanged();
       return getFacetEntityReferenceFieldBuilder().getBuilder();
     }
@@ -966,11 +966,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getFacetEntityReferenceOrBuilder() {
-      if (facetEntityReferenceBuilder_ != null) {
-        return facetEntityReferenceBuilder_.getMessageOrBuilder();
+      if (this.facetEntityReferenceBuilder_ != null) {
+        return this.facetEntityReferenceBuilder_.getMessageOrBuilder();
       } else {
-        return facetEntityReference_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : facetEntityReference_;
+        return this.facetEntityReference_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : this.facetEntityReference_;
       }
     }
     /**
@@ -981,17 +981,17 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
         getFacetEntityReferenceFieldBuilder() {
-      if (facetEntityReferenceBuilder_ == null) {
-        facetEntityReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.facetEntityReferenceBuilder_ == null) {
+        this.facetEntityReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>(
                 getFacetEntityReference(),
                 getParentForChildren(),
                 isClean());
-        facetEntityReference_ = null;
+        this.facetEntityReference_ = null;
       }
-      return facetEntityReferenceBuilder_;
+      return this.facetEntityReferenceBuilder_;
     }
 
     private io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity_;
@@ -1006,7 +1006,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the facetEntity field is set.
      */
     public boolean hasFacetEntity() {
-      return facetEntityBuilder_ != null || facetEntity_ != null;
+      return this.facetEntityBuilder_ != null || this.facetEntity_ != null;
     }
     /**
      * <pre>
@@ -1017,10 +1017,10 @@ private static final long serialVersionUID = 0L;
      * @return The facetEntity.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getFacetEntity() {
-      if (facetEntityBuilder_ == null) {
-        return facetEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : facetEntity_;
+      if (this.facetEntityBuilder_ == null) {
+        return this.facetEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : this.facetEntity_;
       } else {
-        return facetEntityBuilder_.getMessage();
+        return this.facetEntityBuilder_.getMessage();
       }
     }
     /**
@@ -1031,14 +1031,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     public Builder setFacetEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
-      if (facetEntityBuilder_ == null) {
+      if (this.facetEntityBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        facetEntity_ = value;
+        this.facetEntity_ = value;
         onChanged();
       } else {
-        facetEntityBuilder_.setMessage(value);
+        this.facetEntityBuilder_.setMessage(value);
       }
 
       return this;
@@ -1052,11 +1052,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setFacetEntity(
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
-      if (facetEntityBuilder_ == null) {
-        facetEntity_ = builderForValue.build();
+      if (this.facetEntityBuilder_ == null) {
+        this.facetEntity_ = builderForValue.build();
         onChanged();
       } else {
-        facetEntityBuilder_.setMessage(builderForValue.build());
+        this.facetEntityBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1069,16 +1069,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     public Builder mergeFacetEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
-      if (facetEntityBuilder_ == null) {
-        if (facetEntity_ != null) {
-          facetEntity_ =
-            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.newBuilder(facetEntity_).mergeFrom(value).buildPartial();
+      if (this.facetEntityBuilder_ == null) {
+        if (this.facetEntity_ != null) {
+          this.facetEntity_ =
+            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.newBuilder(this.facetEntity_).mergeFrom(value).buildPartial();
         } else {
-          facetEntity_ = value;
+          this.facetEntity_ = value;
         }
         onChanged();
       } else {
-        facetEntityBuilder_.mergeFrom(value);
+        this.facetEntityBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1091,12 +1091,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     public Builder clearFacetEntity() {
-      if (facetEntityBuilder_ == null) {
-        facetEntity_ = null;
+      if (this.facetEntityBuilder_ == null) {
+        this.facetEntity_ = null;
         onChanged();
       } else {
-        facetEntity_ = null;
-        facetEntityBuilder_ = null;
+        this.facetEntity_ = null;
+        this.facetEntityBuilder_ = null;
       }
 
       return this;
@@ -1109,7 +1109,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getFacetEntityBuilder() {
-      
+
       onChanged();
       return getFacetEntityFieldBuilder().getBuilder();
     }
@@ -1121,11 +1121,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getFacetEntityOrBuilder() {
-      if (facetEntityBuilder_ != null) {
-        return facetEntityBuilder_.getMessageOrBuilder();
+      if (this.facetEntityBuilder_ != null) {
+        return this.facetEntityBuilder_.getMessageOrBuilder();
       } else {
-        return facetEntity_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : facetEntity_;
+        return this.facetEntity_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : this.facetEntity_;
       }
     }
     /**
@@ -1136,17 +1136,17 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getFacetEntityFieldBuilder() {
-      if (facetEntityBuilder_ == null) {
-        facetEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.facetEntityBuilder_ == null) {
+        this.facetEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>(
                 getFacetEntity(),
                 getParentForChildren(),
                 isClean());
-        facetEntity_ = null;
+        this.facetEntity_ = null;
       }
-      return facetEntityBuilder_;
+      return this.facetEntityBuilder_;
     }
 
     private boolean requested_ ;
@@ -1160,7 +1160,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean getRequested() {
-      return requested_;
+      return this.requested_;
     }
     /**
      * <pre>
@@ -1172,8 +1172,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setRequested(boolean value) {
-      
-      requested_ = value;
+
+      this.requested_ = value;
       onChanged();
       return this;
     }
@@ -1186,8 +1186,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearRequested() {
-      
-      requested_ = false;
+
+      this.requested_ = false;
       onChanged();
       return this;
     }
@@ -1203,7 +1203,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getCount() {
-      return count_;
+      return this.count_;
     }
     /**
      * <pre>
@@ -1215,8 +1215,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCount(int value) {
-      
-      count_ = value;
+
+      this.count_ = value;
       onChanged();
       return this;
     }
@@ -1229,8 +1229,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCount() {
-      
-      count_ = 0;
+
+      this.count_ = 0;
       onChanged();
       return this;
     }
@@ -1248,7 +1248,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the impact field is set.
      */
     public boolean hasImpact() {
-      return impactBuilder_ != null || impact_ != null;
+      return this.impactBuilder_ != null || this.impact_ != null;
     }
     /**
      * <pre>
@@ -1260,10 +1260,10 @@ private static final long serialVersionUID = 0L;
      * @return The impact.
      */
     public com.google.protobuf.Int32Value getImpact() {
-      if (impactBuilder_ == null) {
-        return impact_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : impact_;
+      if (this.impactBuilder_ == null) {
+        return this.impact_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : this.impact_;
       } else {
-        return impactBuilder_.getMessage();
+        return this.impactBuilder_.getMessage();
       }
     }
     /**
@@ -1275,14 +1275,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     public Builder setImpact(com.google.protobuf.Int32Value value) {
-      if (impactBuilder_ == null) {
+      if (this.impactBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        impact_ = value;
+        this.impact_ = value;
         onChanged();
       } else {
-        impactBuilder_.setMessage(value);
+        this.impactBuilder_.setMessage(value);
       }
 
       return this;
@@ -1297,11 +1297,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setImpact(
         com.google.protobuf.Int32Value.Builder builderForValue) {
-      if (impactBuilder_ == null) {
-        impact_ = builderForValue.build();
+      if (this.impactBuilder_ == null) {
+        this.impact_ = builderForValue.build();
         onChanged();
       } else {
-        impactBuilder_.setMessage(builderForValue.build());
+        this.impactBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1315,16 +1315,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     public Builder mergeImpact(com.google.protobuf.Int32Value value) {
-      if (impactBuilder_ == null) {
-        if (impact_ != null) {
-          impact_ =
-            com.google.protobuf.Int32Value.newBuilder(impact_).mergeFrom(value).buildPartial();
+      if (this.impactBuilder_ == null) {
+        if (this.impact_ != null) {
+          this.impact_ =
+            com.google.protobuf.Int32Value.newBuilder(this.impact_).mergeFrom(value).buildPartial();
         } else {
-          impact_ = value;
+          this.impact_ = value;
         }
         onChanged();
       } else {
-        impactBuilder_.mergeFrom(value);
+        this.impactBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1338,12 +1338,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     public Builder clearImpact() {
-      if (impactBuilder_ == null) {
-        impact_ = null;
+      if (this.impactBuilder_ == null) {
+        this.impact_ = null;
         onChanged();
       } else {
-        impact_ = null;
-        impactBuilder_ = null;
+        this.impact_ = null;
+        this.impactBuilder_ = null;
       }
 
       return this;
@@ -1357,7 +1357,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     public com.google.protobuf.Int32Value.Builder getImpactBuilder() {
-      
+
       onChanged();
       return getImpactFieldBuilder().getBuilder();
     }
@@ -1370,11 +1370,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getImpactOrBuilder() {
-      if (impactBuilder_ != null) {
-        return impactBuilder_.getMessageOrBuilder();
+      if (this.impactBuilder_ != null) {
+        return this.impactBuilder_.getMessageOrBuilder();
       } else {
-        return impact_ == null ?
-            com.google.protobuf.Int32Value.getDefaultInstance() : impact_;
+        return this.impact_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : this.impact_;
       }
     }
     /**
@@ -1386,17 +1386,17 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getImpactFieldBuilder() {
-      if (impactBuilder_ == null) {
-        impactBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.impactBuilder_ == null) {
+        this.impactBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
                 getImpact(),
                 getParentForChildren(),
                 isClean());
-        impact_ = null;
+        this.impact_ = null;
       }
-      return impactBuilder_;
+      return this.impactBuilder_;
     }
 
     private com.google.protobuf.Int32Value matchCount_;
@@ -1411,7 +1411,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the matchCount field is set.
      */
     public boolean hasMatchCount() {
-      return matchCountBuilder_ != null || matchCount_ != null;
+      return this.matchCountBuilder_ != null || this.matchCount_ != null;
     }
     /**
      * <pre>
@@ -1422,10 +1422,10 @@ private static final long serialVersionUID = 0L;
      * @return The matchCount.
      */
     public com.google.protobuf.Int32Value getMatchCount() {
-      if (matchCountBuilder_ == null) {
-        return matchCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : matchCount_;
+      if (this.matchCountBuilder_ == null) {
+        return this.matchCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : this.matchCount_;
       } else {
-        return matchCountBuilder_.getMessage();
+        return this.matchCountBuilder_.getMessage();
       }
     }
     /**
@@ -1436,14 +1436,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     public Builder setMatchCount(com.google.protobuf.Int32Value value) {
-      if (matchCountBuilder_ == null) {
+      if (this.matchCountBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        matchCount_ = value;
+        this.matchCount_ = value;
         onChanged();
       } else {
-        matchCountBuilder_.setMessage(value);
+        this.matchCountBuilder_.setMessage(value);
       }
 
       return this;
@@ -1457,11 +1457,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setMatchCount(
         com.google.protobuf.Int32Value.Builder builderForValue) {
-      if (matchCountBuilder_ == null) {
-        matchCount_ = builderForValue.build();
+      if (this.matchCountBuilder_ == null) {
+        this.matchCount_ = builderForValue.build();
         onChanged();
       } else {
-        matchCountBuilder_.setMessage(builderForValue.build());
+        this.matchCountBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1474,16 +1474,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     public Builder mergeMatchCount(com.google.protobuf.Int32Value value) {
-      if (matchCountBuilder_ == null) {
-        if (matchCount_ != null) {
-          matchCount_ =
-            com.google.protobuf.Int32Value.newBuilder(matchCount_).mergeFrom(value).buildPartial();
+      if (this.matchCountBuilder_ == null) {
+        if (this.matchCount_ != null) {
+          this.matchCount_ =
+            com.google.protobuf.Int32Value.newBuilder(this.matchCount_).mergeFrom(value).buildPartial();
         } else {
-          matchCount_ = value;
+          this.matchCount_ = value;
         }
         onChanged();
       } else {
-        matchCountBuilder_.mergeFrom(value);
+        this.matchCountBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1496,12 +1496,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     public Builder clearMatchCount() {
-      if (matchCountBuilder_ == null) {
-        matchCount_ = null;
+      if (this.matchCountBuilder_ == null) {
+        this.matchCount_ = null;
         onChanged();
       } else {
-        matchCount_ = null;
-        matchCountBuilder_ = null;
+        this.matchCount_ = null;
+        this.matchCountBuilder_ = null;
       }
 
       return this;
@@ -1514,7 +1514,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     public com.google.protobuf.Int32Value.Builder getMatchCountBuilder() {
-      
+
       onChanged();
       return getMatchCountFieldBuilder().getBuilder();
     }
@@ -1526,11 +1526,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getMatchCountOrBuilder() {
-      if (matchCountBuilder_ != null) {
-        return matchCountBuilder_.getMessageOrBuilder();
+      if (this.matchCountBuilder_ != null) {
+        return this.matchCountBuilder_.getMessageOrBuilder();
       } else {
-        return matchCount_ == null ?
-            com.google.protobuf.Int32Value.getDefaultInstance() : matchCount_;
+        return this.matchCount_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : this.matchCount_;
       }
     }
     /**
@@ -1541,17 +1541,17 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value matchCount = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getMatchCountFieldBuilder() {
-      if (matchCountBuilder_ == null) {
-        matchCountBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.matchCountBuilder_ == null) {
+        this.matchCountBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
                 getMatchCount(),
                 getParentForChildren(),
                 isClean());
-        matchCount_ = null;
+        this.matchCount_ = null;
       }
-      return matchCountBuilder_;
+      return this.matchCountBuilder_;
     }
 
     private boolean hasSense_ ;
@@ -1568,7 +1568,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean getHasSense() {
-      return hasSense_;
+      return this.hasSense_;
     }
     /**
      * <pre>
@@ -1583,8 +1583,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setHasSense(boolean value) {
-      
-      hasSense_ = value;
+
+      this.hasSense_ = value;
       onChanged();
       return this;
     }
@@ -1600,8 +1600,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearHasSense() {
-      
-      hasSense_ = false;
+
+      this.hasSense_ = false;
       onChanged();
       return this;
     }

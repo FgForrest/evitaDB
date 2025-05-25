@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GetTrafficRecordingValuesNamesResponse() {
-    labelValue_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+    this.labelValue_ = com.google.protobuf.LazyStringArrayList.EMPTY;
   }
 
   @java.lang.Override
@@ -80,10 +80,10 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              labelValue_ = new com.google.protobuf.LazyStringArrayList();
+              this.labelValue_ = new com.google.protobuf.LazyStringArrayList();
               mutable_bitField0_ |= 0x00000001;
             }
-            labelValue_.add(s);
+            this.labelValue_.add(s);
             break;
           }
           default: {
@@ -102,7 +102,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        labelValue_ = labelValue_.getUnmodifiableView();
+        this.labelValue_ = this.labelValue_.getUnmodifiableView();
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -133,7 +133,7 @@ private static final long serialVersionUID = 0L;
    */
   public com.google.protobuf.ProtocolStringList
       getLabelValueList() {
-    return labelValue_;
+    return this.labelValue_;
   }
   /**
    * <pre>
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
    * @return The count of labelValue.
    */
   public int getLabelValueCount() {
-    return labelValue_.size();
+    return this.labelValue_.size();
   }
   /**
    * <pre>
@@ -156,7 +156,7 @@ private static final long serialVersionUID = 0L;
    * @return The labelValue at the given index.
    */
   public java.lang.String getLabelValue(int index) {
-    return labelValue_.get(index);
+    return this.labelValue_.get(index);
   }
   /**
    * <pre>
@@ -169,45 +169,45 @@ private static final long serialVersionUID = 0L;
    */
   public com.google.protobuf.ByteString
       getLabelValueBytes(int index) {
-    return labelValue_.getByteString(index);
+    return this.labelValue_.getByteString(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    for (int i = 0; i < labelValue_.size(); i++) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, labelValue_.getRaw(i));
+    for (int i = 0; i < this.labelValue_.size(); i++) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.labelValue_.getRaw(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
     {
       int dataSize = 0;
-      for (int i = 0; i < labelValue_.size(); i++) {
-        dataSize += computeStringSizeNoTag(labelValue_.getRaw(i));
+      for (int i = 0; i < this.labelValue_.size(); i++) {
+        dataSize += computeStringSizeNoTag(this.labelValue_.getRaw(i));
       }
       size += dataSize;
       size += 1 * getLabelValueList().size();
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -223,14 +223,14 @@ private static final long serialVersionUID = 0L;
 
     if (!getLabelValueList()
         .equals(other.getLabelValueList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -238,8 +238,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + LABELVALUE_FIELD_NUMBER;
       hash = (53 * hash) + getLabelValueList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -375,8 +375,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      labelValue_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.labelValue_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       return this;
     }
 
@@ -403,12 +403,12 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse result = new io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse(this);
-      int from_bitField0_ = bitField0_;
-      if (((bitField0_ & 0x00000001) != 0)) {
-        labelValue_ = labelValue_.getUnmodifiableView();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      if (((this.bitField0_ & 0x00000001) != 0)) {
+        this.labelValue_ = this.labelValue_.getUnmodifiableView();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       }
-      result.labelValue_ = labelValue_;
+      result.labelValue_ = this.labelValue_;
       onBuilt();
       return result;
     }
@@ -458,12 +458,12 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse other) {
       if (other == io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse.getDefaultInstance()) return this;
       if (!other.labelValue_.isEmpty()) {
-        if (labelValue_.isEmpty()) {
-          labelValue_ = other.labelValue_;
-          bitField0_ = (bitField0_ & ~0x00000001);
+        if (this.labelValue_.isEmpty()) {
+          this.labelValue_ = other.labelValue_;
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         } else {
           ensureLabelValueIsMutable();
-          labelValue_.addAll(other.labelValue_);
+          this.labelValue_.addAll(other.labelValue_);
         }
         onChanged();
       }
@@ -499,9 +499,9 @@ private static final long serialVersionUID = 0L;
 
     private com.google.protobuf.LazyStringList labelValue_ = com.google.protobuf.LazyStringArrayList.EMPTY;
     private void ensureLabelValueIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        labelValue_ = new com.google.protobuf.LazyStringArrayList(labelValue_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.labelValue_ = new com.google.protobuf.LazyStringArrayList(this.labelValue_);
+        this.bitField0_ |= 0x00000001;
        }
     }
     /**
@@ -514,7 +514,7 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ProtocolStringList
         getLabelValueList() {
-      return labelValue_.getUnmodifiableView();
+      return this.labelValue_.getUnmodifiableView();
     }
     /**
      * <pre>
@@ -525,7 +525,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of labelValue.
      */
     public int getLabelValueCount() {
-      return labelValue_.size();
+      return this.labelValue_.size();
     }
     /**
      * <pre>
@@ -537,7 +537,7 @@ private static final long serialVersionUID = 0L;
      * @return The labelValue at the given index.
      */
     public java.lang.String getLabelValue(int index) {
-      return labelValue_.get(index);
+      return this.labelValue_.get(index);
     }
     /**
      * <pre>
@@ -550,7 +550,7 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getLabelValueBytes(int index) {
-      return labelValue_.getByteString(index);
+      return this.labelValue_.getByteString(index);
     }
     /**
      * <pre>
@@ -568,7 +568,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   ensureLabelValueIsMutable();
-      labelValue_.set(index, value);
+      this.labelValue_.set(index, value);
       onChanged();
       return this;
     }
@@ -587,7 +587,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   ensureLabelValueIsMutable();
-      labelValue_.add(value);
+      this.labelValue_.add(value);
       onChanged();
       return this;
     }
@@ -604,7 +604,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<java.lang.String> values) {
       ensureLabelValueIsMutable();
       com.google.protobuf.AbstractMessageLite.Builder.addAll(
-          values, labelValue_);
+          values, this.labelValue_);
       onChanged();
       return this;
     }
@@ -617,8 +617,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearLabelValue() {
-      labelValue_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.labelValue_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
@@ -638,7 +638,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
       ensureLabelValueIsMutable();
-      labelValue_.add(value);
+      this.labelValue_.add(value);
       onChanged();
       return this;
     }

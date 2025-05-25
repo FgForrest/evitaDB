@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ class DelayedAsyncTaskTest implements TestConstants {
 	void shouldScheduleCallOnlyOnce() throws InterruptedException {
 		final AtomicInteger executed = new AtomicInteger();
 		final DelayedAsyncTask tested = new DelayedAsyncTask(
-			TEST_CATALOG, "testTask", scheduler,
+			TEST_CATALOG, "testTask", this.scheduler,
 			() -> {
 				executed.incrementAndGet();
 				return -1;
@@ -80,7 +80,7 @@ class DelayedAsyncTaskTest implements TestConstants {
 	void shouldScheduleCallManyTimes() throws InterruptedException {
 		final AtomicInteger executed = new AtomicInteger();
 		final DelayedAsyncTask tested = new DelayedAsyncTask(
-			TEST_CATALOG, "testTask", scheduler,
+			TEST_CATALOG, "testTask", this.scheduler,
 			() -> {
 				executed.incrementAndGet();
 				return 0;
@@ -100,7 +100,7 @@ class DelayedAsyncTaskTest implements TestConstants {
 		final AtomicInteger executed = new AtomicInteger();
 		final AtomicInteger counter = new AtomicInteger(100);
 		final DelayedAsyncTask tested = new DelayedAsyncTask(
-			TEST_CATALOG, "testTask", scheduler,
+			TEST_CATALOG, "testTask", this.scheduler,
 			() -> {
 				executed.incrementAndGet();
 				final int planAgainIn = counter.updateAndGet(i -> i / 2 == 0 ? -1 : i / 2);
@@ -123,7 +123,7 @@ class DelayedAsyncTaskTest implements TestConstants {
 		final AtomicInteger executed = new AtomicInteger();
 		final AtomicInteger counter = new AtomicInteger(8);
 		final DelayedAsyncTask tested = new DelayedAsyncTask(
-			TEST_CATALOG, "testTask", scheduler,
+			TEST_CATALOG, "testTask", this.scheduler,
 			() -> {
 				executed.incrementAndGet();
 				return counter.decrementAndGet() > 0 ? 180 : -1;

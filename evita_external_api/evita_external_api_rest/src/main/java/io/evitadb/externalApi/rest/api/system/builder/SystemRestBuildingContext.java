@@ -54,7 +54,7 @@ public class SystemRestBuildingContext extends RestBuildingContext {
 	@Nonnull
 	@Override
 	protected List<Server> buildOpenApiServers() {
-		return Arrays.stream(restConfig.getBaseUrls())
+		return Arrays.stream(this.restConfig.getBaseUrls())
 			.map(baseUrl -> new Server()
 				.url(baseUrl + OpenApiSystemEndpoint.URL_PREFIX))
 			.toList();

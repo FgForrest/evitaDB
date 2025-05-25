@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,18 +77,18 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            catalogVersion_ = input.readInt64();
+            this.catalogVersion_ = input.readInt64();
             break;
           }
           case 18: {
             io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder subBuilder = null;
-            if (transactionId_ != null) {
-              subBuilder = transactionId_.toBuilder();
+            if (this.transactionId_ != null) {
+              subBuilder = this.transactionId_.toBuilder();
             }
-            transactionId_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry);
+            this.transactionId_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(transactionId_);
-              transactionId_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.transactionId_);
+              this.transactionId_ = subBuilder.buildPartial();
             }
 
             break;
@@ -137,7 +137,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public long getCatalogVersion() {
-    return catalogVersion_;
+    return this.catalogVersion_;
   }
 
   public static final int TRANSACTIONID_FIELD_NUMBER = 2;
@@ -152,7 +152,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasTransactionId() {
-    return transactionId_ != null;
+    return this.transactionId_ != null;
   }
   /**
    * <pre>
@@ -164,7 +164,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcUuid getTransactionId() {
-    return transactionId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : transactionId_;
+    return this.transactionId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : this.transactionId_;
   }
   /**
    * <pre>
@@ -181,42 +181,42 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (catalogVersion_ != 0L) {
-      output.writeInt64(1, catalogVersion_);
+    if (this.catalogVersion_ != 0L) {
+      output.writeInt64(1, this.catalogVersion_);
     }
-    if (transactionId_ != null) {
+    if (this.transactionId_ != null) {
       output.writeMessage(2, getTransactionId());
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (catalogVersion_ != 0L) {
+    if (this.catalogVersion_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(1, catalogVersion_);
+        .computeInt64Size(1, this.catalogVersion_);
     }
-    if (transactionId_ != null) {
+    if (this.transactionId_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getTransactionId());
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -237,14 +237,14 @@ private static final long serialVersionUID = 0L;
       if (!getTransactionId()
           .equals(other.getTransactionId())) return false;
     }
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -255,8 +255,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + TRANSACTIONID_FIELD_NUMBER;
       hash = (53 * hash) + getTransactionId().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -392,13 +392,13 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      catalogVersion_ = 0L;
+      this.catalogVersion_ = 0L;
 
-      if (transactionIdBuilder_ == null) {
-        transactionId_ = null;
+      if (this.transactionIdBuilder_ == null) {
+        this.transactionId_ = null;
       } else {
-        transactionId_ = null;
-        transactionIdBuilder_ = null;
+        this.transactionId_ = null;
+        this.transactionIdBuilder_ = null;
       }
       return this;
     }
@@ -426,11 +426,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse result = new io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse(this);
-      result.catalogVersion_ = catalogVersion_;
-      if (transactionIdBuilder_ == null) {
-        result.transactionId_ = transactionId_;
+      result.catalogVersion_ = this.catalogVersion_;
+      if (this.transactionIdBuilder_ == null) {
+        result.transactionId_ = this.transactionId_;
       } else {
-        result.transactionId_ = transactionIdBuilder_.build();
+        result.transactionId_ = this.transactionIdBuilder_.build();
       }
       onBuilt();
       return result;
@@ -526,7 +526,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public long getCatalogVersion() {
-      return catalogVersion_;
+      return this.catalogVersion_;
     }
     /**
      * <pre>
@@ -538,8 +538,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogVersion(long value) {
-      
-      catalogVersion_ = value;
+
+      this.catalogVersion_ = value;
       onChanged();
       return this;
     }
@@ -552,8 +552,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogVersion() {
-      
-      catalogVersion_ = 0L;
+
+      this.catalogVersion_ = 0L;
       onChanged();
       return this;
     }
@@ -570,7 +570,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the transactionId field is set.
      */
     public boolean hasTransactionId() {
-      return transactionIdBuilder_ != null || transactionId_ != null;
+      return this.transactionIdBuilder_ != null || this.transactionId_ != null;
     }
     /**
      * <pre>
@@ -581,10 +581,10 @@ private static final long serialVersionUID = 0L;
      * @return The transactionId.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuid getTransactionId() {
-      if (transactionIdBuilder_ == null) {
-        return transactionId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : transactionId_;
+      if (this.transactionIdBuilder_ == null) {
+        return this.transactionId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : this.transactionId_;
       } else {
-        return transactionIdBuilder_.getMessage();
+        return this.transactionIdBuilder_.getMessage();
       }
     }
     /**
@@ -595,14 +595,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid transactionId = 2;</code>
      */
     public Builder setTransactionId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
-      if (transactionIdBuilder_ == null) {
+      if (this.transactionIdBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        transactionId_ = value;
+        this.transactionId_ = value;
         onChanged();
       } else {
-        transactionIdBuilder_.setMessage(value);
+        this.transactionIdBuilder_.setMessage(value);
       }
 
       return this;
@@ -616,11 +616,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTransactionId(
         io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder builderForValue) {
-      if (transactionIdBuilder_ == null) {
-        transactionId_ = builderForValue.build();
+      if (this.transactionIdBuilder_ == null) {
+        this.transactionId_ = builderForValue.build();
         onChanged();
       } else {
-        transactionIdBuilder_.setMessage(builderForValue.build());
+        this.transactionIdBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -633,16 +633,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid transactionId = 2;</code>
      */
     public Builder mergeTransactionId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
-      if (transactionIdBuilder_ == null) {
-        if (transactionId_ != null) {
-          transactionId_ =
-            io.evitadb.externalApi.grpc.generated.GrpcUuid.newBuilder(transactionId_).mergeFrom(value).buildPartial();
+      if (this.transactionIdBuilder_ == null) {
+        if (this.transactionId_ != null) {
+          this.transactionId_ =
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.newBuilder(this.transactionId_).mergeFrom(value).buildPartial();
         } else {
-          transactionId_ = value;
+          this.transactionId_ = value;
         }
         onChanged();
       } else {
-        transactionIdBuilder_.mergeFrom(value);
+        this.transactionIdBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -655,12 +655,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid transactionId = 2;</code>
      */
     public Builder clearTransactionId() {
-      if (transactionIdBuilder_ == null) {
-        transactionId_ = null;
+      if (this.transactionIdBuilder_ == null) {
+        this.transactionId_ = null;
         onChanged();
       } else {
-        transactionId_ = null;
-        transactionIdBuilder_ = null;
+        this.transactionId_ = null;
+        this.transactionIdBuilder_ = null;
       }
 
       return this;
@@ -673,7 +673,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid transactionId = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getTransactionIdBuilder() {
-      
+
       onChanged();
       return getTransactionIdFieldBuilder().getBuilder();
     }
@@ -685,11 +685,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid transactionId = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getTransactionIdOrBuilder() {
-      if (transactionIdBuilder_ != null) {
-        return transactionIdBuilder_.getMessageOrBuilder();
+      if (this.transactionIdBuilder_ != null) {
+        return this.transactionIdBuilder_.getMessageOrBuilder();
       } else {
-        return transactionId_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : transactionId_;
+        return this.transactionId_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : this.transactionId_;
       }
     }
     /**
@@ -700,17 +700,17 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid transactionId = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
         getTransactionIdFieldBuilder() {
-      if (transactionIdBuilder_ == null) {
-        transactionIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.transactionIdBuilder_ == null) {
+        this.transactionIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>(
                 getTransactionId(),
                 getParentForChildren(),
                 isClean());
-        transactionId_ = null;
+        this.transactionId_ = null;
       }
-      return transactionIdBuilder_;
+      return this.transactionIdBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

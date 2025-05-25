@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ public class SortableAttributeCompoundSchemaDataFetcher implements DataFetcher<S
 	public SortableAttributeCompoundSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final SortableAttributeCompoundSchemaProvider<?> provider = environment.getSource();
 		return provider
-			.getSortableAttributeCompound(name)
-			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find sortable attribute compound schema for name `" + name + "`."));
+			.getSortableAttributeCompound(this.name)
+			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find sortable attribute compound schema for name `" + this.name + "`."));
 	}
 }

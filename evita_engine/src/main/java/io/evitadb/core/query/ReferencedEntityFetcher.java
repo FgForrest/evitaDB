@@ -1121,7 +1121,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			this.defaultRequirementContext,
 			this.executionContext,
 			entityCollection.getSchema(),
-			existingEntityRetriever,
+			this.existingEntityRetriever,
 			(referenceName, entityPk) -> toFormula(
 				entityIndexSupplier.get().get(entityPk).getReferences(referenceName)
 					.stream()
@@ -1592,7 +1592,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 * will remain "allowed".
 		 */
 		public void restrictTo(@Nonnull Bitmap referencedPrimaryKeys) {
-			for (IntObjectCursor<IntSet> entry : mapping) {
+			for (IntObjectCursor<IntSet> entry : this.mapping) {
 				entry.value.retainAll(referencedPrimaryKeys::contains);
 			}
 		}
@@ -1708,7 +1708,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull
 		@Override
 		public Optional<SealedEntity> getExistingParentEntity(int primaryKey) {
-			return entityDecorator.getParentEntityWithoutCheckingPredicate()
+			return this.entityDecorator.getParentEntityWithoutCheckingPredicate()
 				.filter(SealedEntity.class::isInstance)
 				.map(SealedEntity.class::cast);
 		}
@@ -1716,13 +1716,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull
 		@Override
 		public Optional<SealedEntity> getExistingEntity(@Nonnull String referenceName, int primaryKey) {
-			return entityDecorator.getReferenceWithoutCheckingPredicate(referenceName, primaryKey).flatMap(ReferenceContract::getReferencedEntity);
+			return this.entityDecorator.getReferenceWithoutCheckingPredicate(referenceName, primaryKey).flatMap(ReferenceContract::getReferencedEntity);
 		}
 
 		@Nonnull
 		@Override
 		public Optional<SealedEntity> getExistingGroupEntity(@Nonnull String referenceName, int primaryKey) {
-			return entityDecorator.getReferenceWithoutCheckingPredicate(referenceName, primaryKey).flatMap(ReferenceContract::getGroupEntity);
+			return this.entityDecorator.getReferenceWithoutCheckingPredicate(referenceName, primaryKey).flatMap(ReferenceContract::getGroupEntity);
 		}
 	}
 
@@ -1820,7 +1820,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 */
 		@Nonnull
 		public int[] getReferencedEntityPrimaryKeys(@Nonnull String referenceName, int groupEntityPrimaryKey) {
-			return referenceGroupToReferencedEntitiesIndex.computeIfAbsent(referenceName, groupToReferencedEntityLazyRetriever).get(groupEntityPrimaryKey);
+			return this.referenceGroupToReferencedEntitiesIndex.computeIfAbsent(referenceName, this.groupToReferencedEntityLazyRetriever).get(groupEntityPrimaryKey);
 		}
 
 	}
@@ -1839,8 +1839,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 		@Override
 		public Map<Integer, Entity> get() {
-			if (memoizedResult == null) {
-				memoizedResult = richEnoughEntities.stream()
+			if (this.memoizedResult == null) {
+				this.memoizedResult = this.richEnoughEntities.stream()
 					.collect(
 						Collectors.toMap(
 							EntityContract::getPrimaryKey,
@@ -1849,7 +1849,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						)
 					);
 			}
-			return memoizedResult;
+			return this.memoizedResult;
 		}
 	}
 

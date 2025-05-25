@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,10 +43,10 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcTrafficQueryContainer() {
-    queryDescription_ = "";
-    query_ = "";
-    primaryKeys_ = emptyIntList();
-    labels_ = java.util.Collections.emptyList();
+    this.queryDescription_ = "";
+    this.query_ = "";
+    this.primaryKeys_ = emptyIntList();
+    this.labels_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -83,47 +83,47 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            queryDescription_ = s;
+            this.queryDescription_ = s;
             break;
           }
           case 18: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            query_ = s;
+            this.query_ = s;
             break;
           }
           case 24: {
 
-            totalRecordCount_ = input.readInt32();
+            this.totalRecordCount_ = input.readInt32();
             break;
           }
           case 32: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              primaryKeys_ = newIntList();
+              this.primaryKeys_ = newIntList();
               mutable_bitField0_ |= 0x00000001;
             }
-            primaryKeys_.addInt(input.readInt32());
+            this.primaryKeys_.addInt(input.readInt32());
             break;
           }
           case 34: {
             int length = input.readRawVarint32();
             int limit = input.pushLimit(length);
             if (!((mutable_bitField0_ & 0x00000001) != 0) && input.getBytesUntilLimit() > 0) {
-              primaryKeys_ = newIntList();
+              this.primaryKeys_ = newIntList();
               mutable_bitField0_ |= 0x00000001;
             }
             while (input.getBytesUntilLimit() > 0) {
-              primaryKeys_.addInt(input.readInt32());
+              this.primaryKeys_.addInt(input.readInt32());
             }
             input.popLimit(limit);
             break;
           }
           case 42: {
             if (!((mutable_bitField0_ & 0x00000002) != 0)) {
-              labels_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel>();
+              this.labels_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel>();
               mutable_bitField0_ |= 0x00000002;
             }
-            labels_.add(
+            this.labels_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.parser(), extensionRegistry));
             break;
           }
@@ -143,10 +143,10 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        primaryKeys_.makeImmutable(); // C
+        this.primaryKeys_.makeImmutable(); // C
       }
       if (((mutable_bitField0_ & 0x00000002) != 0)) {
-        labels_ = java.util.Collections.unmodifiableList(labels_);
+        this.labels_ = java.util.Collections.unmodifiableList(this.labels_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -177,14 +177,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getQueryDescription() {
-    java.lang.Object ref = queryDescription_;
+    java.lang.Object ref = this.queryDescription_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      queryDescription_ = s;
+      this.queryDescription_ = s;
       return s;
     }
   }
@@ -199,12 +199,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getQueryDescriptionBytes() {
-    java.lang.Object ref = queryDescription_;
+    java.lang.Object ref = this.queryDescription_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      queryDescription_ = b;
+      this.queryDescription_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -223,14 +223,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getQuery() {
-    java.lang.Object ref = query_;
+    java.lang.Object ref = this.query_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      query_ = s;
+      this.query_ = s;
       return s;
     }
   }
@@ -245,12 +245,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getQueryBytes() {
-    java.lang.Object ref = query_;
+    java.lang.Object ref = this.query_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      query_ = b;
+      this.query_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -269,7 +269,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getTotalRecordCount() {
-    return totalRecordCount_;
+    return this.totalRecordCount_;
   }
 
   public static final int PRIMARYKEYS_FIELD_NUMBER = 4;
@@ -286,7 +286,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<java.lang.Integer>
       getPrimaryKeysList() {
-    return primaryKeys_;
+    return this.primaryKeys_;
   }
   /**
    * <pre>
@@ -298,7 +298,7 @@ private static final long serialVersionUID = 0L;
    * @return The count of primaryKeys.
    */
   public int getPrimaryKeysCount() {
-    return primaryKeys_.size();
+    return this.primaryKeys_.size();
   }
   /**
    * <pre>
@@ -311,7 +311,7 @@ private static final long serialVersionUID = 0L;
    * @return The primaryKeys at the given index.
    */
   public int getPrimaryKeys(int index) {
-    return primaryKeys_.getInt(index);
+    return this.primaryKeys_.getInt(index);
   }
   private int primaryKeysMemoizedSerializedSize = -1;
 
@@ -326,7 +326,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> getLabelsList() {
-    return labels_;
+    return this.labels_;
   }
   /**
    * <pre>
@@ -336,9 +336,9 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
       getLabelsOrBuilderList() {
-    return labels_;
+    return this.labels_;
   }
   /**
    * <pre>
@@ -349,7 +349,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getLabelsCount() {
-    return labels_.size();
+    return this.labels_.size();
   }
   /**
    * <pre>
@@ -360,7 +360,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcQueryLabel getLabels(int index) {
-    return labels_.get(index);
+    return this.labels_.get(index);
   }
   /**
    * <pre>
@@ -372,17 +372,17 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder getLabelsOrBuilder(
       int index) {
-    return labels_.get(index);
+    return this.labels_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
@@ -390,49 +390,49 @@ private static final long serialVersionUID = 0L;
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
     getSerializedSize();
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(queryDescription_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, queryDescription_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.queryDescription_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.queryDescription_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(query_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, query_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.query_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, this.query_);
     }
-    if (totalRecordCount_ != 0) {
-      output.writeInt32(3, totalRecordCount_);
+    if (this.totalRecordCount_ != 0) {
+      output.writeInt32(3, this.totalRecordCount_);
     }
     if (getPrimaryKeysList().size() > 0) {
       output.writeUInt32NoTag(34);
-      output.writeUInt32NoTag(primaryKeysMemoizedSerializedSize);
+      output.writeUInt32NoTag(this.primaryKeysMemoizedSerializedSize);
     }
-    for (int i = 0; i < primaryKeys_.size(); i++) {
-      output.writeInt32NoTag(primaryKeys_.getInt(i));
+    for (int i = 0; i < this.primaryKeys_.size(); i++) {
+      output.writeInt32NoTag(this.primaryKeys_.getInt(i));
     }
-    for (int i = 0; i < labels_.size(); i++) {
-      output.writeMessage(5, labels_.get(i));
+    for (int i = 0; i < this.labels_.size(); i++) {
+      output.writeMessage(5, this.labels_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(queryDescription_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, queryDescription_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.queryDescription_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.queryDescription_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(query_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, query_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.query_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, this.query_);
     }
-    if (totalRecordCount_ != 0) {
+    if (this.totalRecordCount_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(3, totalRecordCount_);
+        .computeInt32Size(3, this.totalRecordCount_);
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < primaryKeys_.size(); i++) {
+      for (int i = 0; i < this.primaryKeys_.size(); i++) {
         dataSize += com.google.protobuf.CodedOutputStream
-          .computeInt32SizeNoTag(primaryKeys_.getInt(i));
+          .computeInt32SizeNoTag(this.primaryKeys_.getInt(i));
       }
       size += dataSize;
       if (!getPrimaryKeysList().isEmpty()) {
@@ -440,14 +440,14 @@ private static final long serialVersionUID = 0L;
         size += com.google.protobuf.CodedOutputStream
             .computeInt32SizeNoTag(dataSize);
       }
-      primaryKeysMemoizedSerializedSize = dataSize;
+      this.primaryKeysMemoizedSerializedSize = dataSize;
     }
-    for (int i = 0; i < labels_.size(); i++) {
+    for (int i = 0; i < this.labels_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(5, labels_.get(i));
+        .computeMessageSize(5, this.labels_.get(i));
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -471,14 +471,14 @@ private static final long serialVersionUID = 0L;
         .equals(other.getPrimaryKeysList())) return false;
     if (!getLabelsList()
         .equals(other.getLabelsList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -496,8 +496,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + LABELS_FIELD_NUMBER;
       hash = (53 * hash) + getLabelsList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -634,19 +634,19 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      queryDescription_ = "";
+      this.queryDescription_ = "";
 
-      query_ = "";
+      this.query_ = "";
 
-      totalRecordCount_ = 0;
+      this.totalRecordCount_ = 0;
 
-      primaryKeys_ = emptyIntList();
-      bitField0_ = (bitField0_ & ~0x00000001);
-      if (labelsBuilder_ == null) {
-        labels_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000002);
+      this.primaryKeys_ = emptyIntList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      if (this.labelsBuilder_ == null) {
+        this.labels_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000002);
       } else {
-        labelsBuilder_.clear();
+        this.labelsBuilder_.clear();
       }
       return this;
     }
@@ -674,23 +674,23 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer result = new io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer(this);
-      int from_bitField0_ = bitField0_;
-      result.queryDescription_ = queryDescription_;
-      result.query_ = query_;
-      result.totalRecordCount_ = totalRecordCount_;
-      if (((bitField0_ & 0x00000001) != 0)) {
-        primaryKeys_.makeImmutable();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      result.queryDescription_ = this.queryDescription_;
+      result.query_ = this.query_;
+      result.totalRecordCount_ = this.totalRecordCount_;
+      if (((this.bitField0_ & 0x00000001) != 0)) {
+        this.primaryKeys_.makeImmutable();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       }
-      result.primaryKeys_ = primaryKeys_;
-      if (labelsBuilder_ == null) {
-        if (((bitField0_ & 0x00000002) != 0)) {
-          labels_ = java.util.Collections.unmodifiableList(labels_);
-          bitField0_ = (bitField0_ & ~0x00000002);
+      result.primaryKeys_ = this.primaryKeys_;
+      if (this.labelsBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000002) != 0)) {
+          this.labels_ = java.util.Collections.unmodifiableList(this.labels_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000002);
         }
-        result.labels_ = labels_;
+        result.labels_ = this.labels_;
       } else {
-        result.labels_ = labelsBuilder_.build();
+        result.labels_ = this.labelsBuilder_.build();
       }
       onBuilt();
       return result;
@@ -741,49 +741,49 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer.getDefaultInstance()) return this;
       if (!other.getQueryDescription().isEmpty()) {
-        queryDescription_ = other.queryDescription_;
+        this.queryDescription_ = other.queryDescription_;
         onChanged();
       }
       if (!other.getQuery().isEmpty()) {
-        query_ = other.query_;
+        this.query_ = other.query_;
         onChanged();
       }
       if (other.getTotalRecordCount() != 0) {
         setTotalRecordCount(other.getTotalRecordCount());
       }
       if (!other.primaryKeys_.isEmpty()) {
-        if (primaryKeys_.isEmpty()) {
-          primaryKeys_ = other.primaryKeys_;
-          bitField0_ = (bitField0_ & ~0x00000001);
+        if (this.primaryKeys_.isEmpty()) {
+          this.primaryKeys_ = other.primaryKeys_;
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         } else {
           ensurePrimaryKeysIsMutable();
-          primaryKeys_.addAll(other.primaryKeys_);
+          this.primaryKeys_.addAll(other.primaryKeys_);
         }
         onChanged();
       }
-      if (labelsBuilder_ == null) {
+      if (this.labelsBuilder_ == null) {
         if (!other.labels_.isEmpty()) {
-          if (labels_.isEmpty()) {
-            labels_ = other.labels_;
-            bitField0_ = (bitField0_ & ~0x00000002);
+          if (this.labels_.isEmpty()) {
+            this.labels_ = other.labels_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000002);
           } else {
             ensureLabelsIsMutable();
-            labels_.addAll(other.labels_);
+            this.labels_.addAll(other.labels_);
           }
           onChanged();
         }
       } else {
         if (!other.labels_.isEmpty()) {
-          if (labelsBuilder_.isEmpty()) {
-            labelsBuilder_.dispose();
-            labelsBuilder_ = null;
-            labels_ = other.labels_;
-            bitField0_ = (bitField0_ & ~0x00000002);
-            labelsBuilder_ = 
+          if (this.labelsBuilder_.isEmpty()) {
+            this.labelsBuilder_.dispose();
+            this.labelsBuilder_ = null;
+            this.labels_ = other.labels_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000002);
+            this.labelsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getLabelsFieldBuilder() : null;
           } else {
-            labelsBuilder_.addAllMessages(other.labels_);
+            this.labelsBuilder_.addAllMessages(other.labels_);
           }
         }
       }
@@ -827,12 +827,12 @@ private static final long serialVersionUID = 0L;
      * @return The queryDescription.
      */
     public java.lang.String getQueryDescription() {
-      java.lang.Object ref = queryDescription_;
+      java.lang.Object ref = this.queryDescription_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        queryDescription_ = s;
+        this.queryDescription_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -848,12 +848,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getQueryDescriptionBytes() {
-      java.lang.Object ref = queryDescription_;
+      java.lang.Object ref = this.queryDescription_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        queryDescription_ = b;
+        this.queryDescription_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -873,8 +873,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      queryDescription_ = value;
+
+      this.queryDescription_ = value;
       onChanged();
       return this;
     }
@@ -887,8 +887,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearQueryDescription() {
-      
-      queryDescription_ = getDefaultInstance().getQueryDescription();
+
+      this.queryDescription_ = getDefaultInstance().getQueryDescription();
       onChanged();
       return this;
     }
@@ -907,8 +907,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      queryDescription_ = value;
+
+      this.queryDescription_ = value;
       onChanged();
       return this;
     }
@@ -923,12 +923,12 @@ private static final long serialVersionUID = 0L;
      * @return The query.
      */
     public java.lang.String getQuery() {
-      java.lang.Object ref = query_;
+      java.lang.Object ref = this.query_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        query_ = s;
+        this.query_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -944,12 +944,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getQueryBytes() {
-      java.lang.Object ref = query_;
+      java.lang.Object ref = this.query_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        query_ = b;
+        this.query_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -969,8 +969,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      query_ = value;
+
+      this.query_ = value;
       onChanged();
       return this;
     }
@@ -983,8 +983,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearQuery() {
-      
-      query_ = getDefaultInstance().getQuery();
+
+      this.query_ = getDefaultInstance().getQuery();
       onChanged();
       return this;
     }
@@ -1003,8 +1003,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      query_ = value;
+
+      this.query_ = value;
       onChanged();
       return this;
     }
@@ -1020,7 +1020,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getTotalRecordCount() {
-      return totalRecordCount_;
+      return this.totalRecordCount_;
     }
     /**
      * <pre>
@@ -1032,8 +1032,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setTotalRecordCount(int value) {
-      
-      totalRecordCount_ = value;
+
+      this.totalRecordCount_ = value;
       onChanged();
       return this;
     }
@@ -1046,17 +1046,17 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearTotalRecordCount() {
-      
-      totalRecordCount_ = 0;
+
+      this.totalRecordCount_ = 0;
       onChanged();
       return this;
     }
 
     private com.google.protobuf.Internal.IntList primaryKeys_ = emptyIntList();
     private void ensurePrimaryKeysIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        primaryKeys_ = mutableCopy(primaryKeys_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.primaryKeys_ = mutableCopy(this.primaryKeys_);
+        this.bitField0_ |= 0x00000001;
        }
     }
     /**
@@ -1070,8 +1070,8 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<java.lang.Integer>
         getPrimaryKeysList() {
-      return ((bitField0_ & 0x00000001) != 0) ?
-               java.util.Collections.unmodifiableList(primaryKeys_) : primaryKeys_;
+      return ((this.bitField0_ & 0x00000001) != 0) ?
+               java.util.Collections.unmodifiableList(this.primaryKeys_) : this.primaryKeys_;
     }
     /**
      * <pre>
@@ -1083,7 +1083,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of primaryKeys.
      */
     public int getPrimaryKeysCount() {
-      return primaryKeys_.size();
+      return this.primaryKeys_.size();
     }
     /**
      * <pre>
@@ -1096,7 +1096,7 @@ private static final long serialVersionUID = 0L;
      * @return The primaryKeys at the given index.
      */
     public int getPrimaryKeys(int index) {
-      return primaryKeys_.getInt(index);
+      return this.primaryKeys_.getInt(index);
     }
     /**
      * <pre>
@@ -1112,7 +1112,7 @@ private static final long serialVersionUID = 0L;
     public Builder setPrimaryKeys(
         int index, int value) {
       ensurePrimaryKeysIsMutable();
-      primaryKeys_.setInt(index, value);
+      this.primaryKeys_.setInt(index, value);
       onChanged();
       return this;
     }
@@ -1128,7 +1128,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addPrimaryKeys(int value) {
       ensurePrimaryKeysIsMutable();
-      primaryKeys_.addInt(value);
+      this.primaryKeys_.addInt(value);
       onChanged();
       return this;
     }
@@ -1146,7 +1146,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<? extends java.lang.Integer> values) {
       ensurePrimaryKeysIsMutable();
       com.google.protobuf.AbstractMessageLite.Builder.addAll(
-          values, primaryKeys_);
+          values, this.primaryKeys_);
       onChanged();
       return this;
     }
@@ -1160,8 +1160,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPrimaryKeys() {
-      primaryKeys_ = emptyIntList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.primaryKeys_ = emptyIntList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
@@ -1169,9 +1169,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> labels_ =
       java.util.Collections.emptyList();
     private void ensureLabelsIsMutable() {
-      if (!((bitField0_ & 0x00000002) != 0)) {
-        labels_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel>(labels_);
-        bitField0_ |= 0x00000002;
+      if (!((this.bitField0_ & 0x00000002) != 0)) {
+        this.labels_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel>(this.labels_);
+        this.bitField0_ |= 0x00000002;
        }
     }
 
@@ -1186,10 +1186,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> getLabelsList() {
-      if (labelsBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(labels_);
+      if (this.labelsBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.labels_);
       } else {
-        return labelsBuilder_.getMessageList();
+        return this.labelsBuilder_.getMessageList();
       }
     }
     /**
@@ -1200,10 +1200,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public int getLabelsCount() {
-      if (labelsBuilder_ == null) {
-        return labels_.size();
+      if (this.labelsBuilder_ == null) {
+        return this.labels_.size();
       } else {
-        return labelsBuilder_.getCount();
+        return this.labelsBuilder_.getCount();
       }
     }
     /**
@@ -1214,10 +1214,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryLabel getLabels(int index) {
-      if (labelsBuilder_ == null) {
-        return labels_.get(index);
+      if (this.labelsBuilder_ == null) {
+        return this.labels_.get(index);
       } else {
-        return labelsBuilder_.getMessage(index);
+        return this.labelsBuilder_.getMessage(index);
       }
     }
     /**
@@ -1229,15 +1229,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setLabels(
         int index, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel value) {
-      if (labelsBuilder_ == null) {
+      if (this.labelsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureLabelsIsMutable();
-        labels_.set(index, value);
+        this.labels_.set(index, value);
         onChanged();
       } else {
-        labelsBuilder_.setMessage(index, value);
+        this.labelsBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -1250,12 +1250,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setLabels(
         int index, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder builderForValue) {
-      if (labelsBuilder_ == null) {
+      if (this.labelsBuilder_ == null) {
         ensureLabelsIsMutable();
-        labels_.set(index, builderForValue.build());
+        this.labels_.set(index, builderForValue.build());
         onChanged();
       } else {
-        labelsBuilder_.setMessage(index, builderForValue.build());
+        this.labelsBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1267,15 +1267,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public Builder addLabels(io.evitadb.externalApi.grpc.generated.GrpcQueryLabel value) {
-      if (labelsBuilder_ == null) {
+      if (this.labelsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureLabelsIsMutable();
-        labels_.add(value);
+        this.labels_.add(value);
         onChanged();
       } else {
-        labelsBuilder_.addMessage(value);
+        this.labelsBuilder_.addMessage(value);
       }
       return this;
     }
@@ -1288,15 +1288,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addLabels(
         int index, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel value) {
-      if (labelsBuilder_ == null) {
+      if (this.labelsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureLabelsIsMutable();
-        labels_.add(index, value);
+        this.labels_.add(index, value);
         onChanged();
       } else {
-        labelsBuilder_.addMessage(index, value);
+        this.labelsBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -1309,12 +1309,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addLabels(
         io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder builderForValue) {
-      if (labelsBuilder_ == null) {
+      if (this.labelsBuilder_ == null) {
         ensureLabelsIsMutable();
-        labels_.add(builderForValue.build());
+        this.labels_.add(builderForValue.build());
         onChanged();
       } else {
-        labelsBuilder_.addMessage(builderForValue.build());
+        this.labelsBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -1327,12 +1327,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addLabels(
         int index, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder builderForValue) {
-      if (labelsBuilder_ == null) {
+      if (this.labelsBuilder_ == null) {
         ensureLabelsIsMutable();
-        labels_.add(index, builderForValue.build());
+        this.labels_.add(index, builderForValue.build());
         onChanged();
       } else {
-        labelsBuilder_.addMessage(index, builderForValue.build());
+        this.labelsBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1345,13 +1345,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllLabels(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabel> values) {
-      if (labelsBuilder_ == null) {
+      if (this.labelsBuilder_ == null) {
         ensureLabelsIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, labels_);
+            values, this.labels_);
         onChanged();
       } else {
-        labelsBuilder_.addAllMessages(values);
+        this.labelsBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -1363,12 +1363,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public Builder clearLabels() {
-      if (labelsBuilder_ == null) {
-        labels_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000002);
+      if (this.labelsBuilder_ == null) {
+        this.labels_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000002);
         onChanged();
       } else {
-        labelsBuilder_.clear();
+        this.labelsBuilder_.clear();
       }
       return this;
     }
@@ -1380,12 +1380,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
     public Builder removeLabels(int index) {
-      if (labelsBuilder_ == null) {
+      if (this.labelsBuilder_ == null) {
         ensureLabelsIsMutable();
-        labels_.remove(index);
+        this.labels_.remove(index);
         onChanged();
       } else {
-        labelsBuilder_.remove(index);
+        this.labelsBuilder_.remove(index);
       }
       return this;
     }
@@ -1409,9 +1409,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder getLabelsOrBuilder(
         int index) {
-      if (labelsBuilder_ == null) {
-        return labels_.get(index);  } else {
-        return labelsBuilder_.getMessageOrBuilder(index);
+      if (this.labelsBuilder_ == null) {
+        return this.labels_.get(index);  } else {
+        return this.labelsBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -1421,12 +1421,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
          getLabelsOrBuilderList() {
-      if (labelsBuilder_ != null) {
-        return labelsBuilder_.getMessageOrBuilderList();
+      if (this.labelsBuilder_ != null) {
+        return this.labelsBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(labels_);
+        return java.util.Collections.unmodifiableList(this.labels_);
       }
     }
     /**
@@ -1459,23 +1459,23 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 5;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder>
          getLabelsBuilderList() {
       return getLabelsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcQueryLabel, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcQueryLabel, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>
         getLabelsFieldBuilder() {
-      if (labelsBuilder_ == null) {
-        labelsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.labelsBuilder_ == null) {
+        this.labelsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcQueryLabel, io.evitadb.externalApi.grpc.generated.GrpcQueryLabel.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryLabelOrBuilder>(
-                labels_,
-                ((bitField0_ & 0x00000002) != 0),
+                this.labels_,
+                ((this.bitField0_ & 0x00000002) != 0),
                 getParentForChildren(),
                 isClean());
-        labels_ = null;
+        this.labels_ = null;
       }
-      return labelsBuilder_;
+      return this.labelsBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

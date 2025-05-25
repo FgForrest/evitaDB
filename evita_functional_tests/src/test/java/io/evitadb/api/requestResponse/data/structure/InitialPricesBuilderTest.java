@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldCreateEntityWithPrices() {
-		final PricesContract prices = builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
+		final PricesContract prices = this.builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 				.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.setPrice(2, "reference", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false)
 				.setPrice(3, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
@@ -71,7 +71,7 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldOverwriteIdenticalPrice() {
-		final PricesContract prices = builder
+		final PricesContract prices = this.builder
 				.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.setPrice(1, "basic", CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
 				.build();
@@ -83,7 +83,7 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 	@Test
 	void shouldRefuseAddingConflictingPrice() {
 		assertThrows(AmbiguousPriceException.class, () -> {
-			final PricesContract prices = builder
+			final PricesContract prices = this.builder
 				.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.setPrice(2, "basic", CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
 				.build();
@@ -92,7 +92,7 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldAllowAddingConflictingPriceForDifferentInnerRecordId() {
-		final PricesContract prices = builder
+		final PricesContract prices = this.builder
 			.setPrice(1, "basic", CZK, 1, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "basic", CZK, 2, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
 			.build();
@@ -105,7 +105,7 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldCorrectlyComputeAllPricesForSaleForNoneStrategy() {
-		final PricesContract prices = builder
+		final PricesContract prices = this.builder
 			.setPriceInnerRecordHandling(PriceInnerRecordHandling.NONE)
 			.setPrice(1, "basic", CZK, 1, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "vip", CZK, 1, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
@@ -121,7 +121,7 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldCorrectlyComputeAllPricesForSaleForFirstOccurrenceStrategy() {
-		final PricesContract prices = builder
+		final PricesContract prices = this.builder
 			.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 			.setPrice(1, "basic", CZK, 1, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "vip", CZK, 1, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
@@ -140,7 +140,7 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldCorrectlyComputeAllPricesForSaleForSumStrategy() {
-		final PricesContract prices = builder
+		final PricesContract prices = this.builder
 			.setPriceInnerRecordHandling(PriceInnerRecordHandling.SUM)
 			.setPrice(1, "basic", CZK, 1, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 			.setPrice(2, "vip", CZK, 1, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)

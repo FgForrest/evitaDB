@@ -135,11 +135,11 @@ public class ValueTypeMapper implements Function<Object, Class<? extends Seriali
 		if (rawField instanceof String valueTypeName) {
 			final Class<? extends Serializable> valueType = VALUE_TYPE_MAPPINGS.get(valueTypeName);
 			if (valueType == null) {
-				throw exceptionFactory.createInvalidArgumentException("Unknown value type in `" + fieldName + "`.");
+				throw this.exceptionFactory.createInvalidArgumentException("Unknown value type in `" + this.fieldName + "`.");
 			}
 			return valueType;
 		}
-		throw exceptionFactory.createInvalidArgumentException("Unsupported value type in `" + fieldName + "`.");
+		throw this.exceptionFactory.createInvalidArgumentException("Unsupported value type in `" + this.fieldName + "`.");
 	}
 
 	private static void registerTypeMapping(@Nonnull Map<String, Class<? extends Serializable>> mappings,

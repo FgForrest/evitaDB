@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,15 +67,15 @@ public class PriceBucketRecordState {
 	public void setUp() {
 		final CompositeObjectArray<PriceRecord> priceRecordsA = new CompositeObjectArray<>(PriceRecord.class);
 		final CompositeObjectArray<PriceRecord> priceRecordsB = new CompositeObjectArray<>(PriceRecord.class);
-		entityIdsA = generateBitmap((int) (ENTITY_COUNT * 0.7), (int) (PRICE_COUNT * 0.7), 1, priceRecordsA);
-		entityIdsB = generateBitmap((int) (ENTITY_COUNT * 0.3), (int) (PRICE_COUNT * 0.3), entityIdsA.getLast(), priceRecordsB);
+		this.entityIdsA = generateBitmap((int) (ENTITY_COUNT * 0.7), (int) (PRICE_COUNT * 0.7), 1, priceRecordsA);
+		this.entityIdsB = generateBitmap((int) (ENTITY_COUNT * 0.3), (int) (PRICE_COUNT * 0.3), this.entityIdsA.getLast(), priceRecordsB);
 
-		filteredPriceRecordAccessors = Arrays.asList(
-			new MockEntityIdsFormula(entityIdsA, new ResolvedFilteredPriceRecords(priceRecordsA.toArray(), SortingForm.NOT_SORTED)),
-			new MockEntityIdsFormula(entityIdsB, new ResolvedFilteredPriceRecords(priceRecordsB.toArray(), SortingForm.NOT_SORTED))
+		this.filteredPriceRecordAccessors = Arrays.asList(
+			new MockEntityIdsFormula(this.entityIdsA, new ResolvedFilteredPriceRecords(priceRecordsA.toArray(), SortingForm.NOT_SORTED)),
+			new MockEntityIdsFormula(this.entityIdsB, new ResolvedFilteredPriceRecords(priceRecordsB.toArray(), SortingForm.NOT_SORTED))
 		);
-		formulaA = new ConstantFormula(entityIdsA);
-		formulaB = new ConstantFormula(entityIdsB);
+		this.formulaA = new ConstantFormula(this.entityIdsA);
+		this.formulaB = new ConstantFormula(this.entityIdsB);
 	}
 
 	private Bitmap generateBitmap(int entityCount, int priceCount, int startValue, CompositeObjectArray<PriceRecord> priceRecords) {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,18 +77,18 @@ public class ObjectJsonSerializer {
 	@Nonnull
 	public JsonNode serializeObject(@Nullable Object value) {
 		if (value == null) {
-			return jsonNodeFactory.nullNode();
+			return this.jsonNodeFactory.nullNode();
 		}
 
 		if (value instanceof Collection<?> values) return serializeCollection(values);
 		if (value instanceof Object[] values) return serializeArray(values);
 		if (value.getClass().isArray()) return serializeArray(value);
-		if (value instanceof String string) return jsonNodeFactory.textNode(string);
-		if (value instanceof Character character) return jsonNodeFactory.textNode(character.toString());
-		if (value instanceof Integer integer) return jsonNodeFactory.numberNode(integer);
-		if (value instanceof Short shortNumber) return jsonNodeFactory.numberNode(shortNumber);
-		if (value instanceof Long longNumber) return jsonNodeFactory.textNode(String.valueOf(longNumber));
-		if (value instanceof Boolean bool) return jsonNodeFactory.booleanNode(bool);
+		if (value instanceof String string) return this.jsonNodeFactory.textNode(string);
+		if (value instanceof Character character) return this.jsonNodeFactory.textNode(character.toString());
+		if (value instanceof Integer integer) return this.jsonNodeFactory.numberNode(integer);
+		if (value instanceof Short shortNumber) return this.jsonNodeFactory.numberNode(shortNumber);
+		if (value instanceof Long longNumber) return this.jsonNodeFactory.textNode(String.valueOf(longNumber));
+		if (value instanceof Boolean bool) return this.jsonNodeFactory.booleanNode(bool);
 		if (value instanceof Byte byteVal) return serialize(byteVal);
 		if (value instanceof BigDecimal bigDecimal) return serialize(bigDecimal);
 		if (value instanceof Locale locale) return serialize(locale);
@@ -100,7 +100,7 @@ public class ObjectJsonSerializer {
 		if (value instanceof Expression expression) return serialize(expression);
 		if (value instanceof ComplexDataObject complexDataObject) return serialize(complexDataObject);
 		if (value instanceof Range<?> range) return serialize(range);
-		if (value instanceof Predecessor predecessor) return jsonNodeFactory.numberNode(serialize(predecessor));
+		if (value instanceof Predecessor predecessor) return this.jsonNodeFactory.numberNode(serialize(predecessor));
 		if (value instanceof PriceContract price) return serialize(price);
 		if (value.getClass().isEnum()) return serialize((Enum<?>) value);
 
@@ -115,7 +115,7 @@ public class ObjectJsonSerializer {
 	 * @throws EvitaInternalError when Class ob object is not among supported classes for serialization
 	 */
 	public JsonNode serializeCollection(@Nonnull Collection<?> values) {
-		final ArrayNode arrayNode = new ArrayNode(jsonNodeFactory, values.size());
+		final ArrayNode arrayNode = new ArrayNode(this.jsonNodeFactory, values.size());
 		for (Object value : values) {
 			arrayNode.add(serializeObject(value));
 		}
@@ -130,7 +130,7 @@ public class ObjectJsonSerializer {
 	 * @throws EvitaInternalError when Class ob object is not among supported classes for serialization
 	 */
 	public JsonNode serializeArray(@Nonnull Object[] values) {
-		final ArrayNode arrayNode = new ArrayNode(jsonNodeFactory, values.length);
+		final ArrayNode arrayNode = new ArrayNode(this.jsonNodeFactory, values.length);
 		for (Object value : values) {
 			arrayNode.add(serializeObject(value));
 		}
@@ -141,7 +141,7 @@ public class ObjectJsonSerializer {
 	 * Serialize {@link Array} of unknown primitive type into JSON {@link ArrayNode}.
 	 */
 	public JsonNode serializeArray(@Nonnull Object values) {
-		final ArrayNode arrayNode = jsonNodeFactory.arrayNode();
+		final ArrayNode arrayNode = this.jsonNodeFactory.arrayNode();
 
 		final int arraySize = Array.getLength(values);
 		for (int i = 0; i < arraySize; i++) {
@@ -153,55 +153,55 @@ public class ObjectJsonSerializer {
 	}
 
 	private JsonNode serialize(@Nonnull BigDecimal bigDecimal) {
-		return jsonNodeFactory.textNode(EvitaDataTypes.formatValue(bigDecimal));
+		return this.jsonNodeFactory.textNode(EvitaDataTypes.formatValue(bigDecimal));
 	}
 
 	private JsonNode serialize(@Nonnull Byte byteValue) {
-		return jsonNodeFactory.numberNode(byteValue);
+		return this.jsonNodeFactory.numberNode(byteValue);
 	}
 
 	private JsonNode serialize(@Nonnull Locale locale) {
-		return jsonNodeFactory.textNode(locale.toLanguageTag());
+		return this.jsonNodeFactory.textNode(locale.toLanguageTag());
 	}
 
 	private JsonNode serialize(@Nonnull Currency currency) {
-		return jsonNodeFactory.textNode(currency.getCurrencyCode());
+		return this.jsonNodeFactory.textNode(currency.getCurrencyCode());
 	}
 
 	private JsonNode serialize(@Nonnull OffsetDateTime offsetDateTime) {
-		return jsonNodeFactory.textNode(DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(offsetDateTime));
+		return this.jsonNodeFactory.textNode(DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(offsetDateTime));
 	}
 
 	private JsonNode serialize(@Nonnull LocalDateTime localDateTime) {
-		return jsonNodeFactory.textNode(DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(localDateTime));
+		return this.jsonNodeFactory.textNode(DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(localDateTime));
 	}
 
 	private JsonNode serialize(@Nonnull LocalDate localDate) {
-		return jsonNodeFactory.textNode(DateTimeFormatter.ISO_LOCAL_DATE.format(localDate));
+		return this.jsonNodeFactory.textNode(DateTimeFormatter.ISO_LOCAL_DATE.format(localDate));
 	}
 
 	private JsonNode serialize(@Nonnull LocalTime localTime) {
-		return jsonNodeFactory.textNode(DateTimeFormatter.ISO_LOCAL_TIME.format(localTime));
+		return this.jsonNodeFactory.textNode(DateTimeFormatter.ISO_LOCAL_TIME.format(localTime));
 	}
 
 	private JsonNode serialize(@Nonnull Expression expression) {
-		return jsonNodeFactory.textNode(expression.toString());
+		return this.jsonNodeFactory.textNode(expression.toString());
 	}
 
 	private JsonNode serialize(@Nonnull Enum<?> e) {
-		return jsonNodeFactory.textNode(e.name());
+		return this.jsonNodeFactory.textNode(e.name());
 	}
 
 	private JsonNode serialize(@Nonnull ComplexDataObject complexDataObject) {
-		final ComplexDataObjectToJsonConverter converter = new ComplexDataObjectToJsonConverter(objectMapper);
+		final ComplexDataObjectToJsonConverter converter = new ComplexDataObjectToJsonConverter(this.objectMapper);
 		complexDataObject.accept(converter);
 		return converter.getRootNode();
 	}
 
 	private JsonNode serialize(@Nonnull Range<?> range) {
-		final ArrayNode rangeNode = jsonNodeFactory.arrayNode(2);
-		rangeNode.add(range.getPreciseFrom() != null ? serializeObject(range.getPreciseFrom()) : jsonNodeFactory.nullNode());
-		rangeNode.add(range.getPreciseTo() != null ? serializeObject(range.getPreciseTo()) : jsonNodeFactory.nullNode());
+		final ArrayNode rangeNode = this.jsonNodeFactory.arrayNode(2);
+		rangeNode.add(range.getPreciseFrom() != null ? serializeObject(range.getPreciseFrom()) : this.jsonNodeFactory.nullNode());
+		rangeNode.add(range.getPreciseTo() != null ? serializeObject(range.getPreciseTo()) : this.jsonNodeFactory.nullNode());
 		return rangeNode;
 	}
 
@@ -210,7 +210,7 @@ public class ObjectJsonSerializer {
 	}
 
 	private JsonNode serialize(@Nonnull PriceContract price) {
-		final ObjectNode priceNode = jsonNodeFactory.objectNode();
+		final ObjectNode priceNode = this.jsonNodeFactory.objectNode();
 		priceNode.putIfAbsent(PriceDescriptor.PRICE_ID.name(),serializeObject(price.priceId()));
 		priceNode.putIfAbsent(PriceDescriptor.PRICE_LIST.name(),serializeObject(price.priceList()));
 		priceNode.putIfAbsent(PriceDescriptor.CURRENCY.name(),serializeObject(price.currency()));

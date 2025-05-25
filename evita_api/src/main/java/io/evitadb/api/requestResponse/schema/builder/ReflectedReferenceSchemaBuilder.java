@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -103,18 +103,18 @@ public final class ReflectedReferenceSchemaBuilder
 		if (createNew) {
 			this.mutations.add(
 				new CreateReflectedReferenceSchemaMutation(
-					baseSchema.getName(),
-					baseSchema.isDescriptionInherited() ? null : baseSchema.getDescription(),
-					baseSchema.isDeprecatedInherited() ? null : baseSchema.getDeprecationNotice(),
-					baseSchema.isCardinalityInherited() ? null : baseSchema.getCardinality(),
+					this.baseSchema.getName(),
+					this.baseSchema.isDescriptionInherited() ? null : this.baseSchema.getDescription(),
+					this.baseSchema.isDeprecatedInherited() ? null : this.baseSchema.getDeprecationNotice(),
+					this.baseSchema.isCardinalityInherited() ? null : this.baseSchema.getCardinality(),
 					entityType,
 					reflectedReferenceName,
-					baseSchema.isIndexedInherited() ?
-						null : Arrays.stream(Scope.values()).filter(baseSchema::isIndexedInScope).toArray(Scope[]::new),
-					baseSchema.isFacetedInherited() ?
-						null : Arrays.stream(Scope.values()).filter(baseSchema::isFacetedInScope).toArray(Scope[]::new),
-					baseSchema.getAttributesInheritanceBehavior(),
-					baseSchema.getAttributeInheritanceFilter()
+					this.baseSchema.isIndexedInherited() ?
+						null : Arrays.stream(Scope.values()).filter(this.baseSchema::isIndexedInScope).toArray(Scope[]::new),
+					this.baseSchema.isFacetedInherited() ?
+						null : Arrays.stream(Scope.values()).filter(this.baseSchema::isFacetedInScope).toArray(Scope[]::new),
+					this.baseSchema.getAttributesInheritanceBehavior(),
+					this.baseSchema.getAttributeInheritanceFilter()
 				)
 			);
 		}
@@ -471,9 +471,9 @@ public final class ReflectedReferenceSchemaBuilder
 								", cannot change this type to: " + ofType + "!"
 						)
 					);
-					return new AttributeSchemaBuilder(entitySchema, it);
+					return new AttributeSchemaBuilder(this.entitySchema, it);
 				})
-				.orElseGet(() -> new AttributeSchemaBuilder(entitySchema, attributeName, ofType));
+				.orElseGet(() -> new AttributeSchemaBuilder(this.entitySchema, attributeName, ofType));
 
 		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
 		final AttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
@@ -545,8 +545,8 @@ public final class ReflectedReferenceSchemaBuilder
 	) {
 		final Optional<SortableAttributeCompoundSchemaContract> existingCompound = getSortableAttributeCompound(name);
 		final SortableAttributeCompoundSchemaBuilder builder = new SortableAttributeCompoundSchemaBuilder(
-			catalogSchema,
-			entitySchema,
+			this.catalogSchema,
+			this.entitySchema,
 			this,
 			this.baseSchema.getSortableAttributeCompound(name).orElse(null),
 			name,
@@ -673,9 +673,9 @@ public final class ReflectedReferenceSchemaBuilder
 
 			if (this.lastMutationReflectedInSchema < this.mutations.size()) {
 				// apply the mutations not reflected in the schema
-				for (int i = lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
+				for (int i = this.lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
 					final LocalEntitySchemaMutation mutation = this.mutations.get(i);
-					currentSchema = (ReflectedReferenceSchema) ((ReferenceSchemaMutation) mutation).mutate(entitySchema, currentSchema, ReferenceSchemaMutator.ConsistencyChecks.SKIP);
+					currentSchema = (ReflectedReferenceSchema) ((ReferenceSchemaMutation) mutation).mutate(this.entitySchema, currentSchema, ReferenceSchemaMutator.ConsistencyChecks.SKIP);
 					if (currentSchema == null) {
 						throw new GenericEvitaInternalError("Reflected reference unexpectedly removed from inside!");
 					}

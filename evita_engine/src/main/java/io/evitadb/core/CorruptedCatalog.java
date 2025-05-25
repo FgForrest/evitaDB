@@ -108,7 +108,7 @@ public final class CorruptedCatalog implements CatalogContract {
 	@Nonnull
 	@Override
 	public String getName() {
-		return catalogName;
+		return this.catalogName;
 	}
 
 	@Override
@@ -174,7 +174,7 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Override
 	public void terminateAndDelete() {
-		FileUtils.deleteDirectory(catalogStoragePath);
+		FileUtils.deleteDirectory(this.catalogStoragePath);
 	}
 
 	@Nonnull
@@ -257,13 +257,13 @@ public final class CorruptedCatalog implements CatalogContract {
 	public CatalogStatistics getStatistics() {
 		return new CatalogStatistics(
 			null,
-			catalogName,
+			this.catalogName,
 			true,
 			null,
 			-1L,
 			-1,
 			-1,
-			FileUtils.getDirectorySize(catalogStoragePath),
+			FileUtils.getDirectorySize(this.catalogStoragePath),
 			new EntityCollectionStatistics[0]
 		);
 	}

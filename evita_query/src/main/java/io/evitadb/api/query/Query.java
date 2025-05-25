@@ -230,7 +230,7 @@ public class Query implements Serializable, PrettyPrintable {
 		@Nullable UnaryOperator<Constraint> requireConstraintTranslator
 	) {
 		// avoid costly normalization on already normalized query
-		if (normalized) {
+		if (this.normalized) {
 			return this;
 		}
 

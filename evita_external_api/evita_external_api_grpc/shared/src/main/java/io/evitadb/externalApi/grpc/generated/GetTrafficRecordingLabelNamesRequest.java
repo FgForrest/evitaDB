@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,18 +77,18 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            limit_ = input.readInt32();
+            this.limit_ = input.readInt32();
             break;
           }
           case 18: {
             com.google.protobuf.StringValue.Builder subBuilder = null;
-            if (nameStartsWith_ != null) {
-              subBuilder = nameStartsWith_.toBuilder();
+            if (this.nameStartsWith_ != null) {
+              subBuilder = this.nameStartsWith_.toBuilder();
             }
-            nameStartsWith_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
+            this.nameStartsWith_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(nameStartsWith_);
-              nameStartsWith_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.nameStartsWith_);
+              this.nameStartsWith_ = subBuilder.buildPartial();
             }
 
             break;
@@ -137,7 +137,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getLimit() {
-    return limit_;
+    return this.limit_;
   }
 
   public static final int NAMESTARTSWITH_FIELD_NUMBER = 2;
@@ -152,7 +152,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasNameStartsWith() {
-    return nameStartsWith_ != null;
+    return this.nameStartsWith_ != null;
   }
   /**
    * <pre>
@@ -164,7 +164,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.StringValue getNameStartsWith() {
-    return nameStartsWith_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : nameStartsWith_;
+    return this.nameStartsWith_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : this.nameStartsWith_;
   }
   /**
    * <pre>
@@ -181,42 +181,42 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (limit_ != 0) {
-      output.writeInt32(1, limit_);
+    if (this.limit_ != 0) {
+      output.writeInt32(1, this.limit_);
     }
-    if (nameStartsWith_ != null) {
+    if (this.nameStartsWith_ != null) {
       output.writeMessage(2, getNameStartsWith());
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (limit_ != 0) {
+    if (this.limit_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, limit_);
+        .computeInt32Size(1, this.limit_);
     }
-    if (nameStartsWith_ != null) {
+    if (this.nameStartsWith_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getNameStartsWith());
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -237,14 +237,14 @@ private static final long serialVersionUID = 0L;
       if (!getNameStartsWith()
           .equals(other.getNameStartsWith())) return false;
     }
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -254,8 +254,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + NAMESTARTSWITH_FIELD_NUMBER;
       hash = (53 * hash) + getNameStartsWith().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -391,13 +391,13 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      limit_ = 0;
+      this.limit_ = 0;
 
-      if (nameStartsWithBuilder_ == null) {
-        nameStartsWith_ = null;
+      if (this.nameStartsWithBuilder_ == null) {
+        this.nameStartsWith_ = null;
       } else {
-        nameStartsWith_ = null;
-        nameStartsWithBuilder_ = null;
+        this.nameStartsWith_ = null;
+        this.nameStartsWithBuilder_ = null;
       }
       return this;
     }
@@ -425,11 +425,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest result = new io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest(this);
-      result.limit_ = limit_;
-      if (nameStartsWithBuilder_ == null) {
-        result.nameStartsWith_ = nameStartsWith_;
+      result.limit_ = this.limit_;
+      if (this.nameStartsWithBuilder_ == null) {
+        result.nameStartsWith_ = this.nameStartsWith_;
       } else {
-        result.nameStartsWith_ = nameStartsWithBuilder_.build();
+        result.nameStartsWith_ = this.nameStartsWithBuilder_.build();
       }
       onBuilt();
       return result;
@@ -525,7 +525,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getLimit() {
-      return limit_;
+      return this.limit_;
     }
     /**
      * <pre>
@@ -537,8 +537,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setLimit(int value) {
-      
-      limit_ = value;
+
+      this.limit_ = value;
       onChanged();
       return this;
     }
@@ -551,8 +551,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearLimit() {
-      
-      limit_ = 0;
+
+      this.limit_ = 0;
       onChanged();
       return this;
     }
@@ -569,7 +569,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the nameStartsWith field is set.
      */
     public boolean hasNameStartsWith() {
-      return nameStartsWithBuilder_ != null || nameStartsWith_ != null;
+      return this.nameStartsWithBuilder_ != null || this.nameStartsWith_ != null;
     }
     /**
      * <pre>
@@ -580,10 +580,10 @@ private static final long serialVersionUID = 0L;
      * @return The nameStartsWith.
      */
     public com.google.protobuf.StringValue getNameStartsWith() {
-      if (nameStartsWithBuilder_ == null) {
-        return nameStartsWith_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : nameStartsWith_;
+      if (this.nameStartsWithBuilder_ == null) {
+        return this.nameStartsWith_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : this.nameStartsWith_;
       } else {
-        return nameStartsWithBuilder_.getMessage();
+        return this.nameStartsWithBuilder_.getMessage();
       }
     }
     /**
@@ -594,14 +594,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
      */
     public Builder setNameStartsWith(com.google.protobuf.StringValue value) {
-      if (nameStartsWithBuilder_ == null) {
+      if (this.nameStartsWithBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        nameStartsWith_ = value;
+        this.nameStartsWith_ = value;
         onChanged();
       } else {
-        nameStartsWithBuilder_.setMessage(value);
+        this.nameStartsWithBuilder_.setMessage(value);
       }
 
       return this;
@@ -615,11 +615,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setNameStartsWith(
         com.google.protobuf.StringValue.Builder builderForValue) {
-      if (nameStartsWithBuilder_ == null) {
-        nameStartsWith_ = builderForValue.build();
+      if (this.nameStartsWithBuilder_ == null) {
+        this.nameStartsWith_ = builderForValue.build();
         onChanged();
       } else {
-        nameStartsWithBuilder_.setMessage(builderForValue.build());
+        this.nameStartsWithBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -632,16 +632,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
      */
     public Builder mergeNameStartsWith(com.google.protobuf.StringValue value) {
-      if (nameStartsWithBuilder_ == null) {
-        if (nameStartsWith_ != null) {
-          nameStartsWith_ =
-            com.google.protobuf.StringValue.newBuilder(nameStartsWith_).mergeFrom(value).buildPartial();
+      if (this.nameStartsWithBuilder_ == null) {
+        if (this.nameStartsWith_ != null) {
+          this.nameStartsWith_ =
+            com.google.protobuf.StringValue.newBuilder(this.nameStartsWith_).mergeFrom(value).buildPartial();
         } else {
-          nameStartsWith_ = value;
+          this.nameStartsWith_ = value;
         }
         onChanged();
       } else {
-        nameStartsWithBuilder_.mergeFrom(value);
+        this.nameStartsWithBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -654,12 +654,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
      */
     public Builder clearNameStartsWith() {
-      if (nameStartsWithBuilder_ == null) {
-        nameStartsWith_ = null;
+      if (this.nameStartsWithBuilder_ == null) {
+        this.nameStartsWith_ = null;
         onChanged();
       } else {
-        nameStartsWith_ = null;
-        nameStartsWithBuilder_ = null;
+        this.nameStartsWith_ = null;
+        this.nameStartsWithBuilder_ = null;
       }
 
       return this;
@@ -672,7 +672,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
      */
     public com.google.protobuf.StringValue.Builder getNameStartsWithBuilder() {
-      
+
       onChanged();
       return getNameStartsWithFieldBuilder().getBuilder();
     }
@@ -684,11 +684,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getNameStartsWithOrBuilder() {
-      if (nameStartsWithBuilder_ != null) {
-        return nameStartsWithBuilder_.getMessageOrBuilder();
+      if (this.nameStartsWithBuilder_ != null) {
+        return this.nameStartsWithBuilder_.getMessageOrBuilder();
       } else {
-        return nameStartsWith_ == null ?
-            com.google.protobuf.StringValue.getDefaultInstance() : nameStartsWith_;
+        return this.nameStartsWith_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : this.nameStartsWith_;
       }
     }
     /**
@@ -699,17 +699,17 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getNameStartsWithFieldBuilder() {
-      if (nameStartsWithBuilder_ == null) {
-        nameStartsWithBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.nameStartsWithBuilder_ == null) {
+        this.nameStartsWithBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
                 getNameStartsWith(),
                 getParentForChildren(),
                 isClean());
-        nameStartsWith_ = null;
+        this.nameStartsWith_ = null;
       }
-      return nameStartsWithBuilder_;
+      return this.nameStartsWithBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

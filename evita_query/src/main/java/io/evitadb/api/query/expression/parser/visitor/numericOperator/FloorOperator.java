@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ public class FloorOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public BigDecimal compute(@Nonnull PredicateEvaluationContext context) {
-		final BigDecimal number = operator.compute(context, BigDecimal.class);
+		final BigDecimal number = this.operator.compute(context, BigDecimal.class);
 		return number.setScale(0, RoundingMode.FLOOR);
 	}
 
@@ -67,13 +67,13 @@ public class FloorOperator implements ExpressionNode {
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return ExpressionNode.transform(
-			operator.determinePossibleRange(),
+			this.operator.determinePossibleRange(),
 			bd -> bd.setScale(0, RoundingMode.FLOOR)
 		);
 	}
 
 	@Override
 	public String toString() {
-		return "floor(" + operator.toString() + ")";
+		return "floor(" + this.operator.toString() + ")";
 	}
 }

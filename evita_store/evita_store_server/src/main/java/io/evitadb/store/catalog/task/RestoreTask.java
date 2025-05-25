@@ -218,8 +218,8 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 
 		@Override
 		public String toString() {
-			return "FileName: `" + pathToFile + '`' +
-				", totalSizeInBytes: " + StringUtils.formatByteSize(totalSizeInBytes);
+			return "FileName: `" + this.pathToFile + '`' +
+				", totalSizeInBytes: " + StringUtils.formatByteSize(this.totalSizeInBytes);
 		}
 	}
 

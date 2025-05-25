@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -140,7 +140,7 @@ public class CompositeIntArrayOrArrayList {
 
 		@Override
 		public int[] toArray() {
-			return array.toArray();
+			return this.array.toArray();
 		}
 
 	}
@@ -151,12 +151,12 @@ public class CompositeIntArrayOrArrayList {
 
 		@Override
 		public void addValue(int value) {
-			list.add(value);
+			this.list.add(value);
 		}
 
 		@Override
 		public int[] toArray() {
-			return list.stream().mapToInt(it -> it).toArray();
+			return this.list.stream().mapToInt(it -> it).toArray();
 		}
 	}
 
@@ -166,12 +166,12 @@ public class CompositeIntArrayOrArrayList {
 
 		@Override
 		public void addValue(int value) {
-			list.add(value);
+			this.list.add(value);
 		}
 
 		@Override
 		public int[] toArray() {
-			return list.toArray();
+			return this.list.toArray();
 		}
 	}
 
@@ -195,7 +195,7 @@ public class CompositeIntArrayOrArrayList {
 		 */
 		@Setup(Level.Invocation)
 		public void setUp() {
-			sharedInterface = new ArrayListImplementation();
+			this.sharedInterface = new ArrayListImplementation();
 		}
 
 	}
@@ -220,7 +220,7 @@ public class CompositeIntArrayOrArrayList {
 		 */
 		@Setup(Level.Invocation)
 		public void setUp() {
-			sharedInterface = new IntArrayListImplementation();
+			this.sharedInterface = new IntArrayListImplementation();
 		}
 
 	}
@@ -245,7 +245,7 @@ public class CompositeIntArrayOrArrayList {
 		 */
 		@Setup(Level.Invocation)
 		public void setUp() {
-			sharedInterface = new CompositeArrayImplementation();
+			this.sharedInterface = new CompositeArrayImplementation();
 		}
 
 	}

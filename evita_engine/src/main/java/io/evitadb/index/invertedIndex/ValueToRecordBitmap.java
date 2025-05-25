@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -89,7 +89,7 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 	 */
 	@Nonnull
 	public Serializable getValue() {
-		return value;
+		return this.value;
 	}
 
 	/**
@@ -113,7 +113,7 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 	 * Histogram point in the argument is required to have same value as this point.
 	 */
 	public void add(@Nonnull ValueToRecordBitmap histogramBucket) {
-		Assert.isTrue(value.equals(histogramBucket.value), "Values of the histogram point differs: " + value + " vs. " + histogramBucket.value);
+		Assert.isTrue(this.value.equals(histogramBucket.value), "Values of the histogram point differs: " + this.value + " vs. " + histogramBucket.value);
 		this.recordIds.addAll(histogramBucket.getRecordIds());
 	}
 
@@ -122,7 +122,7 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 	 * Histogram point in the argument is required to have same value as this point.
 	 */
 	public void remove(@Nonnull ValueToRecordBitmap histogramBucket) {
-		Assert.isTrue(value.equals(histogramBucket.value), "Values of the histogram point differs: " + value + " vs. " + histogramBucket.value);
+		Assert.isTrue(this.value.equals(histogramBucket.value), "Values of the histogram point differs: " + this.value + " vs. " + histogramBucket.value);
 		this.recordIds.removeAll(histogramBucket.getRecordIds());
 	}
 
@@ -147,7 +147,7 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 	@Override
 	public int compareTo(@Nonnull ValueToRecordBitmap o) {
 		//noinspection unchecked,rawtypes
-		return ((Comparable)value).compareTo(o.value);
+		return ((Comparable) this.value).compareTo(o.value);
 	}
 
 	/**
@@ -157,12 +157,12 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		final ValueToRecordBitmap that = (ValueToRecordBitmap) o;
-		return value.equals(that.value) && recordIds.equals(that.recordIds);
+		return this.value.equals(that.value) && this.recordIds.equals(that.recordIds);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(value);
+		return Objects.hash(this.value);
 	}
 
 	@Override
@@ -170,14 +170,14 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		final ValueToRecordBitmap that = (ValueToRecordBitmap) o;
-		return value.equals(that.value);
+		return this.value.equals(that.value);
 	}
 
 	@Override
 	public String toString() {
 		return "ValueToRecordBitmap{" +
-			"value=" + value +
-			", recordIds=" + recordIds +
+			"value=" + this.value +
+			", recordIds=" + this.recordIds +
 			'}';
 	}
 
@@ -189,8 +189,8 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 	@Override
 	public ValueToRecordBitmap createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		return new ValueToRecordBitmap(
-			value,
-			transactionalLayer.getStateCopyWithCommittedChanges(recordIds)
+			this.value,
+			transactionalLayer.getStateCopyWithCommittedChanges(this.recordIds)
 		);
 	}
 
@@ -203,12 +203,12 @@ public class ValueToRecordBitmap implements TransactionalObject<ValueToRecordBit
 	@Nonnull
 	@Override
 	public ValueToRecordBitmap makeClone() {
-		return new ValueToRecordBitmap(value, new TransactionalBitmap(recordIds));
+		return new ValueToRecordBitmap(this.value, new TransactionalBitmap(this.recordIds));
 	}
 
 	@Nonnull
 	@Override
 	public Collection<TransactionalLayerCreator<?>> getMaintainedTransactionalCreators() {
-		return Collections.singleton(recordIds);
+		return Collections.singleton(this.recordIds);
 	}
 }

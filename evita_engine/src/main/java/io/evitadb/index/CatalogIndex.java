@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -124,7 +124,7 @@ public class CatalogIndex implements
 	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
 		Assert.isPremiseValid(this.catalog == null, "Catalog was already attached to this index!");
 		this.catalog = catalog;
-		for (GlobalUniqueIndex globalUniqueIndex : uniqueIndex.values()) {
+		for (GlobalUniqueIndex globalUniqueIndex : this.uniqueIndex.values()) {
 			globalUniqueIndex.attachToCatalog(null, catalog);
 		}
 	}
@@ -151,10 +151,10 @@ public class CatalogIndex implements
 	@Override
 	public Collection<StoragePart> getModifiedStorageParts() {
 		final List<StoragePart> dirtyParts = new LinkedList<>();
-		if (dirty.isTrue()) {
+		if (this.dirty.isTrue()) {
 			dirtyParts.add(createStoragePart());
 		}
-		for (Entry<AttributeKey, GlobalUniqueIndex> entry : uniqueIndex.entrySet()) {
+		for (Entry<AttributeKey, GlobalUniqueIndex> entry : this.uniqueIndex.entrySet()) {
 			ofNullable(entry.getValue().createStoragePart(entry.getKey()))
 				.ifPresent(dirtyParts::add);
 		}
@@ -247,7 +247,7 @@ public class CatalogIndex implements
 	@Override
 	public void resetDirty() {
 		this.dirty.reset();
-		for (GlobalUniqueIndex theUniqueIndex : uniqueIndex.values()) {
+		for (GlobalUniqueIndex theUniqueIndex : this.uniqueIndex.values()) {
 			theUniqueIndex.resetDirty();
 		}
 	}
@@ -287,7 +287,7 @@ public class CatalogIndex implements
 		private final TransactionalContainerChanges<Void, GlobalUniqueIndex, GlobalUniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull GlobalUniqueIndex uniqueIndex) {
-			uniqueIndexChanges.addCreatedItem(uniqueIndex);
+			this.uniqueIndexChanges.addCreatedItem(uniqueIndex);
 		}
 
 		public void addRemovedItem(@Nonnull GlobalUniqueIndex uniqueIndex) {

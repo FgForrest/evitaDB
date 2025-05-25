@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -220,9 +220,9 @@ public class RestExecutable extends JsonExecutable implements Executable, EvitaT
 
 	@Override
 	public void execute() throws Throwable {
-		final RestClient restClient = testContextAccessor.get().getRestClient();
+		final RestClient restClient = this.testContextAccessor.get().getRestClient();
 
-		final String[] requests = REQUEST_DELIMITER_PATTERN.split(sourceContent);
+		final String[] requests = REQUEST_DELIMITER_PATTERN.split(this.sourceContent);
 		boolean shouldHaveResult = false;
 		final ArrayNode combinedResult = OBJECT_MAPPER.createArrayNode();
 		for (String request : requests) {
@@ -259,20 +259,20 @@ public class RestExecutable extends JsonExecutable implements Executable, EvitaT
 		final boolean shouldHaveResultFinal = shouldHaveResult;
 		final JsonNode theResult = combinedResult.size() == 1 ? combinedResult.get(0) : combinedResult;
 
-		if (resource != null) {
-			final List<String> markdownSnippets = outputSnippet.stream()
+		if (this.resource != null) {
+			final List<String> markdownSnippets = this.outputSnippet.stream()
 				.map(snippet -> generateMarkdownSnippet(shouldHaveResultFinal, theResult, snippet))
 				.toList();
 
-			for (int i = 0; i < outputSnippet.size(); i++) {
-				final OutputSnippet snippet = outputSnippet.get(i);
+			for (int i = 0; i < this.outputSnippet.size(); i++) {
+				final OutputSnippet snippet = this.outputSnippet.get(i);
 				final String markdownSnippet = markdownSnippets.get(i);
 
 				// generate Markdown snippet from the result if required
 				final String outputFormat = ofNullable(snippet).map(OutputSnippet::forFormat).orElse("json");
-				if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
+				if (Arrays.stream(this.createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
 					if (snippet == null) {
-						writeFile(resource, outputFormat, markdownSnippet);
+						writeFile(this.resource, outputFormat, markdownSnippet);
 					} else {
 						writeFile(snippet.path(), markdownSnippet);
 					}
@@ -280,7 +280,7 @@ public class RestExecutable extends JsonExecutable implements Executable, EvitaT
 
 				// assert MarkDown file contents
 				final Optional<String> markDownFile = snippet == null ?
-					readFile(resource, outputFormat) : readFile(snippet.path());
+					readFile(this.resource, outputFormat) : readFile(snippet.path());
 				markDownFile.ifPresent(
 					content -> {
 						assertEquals(
@@ -289,10 +289,10 @@ public class RestExecutable extends JsonExecutable implements Executable, EvitaT
 						);
 
 						final Path assertSource = snippet == null ?
-							resolveSiblingWithDifferentExtension(resource, outputFormat).normalize() :
+							resolveSiblingWithDifferentExtension(this.resource, outputFormat).normalize() :
 							snippet.path().normalize();
 
-						final String relativePath = assertSource.toString().substring(rootDirectory.normalize().toString().length());
+						final String relativePath = assertSource.toString().substring(this.rootDirectory.normalize().toString().length());
 						System.out.println("Markdown snippet `" + relativePath + "` contents verified OK. \uD83D\uDE0A");
 					}
 				);

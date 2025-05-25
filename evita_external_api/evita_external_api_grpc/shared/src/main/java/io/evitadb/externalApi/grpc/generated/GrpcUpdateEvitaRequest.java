@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcUpdateEvitaRequest() {
-    schemaMutations_ = java.util.Collections.emptyList();
+    this.schemaMutations_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -79,10 +79,10 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              schemaMutations_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation>();
+              this.schemaMutations_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation>();
               mutable_bitField0_ |= 0x00000001;
             }
-            schemaMutations_.add(
+            this.schemaMutations_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.parser(), extensionRegistry));
             break;
           }
@@ -102,7 +102,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        schemaMutations_ = java.util.Collections.unmodifiableList(schemaMutations_);
+        this.schemaMutations_ = java.util.Collections.unmodifiableList(this.schemaMutations_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation> getSchemaMutationsList() {
-    return schemaMutations_;
+    return this.schemaMutations_;
   }
   /**
    * <pre>
@@ -142,9 +142,9 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder>
       getSchemaMutationsOrBuilderList() {
-    return schemaMutations_;
+    return this.schemaMutations_;
   }
   /**
    * <pre>
@@ -155,7 +155,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getSchemaMutationsCount() {
-    return schemaMutations_.size();
+    return this.schemaMutations_.size();
   }
   /**
    * <pre>
@@ -166,7 +166,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation getSchemaMutations(int index) {
-    return schemaMutations_.get(index);
+    return this.schemaMutations_.get(index);
   }
   /**
    * <pre>
@@ -178,41 +178,41 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder getSchemaMutationsOrBuilder(
       int index) {
-    return schemaMutations_.get(index);
+    return this.schemaMutations_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    for (int i = 0; i < schemaMutations_.size(); i++) {
-      output.writeMessage(1, schemaMutations_.get(i));
+    for (int i = 0; i < this.schemaMutations_.size(); i++) {
+      output.writeMessage(1, this.schemaMutations_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    for (int i = 0; i < schemaMutations_.size(); i++) {
+    for (int i = 0; i < this.schemaMutations_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(1, schemaMutations_.get(i));
+        .computeMessageSize(1, this.schemaMutations_.get(i));
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -228,14 +228,14 @@ private static final long serialVersionUID = 0L;
 
     if (!getSchemaMutationsList()
         .equals(other.getSchemaMutationsList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -243,8 +243,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + SCHEMAMUTATIONS_FIELD_NUMBER;
       hash = (53 * hash) + getSchemaMutationsList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -381,11 +381,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (schemaMutationsBuilder_ == null) {
-        schemaMutations_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.schemaMutationsBuilder_ == null) {
+        this.schemaMutations_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       } else {
-        schemaMutationsBuilder_.clear();
+        this.schemaMutationsBuilder_.clear();
       }
       return this;
     }
@@ -413,15 +413,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest result = new io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest(this);
-      int from_bitField0_ = bitField0_;
-      if (schemaMutationsBuilder_ == null) {
-        if (((bitField0_ & 0x00000001) != 0)) {
-          schemaMutations_ = java.util.Collections.unmodifiableList(schemaMutations_);
-          bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      if (this.schemaMutationsBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000001) != 0)) {
+          this.schemaMutations_ = java.util.Collections.unmodifiableList(this.schemaMutations_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         }
-        result.schemaMutations_ = schemaMutations_;
+        result.schemaMutations_ = this.schemaMutations_;
       } else {
-        result.schemaMutations_ = schemaMutationsBuilder_.build();
+        result.schemaMutations_ = this.schemaMutationsBuilder_.build();
       }
       onBuilt();
       return result;
@@ -471,29 +471,29 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest.getDefaultInstance()) return this;
-      if (schemaMutationsBuilder_ == null) {
+      if (this.schemaMutationsBuilder_ == null) {
         if (!other.schemaMutations_.isEmpty()) {
-          if (schemaMutations_.isEmpty()) {
-            schemaMutations_ = other.schemaMutations_;
-            bitField0_ = (bitField0_ & ~0x00000001);
+          if (this.schemaMutations_.isEmpty()) {
+            this.schemaMutations_ = other.schemaMutations_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
           } else {
             ensureSchemaMutationsIsMutable();
-            schemaMutations_.addAll(other.schemaMutations_);
+            this.schemaMutations_.addAll(other.schemaMutations_);
           }
           onChanged();
         }
       } else {
         if (!other.schemaMutations_.isEmpty()) {
-          if (schemaMutationsBuilder_.isEmpty()) {
-            schemaMutationsBuilder_.dispose();
-            schemaMutationsBuilder_ = null;
-            schemaMutations_ = other.schemaMutations_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-            schemaMutationsBuilder_ = 
+          if (this.schemaMutationsBuilder_.isEmpty()) {
+            this.schemaMutationsBuilder_.dispose();
+            this.schemaMutationsBuilder_ = null;
+            this.schemaMutations_ = other.schemaMutations_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+            this.schemaMutationsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getSchemaMutationsFieldBuilder() : null;
           } else {
-            schemaMutationsBuilder_.addAllMessages(other.schemaMutations_);
+            this.schemaMutationsBuilder_.addAllMessages(other.schemaMutations_);
           }
         }
       }
@@ -530,9 +530,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation> schemaMutations_ =
       java.util.Collections.emptyList();
     private void ensureSchemaMutationsIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        schemaMutations_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation>(schemaMutations_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.schemaMutations_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation>(this.schemaMutations_);
+        this.bitField0_ |= 0x00000001;
        }
     }
 
@@ -547,10 +547,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation> getSchemaMutationsList() {
-      if (schemaMutationsBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(schemaMutations_);
+      if (this.schemaMutationsBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.schemaMutations_);
       } else {
-        return schemaMutationsBuilder_.getMessageList();
+        return this.schemaMutationsBuilder_.getMessageList();
       }
     }
     /**
@@ -561,10 +561,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public int getSchemaMutationsCount() {
-      if (schemaMutationsBuilder_ == null) {
-        return schemaMutations_.size();
+      if (this.schemaMutationsBuilder_ == null) {
+        return this.schemaMutations_.size();
       } else {
-        return schemaMutationsBuilder_.getCount();
+        return this.schemaMutationsBuilder_.getCount();
       }
     }
     /**
@@ -575,10 +575,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation getSchemaMutations(int index) {
-      if (schemaMutationsBuilder_ == null) {
-        return schemaMutations_.get(index);
+      if (this.schemaMutationsBuilder_ == null) {
+        return this.schemaMutations_.get(index);
       } else {
-        return schemaMutationsBuilder_.getMessage(index);
+        return this.schemaMutationsBuilder_.getMessage(index);
       }
     }
     /**
@@ -590,15 +590,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setSchemaMutations(
         int index, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation value) {
-      if (schemaMutationsBuilder_ == null) {
+      if (this.schemaMutationsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureSchemaMutationsIsMutable();
-        schemaMutations_.set(index, value);
+        this.schemaMutations_.set(index, value);
         onChanged();
       } else {
-        schemaMutationsBuilder_.setMessage(index, value);
+        this.schemaMutationsBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -611,12 +611,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setSchemaMutations(
         int index, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder builderForValue) {
-      if (schemaMutationsBuilder_ == null) {
+      if (this.schemaMutationsBuilder_ == null) {
         ensureSchemaMutationsIsMutable();
-        schemaMutations_.set(index, builderForValue.build());
+        this.schemaMutations_.set(index, builderForValue.build());
         onChanged();
       } else {
-        schemaMutationsBuilder_.setMessage(index, builderForValue.build());
+        this.schemaMutationsBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -628,15 +628,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public Builder addSchemaMutations(io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation value) {
-      if (schemaMutationsBuilder_ == null) {
+      if (this.schemaMutationsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureSchemaMutationsIsMutable();
-        schemaMutations_.add(value);
+        this.schemaMutations_.add(value);
         onChanged();
       } else {
-        schemaMutationsBuilder_.addMessage(value);
+        this.schemaMutationsBuilder_.addMessage(value);
       }
       return this;
     }
@@ -649,15 +649,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addSchemaMutations(
         int index, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation value) {
-      if (schemaMutationsBuilder_ == null) {
+      if (this.schemaMutationsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureSchemaMutationsIsMutable();
-        schemaMutations_.add(index, value);
+        this.schemaMutations_.add(index, value);
         onChanged();
       } else {
-        schemaMutationsBuilder_.addMessage(index, value);
+        this.schemaMutationsBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -670,12 +670,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addSchemaMutations(
         io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder builderForValue) {
-      if (schemaMutationsBuilder_ == null) {
+      if (this.schemaMutationsBuilder_ == null) {
         ensureSchemaMutationsIsMutable();
-        schemaMutations_.add(builderForValue.build());
+        this.schemaMutations_.add(builderForValue.build());
         onChanged();
       } else {
-        schemaMutationsBuilder_.addMessage(builderForValue.build());
+        this.schemaMutationsBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -688,12 +688,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addSchemaMutations(
         int index, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder builderForValue) {
-      if (schemaMutationsBuilder_ == null) {
+      if (this.schemaMutationsBuilder_ == null) {
         ensureSchemaMutationsIsMutable();
-        schemaMutations_.add(index, builderForValue.build());
+        this.schemaMutations_.add(index, builderForValue.build());
         onChanged();
       } else {
-        schemaMutationsBuilder_.addMessage(index, builderForValue.build());
+        this.schemaMutationsBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -706,13 +706,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllSchemaMutations(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation> values) {
-      if (schemaMutationsBuilder_ == null) {
+      if (this.schemaMutationsBuilder_ == null) {
         ensureSchemaMutationsIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, schemaMutations_);
+            values, this.schemaMutations_);
         onChanged();
       } else {
-        schemaMutationsBuilder_.addAllMessages(values);
+        this.schemaMutationsBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -724,12 +724,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public Builder clearSchemaMutations() {
-      if (schemaMutationsBuilder_ == null) {
-        schemaMutations_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.schemaMutationsBuilder_ == null) {
+        this.schemaMutations_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        schemaMutationsBuilder_.clear();
+        this.schemaMutationsBuilder_.clear();
       }
       return this;
     }
@@ -741,12 +741,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;</code>
      */
     public Builder removeSchemaMutations(int index) {
-      if (schemaMutationsBuilder_ == null) {
+      if (this.schemaMutationsBuilder_ == null) {
         ensureSchemaMutationsIsMutable();
-        schemaMutations_.remove(index);
+        this.schemaMutations_.remove(index);
         onChanged();
       } else {
-        schemaMutationsBuilder_.remove(index);
+        this.schemaMutationsBuilder_.remove(index);
       }
       return this;
     }
@@ -770,9 +770,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder getSchemaMutationsOrBuilder(
         int index) {
-      if (schemaMutationsBuilder_ == null) {
-        return schemaMutations_.get(index);  } else {
-        return schemaMutationsBuilder_.getMessageOrBuilder(index);
+      if (this.schemaMutationsBuilder_ == null) {
+        return this.schemaMutations_.get(index);  } else {
+        return this.schemaMutationsBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -782,12 +782,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder>
          getSchemaMutationsOrBuilderList() {
-      if (schemaMutationsBuilder_ != null) {
-        return schemaMutationsBuilder_.getMessageOrBuilderList();
+      if (this.schemaMutationsBuilder_ != null) {
+        return this.schemaMutationsBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(schemaMutations_);
+        return java.util.Collections.unmodifiableList(this.schemaMutations_);
       }
     }
     /**
@@ -820,23 +820,23 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder>
          getSchemaMutationsBuilderList() {
       return getSchemaMutationsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder>
         getSchemaMutationsFieldBuilder() {
-      if (schemaMutationsBuilder_ == null) {
-        schemaMutationsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.schemaMutationsBuilder_ == null) {
+        this.schemaMutationsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder>(
-                schemaMutations_,
-                ((bitField0_ & 0x00000001) != 0),
+                this.schemaMutations_,
+                ((this.bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        schemaMutations_ = null;
+        this.schemaMutations_ = null;
       }
-      return schemaMutationsBuilder_;
+      return this.schemaMutationsBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

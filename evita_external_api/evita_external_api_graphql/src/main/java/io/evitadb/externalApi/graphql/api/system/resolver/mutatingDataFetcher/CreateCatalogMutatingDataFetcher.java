@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,8 +48,8 @@ public class CreateCatalogMutatingDataFetcher implements DataFetcher<CatalogCont
     public CatalogContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final String catalogName = environment.getArgument(CreateCatalogMutationHeaderDescriptor.NAME.name());
 
-        evita.defineCatalog(catalogName);
-        final CatalogContract newCatalog = evita.getCatalogInstanceOrThrowException(catalogName);
+	    this.evita.defineCatalog(catalogName);
+        final CatalogContract newCatalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
 
         return newCatalog;
     }

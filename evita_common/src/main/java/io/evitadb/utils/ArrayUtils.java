@@ -1287,13 +1287,13 @@ public class ArrayUtils {
 
 		@Override
 		public Integer get(int index) {
-			return elements[index];
+			return this.elements[index];
 		}
 
 		@Override
 		public Integer set(int index, Integer element) {
-			int v = elements[index];
-			elements[index] = element;
+			int v = this.elements[index];
+			this.elements[index] = element;
 			return v;
 		}
 
@@ -1303,19 +1303,19 @@ public class ArrayUtils {
 			if (o == null || getClass() != o.getClass()) return false;
 			if (!super.equals(o)) return false;
 			IntArrayWrapper integers = (IntArrayWrapper) o;
-			return Arrays.equals(elements, integers.elements);
+			return Arrays.equals(this.elements, integers.elements);
 		}
 
 		@Override
 		public int hashCode() {
 			int result = super.hashCode();
-			result = 31 * result + Arrays.hashCode(elements);
+			result = 31 * result + Arrays.hashCode(this.elements);
 			return result;
 		}
 
 		@Override
 		public int size() {
-			return elements.length;
+			return this.elements.length;
 		}
 
 	}
@@ -1331,13 +1331,13 @@ public class ArrayUtils {
 
 		@Override
 		public T get(int index) {
-			return elements[index];
+			return this.elements[index];
 		}
 
 		@Override
 		public T set(int index, T element) {
-			T v = elements[index];
-			elements[index] = element;
+			T v = this.elements[index];
+			this.elements[index] = element;
 			return v;
 		}
 
@@ -1348,19 +1348,19 @@ public class ArrayUtils {
 			if (!super.equals(o)) return false;
 			//noinspection unchecked
 			ArrayWrapper<T> otherElements = (ArrayWrapper<T>) o;
-			return Arrays.equals(elements, otherElements.elements);
+			return Arrays.equals(this.elements, otherElements.elements);
 		}
 
 		@Override
 		public int hashCode() {
 			int result = super.hashCode();
-			result = 31 * result + Arrays.hashCode(elements);
+			result = 31 * result + Arrays.hashCode(this.elements);
 			return result;
 		}
 
 		@Override
 		public int size() {
-			return elements.length;
+			return this.elements.length;
 		}
 
 	}

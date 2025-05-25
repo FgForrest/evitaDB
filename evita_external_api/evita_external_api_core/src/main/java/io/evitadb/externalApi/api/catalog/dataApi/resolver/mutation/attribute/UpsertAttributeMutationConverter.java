@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,10 +73,10 @@ public class UpsertAttributeMutationConverter extends AttributeMutationConverter
 			new ValueTypeMapper(getExceptionFactory(), UpsertAttributeMutationDescriptor.VALUE_TYPE)
 		);
 		Assert.isPremiseValid(
-			attributeSchemaProvider != null,
+			this.attributeSchemaProvider != null,
 			() -> getExceptionFactory().createInternalError("Attribute schema provider is required for conversion from input.")
 		);
-		final AttributeSchemaContract attributeSchema = attributeSchemaProvider.getAttribute(attributeKey.attributeName()).orElse(null);
+		final AttributeSchemaContract attributeSchema = this.attributeSchemaProvider.getAttribute(attributeKey.attributeName()).orElse(null);
 		if (attributeSchema == null && valueType == null) {
 			throw getExceptionFactory().createInvalidArgumentException("Missing value type of new attribute `" + attributeKey.attributeName() + "`.");
 		}

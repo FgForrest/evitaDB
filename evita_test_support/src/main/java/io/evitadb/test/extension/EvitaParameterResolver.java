@@ -996,7 +996,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 								it.set(newSession);
 								return newSession;
 							})
-							.orElseThrow(() -> new ParameterResolutionException("gRPC web API was not opened for the dataset `" + name + "`!"))
+							.orElseThrow(() -> new ParameterResolutionException("gRPC web API was not opened for the dataset `" + this.name + "`!"))
 					)
 				)
 				.orElse(null);
@@ -1014,7 +1014,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 								it.set(newTester);
 								return newTester;
 							})
-							.orElseThrow(() -> new ParameterResolutionException("GraphQL web API was not opened for the dataset `" + name + "`!"))
+							.orElseThrow(() -> new ParameterResolutionException("GraphQL web API was not opened for the dataset `" + this.name + "`!"))
 					)
 				)
 				.orElse(null);
@@ -1032,7 +1032,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 								it.set(newTester);
 								return newTester;
 							})
-							.orElseThrow(() -> new ParameterResolutionException("GraphQL web API was not opened for the dataset `" + name + "`!"))
+							.orElseThrow(() -> new ParameterResolutionException("GraphQL web API was not opened for the dataset `" + this.name + "`!"))
 					)
 				)
 				.orElse(null);
@@ -1050,7 +1050,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 								it.set(newTester);
 								return newTester;
 							})
-							.orElseThrow(() -> new ParameterResolutionException("REST web API was not opened for the dataset `" + name + "`!"))
+							.orElseThrow(() -> new ParameterResolutionException("REST web API was not opened for the dataset `" + this.name + "`!"))
 					)
 				)
 				.orElse(null);
@@ -1068,7 +1068,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 								it.set(newTester);
 								return newTester;
 							})
-							.orElseThrow(() -> new ParameterResolutionException("Lab API was not opened for the dataset `" + name + "`!"))
+							.orElseThrow(() -> new ParameterResolutionException("Lab API was not opened for the dataset `" + this.name + "`!"))
 					)
 				)
 				.orElse(null);
@@ -1158,9 +1158,9 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		public DataSetState update(@Nonnull Object testInstance, @Nonnull Method testMethod, @Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate) {
 			return new DataSetState(
 				testInstance, testMethod,
-				evitaInstance, evitaServerInstance, dataCarrier,
+				this.evitaInstance, this.evitaServerInstance, this.dataCarrier,
 				destroyPredicate,
-				client, graphQLTester, graphQLSchemaTester, restTester, labApiTester
+				this.client, this.graphQLTester, this.graphQLSchemaTester, this.restTester, this.labApiTester
 			);
 		}
 
@@ -1176,47 +1176,47 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			for (Method destroyMethod : dataSetInfo.destroyMethods()) {
 				try {
 					final HashMap<String, Object> availableParameters = createLinkedHashMap(
-						property(DATA_NAME_EVITA, evitaInstance),
-						property(DATA_NAME_EVITA_SERVER, evitaServerInstance),
+						property(DATA_NAME_EVITA, this.evitaInstance),
+						property(DATA_NAME_EVITA_SERVER, this.evitaServerInstance),
 						property(DATA_NAME_CATALOG_NAME, dataSetInfo.catalogName())
 					);
-					for (Entry<String, Object> entry : dataCarrier.entrySet()) {
+					for (Entry<String, Object> entry : this.dataCarrier.entrySet()) {
 						availableParameters.put(entry.getKey(), entry.getValue());
 					}
 					int counter = 0;
-					for (Object anonymousValue : dataCarrier.anonymousValues()) {
+					for (Object anonymousValue : this.dataCarrier.anonymousValues()) {
 						availableParameters.put("__anonymousValue_" + counter++, anonymousValue);
 					}
 					final Object[] arguments = placeArguments(
 						destroyMethod,
 						availableParameters
 					);
-					destroyMethod.invoke(testInstance, arguments);
+					destroyMethod.invoke(this.testInstance, arguments);
 				} catch (InvocationTargetException | IllegalAccessException e) {
 					throw new ParameterResolutionException("Failed to tear down data set " + dataSetName, e);
 				}
 			}
 
 			// get the storage directory from evita configuration
-			final Path storageDirectory = evitaInstance.getConfiguration().storage().storageDirectory();
+			final Path storageDirectory = this.evitaInstance.getConfiguration().storage().storageDirectory();
 
 			// close evita and clear data
 			log.info("Closing Evita instance for data set `{}`", dataSetName);
-			evitaInstance.close();
+			this.evitaInstance.close();
 
 			// close the client
-			ofNullable(client.get())
+			ofNullable(this.client.get())
 				.ifPresent(EvitaClient::close);
 
 			// close the server instance and free ports
-			ofNullable(evitaServerInstance)
+			ofNullable(this.evitaServerInstance)
 				.ifPresent(it -> portManager.releasePortsOnCompletion(dataSetName, it.stop()));
 
 			// close all closeable elements in data carrier
-			if (dataCarrier != null) {
+			if (this.dataCarrier != null) {
 				Stream.concat(
-						dataCarrier.entrySet().stream().filter(Objects::nonNull).map(Entry::getValue),
-						dataCarrier.anonymousValues().stream()
+						this.dataCarrier.entrySet().stream().filter(Objects::nonNull).map(Entry::getValue),
+						this.dataCarrier.anonymousValues().stream()
 					)
 					.filter(it -> it instanceof Closeable)
 					.forEach(it -> {

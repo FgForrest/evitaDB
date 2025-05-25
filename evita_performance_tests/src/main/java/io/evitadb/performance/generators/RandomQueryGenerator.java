@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -716,10 +716,10 @@ public interface RandomQueryGenerator {
 		 */
 		public void updateValue(@Nonnull Serializable value, @Nonnull Random random) {
 			Assert.isTrue(!this.localized, "Attribute is localized by schema!");
-			if (global == null) {
-				global = new Statistics(value);
+			if (this.global == null) {
+				this.global = new Statistics(value);
 			} else {
-				global.update(value, random);
+				this.global.update(value, random);
 			}
 		}
 
@@ -728,12 +728,12 @@ public interface RandomQueryGenerator {
 		 */
 		public void updateValue(@Nonnull Serializable localizedValue, @Nonnull Locale locale, @Nonnull Random random) {
 			Assert.isTrue(this.localized, "Attribute is not localized by schema!");
-			if (localeSpecific == null) {
-				localeSpecific = new HashMap<>();
+			if (this.localeSpecific == null) {
+				this.localeSpecific = new HashMap<>();
 			}
-			final Statistics statistics = localeSpecific.get(locale);
+			final Statistics statistics = this.localeSpecific.get(locale);
 			if (statistics == null) {
-				localeSpecific.put(locale, new Statistics(localizedValue));
+				this.localeSpecific.put(locale, new Statistics(localizedValue));
 			} else {
 				statistics.update(localizedValue, random);
 			}
@@ -744,7 +744,7 @@ public interface RandomQueryGenerator {
 		 * found.
 		 */
 		public Statistics getStatistics(Locale locale) {
-			return ofNullable(localeSpecific).map(it -> it.get(locale)).orElse(global);
+			return ofNullable(this.localeSpecific).map(it -> it.get(locale)).orElse(this.global);
 		}
 
 	}
@@ -763,9 +763,9 @@ public interface RandomQueryGenerator {
 		public void updateValue(@Nonnull PriceContract value, @Nonnull Random random) {
 			if (value.indexed()) {
 				final CompressiblePriceKey key = new CompressiblePriceKey(value.priceKey());
-				final PriceStatistics priceStatistics = priceAndCurrencyStats.computeIfAbsent(key, PriceStatistics::new);
+				final PriceStatistics priceStatistics = this.priceAndCurrencyStats.computeIfAbsent(key, PriceStatistics::new);
 				priceStatistics.updateValue(value, random);
-				currencies.add(key.getCurrency());
+				this.currencies.add(key.getCurrency());
 				final Set<String> priceLists = this.priceLists.computeIfAbsent(key.getCurrency(), currency -> new HashSet<>());
 				priceLists.add(key.getPriceList());
 			}
@@ -775,15 +775,15 @@ public interface RandomQueryGenerator {
 		 * Returns price statistics for passed priceList and currency combination.
 		 */
 		public PriceStatistics getPriceStats(@Nonnull CompressiblePriceKey key) {
-			return priceAndCurrencyStats.get(key);
+			return this.priceAndCurrencyStats.get(key);
 		}
 
 		/**
 		 * Selects random currency from all available currencies.
 		 */
 		public Currency pickRandomCurrency(@Nonnull Random random) {
-			final int index = random.nextInt(currencies.size());
-			final Iterator<Currency> it = currencies.iterator();
+			final int index = random.nextInt(this.currencies.size());
+			final Iterator<Currency> it = this.currencies.iterator();
 			int i = -1;
 			while (++i < index) {
 				it.next();
@@ -800,7 +800,7 @@ public interface RandomQueryGenerator {
 			String biggestOne = null;
 			int biggestCount = 0;
 			for (String priceList : priceLists) {
-				final PriceStatistics priceStatistics = priceAndCurrencyStats.get(new CompressiblePriceKey(priceList, currency));
+				final PriceStatistics priceStatistics = this.priceAndCurrencyStats.get(new CompressiblePriceKey(priceList, currency));
 				if (priceStatistics.getCount() > biggestCount) {
 					biggestOne = priceList;
 					biggestCount = priceStatistics.getCount();
@@ -813,7 +813,7 @@ public interface RandomQueryGenerator {
 		 * Selects set of random price lists except of specified one. Price lists are selected only for passed currency.
 		 */
 		public String[] pickRandomPriceLists(@Nonnull Random random, int count, @Nonnull Currency currency, @Nonnull String except) {
-			final Set<String> priceListsAvailable = priceLists.get(currency);
+			final Set<String> priceListsAvailable = this.priceLists.get(currency);
 			final Set<String> pickedPriceLists = new HashSet<>();
 			final int requestedCount = Math.min(count, priceListsAvailable.size() - 1);
 			do {
@@ -841,7 +841,7 @@ public interface RandomQueryGenerator {
 			OffsetDateTime randomValue = null;
 			for (String priceList : priceLists) {
 				final CompressiblePriceKey key = new CompressiblePriceKey(priceList, currency);
-				final PriceStatistics statistics = priceAndCurrencyStats.get(key);
+				final PriceStatistics statistics = this.priceAndCurrencyStats.get(key);
 				final Statistics validityStatistics = ofNullable(statistics).map(PriceStatistics::getValidityStatistics).orElse(null);
 				if (validityStatistics != null) {
 					final LinkedList<Comparable> randomValues = validityStatistics.getRandomValues();
@@ -870,7 +870,7 @@ public interface RandomQueryGenerator {
 			BigDecimal max = null;
 			for (String priceList : priceLists) {
 				final CompressiblePriceKey key = new CompressiblePriceKey(priceList, currency);
-				final PriceStatistics statistics = priceAndCurrencyStats.get(key);
+				final PriceStatistics statistics = this.priceAndCurrencyStats.get(key);
 				final Statistics priceWithTaxStats = ofNullable(statistics).map(PriceStatistics::getPriceWithTaxStatistics).orElse(null);
 				if (priceWithTaxStats != null) {
 					final BigDecimal priceListMinPrice = (BigDecimal) priceWithTaxStats.getMinimalValue();
@@ -920,18 +920,18 @@ public interface RandomQueryGenerator {
 		 * Records a value encountered in the dataset.
 		 */
 		public void updateValue(@Nonnull PriceContract value, @Nonnull Random random) {
-			if (priceWithoutTaxStatistics == null) {
-				priceWithoutTaxStatistics = new Statistics(value.priceWithoutTax());
-				priceWithTaxStatistics = new Statistics(value.priceWithTax());
+			if (this.priceWithoutTaxStatistics == null) {
+				this.priceWithoutTaxStatistics = new Statistics(value.priceWithoutTax());
+				this.priceWithTaxStatistics = new Statistics(value.priceWithTax());
 			} else {
-				priceWithoutTaxStatistics.update(value.priceWithoutTax(), random);
-				priceWithTaxStatistics.update(value.priceWithTax(), random);
+				this.priceWithoutTaxStatistics.update(value.priceWithoutTax(), random);
+				this.priceWithTaxStatistics.update(value.priceWithTax(), random);
 			}
 			if (value.validity() != null) {
-				if (validityStatistics == null) {
-					validityStatistics = new Statistics(value.validity());
+				if (this.validityStatistics == null) {
+					this.validityStatistics = new Statistics(value.validity());
 				} else {
-					validityStatistics.update(value.validity(), random);
+					this.validityStatistics.update(value.validity(), random);
 				}
 			}
 		}
@@ -942,7 +942,7 @@ public interface RandomQueryGenerator {
 		 */
 		@Nullable
 		public Statistics getPriceWithoutTaxStatistics() {
-			return priceWithoutTaxStatistics;
+			return this.priceWithoutTaxStatistics;
 		}
 
 		/**
@@ -951,7 +951,7 @@ public interface RandomQueryGenerator {
 		 */
 		@Nullable
 		public Statistics getPriceWithTaxStatistics() {
-			return priceWithTaxStatistics;
+			return this.priceWithTaxStatistics;
 		}
 
 		/**
@@ -960,14 +960,14 @@ public interface RandomQueryGenerator {
 		 */
 		@Nullable
 		public Statistics getValidityStatistics() {
-			return validityStatistics;
+			return this.validityStatistics;
 		}
 
 		/**
 		 * Returns count of prices in this price list and currency combination.
 		 */
 		public int getCount() {
-			return priceWithoutTaxStatistics.getCount();
+			return this.priceWithoutTaxStatistics.getCount();
 		}
 	}
 
@@ -1007,17 +1007,17 @@ public interface RandomQueryGenerator {
 		 * Records a value encountered in the dataset.
 		 */
 		public void update(@Nonnull Serializable value, @Nonnull Random random) {
-			if (minimalValue.compareTo(value) > 0) {
+			if (this.minimalValue.compareTo(value) > 0) {
 				this.minimalValue = (Comparable) value;
 			}
-			if (maximalValue.compareTo(value) < 0) {
+			if (this.maximalValue.compareTo(value) < 0) {
 				this.maximalValue = (Comparable) value;
 			}
 			this.count++;
 			if (random.nextInt(5) == 0) {
-				randomValues.add((Comparable) value);
-				if (randomValues.size() > 50) {
-					randomValues.removeFirst();
+				this.randomValues.add((Comparable) value);
+				if (this.randomValues.size() > 50) {
+					this.randomValues.removeFirst();
 				}
 			}
 		}
@@ -1026,7 +1026,7 @@ public interface RandomQueryGenerator {
 		 * Returns random value that is present in the dataset.
 		 */
 		public <T extends Comparable<?> & Serializable> T getSomeValue(@Nonnull Random random) {
-			return (T) randomValues.get(random.nextInt(randomValues.size()));
+			return (T) this.randomValues.get(random.nextInt(this.randomValues.size()));
 		}
 	}
 

@@ -77,12 +77,12 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            catalogVersion_ = input.readInt64();
+            this.catalogVersion_ = input.readInt64();
             break;
           }
           case 16: {
 
-            catalogSchemaVersion_ = input.readInt32();
+            this.catalogSchemaVersion_ = input.readInt32();
             break;
           }
           default: {
@@ -129,7 +129,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public long getCatalogVersion() {
-    return catalogVersion_;
+    return this.catalogVersion_;
   }
 
   public static final int CATALOGSCHEMAVERSION_FIELD_NUMBER = 2;
@@ -146,48 +146,48 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getCatalogSchemaVersion() {
-    return catalogSchemaVersion_;
+    return this.catalogSchemaVersion_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (catalogVersion_ != 0L) {
-      output.writeInt64(1, catalogVersion_);
+    if (this.catalogVersion_ != 0L) {
+      output.writeInt64(1, this.catalogVersion_);
     }
-    if (catalogSchemaVersion_ != 0) {
-      output.writeInt32(2, catalogSchemaVersion_);
+    if (this.catalogSchemaVersion_ != 0) {
+      output.writeInt32(2, this.catalogSchemaVersion_);
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (catalogVersion_ != 0L) {
+    if (this.catalogVersion_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(1, catalogVersion_);
+        .computeInt64Size(1, this.catalogVersion_);
     }
-    if (catalogSchemaVersion_ != 0) {
+    if (this.catalogSchemaVersion_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, catalogSchemaVersion_);
+        .computeInt32Size(2, this.catalogSchemaVersion_);
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -205,14 +205,14 @@ private static final long serialVersionUID = 0L;
         != other.getCatalogVersion()) return false;
     if (getCatalogSchemaVersion()
         != other.getCatalogSchemaVersion()) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -221,8 +221,8 @@ private static final long serialVersionUID = 0L;
         getCatalogVersion());
     hash = (37 * hash) + CATALOGSCHEMAVERSION_FIELD_NUMBER;
     hash = (53 * hash) + getCatalogSchemaVersion();
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -358,9 +358,9 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      catalogVersion_ = 0L;
+      this.catalogVersion_ = 0L;
 
-      catalogSchemaVersion_ = 0;
+      this.catalogSchemaVersion_ = 0;
 
       return this;
     }
@@ -388,8 +388,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCloseResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcCloseResponse result = new io.evitadb.externalApi.grpc.generated.GrpcCloseResponse(this);
-      result.catalogVersion_ = catalogVersion_;
-      result.catalogSchemaVersion_ = catalogSchemaVersion_;
+      result.catalogVersion_ = this.catalogVersion_;
+      result.catalogSchemaVersion_ = this.catalogSchemaVersion_;
       onBuilt();
       return result;
     }
@@ -484,7 +484,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public long getCatalogVersion() {
-      return catalogVersion_;
+      return this.catalogVersion_;
     }
     /**
      * <pre>
@@ -497,7 +497,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCatalogVersion(long value) {
 
-      catalogVersion_ = value;
+      this.catalogVersion_ = value;
       onChanged();
       return this;
     }
@@ -511,7 +511,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearCatalogVersion() {
 
-      catalogVersion_ = 0L;
+      this.catalogVersion_ = 0L;
       onChanged();
       return this;
     }
@@ -529,7 +529,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getCatalogSchemaVersion() {
-      return catalogSchemaVersion_;
+      return this.catalogSchemaVersion_;
     }
     /**
      * <pre>
@@ -544,7 +544,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCatalogSchemaVersion(int value) {
 
-      catalogSchemaVersion_ = value;
+      this.catalogSchemaVersion_ = value;
       onChanged();
       return this;
     }
@@ -560,7 +560,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearCatalogSchemaVersion() {
 
-      catalogSchemaVersion_ = 0;
+      this.catalogSchemaVersion_ = 0;
       onChanged();
       return this;
     }

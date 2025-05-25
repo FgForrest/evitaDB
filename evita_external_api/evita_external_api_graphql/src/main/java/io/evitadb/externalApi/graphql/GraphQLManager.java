@@ -116,7 +116,7 @@ public class GraphQLManager {
 
 	@Nonnull
 	public HttpService getGraphQLRouter() {
-		return new PathNormalizingHandler(graphQLRouter);
+		return new PathNormalizingHandler(this.graphQLRouter);
 	}
 
 	/**
@@ -144,13 +144,13 @@ public class GraphQLManager {
 	 * Registers new Evita catalog to API. It creates new endpoint and {@link GraphQL} instance for it.
 	 */
 	public void registerCatalog(@Nonnull String catalogName) {
-		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
+		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
 		if (catalog instanceof CorruptedCatalog) {
 			log.warn("Catalog `" + catalogName + "` is corrupted. Skipping...");
 			return;
 		}
 		Assert.isPremiseValid(
-			!registeredCatalogs.contains(catalogName),
+			!this.registeredCatalogs.contains(catalogName),
 			() -> new GraphQLInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
 		// todo jno: uncomment after the catalog captures are implemented
@@ -165,36 +165,36 @@ public class GraphQLManager {
 			// build data API instance
 			final long dataApiInstanceBuildStartTime = System.currentTimeMillis();
 			final long dataApiSchemaBuildStartTime = System.currentTimeMillis();
-			final GraphQLSchema dataApiSchema = new CatalogDataApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build();
+			final GraphQLSchema dataApiSchema = new CatalogDataApiGraphQLSchemaBuilder(this.graphQLConfig, this.evita, catalog).build();
 			final long dataApiSchemaBuildDuration = System.currentTimeMillis() - dataApiSchemaBuildStartTime;
 
 			final GraphQL dataApi = new CatalogGraphQLBuilder(
-				evita,
+				this.evita,
 				catalog,
 				dataApiSchema,
-				objectMapper
-			).build(graphQLConfig);
+				this.objectMapper
+			).build(this.graphQLConfig);
 
-			graphQLRouter.registerCatalogApi(catalogName, GraphQLInstanceType.DATA, dataApi);
+			this.graphQLRouter.registerCatalogApi(catalogName, GraphQLInstanceType.DATA, dataApi);
 			final long dataApiInstanceBuildDuration = System.currentTimeMillis() - dataApiInstanceBuildStartTime;
 
 			// build schema API instance
 			final long schemaApiInstanceBuildStartTime = System.currentTimeMillis();
 			final long schemaApiSchemaBuildStartTime = System.currentTimeMillis();
-			final GraphQLSchema schemaApiSchema = new CatalogSchemaApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build();
+			final GraphQLSchema schemaApiSchema = new CatalogSchemaApiGraphQLSchemaBuilder(this.graphQLConfig, this.evita, catalog).build();
 			final long schemaApiSchemaBuildDuration = System.currentTimeMillis() - schemaApiSchemaBuildStartTime;
 
 			final GraphQL schemaApi = new CatalogGraphQLBuilder(
-				evita,
+				this.evita,
 				catalog,
 				schemaApiSchema,
-				objectMapper
-			).build(graphQLConfig);
+				this.objectMapper
+			).build(this.graphQLConfig);
 
-			graphQLRouter.registerCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, schemaApi);
+			this.graphQLRouter.registerCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, schemaApi);
 			final long schemaApiInstanceBuildDuration = System.currentTimeMillis() - schemaApiInstanceBuildStartTime;
 
-			registeredCatalogs.add(catalogName);
+			this.registeredCatalogs.add(catalogName);
 
 			// build metrics
 			final CatalogBuildStatistics schemaBuildStatistics = CatalogBuildStatistics.createNew(
@@ -206,17 +206,17 @@ public class GraphQLManager {
 				countGraphQLSchemaLines(schemaApiSchema)
 			);
 			Assert.isPremiseValid(
-				!catalogBuildStatistics.containsKey(catalogName),
+				!this.catalogBuildStatistics.containsKey(catalogName),
 				() -> new GraphQLInternalError("No build statistics found for catalog `" + catalogName + "`")
 			);
-			catalogBuildStatistics.put(catalogName, schemaBuildStatistics);
+			this.catalogBuildStatistics.put(catalogName, schemaBuildStatistics);
 		} catch (EvitaInternalError ex) {
 			// log and skip the catalog entirely
 			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by GraphQL API.", ex);
 
 			// cleanup corrupted paths
-			graphQLRouter.unregisterCatalogApis(catalogName);
-			catalogBuildStatistics.remove(catalogName);
+			this.graphQLRouter.unregisterCatalogApis(catalogName);
+			this.catalogBuildStatistics.remove(catalogName);
 		}
 	}
 
@@ -224,7 +224,7 @@ public class GraphQLManager {
 	 * Refreshes already registered catalog endpoint and its {@link GraphQL} instance.
 	 */
 	public void refreshCatalog(@Nonnull String catalogName) {
-		final boolean catalogRegistered = registeredCatalogs.contains(catalogName);
+		final boolean catalogRegistered = this.registeredCatalogs.contains(catalogName);
 		if (!catalogRegistered) {
 			// there may be case where initial registration failed and catalog is not registered at all
 			// for example, when catalog was corrupted and is replaced with new fresh one
@@ -233,42 +233,42 @@ public class GraphQLManager {
 			return;
 		}
 
-		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
+		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
 
 		// rebuild data API instance
 		final long dataApiInstanceBuildStartTime = System.currentTimeMillis();
 		final long dataApiSchemaBuildStartTime = System.currentTimeMillis();
-		final GraphQLSchema dataApiSchema = new CatalogDataApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build();
+		final GraphQLSchema dataApiSchema = new CatalogDataApiGraphQLSchemaBuilder(this.graphQLConfig, this.evita, catalog).build();
 		final long dataApiSchemaBuildDuration = System.currentTimeMillis() - dataApiSchemaBuildStartTime;
 
 		final GraphQL newDataApi = new CatalogGraphQLBuilder(
-			evita,
+			this.evita,
 			catalog,
 			dataApiSchema,
-			objectMapper
-		).build(graphQLConfig);
+			this.objectMapper
+		).build(this.graphQLConfig);
 
-		graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.DATA, newDataApi);
+		this.graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.DATA, newDataApi);
 		final long dataApiInstanceBuildDuration = System.currentTimeMillis() - dataApiInstanceBuildStartTime;
 
 		// rebuild schema API instance
 		final long schemaApiInstanceBuildStartTime = System.currentTimeMillis();
 		final long schemaApiSchemaBuildStartTime = System.currentTimeMillis();
-		final GraphQLSchema schemaApiSchema = new CatalogSchemaApiGraphQLSchemaBuilder(graphQLConfig, evita, catalog).build();
+		final GraphQLSchema schemaApiSchema = new CatalogSchemaApiGraphQLSchemaBuilder(this.graphQLConfig, this.evita, catalog).build();
 		final long schemaApiSchemaBuildDuration = System.currentTimeMillis() - schemaApiSchemaBuildStartTime;
 
 		final GraphQL newSchemaApi = new CatalogGraphQLBuilder(
-			evita,
+			this.evita,
 			catalog,
 			schemaApiSchema,
-			objectMapper
-		).build(graphQLConfig);
+			this.objectMapper
+		).build(this.graphQLConfig);
 
-		graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, newSchemaApi);
+		this.graphQLRouter.refreshCatalogApi(catalogName, GraphQLInstanceType.SCHEMA, newSchemaApi);
 		final long schemaApiInstanceBuildDuration = System.currentTimeMillis() - schemaApiInstanceBuildStartTime;
 
 		// build metrics
-		final CatalogBuildStatistics buildStatistics = catalogBuildStatistics.get(catalogName);
+		final CatalogBuildStatistics buildStatistics = this.catalogBuildStatistics.get(catalogName);
 		Assert.isPremiseValid(
 			buildStatistics != null,
 			() -> new GraphQLInternalError("No build statistics found for catalog `" + catalogName + "`")
@@ -287,10 +287,10 @@ public class GraphQLManager {
 	 * Deletes endpoint and its {@link GraphQL} instance for this already registered catalog.
 	 */
 	public void unregisterCatalog(@Nonnull String catalogName) {
-		final boolean catalogRegistered = registeredCatalogs.remove(catalogName);
+		final boolean catalogRegistered = this.registeredCatalogs.remove(catalogName);
 		if (catalogRegistered) {
-			graphQLRouter.unregisterCatalogApis(catalogName);
-			catalogBuildStatistics.remove(catalogName);
+			this.graphQLRouter.unregisterCatalogApis(catalogName);
+			this.catalogBuildStatistics.remove(catalogName);
 		}
 	}
 
@@ -300,22 +300,22 @@ public class GraphQLManager {
 	 */
 	public void emitObservabilityEvents() {
 		Assert.isPremiseValid(
-			systemBuildStatistics != null,
+			this.systemBuildStatistics != null,
 			() -> new GraphQLInternalError("No build statistics for system API found.")
 		);
-		if (!systemBuildStatistics.reported().get()) {
+		if (!this.systemBuildStatistics.reported().get()) {
 			new BuiltEvent(
 				GraphQLInstanceType.SYSTEM,
 				BuildType.NEW,
-				systemBuildStatistics.instanceBuildDuration(),
-				systemBuildStatistics.schemaBuildDuration(),
-				systemBuildStatistics.schemaDslLines()
+				this.systemBuildStatistics.instanceBuildDuration(),
+				this.systemBuildStatistics.schemaBuildDuration(),
+				this.systemBuildStatistics.schemaDslLines()
 			).commit();
 
-			systemBuildStatistics.markAsReported();
+			this.systemBuildStatistics.markAsReported();
 		}
 
-		catalogBuildStatistics.keySet().forEach(this::emitObservabilityEvents);
+		this.catalogBuildStatistics.keySet().forEach(this::emitObservabilityEvents);
 	}
 
 	/**
@@ -323,7 +323,7 @@ public class GraphQLManager {
 	 * If we didn't postpone this initialization, events would become lost.
 	 */
 	public void emitObservabilityEvents(@Nonnull String catalogName) {
-		final CatalogBuildStatistics buildStatistics = catalogBuildStatistics.get(catalogName);
+		final CatalogBuildStatistics buildStatistics = this.catalogBuildStatistics.get(catalogName);
 		Assert.isPremiseValid(
 			buildStatistics != null,
 			() -> new GraphQLInternalError("No build statistics found for catalog `" + catalogName + "`")

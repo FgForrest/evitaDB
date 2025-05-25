@@ -327,7 +327,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 						this.outputStream.write(("\n   - duration " + StringUtils.formatDuration(Duration.between(this.startTime, finishTime))).getBytes());
 						this.outputStream.write(("\n   - exported " + this.exportedSessionCount + " sessions").getBytes());
 						this.outputStream.write(("\n   - exported " + StringUtils.formatByteSize(this.exportedSessionOriginalSize) + " of data").getBytes());
-						this.outputStream.write(("\n   - task was" + getFinishCondition(settings)).getBytes());
+						this.outputStream.write(("\n   - task was" + getFinishCondition(this.settings)).getBytes());
 					},
 					this.outputStream::close
 				);

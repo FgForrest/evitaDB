@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,11 +55,11 @@ public class CollectionGraphQLSchemaBuildingContext {
 
 	@Nonnull
 	public CatalogContract getCatalog() {
-		return catalogCtx.getCatalog();
+		return this.catalogCtx.getCatalog();
 	}
 
 	public void registerEntityObject(@Nonnull GraphQLObjectType entityObject) {
-		catalogCtx.registerEntityObject(schema.getName(), entityObject);
+		this.catalogCtx.registerEntityObject(this.schema.getName(), entityObject);
 	}
 
 	/**
@@ -68,7 +68,7 @@ public class CollectionGraphQLSchemaBuildingContext {
 	public void setHeadInputObject(@Nonnull GraphQLInputType headInputObject) {
 		Assert.isPremiseValid(
 			this.headInputObject == null,
-			() -> new GraphQLSchemaBuildingError("Head input object for schema `" + schema.getName() + "` has been already initialized.")
+			() -> new GraphQLSchemaBuildingError("Head input object for schema `" + this.schema.getName() + "` has been already initialized.")
 		);
 		this.headInputObject = headInputObject;
 	}
@@ -79,7 +79,7 @@ public class CollectionGraphQLSchemaBuildingContext {
 	public void setFilterByInputObject(@Nonnull GraphQLInputType filterByInputObject) {
 		Assert.isPremiseValid(
 			this.filterByInputObject == null,
-			() -> new GraphQLSchemaBuildingError("FilterBy input object for schema `" + schema.getName() + "` has been already initialized.")
+			() -> new GraphQLSchemaBuildingError("FilterBy input object for schema `" + this.schema.getName() + "` has been already initialized.")
 		);
 		this.filterByInputObject = filterByInputObject;
 	}
@@ -89,8 +89,8 @@ public class CollectionGraphQLSchemaBuildingContext {
 	 */
 	@Nonnull
 	public GraphQLInputType getFilterByInputObject() {
-		return Optional.ofNullable(filterByInputObject)
-			.orElseThrow(() -> new GraphQLSchemaBuildingError("FilterBy input object for schema `" + schema.getName() + "` has not been initialized yet."));
+		return Optional.ofNullable(this.filterByInputObject)
+			.orElseThrow(() -> new GraphQLSchemaBuildingError("FilterBy input object for schema `" + this.schema.getName() + "` has not been initialized yet."));
 	}
 
 	/**
@@ -99,7 +99,7 @@ public class CollectionGraphQLSchemaBuildingContext {
 	public void setOrderByInputObject(@Nonnull GraphQLInputType orderByInputObject) {
 		Assert.isPremiseValid(
 			this.orderByInputObject == null,
-			() -> new GraphQLSchemaBuildingError("OrderBy input object for schema `" + schema.getName() + "` has been already initialized.")
+			() -> new GraphQLSchemaBuildingError("OrderBy input object for schema `" + this.schema.getName() + "` has been already initialized.")
 		);
 		this.orderByInputObject = orderByInputObject;
 	}
@@ -109,8 +109,8 @@ public class CollectionGraphQLSchemaBuildingContext {
 	 */
 	@Nonnull
 	public GraphQLInputType getOrderByInputObject() {
-		return Optional.ofNullable(orderByInputObject)
-			.orElseThrow(() -> new GraphQLSchemaBuildingError("OrderBy input object for schema `" + schema.getName() + "` has not been initialized yet."));
+		return Optional.ofNullable(this.orderByInputObject)
+			.orElseThrow(() -> new GraphQLSchemaBuildingError("OrderBy input object for schema `" + this.schema.getName() + "` has not been initialized yet."));
 	}
 
 	/**
@@ -119,7 +119,7 @@ public class CollectionGraphQLSchemaBuildingContext {
 	public void setRequireInputObject(@Nonnull GraphQLInputType requireInputObject) {
 		Assert.isPremiseValid(
 			this.requireInputObject == null,
-			() -> new GraphQLSchemaBuildingError("Require input object for schema `" + schema.getName() + "` has been already initialized.")
+			() -> new GraphQLSchemaBuildingError("Require input object for schema `" + this.schema.getName() + "` has been already initialized.")
 		);
 		this.requireInputObject = requireInputObject;
 	}
@@ -129,6 +129,6 @@ public class CollectionGraphQLSchemaBuildingContext {
 	 */
 	@Nonnull
 	public Optional<GraphQLInputType> getRequireInputObject() {
-		return Optional.ofNullable(requireInputObject);
+		return Optional.ofNullable(this.requireInputObject);
 	}
 }

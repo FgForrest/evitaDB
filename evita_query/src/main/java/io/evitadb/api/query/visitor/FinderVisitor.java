@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -140,7 +140,7 @@ public class FinderVisitor implements ConstraintVisitor {
 		if (this.matcher.test(constraint)) {
 			this.result.add(constraint);
 		}
-		if (constraint instanceof final ConstraintContainer<?> cnt && !stopper.test(constraint)) {
+		if (constraint instanceof final ConstraintContainer<?> cnt && !this.stopper.test(constraint)) {
 			for (Constraint<?> child : cnt.getChildren()) {
 				child.accept(this);
 			}
@@ -159,17 +159,17 @@ public class FinderVisitor implements ConstraintVisitor {
 	 */
 	@Nullable
 	public Constraint<?> getResult() throws MoreThanSingleResultException {
-		if (result.isEmpty()) {
+		if (this.result.isEmpty()) {
 			return null;
-		} else if (result.size() == 1) {
-			return result.get(0);
-		} else if (matcher instanceof PredicateWithDescription<?> withDescription) {
+		} else if (this.result.size() == 1) {
+			return this.result.get(0);
+		} else if (this.matcher instanceof PredicateWithDescription<?> withDescription) {
 			throw new MoreThanSingleResultException(
-				"A total of `" + result.size() + "` constraints were found in a query that searched for " + withDescription + ", but only one was expected!"
+				"A total of `" + this.result.size() + "` constraints were found in a query that searched for " + withDescription + ", but only one was expected!"
 			);
 		} else {
 			throw new MoreThanSingleResultException(
-				"A total of `" + result.size() + "` constraints were found in a query, but expected is only one!"
+				"A total of `" + this.result.size() + "` constraints were found in a query, but expected is only one!"
 			);
 		}
 	}
@@ -181,7 +181,7 @@ public class FinderVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public List<Constraint<?>> getResults() {
-		return result;
+		return this.result;
 	}
 
 	public static class MoreThanSingleResultException extends EvitaInvalidUsageException {

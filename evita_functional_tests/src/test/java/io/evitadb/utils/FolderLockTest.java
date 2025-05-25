@@ -59,12 +59,12 @@ class FolderLockTest implements EvitaTestSupport {
 
 	@Test
 	void shouldRefuseToLockSameDirectoryTwice() throws IOException {
-		try (FolderLock firstLock = new FolderLock(tempFolder)) {
+		try (FolderLock firstLock = new FolderLock(this.tempFolder)) {
 			assertNotNull(firstLock, "FolderLock should not be null.");
 			assertThrows(
 				FolderAlreadyUsedException.class,
 				() -> {
-					try (final FolderLock secondLock = new FolderLock(tempFolder)) {
+					try (final FolderLock secondLock = new FolderLock(this.tempFolder)) {
 						fail("Should not be able to lock the same directory twice.");
 					}
 				},
@@ -78,9 +78,9 @@ class FolderLockTest implements EvitaTestSupport {
 		assertThrows(
 			FolderAlreadyUsedException.class,
 			() -> {
-				try (FolderLock firstLock = new FolderLock(tempFolder)) {
+				try (FolderLock firstLock = new FolderLock(this.tempFolder)) {
 					assertNotNull(firstLock, "FolderLock should not be null.");
-					try (FolderLock secondLock = new FolderLock(tempFolder)) {
+					try (FolderLock secondLock = new FolderLock(this.tempFolder)) {
 						fail("Should not be able to lock the same directory twice.");
 					}
 				}

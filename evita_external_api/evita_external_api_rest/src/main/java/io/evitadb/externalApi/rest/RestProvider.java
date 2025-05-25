@@ -81,13 +81,13 @@ public class RestProvider implements ExternalApiProvider<RestOptions> {
 	@Override
 	public HttpServiceDefinition[] getHttpServiceDefinitions() {
 		return new HttpServiceDefinition[] {
-			new HttpServiceDefinition(restManager.getRestRouter(), PathHandlingMode.DYNAMIC_PATH_HANDLING)
+			new HttpServiceDefinition(this.restManager.getRestRouter(), PathHandlingMode.DYNAMIC_PATH_HANDLING)
 		};
 	}
 
 	@Override
 	public void afterAllInitialized() {
-		restManager.emitObservabilityEvents();
+		this.restManager.emitObservabilityEvents();
 	}
 
 	@Override

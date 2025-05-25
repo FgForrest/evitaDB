@@ -54,15 +54,15 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
-		evita = new Evita(
+		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
-		evita.defineCatalog(TEST_CATALOG);
+		this.evita.defineCatalog(TEST_CATALOG);
 	}
 
 	@AfterEach
 	void tearDown() {
-		evita.close();
+		this.evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
 	}
@@ -70,10 +70,10 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 	@Tag(LONG_RUNNING_TEST)
 	@Test
 	void shouldGenerateLoadOfDataInWarmUpPhase() {
-		evita.defineCatalog(TEST_CATALOG);
+		this.evita.defineCatalog(TEST_CATALOG);
 
 		final long start = System.nanoTime();
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(THE_ENTITY)

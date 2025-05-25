@@ -1735,7 +1735,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				return constraint;
 			} else if (constraint instanceof HeadConstraint headConstraint) {
 				this.appended = true;
-				final List<HeadConstraint> constraints = new ArrayList<>(labels.length + 1);
+				final List<HeadConstraint> constraints = new ArrayList<>(this.labels.length + 1);
 				constraints.add(headConstraint);
 				Arrays.stream(this.labels).filter(Objects::nonNull).forEach(constraints::add);
 

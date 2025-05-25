@@ -117,14 +117,14 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> {
-				final String attributeName = ctx.args.classifier.accept(stringValueTokenVisitor).asString();
+				final String attributeName = ctx.args.classifier.accept(this.stringValueTokenVisitor).asString();
 				if (ctx.args.value == null) {
 					return new AttributeNatural(attributeName);
 				} else {
 					return new AttributeNatural(
 						attributeName,
 						ctx.args.value
-							.accept(orderDirectionValueTokenVisitor)
+							.accept(this.orderDirectionValueTokenVisitor)
 							.asEnum(OrderDirection.class)
 					);
 				}
@@ -137,8 +137,8 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> new AttributeSetExact(
-				ctx.args.attributeName.accept(stringValueTokenVisitor).asString(),
-				ctx.args.attributeValues.accept(comparableValueTokenVisitor).asSerializableArray()
+				ctx.args.attributeName.accept(this.stringValueTokenVisitor).asString(),
+				ctx.args.attributeValues.accept(this.comparableValueTokenVisitor).asSerializableArray()
 			)
 		);
 	}
@@ -148,7 +148,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> new AttributeSetInFilter(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString()
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString()
 			)
 		);
 	}
@@ -163,7 +163,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 				} else {
 					return new PriceNatural(
 						ctx.args.value
-							.accept(orderDirectionValueTokenVisitor)
+							.accept(this.orderDirectionValueTokenVisitor)
 							.asEnum(OrderDirection.class)
 					);
 				}
@@ -177,7 +177,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 			ctx,
 			() -> {
 				final LinkedList<Serializable> settings = Arrays.stream(ctx.args.values
-						.accept(orderDirectionOrStringTokenVisitor)
+						.accept(this.orderDirectionOrStringTokenVisitor)
 						.asSerializableArray())
 					.collect(Collectors.toCollection(LinkedList::new));
 
@@ -220,7 +220,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	public OrderConstraint visitRandomWithSeedConstraint(RandomWithSeedConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new Random(ctx.args.value.accept(intValueTokenVisitor).asLong())
+			() -> new Random(ctx.args.value.accept(this.intValueTokenVisitor).asLong())
 		);
 	}
 
@@ -229,7 +229,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> new ReferenceProperty(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.constrains
 					.stream()
 					.map(c -> visitChildConstraint(c, OrderConstraint.class))
@@ -276,7 +276,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 			() -> new EntityPrimaryKeyNatural(
 				Optional.ofNullable(ctx.args)
 					.map(ValueArgsContext::valueToken)
-					.map(it -> it.accept(orderDirectionValueTokenVisitor).asEnum(OrderDirection.class))
+					.map(it -> it.accept(this.orderDirectionValueTokenVisitor).asEnum(OrderDirection.class))
 					.orElse(OrderDirection.ASC)
 			)
 		);
@@ -287,7 +287,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> new EntityPrimaryKeyExact(
-				ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
+				ctx.args.values.accept(this.intValueTokenVisitor).asIntegerArray()
 			)
 		);
 	}
@@ -347,7 +347,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> new SegmentLimit(
-				ctx.args.valueToken().accept(intValueTokenVisitor).asInt()
+				ctx.args.valueToken().accept(this.intValueTokenVisitor).asInt()
 			)
 		);
 	}
@@ -355,7 +355,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	@Override
 	public OrderConstraint visitSegmentConstraint(SegmentConstraintContext ctx) {
 		final FilterConstraint filterConstraint = ctx.args.entityHaving == null ?
-			null : ctx.args.filterConstraint().accept(filterConstraintVisitor);
+			null : ctx.args.filterConstraint().accept(this.filterConstraintVisitor);
 		Assert.isTrue(
 			filterConstraint == null || filterConstraint instanceof EntityHaving,
 			"Only `entityHaving` is accepted as first parameter of `segment` order constraint!"
@@ -389,7 +389,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 		return parse(
 			ctx,
 			() -> new OrderInScope(
-				ctx.args.scope.accept(scopeValueTokenVisitor).asEnum(Scope.class),
+				ctx.args.scope.accept(this.scopeValueTokenVisitor).asEnum(Scope.class),
 				ctx.args.orderConstraints
 					.stream()
 					.map(fc -> visitChildConstraint(fc, OrderConstraint.class))

@@ -310,19 +310,19 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 
 	@Override
 	public boolean test(int hierarchyNodeId, int level, int distance) {
-		return !stopNodeEncountered;
+		return !this.stopNodeEncountered;
 	}
 
 	@Override
 	public void traverse(int hierarchyNodeId, int level, int distance, @Nonnull Runnable traverser) {
-		if (parent != null && Arrays.stream(parent).anyMatch(it -> it == hierarchyNodeId)) {
+		if (this.parent != null && Arrays.stream(this.parent).anyMatch(it -> it == hierarchyNodeId)) {
 			traverser.run();
-		} else if (filteringFormula.compute().contains(hierarchyNodeId)) {
+		} else if (this.filteringFormula.compute().contains(hierarchyNodeId)) {
 			try {
-				stopNodeEncountered = true;
+				this.stopNodeEncountered = true;
 				traverser.run();
 			} finally {
-				stopNodeEncountered = false;
+				this.stopNodeEncountered = false;
 			}
 		} else {
 			traverser.run();
@@ -331,10 +331,10 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 
 	@Override
 	public boolean test(int hierarchyNodeId) {
-		if (parent != null && Arrays.stream(parent).anyMatch(it -> it == hierarchyNodeId)) {
-			return parentResult;
+		if (this.parent != null && Arrays.stream(this.parent).anyMatch(it -> it == hierarchyNodeId)) {
+			return this.parentResult;
 		}
-		return filteringFormula.compute().contains(hierarchyNodeId);
+		return this.filteringFormula.compute().contains(hierarchyNodeId);
 	}
 
 	@Override
@@ -343,30 +343,30 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		if (o == null || getClass() != o.getClass()) return false;
 
 		FilteringFormulaHierarchyEntityPredicate that = (FilteringFormulaHierarchyEntityPredicate) o;
-		return parentResult == that.parentResult &&
-			Arrays.equals(parent, that.parent) &&
-			filterBy.equals(that.filterBy) &&
-			targetEntitySchema.equals(that.targetEntitySchema) &&
-			requestedScopes.equals(that.requestedScopes);
+		return this.parentResult == that.parentResult &&
+			Arrays.equals(this.parent, that.parent) &&
+			this.filterBy.equals(that.filterBy) &&
+			this.targetEntitySchema.equals(that.targetEntitySchema) &&
+			this.requestedScopes.equals(that.requestedScopes);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = Arrays.hashCode(parent);
-		result = 31 * result + Boolean.hashCode(parentResult);
-		result = 31 * result + filterBy.hashCode();
-		result = 31 * result + targetEntitySchema.hashCode();
-		result = 31 * result + requestedScopes.hashCode();
+		int result = Arrays.hashCode(this.parent);
+		result = 31 * result + Boolean.hashCode(this.parentResult);
+		result = 31 * result + this.filterBy.hashCode();
+		result = 31 * result + this.targetEntitySchema.hashCode();
+		result = 31 * result + this.requestedScopes.hashCode();
 		return result;
 	}
 
 	@Override
 	public String toString() {
 		return "HIERARCHY (" +
-			"parent=" + Arrays.toString(parent) +
-			", filterBy=" + filterBy +
-			", targetEntitySchema='" + targetEntitySchema + '\'' +
-			", requestedScopes=" + requestedScopes.stream().map(Enum::toString).collect(Collectors.joining(", ")) +
+			"parent=" + Arrays.toString(this.parent) +
+			", filterBy=" + this.filterBy +
+			", targetEntitySchema='" + this.targetEntitySchema + '\'' +
+			", requestedScopes=" + this.requestedScopes.stream().map(Enum::toString).collect(Collectors.joining(", ")) +
 			')';
 	}
 }

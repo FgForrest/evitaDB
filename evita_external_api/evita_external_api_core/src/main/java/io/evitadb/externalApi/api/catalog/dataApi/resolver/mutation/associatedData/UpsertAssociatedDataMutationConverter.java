@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -84,10 +84,10 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 		);
 
 		Assert.isPremiseValid(
-			entitySchema != null,
+			this.entitySchema != null,
 			() -> getExceptionFactory().createInternalError("Entity schema is required for conversion from input.")
 		);
-		final Optional<AssociatedDataSchemaContract> associatedDataSchema = entitySchema.getAssociatedData(associatedDataKey.associatedDataName());
+		final Optional<AssociatedDataSchemaContract> associatedDataSchema = this.entitySchema.getAssociatedData(associatedDataKey.associatedDataName());
 		if (associatedDataSchema.isEmpty() && valueType == null) {
 			throw getExceptionFactory().createInvalidArgumentException("Missing value type of new associated data `" + associatedDataKey.associatedDataName() + "`.");
 		}
@@ -110,7 +110,7 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 					UpsertAssociatedDataMutationDescriptor.VALUE,
 					nestedInput -> {
 						try {
-							return jsonToComplexDataObjectConverter.fromMap(nestedInput.getRequiredValue());
+							return this.jsonToComplexDataObjectConverter.fromMap(nestedInput.getRequiredValue());
 						} catch (JsonProcessingException e) {
 							throw getExceptionFactory().createInvalidArgumentException("Could not parse input JSON.");
 						}

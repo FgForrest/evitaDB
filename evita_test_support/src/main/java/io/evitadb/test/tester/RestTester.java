@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ public class RestTester extends JsonExternalApiTester<Request> {
 			requestSpecification.params(request.getRequestParams());
 		}
 
-		final String fullUrl = baseUrl + "/" + request.getCatalogName() + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "");
+		final String fullUrl = this.baseUrl + "/" + request.getCatalogName() + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "");
 		final Response response = switch (request.httpMethod) {
 			case Request.METHOD_GET -> requestSpecification.when().get(fullUrl);
 			case Request.METHOD_PUT -> requestSpecification.when().put(fullUrl);
@@ -202,7 +202,7 @@ public class RestTester extends JsonExternalApiTester<Request> {
 			if (!this.headers.containsKey(ACCEPT_HEADER)) {
 				this.headers.put(ACCEPT_HEADER, new Header(ACCEPT_HEADER, MimeTypes.APPLICATION_JSON));
 			}
-			return tester.executeAndThen(this);
+			return this.tester.executeAndThen(this);
 		}
 
 		/**

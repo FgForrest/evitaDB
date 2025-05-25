@@ -47,12 +47,12 @@ class RemoveParentMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter =  new RemoveParentMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new RemoveParentMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(true);
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(true);
 		assertEquals(
 			new RemoveParentMutation(),
 			localMutation
@@ -61,16 +61,16 @@ class RemoveParentMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenFalse() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(false));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(false));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
 	void shouldSerializeLocalMutationToOutput() {
 		assertEquals(
 			true, // this mutation doesn't have any parameter, therefore it defaults to "true" (this makes sense within mutation aggregator where the value is prefixed with mutation name)
-			converter.convertToOutput(new RemoveParentMutation())
+			this.converter.convertToOutput(new RemoveParentMutation())
 		);
 	}
 }

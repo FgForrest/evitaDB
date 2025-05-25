@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -139,7 +139,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	@Nullable
 	@Override
 	public PriceAmountPredicate getRequestedPredicate() {
-		return pricePredicate.getRequestedPredicate();
+		return this.pricePredicate.getRequestedPredicate();
 	}
 
 	/**
@@ -152,8 +152,8 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 
 	@Override
 	public void initialize(@Nonnull QueryExecutionContext executionContextt) {
-		getDelegate().initialize(executionContext);
-		super.initialize(executionContext);
+		getDelegate().initialize(this.executionContext);
+		super.initialize(this.executionContext);
 	}
 
 	@Nonnull
@@ -161,7 +161,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PlainPriceTerminationFormulaWithPriceFilter(
-			computationCallback, innerFormulas[0], priceEvaluationContext, pricePredicate
+			this.computationCallback, innerFormulas[0], this.priceEvaluationContext, this.pricePredicate
 		);
 	}
 
@@ -174,11 +174,11 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	@Override
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
 		return new PlainPriceTerminationFormulaWithPriceFilter(
-			computationCallback,
-			innerFormulas[0],
-			priceEvaluationContext,
+			this.computationCallback,
+			this.innerFormulas[0],
+			this.priceEvaluationContext,
 			PricePredicate.ALL_RECORD_FILTER,
-			recordsFilteredOutByPredicate
+			this.recordsFilteredOutByPredicate
 		);
 	}
 
@@ -189,7 +189,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 		return new PlainPriceTerminationFormulaWithPriceFilter(
 			selfOperator,
 			innerFormulas[0],
-			priceEvaluationContext, pricePredicate
+			this.priceEvaluationContext, this.pricePredicate
 		);
 	}
 
@@ -205,7 +205,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 
 	@Override
 	public String toString() {
-		return pricePredicate.toString();
+		return this.pricePredicate.toString();
 	}
 
 	@Override
@@ -283,7 +283,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 								lastExpectedEntity,
 								foundPrice -> {
 									// write entity primary key for the price located on found index if it passes predicate
-									if (pricePredicate.test(foundPrice)) {
+									if (this.pricePredicate.test(foundPrice)) {
 										writer.add(entityId);
 										priceRecordsFunnel.add(foundPrice);
 									} else {
@@ -331,8 +331,8 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			new long[]{
-				priceEvaluationContext.computeHash(hashFunction),
-				pricePredicate.computeHash(hashFunction)
+				this.priceEvaluationContext.computeHash(hashFunction),
+				this.pricePredicate.computeHash(hashFunction)
 			}
 		);
 	}

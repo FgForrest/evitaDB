@@ -98,7 +98,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 			return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		}
 	};
-	private final Path isolatedWalFilePath = walDirectory.resolve("isolatedWal.tmp");
+	private final Path isolatedWalFilePath = this.walDirectory.resolve("isolatedWal.tmp");
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
 		TEST_CATALOG,
 		StorageOptions.builder()
@@ -116,23 +116,23 @@ public class CatalogWriteAheadLogIntegrationTest {
 	@BeforeEach
 	void setUp() {
 		// clear the WAL directory
-		FileUtils.deleteDirectory(walDirectory);
-		wal = createCatalogWriteAheadLogOfLargeEnoughSize();
+		FileUtils.deleteDirectory(this.walDirectory);
+		this.wal = createCatalogWriteAheadLogOfLargeEnoughSize();
 	}
 
 	@AfterEach
 	void tearDown() throws IOException {
-		observableOutputKeeper.close();
-		wal.close();
+		this.observableOutputKeeper.close();
+		this.wal.close();
 		// clear the WAL directory
-		FileUtils.deleteDirectory(walDirectory);
+		FileUtils.deleteDirectory(this.walDirectory);
 	}
 
 	@Tag(LONG_RUNNING_TEST)
 	@Test
 	void shouldWriteAndRealSmallAmountOfTransactionsAndReuseCacheOnNextAccess() {
 		final int[] aFewTransactions = {1, 2, 3, 2, 1};
-		final Map<Long, List<Mutation>> txInMutations = writeWal(bigOffHeapMemoryManager, aFewTransactions);
+		final Map<Long, List<Mutation>> txInMutations = writeWal(this.bigOffHeapMemoryManager, aFewTransactions);
 		readAndVerifyWal(txInMutations, aFewTransactions, 0);
 
 		createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 4);
@@ -148,7 +148,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 		this.wal = createCatalogWriteAheadLogOfSmallSize();
 
 		final int[] transactionSizes = {10, 15, 20, 15, 10};
-		final Map<Long, List<Mutation>> txInMutations = writeWal(bigOffHeapMemoryManager, transactionSizes);
+		final Map<Long, List<Mutation>> txInMutations = writeWal(this.bigOffHeapMemoryManager, transactionSizes);
 		readAndVerifyWal(txInMutations, transactionSizes, 0);
 
 		createCachedSupplierReadAndVerifyFrom(txInMutations, transactionSizes, 4);
@@ -161,10 +161,10 @@ public class CatalogWriteAheadLogIntegrationTest {
 	@Test
 	void shouldReadFirstAndLastCatalogVersionOfPreviousWalFiles() throws IOException {
 		this.wal.close();
-		wal = createCatalogWriteAheadLogOfSmallSize();
+		this.wal = createCatalogWriteAheadLogOfSmallSize();
 
 		final int[] transactionSizes = {10, 15, 20, 15, 10};
-		final Map<Long, List<Mutation>> txInMutations = writeWal(bigOffHeapMemoryManager, transactionSizes);
+		final Map<Long, List<Mutation>> txInMutations = writeWal(this.bigOffHeapMemoryManager, transactionSizes);
 
 		// list all existing WAL files and remove the oldest ones when their count exceeds the limit
 		final File[] walFiles = this.walDirectory.toFile().listFiles(
@@ -189,23 +189,23 @@ public class CatalogWriteAheadLogIntegrationTest {
 	@Test
 	void shouldWriteAndReadWalOverMultipleFilesInReversedOrder() throws IOException {
 		this.wal.close();
-		wal = createCatalogWriteAheadLogOfSmallSize();
+		this.wal = createCatalogWriteAheadLogOfSmallSize();
 
 		final int[] transactionSizes = {10, 15, 20, 15, 10};
-		final Map<Long, List<Mutation>> txInMutations = writeWal(bigOffHeapMemoryManager, transactionSizes);
+		final Map<Long, List<Mutation>> txInMutations = writeWal(this.bigOffHeapMemoryManager, transactionSizes);
 		readAndVerifyWalInReverse(txInMutations, transactionSizes, 4);
 	}
 
 	@Test
 	void shouldFindProperTransactionUUID() {
 		final int[] aFewTransactions = {1, 2, 3, 2, 1};
-		final Map<Long, List<Mutation>> txInMutations = writeWal(bigOffHeapMemoryManager, aFewTransactions);
+		final Map<Long, List<Mutation>> txInMutations = writeWal(this.bigOffHeapMemoryManager, aFewTransactions);
 
 		for (int i = 1; i < aFewTransactions.length; i++) {
 			final List<Mutation> mutations = txInMutations.get((long) i);
 			final List<Mutation> nextMutations = txInMutations.get((long) i + 1);
 			final TransactionMutationWithLocation transactionMutation = (TransactionMutationWithLocation) mutations.get(0);
-			final Optional<TransactionMutation> txId = wal.getFirstNonProcessedTransaction(
+			final Optional<TransactionMutation> txId = this.wal.getFirstNonProcessedTransaction(
 				new WalFileReference(
 					TEST_CATALOG,
 					transactionMutation.getWalFileIndex(),
@@ -219,7 +219,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 		// last transaction must return empty value (there is no next transaction to transition to)
 		final List<Mutation> mutations = txInMutations.get((long) aFewTransactions.length);
 		final TransactionMutationWithLocation transactionMutation = (TransactionMutationWithLocation) mutations.get(0);
-		final Optional<TransactionMutation> txId = wal.getFirstNonProcessedTransaction(
+		final Optional<TransactionMutation> txId = this.wal.getFirstNonProcessedTransaction(
 			new WalFileReference(
 				TEST_CATALOG,
 				transactionMutation.getWalFileIndex(),
@@ -232,15 +232,15 @@ public class CatalogWriteAheadLogIntegrationTest {
 	@Tag(LONG_RUNNING_TEST)
 	@Test
 	void shouldReadAllTransactionsUsingOffHeapIsolatedWal() {
-		final Map<Long, List<Mutation>> txInMutations = writeWal(bigOffHeapMemoryManager, txSizes);
-		readAndVerifyWal(txInMutations, txSizes, 0);
+		final Map<Long, List<Mutation>> txInMutations = writeWal(this.bigOffHeapMemoryManager, this.txSizes);
+		readAndVerifyWal(txInMutations, this.txSizes, 0);
 	}
 
 	@Tag(LONG_RUNNING_TEST)
 	@Test
 	void shouldReadAllTransactionsUsingFileIsolatedWal() {
-		final Map<Long, List<Mutation>> txInMutations = writeWal(noOffHeapMemoryManager, txSizes);
-		readAndVerifyWal(txInMutations, txSizes, 0);
+		final Map<Long, List<Mutation>> txInMutations = writeWal(this.noOffHeapMemoryManager, this.txSizes);
+		readAndVerifyWal(txInMutations, this.txSizes, 0);
 	}
 
 	@Test
@@ -253,13 +253,13 @@ public class CatalogWriteAheadLogIntegrationTest {
 		Arrays.fill(transactionSizes, justEnoughSize);
 
 		final OffsetDateTime initialTimestamp = OffsetDateTime.now();
-		writeWal(bigOffHeapMemoryManager, transactionSizes, initialTimestamp, isolatedWalFilePath, observableOutputKeeper, this.wal);
+		writeWal(this.bigOffHeapMemoryManager, transactionSizes, initialTimestamp, this.isolatedWalFilePath, this.observableOutputKeeper, this.wal);
 		this.wal.walProcessedUntil(Long.MAX_VALUE);
 		this.wal.removeWalFiles();
 
 		// only one call would occur with the latest version possible
-		assertEquals(1, offsetConsumer.getCatalogVersions().size());
-		assertEquals(3, offsetConsumer.getCatalogVersions().get(0));
+		assertEquals(1, this.offsetConsumer.getCatalogVersions().size());
+		assertEquals(3, this.offsetConsumer.getCatalogVersions().get(0));
 	}
 
 	@Nonnull
@@ -267,8 +267,8 @@ public class CatalogWriteAheadLogIntegrationTest {
 		return new CatalogWriteAheadLog(
 			0L,
 			TEST_CATALOG,
-			walDirectory,
-			catalogKryoPool,
+			this.walDirectory,
+			this.catalogKryoPool,
 			StorageOptions.builder()
 				/* there are tests that rely on standard size of mutations on disk in this class */
 				.compress(false)
@@ -278,7 +278,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 				.walFileSizeBytes(16_384)
 				.build(),
 			Mockito.mock(Scheduler.class),
-			offsetConsumer,
+			this.offsetConsumer,
 			firstActiveCatalogVersion -> {}
 		);
 	}
@@ -288,21 +288,21 @@ public class CatalogWriteAheadLogIntegrationTest {
 		return new CatalogWriteAheadLog(
 			0L,
 			TEST_CATALOG,
-			walDirectory,
-			catalogKryoPool,
+			this.walDirectory,
+			this.catalogKryoPool,
 			StorageOptions.builder()
 				/* there are tests that rely on standard size of mutations on disk in this class */
 				.compress(false)
 				.build(),
 			TransactionOptions.builder().walFileSizeBytes(Long.MAX_VALUE).build(),
 			Mockito.mock(Scheduler.class),
-			offsetConsumer,
+			this.offsetConsumer,
 			firstActiveCatalogVersion -> {}
 		);
 	}
 
 	private void createCachedSupplierReadAndVerifyFrom(Map<Long, List<Mutation>> txInMutations, int[] aFewTransactions, int index) {
-		try (final MutationSupplier supplier = wal.createSupplier(index + 1, null)) {
+		try (final MutationSupplier supplier = this.wal.createSupplier(index + 1, null)) {
 			assertEquals(1, supplier.getTransactionsRead());
 			readAndVerifyWal(txInMutations, aFewTransactions, index);
 		}
@@ -317,7 +317,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 	 */
 	@Nonnull
 	private Map<Long, List<Mutation>> writeWal(@Nonnull OffHeapMemoryManager offHeapMemoryManager, int[] transactionSizes) {
-		return writeWal(offHeapMemoryManager, transactionSizes, null, isolatedWalFilePath, observableOutputKeeper, this.wal);
+		return writeWal(offHeapMemoryManager, transactionSizes, null, this.isolatedWalFilePath, this.observableOutputKeeper, this.wal);
 	}
 
 	/**
@@ -427,7 +427,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 	 */
 	private void readAndVerifyWal(@Nonnull Map<Long, List<Mutation>> txInMutations, int[] transactionSizes, int startIndex) {
 		long lastCatalogVersion = startIndex;
-		final Iterator<Mutation> mutationIterator = wal.getCommittedMutationStream(startIndex + 1).iterator();
+		final Iterator<Mutation> mutationIterator = this.wal.getCommittedMutationStream(startIndex + 1).iterator();
 		int txRead = 0;
 		while (mutationIterator.hasNext()) {
 			txRead++;
@@ -459,7 +459,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 	private void readAndVerifyWalInReverse(@Nonnull Map<Long, List<Mutation>> txInMutations, int[] transactionSizes, int startIndex) {
 		long firstCatalogVersion = -1L;
 		long catalogVersion = startIndex + 1;
-		final Iterator<Mutation> mutationIterator = wal.getCommittedReversedMutationStream(catalogVersion).iterator();
+		final Iterator<Mutation> mutationIterator = this.wal.getCommittedReversedMutationStream(catalogVersion).iterator();
 		int txRead = 0;
 		while (mutationIterator.hasNext()) {
 			txRead++;

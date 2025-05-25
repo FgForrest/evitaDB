@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ public abstract class EntitySchemaHandler extends JsonRestHandler<CollectionRest
 
 	protected EntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-		entitySchemaJsonSerializer = new EntitySchemaJsonSerializer(restApiHandlingContext);
+		this.entitySchemaJsonSerializer = new EntitySchemaJsonSerializer(restApiHandlingContext);
 	}
 
 	@Nonnull
@@ -64,7 +64,7 @@ public abstract class EntitySchemaHandler extends JsonRestHandler<CollectionRest
 			entitySchema instanceof EntitySchemaContract,
 			() -> new RestInternalError("Entity schema must be instance of EntitySchemaContract, but was `" + entitySchema.getClass().getName() + "`.")
 		);
-		return entitySchemaJsonSerializer.serialize(
+		return this.entitySchemaJsonSerializer.serialize(
 			(EntitySchemaContract) entitySchema,
 			exchange.session()::getEntitySchemaOrThrow
 		);

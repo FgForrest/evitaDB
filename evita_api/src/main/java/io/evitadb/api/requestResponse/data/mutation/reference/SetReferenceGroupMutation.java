@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -95,40 +95,40 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 	@Nonnull
 	@Override
 	public Serializable getSkipToken(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
-		final Optional<ReferenceSchemaContract> referenceSchema = entitySchema.getReference(referenceKey.referenceName());
+		final Optional<ReferenceSchemaContract> referenceSchema = entitySchema.getReference(this.referenceKey.referenceName());
 		final Serializable existingGroupType = referenceSchema.map(ReferenceSchemaContract::getReferencedGroupType).orElse(null);
 
 		if (existingGroupType == null) {
 			Assert.isTrue(
-				groupType != null,
+				this.groupType != null,
 				() -> new InvalidMutationException(
-					"Cannot set up group in schema `" + entitySchema.getName() + "` reference `" + referenceKey.referenceName() +
+					"Cannot set up group in schema `" + entitySchema.getName() + "` reference `" + this.referenceKey.referenceName() +
 						"`, if the group entity type is not provided in the mutation."
 				)
 			);
-			return new ReferenceGroupSkipToken(referenceKey.referenceName(), groupType);
+			return new ReferenceGroupSkipToken(this.referenceKey.referenceName(), this.groupType);
 		} else {
-			return new ReferenceSkipToken(referenceKey.referenceName());
+			return new ReferenceSkipToken(this.referenceKey.referenceName());
 		}
 	}
 
 	@Override
 	public void verifyOrEvolveSchema(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaBuilder entitySchemaBuilder) throws InvalidMutationException {
-		final ReferenceSchemaContract referenceSchema = entitySchemaBuilder.getReferenceOrThrowException(referenceKey.referenceName());
+		final ReferenceSchemaContract referenceSchema = entitySchemaBuilder.getReferenceOrThrowException(this.referenceKey.referenceName());
 		final Serializable existingGroupType = referenceSchema.getReferencedGroupType();
 
 		if (existingGroupType == null) {
 			Assert.isTrue(
 				entitySchemaBuilder.allows(EvolutionMode.ADDING_REFERENCES),
 				() -> new InvalidMutationException(
-					"Entity `" + entitySchemaBuilder.getName() + "` doesn't support groups for references of type `" + referenceKey.referenceName() +
+					"Entity `" + entitySchemaBuilder.getName() + "` doesn't support groups for references of type `" + this.referenceKey.referenceName() +
 						"`, you need to change the schema definition for it first."
 				)
 			);
 			Assert.isTrue(
-				groupType != null,
+				this.groupType != null,
 				() -> new InvalidMutationException(
-					"Cannot set up group in schema `" + entitySchemaBuilder.getName() + "` reference `" + referenceKey.referenceName() +
+					"Cannot set up group in schema `" + entitySchemaBuilder.getName() + "` reference `" + this.referenceKey.referenceName() +
 						"`, if the group entity type is not provided in the mutation."
 				)
 			);
@@ -138,22 +138,22 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 						referenceSchema.getName(),
 						referenceSchema.getReferencedEntityType(),
 						referenceSchema.getCardinality(),
-						whichIs -> whichIs.withGroupType(groupType)
+						whichIs -> whichIs.withGroupType(this.groupType)
 					);
 			} else {
 				entitySchemaBuilder.withReferenceTo(
 						referenceSchema.getName(),
 						referenceSchema.getReferencedEntityType(),
 						referenceSchema.getCardinality(),
-						whichIs -> whichIs.withGroupType(groupType)
+						whichIs -> whichIs.withGroupType(this.groupType)
 					);
 			}
-		} else if (groupType != null) {
+		} else if (this.groupType != null) {
 			Assert.isTrue(
-				existingGroupType.equals(groupType),
+				existingGroupType.equals(this.groupType),
 				() -> new InvalidMutationException(
 					"Group is already related to entity `" + existingGroupType +
-						"`. It is not possible to change it to `" + groupType + "`!"
+						"`. It is not possible to change it to `" + this.groupType + "`!"
 				)
 			);
 		}
@@ -164,11 +164,11 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 	public ReferenceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
-			() -> new InvalidMutationException("Cannot set reference group " + referenceKey + " - reference doesn't exist!")
+			() -> new InvalidMutationException("Cannot set reference group " + this.referenceKey + " - reference doesn't exist!")
 		);
 
 		final Optional<GroupEntityReference> existingReferenceGroup = existingValue.getGroup();
-		if (existingReferenceGroup.map(it -> it.getPrimaryKey() == groupPrimaryKey && it.exists()).orElse(false)) {
+		if (existingReferenceGroup.map(it -> it.getPrimaryKey() == this.groupPrimaryKey && it.exists()).orElse(false)) {
 			// no change is necessary
 			return existingValue;
 		} else {
@@ -181,7 +181,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 					.map(it ->
 						new GroupEntityReference(
 							getGroupType(entitySchema),
-							groupPrimaryKey,
+							this.groupPrimaryKey,
 							it.version() + 1,
 							false
 						)
@@ -189,7 +189,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 					.orElseGet(() ->
 						new GroupEntityReference(
 							getGroupType(entitySchema),
-							groupPrimaryKey,
+							this.groupPrimaryKey,
 							1, false
 						)
 					),
@@ -201,21 +201,21 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 
 	@Nonnull
 	private String getGroupType(@Nonnull EntitySchemaContract entitySchema) {
-		if (resolvedGroupType == null) {
-			if (groupType == null) {
-				final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
-				resolvedGroupType = referenceSchema.getReferencedGroupType();
+		if (this.resolvedGroupType == null) {
+			if (this.groupType == null) {
+				final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(this.referenceKey.referenceName());
+				this.resolvedGroupType = referenceSchema.getReferencedGroupType();
 				Assert.isTrue(
-					resolvedGroupType != null,
+					this.resolvedGroupType != null,
 					() -> new InvalidMutationException(
 						"Cannot update reference group - no group type defined in schema and also not provided in the mutation!"
 					)
 				);
 			} else {
-				resolvedGroupType = groupType;
+				this.resolvedGroupType = this.groupType;
 			}
 		}
-		return resolvedGroupType;
+		return this.resolvedGroupType;
 	}
 
 	@Override
@@ -225,7 +225,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 
 	@Override
 	public ReferenceKey getComparableKey() {
-		return referenceKey;
+		return this.referenceKey;
 	}
 
 	@Nonnull
@@ -236,7 +236,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 
 	@Override
 	public String toString() {
-		return "Set reference group to `" + referenceKey + "`: " + groupPrimaryKey +
-			(groupType == null ? "" : " of type `" + groupType + "`");
+		return "Set reference group to `" + this.referenceKey + "`: " + this.groupPrimaryKey +
+			(this.groupType == null ? "" : " of type `" + this.groupType + "`");
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -79,8 +79,8 @@ public record EntityReferences(
 				"` entity with pk `" + entityPrimaryKey + "` is already indexed!"
 		);
 		return new EntityReferences(
-			ArrayUtils.insertIntIntoOrderedArray(referencedEntityPrimaryKey, referencedEntityPrimaryKeys),
-			referencedEntityGroupPrimaryKeys
+			ArrayUtils.insertIntIntoOrderedArray(referencedEntityPrimaryKey, this.referencedEntityPrimaryKeys),
+			this.referencedEntityGroupPrimaryKeys
 		);
 	}
 
@@ -99,8 +99,8 @@ public record EntityReferences(
 				"` entity with pk `" + entityPrimaryKey + "` is not indexed!"
 		);
 		return new EntityReferences(
-			ArrayUtils.removeIntFromOrderedArray(referencedEntityPrimaryKey, referencedEntityPrimaryKeys),
-			referencedEntityGroupPrimaryKeys
+			ArrayUtils.removeIntFromOrderedArray(referencedEntityPrimaryKey, this.referencedEntityPrimaryKeys),
+			this.referencedEntityGroupPrimaryKeys
 		);
 	}
 
@@ -110,12 +110,12 @@ public record EntityReferences(
 	@Nonnull
 	public EntityReferences withReferencedEntityGroupPrimaryKey(int referencedGroupEntityPrimaryKey) {
 		final InsertionPosition position = ArrayUtils.computeInsertPositionOfIntInOrderedArray(
-			referencedGroupEntityPrimaryKey, referencedEntityGroupPrimaryKeys
+			referencedGroupEntityPrimaryKey, this.referencedEntityGroupPrimaryKeys
 		);
 		return new EntityReferences(
-			referencedEntityPrimaryKeys,
+			this.referencedEntityPrimaryKeys,
 			ArrayUtils.insertIntIntoArrayOnIndex(
-				referencedGroupEntityPrimaryKey, referencedEntityGroupPrimaryKeys, position.position()
+				referencedGroupEntityPrimaryKey, this.referencedEntityGroupPrimaryKeys, position.position()
 			)
 		);
 	}
@@ -134,8 +134,8 @@ public record EntityReferences(
 				"` entity with pk `" + entityPrimaryKey + "` is not indexed!"
 		);
 		return new EntityReferences(
-			referencedEntityPrimaryKeys,
-			ArrayUtils.removeIntFromOrderedArray(referencedGroupEntityPrimaryKey, referencedEntityGroupPrimaryKeys)
+			this.referencedEntityPrimaryKeys,
+			ArrayUtils.removeIntFromOrderedArray(referencedGroupEntityPrimaryKey, this.referencedEntityGroupPrimaryKeys)
 		);
 	}
 
@@ -143,16 +143,16 @@ public record EntityReferences(
 	 * Returns true if this DTO is empty and contains no references to primary keys.
 	 */
 	public boolean isEmpty() {
-		return ArrayUtils.isEmpty(referencedEntityPrimaryKeys) &&
-			ArrayUtils.isEmpty(referencedEntityGroupPrimaryKeys);
+		return ArrayUtils.isEmpty(this.referencedEntityPrimaryKeys) &&
+			ArrayUtils.isEmpty(this.referencedEntityGroupPrimaryKeys);
 	}
 
 	private boolean containsReferencedEntityPrimaryKey(int referencedEntityPrimaryKey) {
-		return ArrayUtils.indexOf(referencedEntityPrimaryKey, referencedEntityPrimaryKeys) >= 0;
+		return ArrayUtils.indexOf(referencedEntityPrimaryKey, this.referencedEntityPrimaryKeys) >= 0;
 	}
 
 	private boolean containsReferencedEntityGroupPrimaryKey(int referencedGroupEntityPrimaryKey) {
-		return ArrayUtils.indexOf(referencedGroupEntityPrimaryKey, referencedEntityGroupPrimaryKeys) >= 0;
+		return ArrayUtils.indexOf(referencedGroupEntityPrimaryKey, this.referencedEntityGroupPrimaryKeys) >= 0;
 	}
 
 }

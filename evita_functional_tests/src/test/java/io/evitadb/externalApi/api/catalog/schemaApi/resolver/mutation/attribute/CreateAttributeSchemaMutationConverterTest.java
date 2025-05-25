@@ -57,7 +57,7 @@ class CreateAttributeSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new CreateAttributeSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new CreateAttributeSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -79,7 +79,7 @@ class CreateAttributeSchemaMutationConverterTest {
 			2
 		);
 
-		final CreateAttributeSchemaMutation convertedMutation1 = converter.convertFromInput(
+		final CreateAttributeSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -102,7 +102,7 @@ class CreateAttributeSchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final CreateAttributeSchemaMutation convertedMutation2 = converter.convertFromInput(
+		final CreateAttributeSchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -143,7 +143,7 @@ class CreateAttributeSchemaMutationConverterTest {
 			0
 		);
 
-		final CreateAttributeSchemaMutation convertedMutation1 = converter.convertFromInput(
+		final CreateAttributeSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
@@ -156,7 +156,7 @@ class CreateAttributeSchemaMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
 					.build()
@@ -164,14 +164,14 @@ class CreateAttributeSchemaMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -195,7 +195,7 @@ class CreateAttributeSchemaMutationConverterTest {
 		);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

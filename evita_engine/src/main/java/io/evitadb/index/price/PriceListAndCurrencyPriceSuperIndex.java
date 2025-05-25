@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -219,7 +219,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 
 		// remove price from entity
 		final EntityPrices updatedEntityPrices = removeEntityPrice(priceRecord);
-		Assert.notNull(updatedEntityPrices, "No entity prices found in index " + priceIndexKey + " for entity with id: " + entityPrimaryKey);
+		Assert.notNull(updatedEntityPrices, "No entity prices found in index " + this.priceIndexKey + " for entity with id: " + entityPrimaryKey);
 
 		if (updatedEntityPrices.isEmpty()) {
 			// remove the presence of the record
@@ -244,7 +244,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 	@Override
 	public Bitmap getIndexedPriceEntityIds() {
 		assertNotTerminated();
-		return indexedPriceEntityIds;
+		return this.indexedPriceEntityIds;
 	}
 
 	/**
@@ -258,10 +258,10 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		if (isTransactionAvailable() && this.dirty.isTrue()) {
 			return this.indexedPriceIds.getArray();
 		} else {
-			if (memoizedIndexedPriceIds == null) {
-				memoizedIndexedPriceIds = this.indexedPriceIds.getArray();
+			if (this.memoizedIndexedPriceIds == null) {
+				this.memoizedIndexedPriceIds = this.indexedPriceIds.getArray();
 			}
-			return memoizedIndexedPriceIds;
+			return this.memoizedIndexedPriceIds;
 		}
 	}
 
@@ -269,10 +269,10 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 	@Override
 	public Formula getIndexedPriceEntityIdsFormula() {
 		assertNotTerminated();
-		if (indexedPriceEntityIds.isEmpty()) {
+		if (this.indexedPriceEntityIds.isEmpty()) {
 			return EmptyFormula.INSTANCE;
 		} else {
-			return new ConstantFormula(indexedPriceEntityIds);
+			return new ConstantFormula(this.indexedPriceEntityIds);
 		}
 	}
 
@@ -326,7 +326,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		assertNotTerminated();
 		if (this.dirty.isTrue()) {
 			return new PriceListAndCurrencySuperIndexStoragePart(
-				entityIndexPrimaryKey, priceIndexKey, validityIndex, priceRecords.getArray()
+				entityIndexPrimaryKey, this.priceIndexKey, this.validityIndex, this.priceRecords.getArray()
 			);
 		} else {
 			return null;
@@ -368,7 +368,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 
 	@Override
 	public String toString() {
-		return priceIndexKey.toString() + (terminated.isTrue() ? " (TERMINATED)" : "");
+		return this.priceIndexKey.toString() + (this.terminated.isTrue() ? " (TERMINATED)" : "");
 	}
 
 	@Override
@@ -387,7 +387,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		if (isDirty) {
 			final PriceRecordContract[] newTriples = transactionalLayer.getStateCopyWithCommittedChanges(this.priceRecords);
 			return new PriceListAndCurrencyPriceSuperIndex(
-				priceIndexKey,
+				this.priceIndexKey,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceEntityIds),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceIds),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.entityPrices),
@@ -423,9 +423,9 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 	 * Verifies that the index is not terminated.
 	 */
 	private void assertNotTerminated() {
-		if (terminated.isTrue()) {
+		if (this.terminated.isTrue()) {
 			throw new PriceListAndCurrencyPriceIndexTerminated(
-				"Price list and currency index " + priceIndexKey + " is terminated!"
+				"Price list and currency index " + this.priceIndexKey + " is terminated!"
 			);
 		}
 	}

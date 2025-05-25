@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,25 +77,25 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder subBuilder = null;
-            if (sourceQueryId_ != null) {
-              subBuilder = sourceQueryId_.toBuilder();
+            if (this.sourceQueryId_ != null) {
+              subBuilder = this.sourceQueryId_.toBuilder();
             }
-            sourceQueryId_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry);
+            this.sourceQueryId_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(sourceQueryId_);
-              sourceQueryId_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.sourceQueryId_);
+              this.sourceQueryId_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 16: {
 
-            returnedRecordCount_ = input.readInt32();
+            this.returnedRecordCount_ = input.readInt32();
             break;
           }
           case 24: {
 
-            totalRecordCount_ = input.readInt32();
+            this.totalRecordCount_ = input.readInt32();
             break;
           }
           default: {
@@ -142,7 +142,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasSourceQueryId() {
-    return sourceQueryId_ != null;
+    return this.sourceQueryId_ != null;
   }
   /**
    * <pre>
@@ -154,7 +154,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcUuid getSourceQueryId() {
-    return sourceQueryId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : sourceQueryId_;
+    return this.sourceQueryId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : this.sourceQueryId_;
   }
   /**
    * <pre>
@@ -180,7 +180,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getReturnedRecordCount() {
-    return returnedRecordCount_;
+    return this.returnedRecordCount_;
   }
 
   public static final int TOTALRECORDCOUNT_FIELD_NUMBER = 3;
@@ -195,55 +195,55 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getTotalRecordCount() {
-    return totalRecordCount_;
+    return this.totalRecordCount_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (sourceQueryId_ != null) {
+    if (this.sourceQueryId_ != null) {
       output.writeMessage(1, getSourceQueryId());
     }
-    if (returnedRecordCount_ != 0) {
-      output.writeInt32(2, returnedRecordCount_);
+    if (this.returnedRecordCount_ != 0) {
+      output.writeInt32(2, this.returnedRecordCount_);
     }
-    if (totalRecordCount_ != 0) {
-      output.writeInt32(3, totalRecordCount_);
+    if (this.totalRecordCount_ != 0) {
+      output.writeInt32(3, this.totalRecordCount_);
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (sourceQueryId_ != null) {
+    if (this.sourceQueryId_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getSourceQueryId());
     }
-    if (returnedRecordCount_ != 0) {
+    if (this.returnedRecordCount_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, returnedRecordCount_);
+        .computeInt32Size(2, this.returnedRecordCount_);
     }
-    if (totalRecordCount_ != 0) {
+    if (this.totalRecordCount_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(3, totalRecordCount_);
+        .computeInt32Size(3, this.totalRecordCount_);
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -266,14 +266,14 @@ private static final long serialVersionUID = 0L;
         != other.getReturnedRecordCount()) return false;
     if (getTotalRecordCount()
         != other.getTotalRecordCount()) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -285,8 +285,8 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getReturnedRecordCount();
     hash = (37 * hash) + TOTALRECORDCOUNT_FIELD_NUMBER;
     hash = (53 * hash) + getTotalRecordCount();
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -422,15 +422,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (sourceQueryIdBuilder_ == null) {
-        sourceQueryId_ = null;
+      if (this.sourceQueryIdBuilder_ == null) {
+        this.sourceQueryId_ = null;
       } else {
-        sourceQueryId_ = null;
-        sourceQueryIdBuilder_ = null;
+        this.sourceQueryId_ = null;
+        this.sourceQueryIdBuilder_ = null;
       }
-      returnedRecordCount_ = 0;
+      this.returnedRecordCount_ = 0;
 
-      totalRecordCount_ = 0;
+      this.totalRecordCount_ = 0;
 
       return this;
     }
@@ -458,13 +458,13 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer result = new io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer(this);
-      if (sourceQueryIdBuilder_ == null) {
-        result.sourceQueryId_ = sourceQueryId_;
+      if (this.sourceQueryIdBuilder_ == null) {
+        result.sourceQueryId_ = this.sourceQueryId_;
       } else {
-        result.sourceQueryId_ = sourceQueryIdBuilder_.build();
+        result.sourceQueryId_ = this.sourceQueryIdBuilder_.build();
       }
-      result.returnedRecordCount_ = returnedRecordCount_;
-      result.totalRecordCount_ = totalRecordCount_;
+      result.returnedRecordCount_ = this.returnedRecordCount_;
+      result.totalRecordCount_ = this.totalRecordCount_;
       onBuilt();
       return result;
     }
@@ -563,7 +563,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the sourceQueryId field is set.
      */
     public boolean hasSourceQueryId() {
-      return sourceQueryIdBuilder_ != null || sourceQueryId_ != null;
+      return this.sourceQueryIdBuilder_ != null || this.sourceQueryId_ != null;
     }
     /**
      * <pre>
@@ -574,10 +574,10 @@ private static final long serialVersionUID = 0L;
      * @return The sourceQueryId.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuid getSourceQueryId() {
-      if (sourceQueryIdBuilder_ == null) {
-        return sourceQueryId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : sourceQueryId_;
+      if (this.sourceQueryIdBuilder_ == null) {
+        return this.sourceQueryId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : this.sourceQueryId_;
       } else {
-        return sourceQueryIdBuilder_.getMessage();
+        return this.sourceQueryIdBuilder_.getMessage();
       }
     }
     /**
@@ -588,14 +588,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sourceQueryId = 1;</code>
      */
     public Builder setSourceQueryId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
-      if (sourceQueryIdBuilder_ == null) {
+      if (this.sourceQueryIdBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        sourceQueryId_ = value;
+        this.sourceQueryId_ = value;
         onChanged();
       } else {
-        sourceQueryIdBuilder_.setMessage(value);
+        this.sourceQueryIdBuilder_.setMessage(value);
       }
 
       return this;
@@ -609,11 +609,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setSourceQueryId(
         io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder builderForValue) {
-      if (sourceQueryIdBuilder_ == null) {
-        sourceQueryId_ = builderForValue.build();
+      if (this.sourceQueryIdBuilder_ == null) {
+        this.sourceQueryId_ = builderForValue.build();
         onChanged();
       } else {
-        sourceQueryIdBuilder_.setMessage(builderForValue.build());
+        this.sourceQueryIdBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -626,16 +626,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sourceQueryId = 1;</code>
      */
     public Builder mergeSourceQueryId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
-      if (sourceQueryIdBuilder_ == null) {
-        if (sourceQueryId_ != null) {
-          sourceQueryId_ =
-            io.evitadb.externalApi.grpc.generated.GrpcUuid.newBuilder(sourceQueryId_).mergeFrom(value).buildPartial();
+      if (this.sourceQueryIdBuilder_ == null) {
+        if (this.sourceQueryId_ != null) {
+          this.sourceQueryId_ =
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.newBuilder(this.sourceQueryId_).mergeFrom(value).buildPartial();
         } else {
-          sourceQueryId_ = value;
+          this.sourceQueryId_ = value;
         }
         onChanged();
       } else {
-        sourceQueryIdBuilder_.mergeFrom(value);
+        this.sourceQueryIdBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -648,12 +648,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sourceQueryId = 1;</code>
      */
     public Builder clearSourceQueryId() {
-      if (sourceQueryIdBuilder_ == null) {
-        sourceQueryId_ = null;
+      if (this.sourceQueryIdBuilder_ == null) {
+        this.sourceQueryId_ = null;
         onChanged();
       } else {
-        sourceQueryId_ = null;
-        sourceQueryIdBuilder_ = null;
+        this.sourceQueryId_ = null;
+        this.sourceQueryIdBuilder_ = null;
       }
 
       return this;
@@ -666,7 +666,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sourceQueryId = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getSourceQueryIdBuilder() {
-      
+
       onChanged();
       return getSourceQueryIdFieldBuilder().getBuilder();
     }
@@ -678,11 +678,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sourceQueryId = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getSourceQueryIdOrBuilder() {
-      if (sourceQueryIdBuilder_ != null) {
-        return sourceQueryIdBuilder_.getMessageOrBuilder();
+      if (this.sourceQueryIdBuilder_ != null) {
+        return this.sourceQueryIdBuilder_.getMessageOrBuilder();
       } else {
-        return sourceQueryId_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : sourceQueryId_;
+        return this.sourceQueryId_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : this.sourceQueryId_;
       }
     }
     /**
@@ -693,17 +693,17 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid sourceQueryId = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
         getSourceQueryIdFieldBuilder() {
-      if (sourceQueryIdBuilder_ == null) {
-        sourceQueryIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.sourceQueryIdBuilder_ == null) {
+        this.sourceQueryIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>(
                 getSourceQueryId(),
                 getParentForChildren(),
                 isClean());
-        sourceQueryId_ = null;
+        this.sourceQueryId_ = null;
       }
-      return sourceQueryIdBuilder_;
+      return this.sourceQueryIdBuilder_;
     }
 
     private int returnedRecordCount_ ;
@@ -717,7 +717,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getReturnedRecordCount() {
-      return returnedRecordCount_;
+      return this.returnedRecordCount_;
     }
     /**
      * <pre>
@@ -729,8 +729,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setReturnedRecordCount(int value) {
-      
-      returnedRecordCount_ = value;
+
+      this.returnedRecordCount_ = value;
       onChanged();
       return this;
     }
@@ -743,8 +743,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReturnedRecordCount() {
-      
-      returnedRecordCount_ = 0;
+
+      this.returnedRecordCount_ = 0;
       onChanged();
       return this;
     }
@@ -760,7 +760,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getTotalRecordCount() {
-      return totalRecordCount_;
+      return this.totalRecordCount_;
     }
     /**
      * <pre>
@@ -772,8 +772,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setTotalRecordCount(int value) {
-      
-      totalRecordCount_ = value;
+
+      this.totalRecordCount_ = value;
       onChanged();
       return this;
     }
@@ -786,8 +786,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearTotalRecordCount() {
-      
-      totalRecordCount_ = 0;
+
+      this.totalRecordCount_ = 0;
       onChanged();
       return this;
     }

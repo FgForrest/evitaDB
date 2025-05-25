@@ -809,7 +809,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			entityTypeHeader.entityTypeFileIndex(),
 			entityTypeHeader.fileLocation()
 		);
-		this.entityCollectionFile = entityCollectionFileReference.toFilePath(catalogStoragePath);
+		this.entityCollectionFile = this.entityCollectionFileReference.toFilePath(catalogStoragePath);
 		this.entityCollectionHeader = entityTypeHeader;
 		this.offsetIndexRecordTypeRegistry = previous.offsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = previous.observableOutputKeeper;
@@ -1142,28 +1142,28 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		for (AttributeIndexStorageKey attributeIndexKey : entityIndexCnt.getAttributeIndexes()) {
 			switch (attributeIndexKey.indexType()) {
 				case UNIQUE ->
-					fetchUniqueIndex(catalogVersion, entityIndexId, entitySchema.getName(), storagePartPersistenceService, uniqueIndexes, attributeIndexKey);
+					fetchUniqueIndex(catalogVersion, entityIndexId, entitySchema.getName(), this.storagePartPersistenceService, uniqueIndexes, attributeIndexKey);
 				case FILTER ->
-					fetchFilterIndex(catalogVersion, entityIndexId, storagePartPersistenceService, filterIndexes, attributeIndexKey, attributeTypeFetcher);
+					fetchFilterIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, filterIndexes, attributeIndexKey, attributeTypeFetcher);
 				case SORT ->
-					fetchSortIndex(catalogVersion, entityIndexId, storagePartPersistenceService, sortIndexes, referenceKey, attributeIndexKey);
+					fetchSortIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, sortIndexes, referenceKey, attributeIndexKey);
 				case CHAIN ->
-					fetchChainIndex(catalogVersion, entityIndexId, storagePartPersistenceService, chainIndexes, referenceKey, attributeIndexKey);
+					fetchChainIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, chainIndexes, referenceKey, attributeIndexKey);
 				case CARDINALITY ->
-					fetchCardinalityIndex(catalogVersion, entityIndexId, storagePartPersistenceService, cardinalityIndexes, attributeIndexKey);
+					fetchCardinalityIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, cardinalityIndexes, attributeIndexKey);
 				default ->
 					throw new GenericEvitaInternalError("Unknown attribute index type: " + attributeIndexKey.indexType());
 			}
 		}
 
-		final HierarchyIndex hierarchyIndex = fetchHierarchyIndex(catalogVersion, entityIndexId, storagePartPersistenceService, entityIndexCnt);
-		final FacetIndex facetIndex = fetchFacetIndex(catalogVersion, entityIndexId, storagePartPersistenceService, entityIndexCnt);
+		final HierarchyIndex hierarchyIndex = fetchHierarchyIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, entityIndexCnt);
+		final FacetIndex facetIndex = fetchFacetIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, entityIndexCnt);
 
 		final EntityIndexType entityIndexType = entityIndexKey.type();
 		// base on entity index type we either create GlobalEntityIndex or ReducedEntityIndex
 		if (entityIndexType == EntityIndexType.GLOBAL) {
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes = fetchPriceSuperIndexes(
-				catalogVersion, entityIndexId, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService
+				catalogVersion, entityIndexId, entityIndexCnt.getPriceIndexes(), this.storagePartPersistenceService
 			);
 			return new GlobalEntityIndex(
 				entityIndexCnt.getPrimaryKey(),
@@ -1199,7 +1199,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		} else {
 			final Scope scope = entityIndexKey.scope();
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = fetchPriceRefIndexes(
-				catalogVersion, entityIndexId, scope, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService
+				catalogVersion, entityIndexId, scope, entityIndexCnt.getPriceIndexes(), this.storagePartPersistenceService
 			);
 			return new ReducedEntityIndex(
 				entityIndexCnt.getPrimaryKey(),
@@ -1606,30 +1606,30 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 		@Override
 		public int getLastAssignedPrimaryKey() {
-			return currentHeader.lastPrimaryKey();
+			return this.currentHeader.lastPrimaryKey();
 		}
 
 		@Override
 		public int getLastAssignedIndexKey() {
-			return currentHeader.lastEntityIndexPrimaryKey();
+			return this.currentHeader.lastEntityIndexPrimaryKey();
 		}
 
 		@Override
 		public int getLastAssignedInternalPriceId() {
-			return currentHeader.lastInternalPriceId();
+			return this.currentHeader.lastInternalPriceId();
 		}
 
 		@Nonnull
 		@Override
 		public OptionalInt getGlobalIndexKey() {
-			return currentHeader.globalEntityIndexId() == null ?
-				OptionalInt.empty() : OptionalInt.of(currentHeader.globalEntityIndexId());
+			return this.currentHeader.globalEntityIndexId() == null ?
+				OptionalInt.empty() : OptionalInt.of(this.currentHeader.globalEntityIndexId());
 		}
 
 		@Nonnull
 		@Override
 		public List<Integer> getIndexKeys() {
-			return currentHeader.usedEntityIndexIds();
+			return this.currentHeader.usedEntityIndexIds();
 		}
 	}
 }

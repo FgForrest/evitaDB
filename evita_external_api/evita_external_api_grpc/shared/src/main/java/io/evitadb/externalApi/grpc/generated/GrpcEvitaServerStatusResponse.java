@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,10 +43,10 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcEvitaServerStatusResponse() {
-    version_ = "";
-    instanceId_ = "";
-    healthProblems_ = java.util.Collections.emptyList();
-    readiness_ = 0;
+    this.version_ = "";
+    this.instanceId_ = "";
+    this.healthProblems_ = java.util.Collections.emptyList();
+    this.readiness_ = 0;
   }
 
   @java.lang.Override
@@ -83,50 +83,50 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            version_ = s;
+            this.version_ = s;
             break;
           }
           case 18: {
             io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder subBuilder = null;
-            if (startedAt_ != null) {
-              subBuilder = startedAt_.toBuilder();
+            if (this.startedAt_ != null) {
+              subBuilder = this.startedAt_.toBuilder();
             }
-            startedAt_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.parser(), extensionRegistry);
+            this.startedAt_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(startedAt_);
-              startedAt_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.startedAt_);
+              this.startedAt_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 24: {
 
-            uptime_ = input.readInt64();
+            this.uptime_ = input.readInt64();
             break;
           }
           case 34: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            instanceId_ = s;
+            this.instanceId_ = s;
             break;
           }
           case 40: {
 
-            catalogsCorrupted_ = input.readInt32();
+            this.catalogsCorrupted_ = input.readInt32();
             break;
           }
           case 48: {
 
-            catalogsOk_ = input.readInt32();
+            this.catalogsOk_ = input.readInt32();
             break;
           }
           case 56: {
             int rawValue = input.readEnum();
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              healthProblems_ = new java.util.ArrayList<java.lang.Integer>();
+              this.healthProblems_ = new java.util.ArrayList<java.lang.Integer>();
               mutable_bitField0_ |= 0x00000001;
             }
-            healthProblems_.add(rawValue);
+            this.healthProblems_.add(rawValue);
             break;
           }
           case 58: {
@@ -135,10 +135,10 @@ private static final long serialVersionUID = 0L;
             while(input.getBytesUntilLimit() > 0) {
               int rawValue = input.readEnum();
               if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-                healthProblems_ = new java.util.ArrayList<java.lang.Integer>();
+                this.healthProblems_ = new java.util.ArrayList<java.lang.Integer>();
                 mutable_bitField0_ |= 0x00000001;
               }
-              healthProblems_.add(rawValue);
+              this.healthProblems_.add(rawValue);
             }
             input.popLimit(oldLimit);
             break;
@@ -146,25 +146,25 @@ private static final long serialVersionUID = 0L;
           case 64: {
             int rawValue = input.readEnum();
 
-            readiness_ = rawValue;
+            this.readiness_ = rawValue;
             break;
           }
           case 74: {
             if (!((mutable_bitField0_ & 0x00000002) != 0)) {
-              api_ = com.google.protobuf.MapField.newMapField(
+              this.api_ = com.google.protobuf.MapField.newMapField(
                   ApiDefaultEntryHolder.defaultEntry);
               mutable_bitField0_ |= 0x00000002;
             }
             com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>
             api__ = input.readMessage(
                 ApiDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
-            api_.getMutableMap().put(
+            this.api_.getMutableMap().put(
                 api__.getKey(), api__.getValue());
             break;
           }
           case 80: {
 
-            readOnly_ = input.readBool();
+            this.readOnly_ = input.readBool();
             break;
           }
           default: {
@@ -183,7 +183,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        healthProblems_ = java.util.Collections.unmodifiableList(healthProblems_);
+        this.healthProblems_ = java.util.Collections.unmodifiableList(this.healthProblems_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -226,14 +226,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getVersion() {
-    java.lang.Object ref = version_;
+    java.lang.Object ref = this.version_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      version_ = s;
+      this.version_ = s;
       return s;
     }
   }
@@ -248,12 +248,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getVersionBytes() {
-    java.lang.Object ref = version_;
+    java.lang.Object ref = this.version_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      version_ = b;
+      this.version_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -272,7 +272,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasStartedAt() {
-    return startedAt_ != null;
+    return this.startedAt_ != null;
   }
   /**
    * <pre>
@@ -284,7 +284,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getStartedAt() {
-    return startedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : startedAt_;
+    return this.startedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : this.startedAt_;
   }
   /**
    * <pre>
@@ -310,7 +310,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public long getUptime() {
-    return uptime_;
+    return this.uptime_;
   }
 
   public static final int INSTANCEID_FIELD_NUMBER = 4;
@@ -325,14 +325,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getInstanceId() {
-    java.lang.Object ref = instanceId_;
+    java.lang.Object ref = this.instanceId_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      instanceId_ = s;
+      this.instanceId_ = s;
       return s;
     }
   }
@@ -347,12 +347,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getInstanceIdBytes() {
-    java.lang.Object ref = instanceId_;
+    java.lang.Object ref = this.instanceId_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      instanceId_ = b;
+      this.instanceId_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -371,7 +371,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getCatalogsCorrupted() {
-    return catalogsCorrupted_;
+    return this.catalogsCorrupted_;
   }
 
   public static final int CATALOGSOK_FIELD_NUMBER = 6;
@@ -386,7 +386,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getCatalogsOk() {
-    return catalogsOk_;
+    return this.catalogsOk_;
   }
 
   public static final int HEALTHPROBLEMS_FIELD_NUMBER = 7;
@@ -412,7 +412,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHealthProblem> getHealthProblemsList() {
     return new com.google.protobuf.Internal.ListAdapter<
-        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcHealthProblem>(healthProblems_, healthProblems_converter_);
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcHealthProblem>(this.healthProblems_, healthProblems_converter_);
   }
   /**
    * <pre>
@@ -424,7 +424,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getHealthProblemsCount() {
-    return healthProblems_.size();
+    return this.healthProblems_.size();
   }
   /**
    * <pre>
@@ -437,7 +437,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcHealthProblem getHealthProblems(int index) {
-    return healthProblems_converter_.convert(healthProblems_.get(index));
+    return healthProblems_converter_.convert(this.healthProblems_.get(index));
   }
   /**
    * <pre>
@@ -450,7 +450,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<java.lang.Integer>
   getHealthProblemsValueList() {
-    return healthProblems_;
+    return this.healthProblems_;
   }
   /**
    * <pre>
@@ -463,7 +463,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getHealthProblemsValue(int index) {
-    return healthProblems_.get(index);
+    return this.healthProblems_.get(index);
   }
   private int healthProblemsMemoizedSerializedSize;
 
@@ -478,7 +478,7 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for readiness.
    */
   @java.lang.Override public int getReadinessValue() {
-    return readiness_;
+    return this.readiness_;
   }
   /**
    * <pre>
@@ -490,7 +490,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcReadiness getReadiness() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcReadiness result = io.evitadb.externalApi.grpc.generated.GrpcReadiness.valueOf(readiness_);
+    io.evitadb.externalApi.grpc.generated.GrpcReadiness result = io.evitadb.externalApi.grpc.generated.GrpcReadiness.valueOf(this.readiness_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcReadiness.UNRECOGNIZED : result;
   }
 
@@ -500,7 +500,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaServerStatusResponse_ApiEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaServerStatusResponse_ApiEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -510,11 +510,11 @@ private static final long serialVersionUID = 0L;
       java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> api_;
   private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>
   internalGetApi() {
-    if (api_ == null) {
+    if (this.api_ == null) {
       return com.google.protobuf.MapField.emptyMapField(
           ApiDefaultEntryHolder.defaultEntry);
     }
-    return api_;
+    return this.api_;
   }
 
   public int getApiCount() {
@@ -603,17 +603,17 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean getReadOnly() {
-    return readOnly_;
+    return this.readOnly_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
@@ -621,33 +621,33 @@ private static final long serialVersionUID = 0L;
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
     getSerializedSize();
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(version_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, version_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.version_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.version_);
     }
-    if (startedAt_ != null) {
+    if (this.startedAt_ != null) {
       output.writeMessage(2, getStartedAt());
     }
-    if (uptime_ != 0L) {
-      output.writeInt64(3, uptime_);
+    if (this.uptime_ != 0L) {
+      output.writeInt64(3, this.uptime_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(instanceId_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 4, instanceId_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.instanceId_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 4, this.instanceId_);
     }
-    if (catalogsCorrupted_ != 0) {
-      output.writeInt32(5, catalogsCorrupted_);
+    if (this.catalogsCorrupted_ != 0) {
+      output.writeInt32(5, this.catalogsCorrupted_);
     }
-    if (catalogsOk_ != 0) {
-      output.writeInt32(6, catalogsOk_);
+    if (this.catalogsOk_ != 0) {
+      output.writeInt32(6, this.catalogsOk_);
     }
     if (getHealthProblemsList().size() > 0) {
       output.writeUInt32NoTag(58);
-      output.writeUInt32NoTag(healthProblemsMemoizedSerializedSize);
+      output.writeUInt32NoTag(this.healthProblemsMemoizedSerializedSize);
     }
-    for (int i = 0; i < healthProblems_.size(); i++) {
-      output.writeEnumNoTag(healthProblems_.get(i));
+    for (int i = 0; i < this.healthProblems_.size(); i++) {
+      output.writeEnumNoTag(this.healthProblems_.get(i));
     }
-    if (readiness_ != io.evitadb.externalApi.grpc.generated.GrpcReadiness.API_STARTING.getNumber()) {
-      output.writeEnum(8, readiness_);
+    if (this.readiness_ != io.evitadb.externalApi.grpc.generated.GrpcReadiness.API_STARTING.getNumber()) {
+      output.writeEnum(8, this.readiness_);
     }
     com.google.protobuf.GeneratedMessageV3
       .serializeStringMapTo(
@@ -655,55 +655,55 @@ private static final long serialVersionUID = 0L;
         internalGetApi(),
         ApiDefaultEntryHolder.defaultEntry,
         9);
-    if (readOnly_ != false) {
-      output.writeBool(10, readOnly_);
+    if (this.readOnly_ != false) {
+      output.writeBool(10, this.readOnly_);
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(version_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, version_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.version_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.version_);
     }
-    if (startedAt_ != null) {
+    if (this.startedAt_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getStartedAt());
     }
-    if (uptime_ != 0L) {
+    if (this.uptime_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(3, uptime_);
+        .computeInt64Size(3, this.uptime_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(instanceId_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(4, instanceId_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.instanceId_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(4, this.instanceId_);
     }
-    if (catalogsCorrupted_ != 0) {
+    if (this.catalogsCorrupted_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(5, catalogsCorrupted_);
+        .computeInt32Size(5, this.catalogsCorrupted_);
     }
-    if (catalogsOk_ != 0) {
+    if (this.catalogsOk_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(6, catalogsOk_);
+        .computeInt32Size(6, this.catalogsOk_);
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < healthProblems_.size(); i++) {
+      for (int i = 0; i < this.healthProblems_.size(); i++) {
         dataSize += com.google.protobuf.CodedOutputStream
-          .computeEnumSizeNoTag(healthProblems_.get(i));
+          .computeEnumSizeNoTag(this.healthProblems_.get(i));
       }
       size += dataSize;
       if (!getHealthProblemsList().isEmpty()) {  size += 1;
         size += com.google.protobuf.CodedOutputStream
           .computeUInt32SizeNoTag(dataSize);
-      }healthProblemsMemoizedSerializedSize = dataSize;
+      }this.healthProblemsMemoizedSerializedSize = dataSize;
     }
-    if (readiness_ != io.evitadb.externalApi.grpc.generated.GrpcReadiness.API_STARTING.getNumber()) {
+    if (this.readiness_ != io.evitadb.externalApi.grpc.generated.GrpcReadiness.API_STARTING.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(8, readiness_);
+        .computeEnumSize(8, this.readiness_);
     }
     for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> entry
          : internalGetApi().getMap().entrySet()) {
@@ -715,12 +715,12 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(9, api__);
     }
-    if (readOnly_ != false) {
+    if (this.readOnly_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(10, readOnly_);
+        .computeBoolSize(10, this.readOnly_);
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -749,20 +749,20 @@ private static final long serialVersionUID = 0L;
         != other.getCatalogsCorrupted()) return false;
     if (getCatalogsOk()
         != other.getCatalogsOk()) return false;
-    if (!healthProblems_.equals(other.healthProblems_)) return false;
-    if (readiness_ != other.readiness_) return false;
+    if (!this.healthProblems_.equals(other.healthProblems_)) return false;
+    if (this.readiness_ != other.readiness_) return false;
     if (!internalGetApi().equals(
         other.internalGetApi())) return false;
     if (getReadOnly()
         != other.getReadOnly()) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -783,10 +783,10 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getCatalogsOk();
     if (getHealthProblemsCount() > 0) {
       hash = (37 * hash) + HEALTHPROBLEMS_FIELD_NUMBER;
-      hash = (53 * hash) + healthProblems_.hashCode();
+      hash = (53 * hash) + this.healthProblems_.hashCode();
     }
     hash = (37 * hash) + READINESS_FIELD_NUMBER;
-    hash = (53 * hash) + readiness_;
+    hash = (53 * hash) + this.readiness_;
     if (!internalGetApi().getMap().isEmpty()) {
       hash = (37 * hash) + API_FIELD_NUMBER;
       hash = (53 * hash) + internalGetApi().hashCode();
@@ -794,8 +794,8 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + READONLY_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getReadOnly());
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -953,28 +953,28 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      version_ = "";
+      this.version_ = "";
 
-      if (startedAtBuilder_ == null) {
-        startedAt_ = null;
+      if (this.startedAtBuilder_ == null) {
+        this.startedAt_ = null;
       } else {
-        startedAt_ = null;
-        startedAtBuilder_ = null;
+        this.startedAt_ = null;
+        this.startedAtBuilder_ = null;
       }
-      uptime_ = 0L;
+      this.uptime_ = 0L;
 
-      instanceId_ = "";
+      this.instanceId_ = "";
 
-      catalogsCorrupted_ = 0;
+      this.catalogsCorrupted_ = 0;
 
-      catalogsOk_ = 0;
+      this.catalogsOk_ = 0;
 
-      healthProblems_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
-      readiness_ = 0;
+      this.healthProblems_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      this.readiness_ = 0;
 
       internalGetMutableApi().clear();
-      readOnly_ = false;
+      this.readOnly_ = false;
 
       return this;
     }
@@ -1002,26 +1002,26 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse result = new io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse(this);
-      int from_bitField0_ = bitField0_;
-      result.version_ = version_;
-      if (startedAtBuilder_ == null) {
-        result.startedAt_ = startedAt_;
+      int from_bitField0_ = this.bitField0_;
+      result.version_ = this.version_;
+      if (this.startedAtBuilder_ == null) {
+        result.startedAt_ = this.startedAt_;
       } else {
-        result.startedAt_ = startedAtBuilder_.build();
+        result.startedAt_ = this.startedAtBuilder_.build();
       }
-      result.uptime_ = uptime_;
-      result.instanceId_ = instanceId_;
-      result.catalogsCorrupted_ = catalogsCorrupted_;
-      result.catalogsOk_ = catalogsOk_;
-      if (((bitField0_ & 0x00000001) != 0)) {
-        healthProblems_ = java.util.Collections.unmodifiableList(healthProblems_);
-        bitField0_ = (bitField0_ & ~0x00000001);
+      result.uptime_ = this.uptime_;
+      result.instanceId_ = this.instanceId_;
+      result.catalogsCorrupted_ = this.catalogsCorrupted_;
+      result.catalogsOk_ = this.catalogsOk_;
+      if (((this.bitField0_ & 0x00000001) != 0)) {
+        this.healthProblems_ = java.util.Collections.unmodifiableList(this.healthProblems_);
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       }
-      result.healthProblems_ = healthProblems_;
-      result.readiness_ = readiness_;
+      result.healthProblems_ = this.healthProblems_;
+      result.readiness_ = this.readiness_;
       result.api_ = internalGetApi();
       result.api_.makeImmutable();
-      result.readOnly_ = readOnly_;
+      result.readOnly_ = this.readOnly_;
       onBuilt();
       return result;
     }
@@ -1071,7 +1071,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse.getDefaultInstance()) return this;
       if (!other.getVersion().isEmpty()) {
-        version_ = other.version_;
+        this.version_ = other.version_;
         onChanged();
       }
       if (other.hasStartedAt()) {
@@ -1081,7 +1081,7 @@ private static final long serialVersionUID = 0L;
         setUptime(other.getUptime());
       }
       if (!other.getInstanceId().isEmpty()) {
-        instanceId_ = other.instanceId_;
+        this.instanceId_ = other.instanceId_;
         onChanged();
       }
       if (other.getCatalogsCorrupted() != 0) {
@@ -1091,12 +1091,12 @@ private static final long serialVersionUID = 0L;
         setCatalogsOk(other.getCatalogsOk());
       }
       if (!other.healthProblems_.isEmpty()) {
-        if (healthProblems_.isEmpty()) {
-          healthProblems_ = other.healthProblems_;
-          bitField0_ = (bitField0_ & ~0x00000001);
+        if (this.healthProblems_.isEmpty()) {
+          this.healthProblems_ = other.healthProblems_;
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         } else {
           ensureHealthProblemsIsMutable();
-          healthProblems_.addAll(other.healthProblems_);
+          this.healthProblems_.addAll(other.healthProblems_);
         }
         onChanged();
       }
@@ -1148,12 +1148,12 @@ private static final long serialVersionUID = 0L;
      * @return The version.
      */
     public java.lang.String getVersion() {
-      java.lang.Object ref = version_;
+      java.lang.Object ref = this.version_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        version_ = s;
+        this.version_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -1169,12 +1169,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getVersionBytes() {
-      java.lang.Object ref = version_;
+      java.lang.Object ref = this.version_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        version_ = b;
+        this.version_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -1194,8 +1194,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      version_ = value;
+
+      this.version_ = value;
       onChanged();
       return this;
     }
@@ -1208,8 +1208,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-      
-      version_ = getDefaultInstance().getVersion();
+
+      this.version_ = getDefaultInstance().getVersion();
       onChanged();
       return this;
     }
@@ -1228,8 +1228,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      version_ = value;
+
+      this.version_ = value;
       onChanged();
       return this;
     }
@@ -1246,7 +1246,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the startedAt field is set.
      */
     public boolean hasStartedAt() {
-      return startedAtBuilder_ != null || startedAt_ != null;
+      return this.startedAtBuilder_ != null || this.startedAt_ != null;
     }
     /**
      * <pre>
@@ -1257,10 +1257,10 @@ private static final long serialVersionUID = 0L;
      * @return The startedAt.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getStartedAt() {
-      if (startedAtBuilder_ == null) {
-        return startedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : startedAt_;
+      if (this.startedAtBuilder_ == null) {
+        return this.startedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : this.startedAt_;
       } else {
-        return startedAtBuilder_.getMessage();
+        return this.startedAtBuilder_.getMessage();
       }
     }
     /**
@@ -1271,14 +1271,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 2;</code>
      */
     public Builder setStartedAt(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
-      if (startedAtBuilder_ == null) {
+      if (this.startedAtBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        startedAt_ = value;
+        this.startedAt_ = value;
         onChanged();
       } else {
-        startedAtBuilder_.setMessage(value);
+        this.startedAtBuilder_.setMessage(value);
       }
 
       return this;
@@ -1292,11 +1292,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setStartedAt(
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
-      if (startedAtBuilder_ == null) {
-        startedAt_ = builderForValue.build();
+      if (this.startedAtBuilder_ == null) {
+        this.startedAt_ = builderForValue.build();
         onChanged();
       } else {
-        startedAtBuilder_.setMessage(builderForValue.build());
+        this.startedAtBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1309,16 +1309,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 2;</code>
      */
     public Builder mergeStartedAt(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
-      if (startedAtBuilder_ == null) {
-        if (startedAt_ != null) {
-          startedAt_ =
-            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.newBuilder(startedAt_).mergeFrom(value).buildPartial();
+      if (this.startedAtBuilder_ == null) {
+        if (this.startedAt_ != null) {
+          this.startedAt_ =
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.newBuilder(this.startedAt_).mergeFrom(value).buildPartial();
         } else {
-          startedAt_ = value;
+          this.startedAt_ = value;
         }
         onChanged();
       } else {
-        startedAtBuilder_.mergeFrom(value);
+        this.startedAtBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1331,12 +1331,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 2;</code>
      */
     public Builder clearStartedAt() {
-      if (startedAtBuilder_ == null) {
-        startedAt_ = null;
+      if (this.startedAtBuilder_ == null) {
+        this.startedAt_ = null;
         onChanged();
       } else {
-        startedAt_ = null;
-        startedAtBuilder_ = null;
+        this.startedAt_ = null;
+        this.startedAtBuilder_ = null;
       }
 
       return this;
@@ -1349,7 +1349,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getStartedAtBuilder() {
-      
+
       onChanged();
       return getStartedAtFieldBuilder().getBuilder();
     }
@@ -1361,11 +1361,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getStartedAtOrBuilder() {
-      if (startedAtBuilder_ != null) {
-        return startedAtBuilder_.getMessageOrBuilder();
+      if (this.startedAtBuilder_ != null) {
+        return this.startedAtBuilder_.getMessageOrBuilder();
       } else {
-        return startedAt_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : startedAt_;
+        return this.startedAt_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : this.startedAt_;
       }
     }
     /**
@@ -1376,17 +1376,17 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
         getStartedAtFieldBuilder() {
-      if (startedAtBuilder_ == null) {
-        startedAtBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.startedAtBuilder_ == null) {
+        this.startedAtBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>(
                 getStartedAt(),
                 getParentForChildren(),
                 isClean());
-        startedAt_ = null;
+        this.startedAt_ = null;
       }
-      return startedAtBuilder_;
+      return this.startedAtBuilder_;
     }
 
     private long uptime_ ;
@@ -1400,7 +1400,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public long getUptime() {
-      return uptime_;
+      return this.uptime_;
     }
     /**
      * <pre>
@@ -1412,8 +1412,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setUptime(long value) {
-      
-      uptime_ = value;
+
+      this.uptime_ = value;
       onChanged();
       return this;
     }
@@ -1426,8 +1426,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearUptime() {
-      
-      uptime_ = 0L;
+
+      this.uptime_ = 0L;
       onChanged();
       return this;
     }
@@ -1442,12 +1442,12 @@ private static final long serialVersionUID = 0L;
      * @return The instanceId.
      */
     public java.lang.String getInstanceId() {
-      java.lang.Object ref = instanceId_;
+      java.lang.Object ref = this.instanceId_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        instanceId_ = s;
+        this.instanceId_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -1463,12 +1463,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getInstanceIdBytes() {
-      java.lang.Object ref = instanceId_;
+      java.lang.Object ref = this.instanceId_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        instanceId_ = b;
+        this.instanceId_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -1488,8 +1488,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      instanceId_ = value;
+
+      this.instanceId_ = value;
       onChanged();
       return this;
     }
@@ -1502,8 +1502,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearInstanceId() {
-      
-      instanceId_ = getDefaultInstance().getInstanceId();
+
+      this.instanceId_ = getDefaultInstance().getInstanceId();
       onChanged();
       return this;
     }
@@ -1522,8 +1522,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      instanceId_ = value;
+
+      this.instanceId_ = value;
       onChanged();
       return this;
     }
@@ -1539,7 +1539,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getCatalogsCorrupted() {
-      return catalogsCorrupted_;
+      return this.catalogsCorrupted_;
     }
     /**
      * <pre>
@@ -1551,8 +1551,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogsCorrupted(int value) {
-      
-      catalogsCorrupted_ = value;
+
+      this.catalogsCorrupted_ = value;
       onChanged();
       return this;
     }
@@ -1565,8 +1565,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogsCorrupted() {
-      
-      catalogsCorrupted_ = 0;
+
+      this.catalogsCorrupted_ = 0;
       onChanged();
       return this;
     }
@@ -1582,7 +1582,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getCatalogsOk() {
-      return catalogsOk_;
+      return this.catalogsOk_;
     }
     /**
      * <pre>
@@ -1594,8 +1594,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogsOk(int value) {
-      
-      catalogsOk_ = value;
+
+      this.catalogsOk_ = value;
       onChanged();
       return this;
     }
@@ -1608,8 +1608,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogsOk() {
-      
-      catalogsOk_ = 0;
+
+      this.catalogsOk_ = 0;
       onChanged();
       return this;
     }
@@ -1617,9 +1617,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<java.lang.Integer> healthProblems_ =
       java.util.Collections.emptyList();
     private void ensureHealthProblemsIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        healthProblems_ = new java.util.ArrayList<java.lang.Integer>(healthProblems_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.healthProblems_ = new java.util.ArrayList<java.lang.Integer>(this.healthProblems_);
+        this.bitField0_ |= 0x00000001;
       }
     }
     /**
@@ -1632,7 +1632,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHealthProblem> getHealthProblemsList() {
       return new com.google.protobuf.Internal.ListAdapter<
-          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcHealthProblem>(healthProblems_, healthProblems_converter_);
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcHealthProblem>(this.healthProblems_, healthProblems_converter_);
     }
     /**
      * <pre>
@@ -1643,7 +1643,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of healthProblems.
      */
     public int getHealthProblemsCount() {
-      return healthProblems_.size();
+      return this.healthProblems_.size();
     }
     /**
      * <pre>
@@ -1655,7 +1655,7 @@ private static final long serialVersionUID = 0L;
      * @return The healthProblems at the given index.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHealthProblem getHealthProblems(int index) {
-      return healthProblems_converter_.convert(healthProblems_.get(index));
+      return healthProblems_converter_.convert(this.healthProblems_.get(index));
     }
     /**
      * <pre>
@@ -1673,7 +1673,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureHealthProblemsIsMutable();
-      healthProblems_.set(index, value.getNumber());
+      this.healthProblems_.set(index, value.getNumber());
       onChanged();
       return this;
     }
@@ -1691,7 +1691,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureHealthProblemsIsMutable();
-      healthProblems_.add(value.getNumber());
+      this.healthProblems_.add(value.getNumber());
       onChanged();
       return this;
     }
@@ -1708,7 +1708,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcHealthProblem> values) {
       ensureHealthProblemsIsMutable();
       for (io.evitadb.externalApi.grpc.generated.GrpcHealthProblem value : values) {
-        healthProblems_.add(value.getNumber());
+        this.healthProblems_.add(value.getNumber());
       }
       onChanged();
       return this;
@@ -1722,8 +1722,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearHealthProblems() {
-      healthProblems_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.healthProblems_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
@@ -1737,7 +1737,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<java.lang.Integer>
     getHealthProblemsValueList() {
-      return java.util.Collections.unmodifiableList(healthProblems_);
+      return java.util.Collections.unmodifiableList(this.healthProblems_);
     }
     /**
      * <pre>
@@ -1749,7 +1749,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire of healthProblems at the given index.
      */
     public int getHealthProblemsValue(int index) {
-      return healthProblems_.get(index);
+      return this.healthProblems_.get(index);
     }
     /**
      * <pre>
@@ -1764,7 +1764,7 @@ private static final long serialVersionUID = 0L;
     public Builder setHealthProblemsValue(
         int index, int value) {
       ensureHealthProblemsIsMutable();
-      healthProblems_.set(index, value);
+      this.healthProblems_.set(index, value);
       onChanged();
       return this;
     }
@@ -1779,7 +1779,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addHealthProblemsValue(int value) {
       ensureHealthProblemsIsMutable();
-      healthProblems_.add(value);
+      this.healthProblems_.add(value);
       onChanged();
       return this;
     }
@@ -1796,7 +1796,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<java.lang.Integer> values) {
       ensureHealthProblemsIsMutable();
       for (int value : values) {
-        healthProblems_.add(value);
+        this.healthProblems_.add(value);
       }
       onChanged();
       return this;
@@ -1812,7 +1812,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire for readiness.
      */
     @java.lang.Override public int getReadinessValue() {
-      return readiness_;
+      return this.readiness_;
     }
     /**
      * <pre>
@@ -1824,8 +1824,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setReadinessValue(int value) {
-      
-      readiness_ = value;
+
+      this.readiness_ = value;
       onChanged();
       return this;
     }
@@ -1840,7 +1840,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcReadiness getReadiness() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcReadiness result = io.evitadb.externalApi.grpc.generated.GrpcReadiness.valueOf(readiness_);
+      io.evitadb.externalApi.grpc.generated.GrpcReadiness result = io.evitadb.externalApi.grpc.generated.GrpcReadiness.valueOf(this.readiness_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcReadiness.UNRECOGNIZED : result;
     }
     /**
@@ -1856,8 +1856,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
-      readiness_ = value.getNumber();
+
+      this.readiness_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -1870,8 +1870,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReadiness() {
-      
-      readiness_ = 0;
+
+      this.readiness_ = 0;
       onChanged();
       return this;
     }
@@ -1880,23 +1880,23 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus> api_;
     private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>
     internalGetApi() {
-      if (api_ == null) {
+      if (this.api_ == null) {
         return com.google.protobuf.MapField.emptyMapField(
             ApiDefaultEntryHolder.defaultEntry);
       }
-      return api_;
+      return this.api_;
     }
     private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcApiStatus>
     internalGetMutableApi() {
       onChanged();;
-      if (api_ == null) {
-        api_ = com.google.protobuf.MapField.newMapField(
+      if (this.api_ == null) {
+        this.api_ = com.google.protobuf.MapField.newMapField(
             ApiDefaultEntryHolder.defaultEntry);
       }
-      if (!api_.isMutable()) {
-        api_ = api_.copy();
+      if (!this.api_.isMutable()) {
+        this.api_ = this.api_.copy();
       }
-      return api_;
+      return this.api_;
     }
 
     public int getApiCount() {
@@ -2046,7 +2046,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean getReadOnly() {
-      return readOnly_;
+      return this.readOnly_;
     }
     /**
      * <pre>
@@ -2058,8 +2058,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setReadOnly(boolean value) {
-      
-      readOnly_ = value;
+
+      this.readOnly_ = value;
       onChanged();
       return this;
     }
@@ -2072,8 +2072,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReadOnly() {
-      
-      readOnly_ = false;
+
+      this.readOnly_ = false;
       onChanged();
       return this;
     }

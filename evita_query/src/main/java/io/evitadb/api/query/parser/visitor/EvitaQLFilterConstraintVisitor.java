@@ -192,8 +192,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new AttributeEquals(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
-				ctx.args.value.accept(comparableValueTokenVisitor).asSerializableAndComparable()
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
 			)
 		);
 	}
@@ -203,8 +203,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new AttributeGreaterThan(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
-				ctx.args.value.accept(comparableValueTokenVisitor).asSerializableAndComparable()
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
 			)
 		);
 	}
@@ -214,8 +214,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new AttributeGreaterThanEquals(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
-				ctx.args.value.accept(comparableValueTokenVisitor).asSerializableAndComparable()
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
 			)
 		);
 	}
@@ -225,8 +225,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new AttributeLessThan(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
-				ctx.args.value.accept(comparableValueTokenVisitor).asSerializableAndComparable()
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
 			)
 		);
 	}
@@ -236,8 +236,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new AttributeLessThanEquals(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
-				ctx.args.value.accept(comparableValueTokenVisitor).asSerializableAndComparable()
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+				ctx.args.value.accept(this.comparableValueTokenVisitor).asSerializableAndComparable()
 			)
 		);
 	}
@@ -247,12 +247,12 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new AttributeBetween(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.valueFrom
-					.accept(comparableValueTokenVisitor)
+					.accept(this.comparableValueTokenVisitor)
 					.asSerializableAndComparable(),
 				ctx.args.valueTo
-					.accept(comparableValueTokenVisitor)
+					.accept(this.comparableValueTokenVisitor)
 					.asSerializableAndComparable()
 			)
 		);
@@ -263,14 +263,14 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> {
-				final String classifier = ctx.args.classifier.accept(stringValueTokenVisitor).asString();
+				final String classifier = ctx.args.classifier.accept(this.stringValueTokenVisitor).asString();
 				if (ctx.args.values == null) {
 					return new AttributeInSet(classifier);
 				}
 				return new AttributeInSet(
 					classifier,
 					ctx.args.values
-						.accept(comparableValueTokenVisitor)
+						.accept(this.comparableValueTokenVisitor)
 						.asSerializableArray()
 				);
 			}
@@ -282,8 +282,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new AttributeContains(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
-				ctx.args.value.accept(stringValueTokenVisitor).asString()
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+				ctx.args.value.accept(this.stringValueTokenVisitor).asString()
 			)
 		);
 	}
@@ -293,8 +293,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new AttributeStartsWith(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
-				ctx.args.value.accept(stringValueTokenVisitor).asString()
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+				ctx.args.value.accept(this.stringValueTokenVisitor).asString()
 			)
 		);
 	}
@@ -304,8 +304,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new AttributeEndsWith(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
-				ctx.args.value.accept(stringValueTokenVisitor).asString()
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
+				ctx.args.value.accept(this.stringValueTokenVisitor).asString()
 			)
 		);
 	}
@@ -315,7 +315,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new AttributeEquals(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				Boolean.TRUE
 			)
 		);
@@ -326,7 +326,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new AttributeEquals(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				Boolean.FALSE
 			)
 		);
@@ -338,9 +338,9 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			ctx,
 			() -> new AttributeIs(
 				ctx.args.classifier
-					.accept(stringValueTokenVisitor).asString(),
+					.accept(this.stringValueTokenVisitor).asString(),
 				ctx.args.value
-					.accept(attributeSpecialValueValueTokenVisitor)
+					.accept(this.attributeSpecialValueValueTokenVisitor)
 					.asEnum(AttributeSpecialValue.class)
 			)
 		);
@@ -351,7 +351,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new AttributeIs(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				AttributeSpecialValue.NULL
 			)
 		);
@@ -362,7 +362,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new AttributeIs(
-				ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 				AttributeSpecialValue.NOT_NULL
 			)
 		);
@@ -373,8 +373,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> {
-				final String attributeName = ctx.args.classifier.accept(stringValueTokenVisitor).asString();
-				final Value attributeValue = ctx.args.value.accept(inRangeValueTokenVisitor);
+				final String attributeName = ctx.args.classifier.accept(this.stringValueTokenVisitor).asString();
+				final Value attributeValue = ctx.args.value.accept(this.inRangeValueTokenVisitor);
 
 				if (Number.class.isAssignableFrom(attributeValue.getType())) {
 					return new AttributeInRange(attributeName, attributeValue.asNumber());
@@ -394,7 +394,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> {
-				final String attributeName = ctx.args.classifier.accept(stringValueTokenVisitor).asString();
+				final String attributeName = ctx.args.classifier.accept(this.stringValueTokenVisitor).asString();
 				return new AttributeInRange(attributeName);
 			}
 		);
@@ -409,7 +409,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 					return new EntityPrimaryKeyInSet();
 				}
 				return new EntityPrimaryKeyInSet(
-					ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
+					ctx.args.values.accept(this.intValueTokenVisitor).asIntegerArray()
 				);
 			}
 		);
@@ -421,7 +421,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			ctx,
 			() -> new EntityLocaleEquals(
 				ctx.args.value
-					.accept(localeValueTokenVisitor)
+					.accept(this.localeValueTokenVisitor)
 					.asLocale()
 			)
 		);
@@ -433,7 +433,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			ctx,
 			() -> new PriceInCurrency(
 				ctx.args.value
-					.accept(currencyValueTokenVisitor)
+					.accept(this.currencyValueTokenVisitor)
 					.asCurrency()
 			)
 		);
@@ -448,7 +448,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 					return new PriceInPriceLists();
 				}
 				return new PriceInPriceLists(
-					ctx.args.classifiers.accept(stringValueListTokenVisitor).asStringArray()
+					ctx.args.classifiers.accept(this.stringValueListTokenVisitor).asStringArray()
 				);
 			}
 		);
@@ -466,7 +466,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			() -> {
 				return new PriceValidIn(
 					ctx.args.value
-						.accept(offsetDateTimeValueTokenVisitor)
+						.accept(this.offsetDateTimeValueTokenVisitor)
 						.asOffsetDateTime()
 				);
 			}
@@ -478,8 +478,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new PriceBetween(
-				ctx.args.valueFrom.accept(priceBetweenArgValueTokenVisitor).asNumber(BigDecimal.class),
-				ctx.args.valueTo.accept(priceBetweenArgValueTokenVisitor).asNumber(BigDecimal.class)
+				ctx.args.valueFrom.accept(this.priceBetweenArgValueTokenVisitor).asNumber(BigDecimal.class),
+				ctx.args.valueTo.accept(this.priceBetweenArgValueTokenVisitor).asNumber(BigDecimal.class)
 			)
 		);
 	}
@@ -491,13 +491,13 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			() -> {
 				if (ctx.args.filter2 != null) {
 					return new FacetHaving(
-						ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+						ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 						ctx.args.filter1.accept(this),
 						ctx.args.filter2.accept(this)
 					);
 				} else {
 					return new FacetHaving(
-						ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+						ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
 						ctx.args.filter1.accept(this)
 					);
 				}
@@ -533,12 +533,12 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			() -> {
 				if (ctx.classifierWithFilterConstraintArgs() != null) {
 					return new ReferenceHaving(
-						ctx.classifierWithFilterConstraintArgs().classifier.accept(stringValueTokenVisitor).asString(),
+						ctx.classifierWithFilterConstraintArgs().classifier.accept(this.stringValueTokenVisitor).asString(),
 						visitChildConstraint(ctx.classifierWithFilterConstraintArgs().filter, FilterConstraint.class)
 					);
 				} else {
 					return new ReferenceHaving(
-						ctx.classifierArgs().classifier.accept(stringValueTokenVisitor).asString()
+						ctx.classifierArgs().classifier.accept(this.stringValueTokenVisitor).asString()
 					);
 				}
 			}
@@ -553,7 +553,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			ctx,
 			() -> new HierarchyWithin(
 				ctx.args.classifier
-					.accept(stringValueTokenVisitor)
+					.accept(this.stringValueTokenVisitor)
 					.asString(),
 				visitChildConstraint(ctx.args.ofParent, FilterConstraint.class),
 				ctx.args.constrains
@@ -584,7 +584,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 			ctx,
 			() -> new HierarchyWithinRoot(
 				ctx.args.classifier
-					.accept(stringValueTokenVisitor)
+					.accept(this.stringValueTokenVisitor)
 					.asString(),
 				ctx.args.constrains
 					.stream()
@@ -660,7 +660,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitEntityScopeConstraint(EntityScopeConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new EntityScope(ctx.args.variadicValueTokens().accept(scopeValueTokenVisitor).asEnumArray(Scope.class))
+			() -> new EntityScope(ctx.args.variadicValueTokens().accept(this.scopeValueTokenVisitor).asEnumArray(Scope.class))
 		);
 	}
 
@@ -669,7 +669,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new FilterInScope(
-				ctx.args.scope.accept(scopeValueTokenVisitor).asEnum(Scope.class),
+				ctx.args.scope.accept(this.scopeValueTokenVisitor).asEnum(Scope.class),
 				ctx.args.filterConstraints
 					.stream()
 					.map(fc -> visitChildConstraint(fc, FilterConstraint.class))

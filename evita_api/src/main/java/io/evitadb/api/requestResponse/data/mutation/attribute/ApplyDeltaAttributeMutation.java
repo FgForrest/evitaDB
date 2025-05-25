@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -103,7 +103,7 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 	@Override
 	@Nonnull
 	public T getAttributeValue() {
-		return delta;
+		return this.delta;
 	}
 
 	@Nonnull
@@ -111,44 +111,44 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 	public AttributeValue mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable AttributeValue existingAttributeValue) {
 		Assert.isTrue(
 			existingAttributeValue != null && existingAttributeValue.exists() && existingAttributeValue.value() != null,
-			"Cannot apply delta to attribute " + attributeKey.attributeName() + " when it doesn't exist!"
+			"Cannot apply delta to attribute " + this.attributeKey.attributeName() + " when it doesn't exist!"
 		);
 		Assert.isTrue(
 				existingAttributeValue.value() instanceof Number,
-				"Cannot apply delta to attribute " + attributeKey.attributeName() + " when its value is " +
+				"Cannot apply delta to attribute " + this.attributeKey.attributeName() + " when its value is " +
 						existingAttributeValue.value().getClass().getName()
 		);
 		final Number existingValue = (Number) existingAttributeValue.value();
 		final T newValue;
 		if (existingValue instanceof BigDecimal) {
 			//noinspection unchecked
-			newValue = (T) ((BigDecimal) existingValue).add((BigDecimal) delta);
+			newValue = (T) ((BigDecimal) existingValue).add((BigDecimal) this.delta);
 		} else if (existingValue instanceof Byte) {
 			//noinspection unchecked
-			newValue = (T) (Byte.valueOf((byte)((byte) existingValue + (byte) delta)));
+			newValue = (T) (Byte.valueOf((byte)((byte) existingValue + (byte) this.delta)));
 		} else if (existingValue instanceof Short) {
 			//noinspection unchecked
-			newValue = (T) (Short.valueOf((short) ((short)existingValue + (short)delta)));
+			newValue = (T) (Short.valueOf((short) ((short)existingValue + (short) this.delta)));
 		} else if (existingValue instanceof Integer) {
 			//noinspection unchecked
-			newValue = (T) (Integer.valueOf(((int)existingValue + (int)delta)));
+			newValue = (T) (Integer.valueOf(((int)existingValue + (int) this.delta)));
 		} else if (existingValue instanceof Long) {
 			//noinspection unchecked
-			newValue = (T) (Long.valueOf(((long)existingValue + (long)delta)));
+			newValue = (T) (Long.valueOf(((long)existingValue + (long) this.delta)));
 		} else {
 			// this should never ever happen
 			throw new InvalidMutationException("Unknown Evita data type: " + existingValue.getClass());
 		}
-		if (requiredRangeAfterApplication != null) {
+		if (this.requiredRangeAfterApplication != null) {
 			Assert.isTrue(
-				requiredRangeAfterApplication.isWithin(newValue),
+				this.requiredRangeAfterApplication.isWithin(newValue),
 				() -> new InvalidMutationException(
-					"Applying delta " + delta + " on " + existingValue + " produced result " + newValue +
-						" which is out of specified range " + requiredRangeAfterApplication + "!"
+					"Applying delta " + this.delta + " on " + existingValue + " produced result " + newValue +
+						" which is out of specified range " + this.requiredRangeAfterApplication + "!"
 				)
 			);
 		}
-		return new AttributeValue(existingAttributeValue.version() + 1, attributeKey, newValue);
+		return new AttributeValue(existingAttributeValue.version() + 1, this.attributeKey, newValue);
 	}
 
 	@Override
@@ -164,7 +164,7 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 
 	@Override
 	public String toString() {
-		return "apply delta " + delta + " to attribute `" + attributeKey + "`";
+		return "apply delta " + this.delta + " to attribute `" + this.attributeKey + "`";
 	}
 
 }

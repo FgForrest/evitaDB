@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ class ConstraintDescriptorResolver {
 	                                           @Nonnull Constraint<?> constraint) {
 		//noinspection unchecked
 		return constraintDescriptor.creator().classifierParameter()
-			.flatMap(it -> (Optional<String>) parameterValueResolver.resolveParameterValue(constraint, it));
+			.flatMap(it -> (Optional<String>) this.parameterValueResolver.resolveParameterValue(constraint, it));
 	}
 
 	/**
@@ -97,7 +97,7 @@ class ConstraintDescriptorResolver {
 	private DataLocator resolveInnerDataLocator(@Nonnull ConstraintToJsonConvertContext resolveContext,
 	                                            @Nonnull ConstraintDescriptor constraintDescriptor,
 	                                            @Nonnull Optional<String> classifier) {
-		return dataLocatorResolver.resolveConstraintDataLocator(resolveContext.dataLocator(), constraintDescriptor, classifier);
+		return this.dataLocatorResolver.resolveConstraintDataLocator(resolveContext.dataLocator(), constraintDescriptor, classifier);
 	}
 
 

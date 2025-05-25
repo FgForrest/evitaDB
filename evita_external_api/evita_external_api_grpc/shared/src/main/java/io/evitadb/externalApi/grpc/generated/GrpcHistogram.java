@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcHistogram() {
-    buckets_ = java.util.Collections.emptyList();
+    this.buckets_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -84,41 +84,41 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder subBuilder = null;
-            if (min_ != null) {
-              subBuilder = min_.toBuilder();
+            if (this.min_ != null) {
+              subBuilder = this.min_.toBuilder();
             }
-            min_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
+            this.min_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(min_);
-              min_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.min_);
+              this.min_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 18: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder subBuilder = null;
-            if (max_ != null) {
-              subBuilder = max_.toBuilder();
+            if (this.max_ != null) {
+              subBuilder = this.max_.toBuilder();
             }
-            max_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
+            this.max_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(max_);
-              max_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.max_);
+              this.max_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 24: {
 
-            overallCount_ = input.readInt32();
+            this.overallCount_ = input.readInt32();
             break;
           }
           case 34: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              buckets_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket>();
+              this.buckets_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket>();
               mutable_bitField0_ |= 0x00000001;
             }
-            buckets_.add(
+            this.buckets_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.parser(), extensionRegistry));
             break;
           }
@@ -138,7 +138,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        buckets_ = java.util.Collections.unmodifiableList(buckets_);
+        this.buckets_ = java.util.Collections.unmodifiableList(this.buckets_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -260,25 +260,25 @@ private static final long serialVersionUID = 0L;
               break;
             case 18: {
               io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder subBuilder = null;
-              if (threshold_ != null) {
-                subBuilder = threshold_.toBuilder();
+              if (this.threshold_ != null) {
+                subBuilder = this.threshold_.toBuilder();
               }
-              threshold_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
+              this.threshold_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
               if (subBuilder != null) {
-                subBuilder.mergeFrom(threshold_);
-                threshold_ = subBuilder.buildPartial();
+                subBuilder.mergeFrom(this.threshold_);
+                this.threshold_ = subBuilder.buildPartial();
               }
 
               break;
             }
             case 24: {
 
-              occurrences_ = input.readInt32();
+              this.occurrences_ = input.readInt32();
               break;
             }
             case 32: {
 
-              requested_ = input.readBool();
+              this.requested_ = input.readBool();
               break;
             }
             default: {
@@ -325,7 +325,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasThreshold() {
-      return threshold_ != null;
+      return this.threshold_ != null;
     }
     /**
      * <pre>
@@ -337,7 +337,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getThreshold() {
-      return threshold_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : threshold_;
+      return this.threshold_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.threshold_;
     }
     /**
      * <pre>
@@ -364,7 +364,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getOccurrences() {
-      return occurrences_;
+      return this.occurrences_;
     }
 
     public static final int REQUESTED_FIELD_NUMBER = 4;
@@ -379,55 +379,55 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean getRequested() {
-      return requested_;
+      return this.requested_;
     }
 
     private byte memoizedIsInitialized = -1;
     @java.lang.Override
     public final boolean isInitialized() {
-      byte isInitialized = memoizedIsInitialized;
+      byte isInitialized = this.memoizedIsInitialized;
       if (isInitialized == 1) return true;
       if (isInitialized == 0) return false;
 
-      memoizedIsInitialized = 1;
+      this.memoizedIsInitialized = 1;
       return true;
     }
 
     @java.lang.Override
     public void writeTo(com.google.protobuf.CodedOutputStream output)
                         throws java.io.IOException {
-      if (threshold_ != null) {
+      if (this.threshold_ != null) {
         output.writeMessage(2, getThreshold());
       }
-      if (occurrences_ != 0) {
-        output.writeInt32(3, occurrences_);
+      if (this.occurrences_ != 0) {
+        output.writeInt32(3, this.occurrences_);
       }
-      if (requested_ != false) {
-        output.writeBool(4, requested_);
+      if (this.requested_ != false) {
+        output.writeBool(4, this.requested_);
       }
-      unknownFields.writeTo(output);
+      this.unknownFields.writeTo(output);
     }
 
     @java.lang.Override
     public int getSerializedSize() {
-      int size = memoizedSize;
+      int size = this.memoizedSize;
       if (size != -1) return size;
 
       size = 0;
-      if (threshold_ != null) {
+      if (this.threshold_ != null) {
         size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(2, getThreshold());
       }
-      if (occurrences_ != 0) {
+      if (this.occurrences_ != 0) {
         size += com.google.protobuf.CodedOutputStream
-          .computeInt32Size(3, occurrences_);
+          .computeInt32Size(3, this.occurrences_);
       }
-      if (requested_ != false) {
+      if (this.requested_ != false) {
         size += com.google.protobuf.CodedOutputStream
-          .computeBoolSize(4, requested_);
+          .computeBoolSize(4, this.requested_);
       }
-      size += unknownFields.getSerializedSize();
-      memoizedSize = size;
+      size += this.unknownFields.getSerializedSize();
+      this.memoizedSize = size;
       return size;
     }
 
@@ -450,14 +450,14 @@ private static final long serialVersionUID = 0L;
           != other.getOccurrences()) return false;
       if (getRequested()
           != other.getRequested()) return false;
-      if (!unknownFields.equals(other.unknownFields)) return false;
+      if (!this.unknownFields.equals(other.unknownFields)) return false;
       return true;
     }
 
     @java.lang.Override
     public int hashCode() {
-      if (memoizedHashCode != 0) {
-        return memoizedHashCode;
+      if (this.memoizedHashCode != 0) {
+        return this.memoizedHashCode;
       }
       int hash = 41;
       hash = (19 * hash) + getDescriptor().hashCode();
@@ -470,8 +470,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + REQUESTED_FIELD_NUMBER;
       hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
           getRequested());
-      hash = (29 * hash) + unknownFields.hashCode();
-      memoizedHashCode = hash;
+      hash = (29 * hash) + this.unknownFields.hashCode();
+      this.memoizedHashCode = hash;
       return hash;
     }
 
@@ -607,15 +607,15 @@ private static final long serialVersionUID = 0L;
       @java.lang.Override
       public Builder clear() {
         super.clear();
-        if (thresholdBuilder_ == null) {
-          threshold_ = null;
+        if (this.thresholdBuilder_ == null) {
+          this.threshold_ = null;
         } else {
-          threshold_ = null;
-          thresholdBuilder_ = null;
+          this.threshold_ = null;
+          this.thresholdBuilder_ = null;
         }
-        occurrences_ = 0;
+        this.occurrences_ = 0;
 
-        requested_ = false;
+        this.requested_ = false;
 
         return this;
       }
@@ -643,13 +643,13 @@ private static final long serialVersionUID = 0L;
       @java.lang.Override
       public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buildPartial() {
         io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket result = new io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket(this);
-        if (thresholdBuilder_ == null) {
-          result.threshold_ = threshold_;
+        if (this.thresholdBuilder_ == null) {
+          result.threshold_ = this.threshold_;
         } else {
-          result.threshold_ = thresholdBuilder_.build();
+          result.threshold_ = this.thresholdBuilder_.build();
         }
-        result.occurrences_ = occurrences_;
-        result.requested_ = requested_;
+        result.occurrences_ = this.occurrences_;
+        result.requested_ = this.requested_;
         onBuilt();
         return result;
       }
@@ -748,7 +748,7 @@ private static final long serialVersionUID = 0L;
        * @return Whether the threshold field is set.
        */
       public boolean hasThreshold() {
-        return thresholdBuilder_ != null || threshold_ != null;
+        return this.thresholdBuilder_ != null || this.threshold_ != null;
       }
       /**
        * <pre>
@@ -759,10 +759,10 @@ private static final long serialVersionUID = 0L;
        * @return The threshold.
        */
       public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getThreshold() {
-        if (thresholdBuilder_ == null) {
-          return threshold_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : threshold_;
+        if (this.thresholdBuilder_ == null) {
+          return this.threshold_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.threshold_;
         } else {
-          return thresholdBuilder_.getMessage();
+          return this.thresholdBuilder_.getMessage();
         }
       }
       /**
@@ -773,14 +773,14 @@ private static final long serialVersionUID = 0L;
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       public Builder setThreshold(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-        if (thresholdBuilder_ == null) {
+        if (this.thresholdBuilder_ == null) {
           if (value == null) {
             throw new NullPointerException();
           }
-          threshold_ = value;
+          this.threshold_ = value;
           onChanged();
         } else {
-          thresholdBuilder_.setMessage(value);
+          this.thresholdBuilder_.setMessage(value);
         }
 
         return this;
@@ -794,11 +794,11 @@ private static final long serialVersionUID = 0L;
        */
       public Builder setThreshold(
           io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
-        if (thresholdBuilder_ == null) {
-          threshold_ = builderForValue.build();
+        if (this.thresholdBuilder_ == null) {
+          this.threshold_ = builderForValue.build();
           onChanged();
         } else {
-          thresholdBuilder_.setMessage(builderForValue.build());
+          this.thresholdBuilder_.setMessage(builderForValue.build());
         }
 
         return this;
@@ -811,16 +811,16 @@ private static final long serialVersionUID = 0L;
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       public Builder mergeThreshold(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-        if (thresholdBuilder_ == null) {
-          if (threshold_ != null) {
-            threshold_ =
-              io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(threshold_).mergeFrom(value).buildPartial();
+        if (this.thresholdBuilder_ == null) {
+          if (this.threshold_ != null) {
+            this.threshold_ =
+              io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(this.threshold_).mergeFrom(value).buildPartial();
           } else {
-            threshold_ = value;
+            this.threshold_ = value;
           }
           onChanged();
         } else {
-          thresholdBuilder_.mergeFrom(value);
+          this.thresholdBuilder_.mergeFrom(value);
         }
 
         return this;
@@ -833,12 +833,12 @@ private static final long serialVersionUID = 0L;
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       public Builder clearThreshold() {
-        if (thresholdBuilder_ == null) {
-          threshold_ = null;
+        if (this.thresholdBuilder_ == null) {
+          this.threshold_ = null;
           onChanged();
         } else {
-          threshold_ = null;
-          thresholdBuilder_ = null;
+          this.threshold_ = null;
+          this.thresholdBuilder_ = null;
         }
 
         return this;
@@ -851,7 +851,7 @@ private static final long serialVersionUID = 0L;
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getThresholdBuilder() {
-        
+
         onChanged();
         return getThresholdFieldBuilder().getBuilder();
       }
@@ -863,11 +863,11 @@ private static final long serialVersionUID = 0L;
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getThresholdOrBuilder() {
-        if (thresholdBuilder_ != null) {
-          return thresholdBuilder_.getMessageOrBuilder();
+        if (this.thresholdBuilder_ != null) {
+          return this.thresholdBuilder_.getMessageOrBuilder();
         } else {
-          return threshold_ == null ?
-              io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : threshold_;
+          return this.threshold_ == null ?
+              io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.threshold_;
         }
       }
       /**
@@ -878,17 +878,17 @@ private static final long serialVersionUID = 0L;
        * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal threshold = 2;</code>
        */
       private com.google.protobuf.SingleFieldBuilderV3<
-          io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
+          io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
           getThresholdFieldBuilder() {
-        if (thresholdBuilder_ == null) {
-          thresholdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        if (this.thresholdBuilder_ == null) {
+          this.thresholdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
               io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
                   getThreshold(),
                   getParentForChildren(),
                   isClean());
-          threshold_ = null;
+          this.threshold_ = null;
         }
-        return thresholdBuilder_;
+        return this.thresholdBuilder_;
       }
 
       private int occurrences_ ;
@@ -903,7 +903,7 @@ private static final long serialVersionUID = 0L;
        */
       @java.lang.Override
       public int getOccurrences() {
-        return occurrences_;
+        return this.occurrences_;
       }
       /**
        * <pre>
@@ -916,8 +916,8 @@ private static final long serialVersionUID = 0L;
        * @return This builder for chaining.
        */
       public Builder setOccurrences(int value) {
-        
-        occurrences_ = value;
+
+        this.occurrences_ = value;
         onChanged();
         return this;
       }
@@ -931,8 +931,8 @@ private static final long serialVersionUID = 0L;
        * @return This builder for chaining.
        */
       public Builder clearOccurrences() {
-        
-        occurrences_ = 0;
+
+        this.occurrences_ = 0;
         onChanged();
         return this;
       }
@@ -948,7 +948,7 @@ private static final long serialVersionUID = 0L;
        */
       @java.lang.Override
       public boolean getRequested() {
-        return requested_;
+        return this.requested_;
       }
       /**
        * <pre>
@@ -960,8 +960,8 @@ private static final long serialVersionUID = 0L;
        * @return This builder for chaining.
        */
       public Builder setRequested(boolean value) {
-        
-        requested_ = value;
+
+        this.requested_ = value;
         onChanged();
         return this;
       }
@@ -974,8 +974,8 @@ private static final long serialVersionUID = 0L;
        * @return This builder for chaining.
        */
       public Builder clearRequested() {
-        
-        requested_ = false;
+
+        this.requested_ = false;
         onChanged();
         return this;
       }
@@ -1044,7 +1044,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasMin() {
-    return min_ != null;
+    return this.min_ != null;
   }
   /**
    * <pre>
@@ -1056,7 +1056,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getMin() {
-    return min_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : min_;
+    return this.min_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.min_;
   }
   /**
    * <pre>
@@ -1085,7 +1085,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasMax() {
-    return max_ != null;
+    return this.max_ != null;
   }
   /**
    * <pre>
@@ -1100,7 +1100,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getMax() {
-    return max_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : max_;
+    return this.max_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.max_;
   }
   /**
    * <pre>
@@ -1130,7 +1130,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getOverallCount() {
-    return overallCount_;
+    return this.overallCount_;
   }
 
   public static final int BUCKETS_FIELD_NUMBER = 4;
@@ -1145,7 +1145,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket> getBucketsList() {
-    return buckets_;
+    return this.buckets_;
   }
   /**
    * <pre>
@@ -1156,9 +1156,9 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
       getBucketsOrBuilderList() {
-    return buckets_;
+    return this.buckets_;
   }
   /**
    * <pre>
@@ -1170,7 +1170,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getBucketsCount() {
-    return buckets_.size();
+    return this.buckets_.size();
   }
   /**
    * <pre>
@@ -1182,7 +1182,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket getBuckets(int index) {
-    return buckets_.get(index);
+    return this.buckets_.get(index);
   }
   /**
    * <pre>
@@ -1195,62 +1195,62 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder getBucketsOrBuilder(
       int index) {
-    return buckets_.get(index);
+    return this.buckets_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (min_ != null) {
+    if (this.min_ != null) {
       output.writeMessage(1, getMin());
     }
-    if (max_ != null) {
+    if (this.max_ != null) {
       output.writeMessage(2, getMax());
     }
-    if (overallCount_ != 0) {
-      output.writeInt32(3, overallCount_);
+    if (this.overallCount_ != 0) {
+      output.writeInt32(3, this.overallCount_);
     }
-    for (int i = 0; i < buckets_.size(); i++) {
-      output.writeMessage(4, buckets_.get(i));
+    for (int i = 0; i < this.buckets_.size(); i++) {
+      output.writeMessage(4, this.buckets_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (min_ != null) {
+    if (this.min_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getMin());
     }
-    if (max_ != null) {
+    if (this.max_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getMax());
     }
-    if (overallCount_ != 0) {
+    if (this.overallCount_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(3, overallCount_);
+        .computeInt32Size(3, this.overallCount_);
     }
-    for (int i = 0; i < buckets_.size(); i++) {
+    for (int i = 0; i < this.buckets_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(4, buckets_.get(i));
+        .computeMessageSize(4, this.buckets_.get(i));
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -1278,14 +1278,14 @@ private static final long serialVersionUID = 0L;
         != other.getOverallCount()) return false;
     if (!getBucketsList()
         .equals(other.getBucketsList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -1303,8 +1303,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + BUCKETS_FIELD_NUMBER;
       hash = (53 * hash) + getBucketsList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -1446,25 +1446,25 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (minBuilder_ == null) {
-        min_ = null;
+      if (this.minBuilder_ == null) {
+        this.min_ = null;
       } else {
-        min_ = null;
-        minBuilder_ = null;
+        this.min_ = null;
+        this.minBuilder_ = null;
       }
-      if (maxBuilder_ == null) {
-        max_ = null;
+      if (this.maxBuilder_ == null) {
+        this.max_ = null;
       } else {
-        max_ = null;
-        maxBuilder_ = null;
+        this.max_ = null;
+        this.maxBuilder_ = null;
       }
-      overallCount_ = 0;
+      this.overallCount_ = 0;
 
-      if (bucketsBuilder_ == null) {
-        buckets_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.bucketsBuilder_ == null) {
+        this.buckets_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       } else {
-        bucketsBuilder_.clear();
+        this.bucketsBuilder_.clear();
       }
       return this;
     }
@@ -1492,26 +1492,26 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcHistogram result = new io.evitadb.externalApi.grpc.generated.GrpcHistogram(this);
-      int from_bitField0_ = bitField0_;
-      if (minBuilder_ == null) {
-        result.min_ = min_;
+      int from_bitField0_ = this.bitField0_;
+      if (this.minBuilder_ == null) {
+        result.min_ = this.min_;
       } else {
-        result.min_ = minBuilder_.build();
+        result.min_ = this.minBuilder_.build();
       }
-      if (maxBuilder_ == null) {
-        result.max_ = max_;
+      if (this.maxBuilder_ == null) {
+        result.max_ = this.max_;
       } else {
-        result.max_ = maxBuilder_.build();
+        result.max_ = this.maxBuilder_.build();
       }
-      result.overallCount_ = overallCount_;
-      if (bucketsBuilder_ == null) {
-        if (((bitField0_ & 0x00000001) != 0)) {
-          buckets_ = java.util.Collections.unmodifiableList(buckets_);
-          bitField0_ = (bitField0_ & ~0x00000001);
+      result.overallCount_ = this.overallCount_;
+      if (this.bucketsBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000001) != 0)) {
+          this.buckets_ = java.util.Collections.unmodifiableList(this.buckets_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         }
-        result.buckets_ = buckets_;
+        result.buckets_ = this.buckets_;
       } else {
-        result.buckets_ = bucketsBuilder_.build();
+        result.buckets_ = this.bucketsBuilder_.build();
       }
       onBuilt();
       return result;
@@ -1570,29 +1570,29 @@ private static final long serialVersionUID = 0L;
       if (other.getOverallCount() != 0) {
         setOverallCount(other.getOverallCount());
       }
-      if (bucketsBuilder_ == null) {
+      if (this.bucketsBuilder_ == null) {
         if (!other.buckets_.isEmpty()) {
-          if (buckets_.isEmpty()) {
-            buckets_ = other.buckets_;
-            bitField0_ = (bitField0_ & ~0x00000001);
+          if (this.buckets_.isEmpty()) {
+            this.buckets_ = other.buckets_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
           } else {
             ensureBucketsIsMutable();
-            buckets_.addAll(other.buckets_);
+            this.buckets_.addAll(other.buckets_);
           }
           onChanged();
         }
       } else {
         if (!other.buckets_.isEmpty()) {
-          if (bucketsBuilder_.isEmpty()) {
-            bucketsBuilder_.dispose();
-            bucketsBuilder_ = null;
-            buckets_ = other.buckets_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-            bucketsBuilder_ = 
+          if (this.bucketsBuilder_.isEmpty()) {
+            this.bucketsBuilder_.dispose();
+            this.bucketsBuilder_ = null;
+            this.buckets_ = other.buckets_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+            this.bucketsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getBucketsFieldBuilder() : null;
           } else {
-            bucketsBuilder_.addAllMessages(other.buckets_);
+            this.bucketsBuilder_.addAllMessages(other.buckets_);
           }
         }
       }
@@ -1638,7 +1638,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the min field is set.
      */
     public boolean hasMin() {
-      return minBuilder_ != null || min_ != null;
+      return this.minBuilder_ != null || this.min_ != null;
     }
     /**
      * <pre>
@@ -1649,10 +1649,10 @@ private static final long serialVersionUID = 0L;
      * @return The min.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getMin() {
-      if (minBuilder_ == null) {
-        return min_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : min_;
+      if (this.minBuilder_ == null) {
+        return this.min_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.min_;
       } else {
-        return minBuilder_.getMessage();
+        return this.minBuilder_.getMessage();
       }
     }
     /**
@@ -1663,14 +1663,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     public Builder setMin(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (minBuilder_ == null) {
+      if (this.minBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        min_ = value;
+        this.min_ = value;
         onChanged();
       } else {
-        minBuilder_.setMessage(value);
+        this.minBuilder_.setMessage(value);
       }
 
       return this;
@@ -1684,11 +1684,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setMin(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
-      if (minBuilder_ == null) {
-        min_ = builderForValue.build();
+      if (this.minBuilder_ == null) {
+        this.min_ = builderForValue.build();
         onChanged();
       } else {
-        minBuilder_.setMessage(builderForValue.build());
+        this.minBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1701,16 +1701,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     public Builder mergeMin(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (minBuilder_ == null) {
-        if (min_ != null) {
-          min_ =
-            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(min_).mergeFrom(value).buildPartial();
+      if (this.minBuilder_ == null) {
+        if (this.min_ != null) {
+          this.min_ =
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(this.min_).mergeFrom(value).buildPartial();
         } else {
-          min_ = value;
+          this.min_ = value;
         }
         onChanged();
       } else {
-        minBuilder_.mergeFrom(value);
+        this.minBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1723,12 +1723,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     public Builder clearMin() {
-      if (minBuilder_ == null) {
-        min_ = null;
+      if (this.minBuilder_ == null) {
+        this.min_ = null;
         onChanged();
       } else {
-        min_ = null;
-        minBuilder_ = null;
+        this.min_ = null;
+        this.minBuilder_ = null;
       }
 
       return this;
@@ -1741,7 +1741,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getMinBuilder() {
-      
+
       onChanged();
       return getMinFieldBuilder().getBuilder();
     }
@@ -1753,11 +1753,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getMinOrBuilder() {
-      if (minBuilder_ != null) {
-        return minBuilder_.getMessageOrBuilder();
+      if (this.minBuilder_ != null) {
+        return this.minBuilder_.getMessageOrBuilder();
       } else {
-        return min_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : min_;
+        return this.min_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.min_;
       }
     }
     /**
@@ -1768,17 +1768,17 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal min = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
         getMinFieldBuilder() {
-      if (minBuilder_ == null) {
-        minBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.minBuilder_ == null) {
+        this.minBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
                 getMin(),
                 getParentForChildren(),
                 isClean());
-        min_ = null;
+        this.min_ = null;
       }
-      return minBuilder_;
+      return this.minBuilder_;
     }
 
     private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max_;
@@ -1796,7 +1796,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the max field is set.
      */
     public boolean hasMax() {
-      return maxBuilder_ != null || max_ != null;
+      return this.maxBuilder_ != null || this.max_ != null;
     }
     /**
      * <pre>
@@ -1810,10 +1810,10 @@ private static final long serialVersionUID = 0L;
      * @return The max.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getMax() {
-      if (maxBuilder_ == null) {
-        return max_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : max_;
+      if (this.maxBuilder_ == null) {
+        return this.max_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.max_;
       } else {
-        return maxBuilder_.getMessage();
+        return this.maxBuilder_.getMessage();
       }
     }
     /**
@@ -1827,14 +1827,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     public Builder setMax(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (maxBuilder_ == null) {
+      if (this.maxBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        max_ = value;
+        this.max_ = value;
         onChanged();
       } else {
-        maxBuilder_.setMessage(value);
+        this.maxBuilder_.setMessage(value);
       }
 
       return this;
@@ -1851,11 +1851,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setMax(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
-      if (maxBuilder_ == null) {
-        max_ = builderForValue.build();
+      if (this.maxBuilder_ == null) {
+        this.max_ = builderForValue.build();
         onChanged();
       } else {
-        maxBuilder_.setMessage(builderForValue.build());
+        this.maxBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1871,16 +1871,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     public Builder mergeMax(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (maxBuilder_ == null) {
-        if (max_ != null) {
-          max_ =
-            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(max_).mergeFrom(value).buildPartial();
+      if (this.maxBuilder_ == null) {
+        if (this.max_ != null) {
+          this.max_ =
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(this.max_).mergeFrom(value).buildPartial();
         } else {
-          max_ = value;
+          this.max_ = value;
         }
         onChanged();
       } else {
-        maxBuilder_.mergeFrom(value);
+        this.maxBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1896,12 +1896,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     public Builder clearMax() {
-      if (maxBuilder_ == null) {
-        max_ = null;
+      if (this.maxBuilder_ == null) {
+        this.max_ = null;
         onChanged();
       } else {
-        max_ = null;
-        maxBuilder_ = null;
+        this.max_ = null;
+        this.maxBuilder_ = null;
       }
 
       return this;
@@ -1917,7 +1917,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder getMaxBuilder() {
-      
+
       onChanged();
       return getMaxFieldBuilder().getBuilder();
     }
@@ -1932,11 +1932,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getMaxOrBuilder() {
-      if (maxBuilder_ != null) {
-        return maxBuilder_.getMessageOrBuilder();
+      if (this.maxBuilder_ != null) {
+        return this.maxBuilder_.getMessageOrBuilder();
       } else {
-        return max_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : max_;
+        return this.max_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.max_;
       }
     }
     /**
@@ -1950,17 +1950,17 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal max = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
         getMaxFieldBuilder() {
-      if (maxBuilder_ == null) {
-        maxBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.maxBuilder_ == null) {
+        this.maxBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
                 getMax(),
                 getParentForChildren(),
                 isClean());
-        max_ = null;
+        this.max_ = null;
       }
-      return maxBuilder_;
+      return this.maxBuilder_;
     }
 
     private int overallCount_ ;
@@ -1975,7 +1975,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getOverallCount() {
-      return overallCount_;
+      return this.overallCount_;
     }
     /**
      * <pre>
@@ -1988,8 +1988,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setOverallCount(int value) {
-      
-      overallCount_ = value;
+
+      this.overallCount_ = value;
       onChanged();
       return this;
     }
@@ -2003,8 +2003,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearOverallCount() {
-      
-      overallCount_ = 0;
+
+      this.overallCount_ = 0;
       onChanged();
       return this;
     }
@@ -2012,9 +2012,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket> buckets_ =
       java.util.Collections.emptyList();
     private void ensureBucketsIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        buckets_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket>(buckets_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.buckets_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket>(this.buckets_);
+        this.bitField0_ |= 0x00000001;
        }
     }
 
@@ -2030,10 +2030,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket> getBucketsList() {
-      if (bucketsBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(buckets_);
+      if (this.bucketsBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.buckets_);
       } else {
-        return bucketsBuilder_.getMessageList();
+        return this.bucketsBuilder_.getMessageList();
       }
     }
     /**
@@ -2045,10 +2045,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public int getBucketsCount() {
-      if (bucketsBuilder_ == null) {
-        return buckets_.size();
+      if (this.bucketsBuilder_ == null) {
+        return this.buckets_.size();
       } else {
-        return bucketsBuilder_.getCount();
+        return this.bucketsBuilder_.getCount();
       }
     }
     /**
@@ -2060,10 +2060,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket getBuckets(int index) {
-      if (bucketsBuilder_ == null) {
-        return buckets_.get(index);
+      if (this.bucketsBuilder_ == null) {
+        return this.buckets_.get(index);
       } else {
-        return bucketsBuilder_.getMessage(index);
+        return this.bucketsBuilder_.getMessage(index);
       }
     }
     /**
@@ -2076,15 +2076,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setBuckets(
         int index, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket value) {
-      if (bucketsBuilder_ == null) {
+      if (this.bucketsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureBucketsIsMutable();
-        buckets_.set(index, value);
+        this.buckets_.set(index, value);
         onChanged();
       } else {
-        bucketsBuilder_.setMessage(index, value);
+        this.bucketsBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -2098,12 +2098,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setBuckets(
         int index, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder builderForValue) {
-      if (bucketsBuilder_ == null) {
+      if (this.bucketsBuilder_ == null) {
         ensureBucketsIsMutable();
-        buckets_.set(index, builderForValue.build());
+        this.buckets_.set(index, builderForValue.build());
         onChanged();
       } else {
-        bucketsBuilder_.setMessage(index, builderForValue.build());
+        this.bucketsBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -2116,15 +2116,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder addBuckets(io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket value) {
-      if (bucketsBuilder_ == null) {
+      if (this.bucketsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureBucketsIsMutable();
-        buckets_.add(value);
+        this.buckets_.add(value);
         onChanged();
       } else {
-        bucketsBuilder_.addMessage(value);
+        this.bucketsBuilder_.addMessage(value);
       }
       return this;
     }
@@ -2138,15 +2138,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addBuckets(
         int index, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket value) {
-      if (bucketsBuilder_ == null) {
+      if (this.bucketsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureBucketsIsMutable();
-        buckets_.add(index, value);
+        this.buckets_.add(index, value);
         onChanged();
       } else {
-        bucketsBuilder_.addMessage(index, value);
+        this.bucketsBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -2160,12 +2160,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addBuckets(
         io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder builderForValue) {
-      if (bucketsBuilder_ == null) {
+      if (this.bucketsBuilder_ == null) {
         ensureBucketsIsMutable();
-        buckets_.add(builderForValue.build());
+        this.buckets_.add(builderForValue.build());
         onChanged();
       } else {
-        bucketsBuilder_.addMessage(builderForValue.build());
+        this.bucketsBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -2179,12 +2179,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addBuckets(
         int index, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder builderForValue) {
-      if (bucketsBuilder_ == null) {
+      if (this.bucketsBuilder_ == null) {
         ensureBucketsIsMutable();
-        buckets_.add(index, builderForValue.build());
+        this.buckets_.add(index, builderForValue.build());
         onChanged();
       } else {
-        bucketsBuilder_.addMessage(index, builderForValue.build());
+        this.bucketsBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -2198,13 +2198,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllBuckets(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket> values) {
-      if (bucketsBuilder_ == null) {
+      if (this.bucketsBuilder_ == null) {
         ensureBucketsIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, buckets_);
+            values, this.buckets_);
         onChanged();
       } else {
-        bucketsBuilder_.addAllMessages(values);
+        this.bucketsBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -2217,12 +2217,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder clearBuckets() {
-      if (bucketsBuilder_ == null) {
-        buckets_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.bucketsBuilder_ == null) {
+        this.buckets_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        bucketsBuilder_.clear();
+        this.bucketsBuilder_.clear();
       }
       return this;
     }
@@ -2235,12 +2235,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder removeBuckets(int index) {
-      if (bucketsBuilder_ == null) {
+      if (this.bucketsBuilder_ == null) {
         ensureBucketsIsMutable();
-        buckets_.remove(index);
+        this.buckets_.remove(index);
         onChanged();
       } else {
-        bucketsBuilder_.remove(index);
+        this.bucketsBuilder_.remove(index);
       }
       return this;
     }
@@ -2266,9 +2266,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder getBucketsOrBuilder(
         int index) {
-      if (bucketsBuilder_ == null) {
-        return buckets_.get(index);  } else {
-        return bucketsBuilder_.getMessageOrBuilder(index);
+      if (this.bucketsBuilder_ == null) {
+        return this.buckets_.get(index);  } else {
+        return this.bucketsBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -2279,12 +2279,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
          getBucketsOrBuilderList() {
-      if (bucketsBuilder_ != null) {
-        return bucketsBuilder_.getMessageOrBuilderList();
+      if (this.bucketsBuilder_ != null) {
+        return this.bucketsBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(buckets_);
+        return java.util.Collections.unmodifiableList(this.buckets_);
       }
     }
     /**
@@ -2320,23 +2320,23 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder>
          getBucketsBuilderList() {
       return getBucketsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
         getBucketsFieldBuilder() {
-      if (bucketsBuilder_ == null) {
-        bucketsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.bucketsBuilder_ == null) {
+        this.bucketsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>(
-                buckets_,
-                ((bitField0_ & 0x00000001) != 0),
+                this.buckets_,
+                ((this.bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        buckets_ = null;
+        this.buckets_ = null;
       }
-      return bucketsBuilder_;
+      return this.bucketsBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

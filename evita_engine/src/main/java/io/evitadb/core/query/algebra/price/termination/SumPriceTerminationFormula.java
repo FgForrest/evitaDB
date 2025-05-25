@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -205,11 +205,11 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	@Nonnull
 	public SumPriceTerminationFormula withIndividualPricePredicate(@Nonnull SumPredicate<PriceRecordContract> individualPricePredicate) {
 		return new SumPriceTerminationFormula(
-			computationCallback,
+			this.computationCallback,
 			getDelegate(),
-			priceEvaluationContext,
-			queryPriceMode,
-			sellingPricePredicate,
+			this.priceEvaluationContext,
+			this.queryPriceMode,
+			this.sellingPricePredicate,
 			individualPricePredicate
 		);
 	}
@@ -217,7 +217,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	@Nullable
 	@Override
 	public PriceAmountPredicate getRequestedPredicate() {
-		return sellingPricePredicate.getRequestedPredicate();
+		return this.sellingPricePredicate.getRequestedPredicate();
 	}
 
 	/**
@@ -238,10 +238,10 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new SumPriceTerminationFormula(
-			computationCallback,
+			this.computationCallback,
 			innerFormulas[0],
-			priceEvaluationContext, queryPriceMode,
-			sellingPricePredicate, individualPricePredicate
+			this.priceEvaluationContext, this.queryPriceMode,
+			this.sellingPricePredicate, this.individualPricePredicate
 		);
 	}
 
@@ -254,13 +254,13 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	@Override
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
 		return new SumPriceTerminationFormula(
-			computationCallback,
-			innerFormulas[0],
-			priceEvaluationContext,
-			queryPriceMode,
+			this.computationCallback,
+			this.innerFormulas[0],
+			this.priceEvaluationContext,
+			this.queryPriceMode,
 			PricePredicate.ALL_RECORD_FILTER,
-			individualPricePredicate,
-			recordsFilteredOutByPredicate
+			this.individualPricePredicate,
+			this.recordsFilteredOutByPredicate
 		);
 	}
 
@@ -271,10 +271,10 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 		return new SumPriceTerminationFormula(
 			selfOperator,
 			innerFormulas[0],
-			priceEvaluationContext,
-			queryPriceMode,
-			sellingPricePredicate,
-			individualPricePredicate
+			this.priceEvaluationContext,
+			this.queryPriceMode,
+			this.sellingPricePredicate,
+			this.individualPricePredicate
 		);
 	}
 
@@ -290,7 +290,7 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 
 	@Override
 	public String toString() {
-		return sellingPricePredicate.toString();
+		return this.sellingPricePredicate.toString();
 	}
 
 	@Override
@@ -306,10 +306,10 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 			getFilteredPriceRecords(this.executionContext),
 			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
 			getPriceEvaluationContext(),
-			sellingPricePredicate.getQueryPriceMode(),
-			sellingPricePredicate.getFrom(),
-			sellingPricePredicate.getTo(),
-			sellingPricePredicate.getIndexedPricePlaces()
+			this.sellingPricePredicate.getQueryPriceMode(),
+			this.sellingPricePredicate.getFrom(),
+			this.sellingPricePredicate.getTo(),
+			this.sellingPricePredicate.getIndexedPricePlaces()
 		);
 	}
 
@@ -402,15 +402,15 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 							}
 						}
 						// now include selling prices of those components, that were not found in current price lists
-						cumulatedPrice += individualPricePredicate.getMissingComponentsPrice(includedInnerRecordIds.keys());
+						cumulatedPrice += this.individualPricePredicate.getMissingComponentsPrice(includedInnerRecordIds.keys());
 
 						// if the cumulated price was calculated from at least one price record
 						if (!includedInnerRecordIds.isEmpty()) {
 							final PriceRecordContract virtualPriceRecord = new CumulatedVirtualPriceRecord(
-								entityId, cumulatedPrice, queryPriceMode,
+								entityId, cumulatedPrice, this.queryPriceMode,
 								includedInnerRecordIds
 							);
-							if (sellingPricePredicate.test(virtualPriceRecord)) {
+							if (this.sellingPricePredicate.test(virtualPriceRecord)) {
 								// if so - entity id continues to output of this formula
 								writer.add(entityId);
 								// from now on - work with the lowest entity price grouped by inner record
@@ -450,8 +450,8 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			new long[]{
-				priceEvaluationContext.computeHash(hashFunction),
-				sellingPricePredicate.computeHash(hashFunction)
+				this.priceEvaluationContext.computeHash(hashFunction),
+				this.sellingPricePredicate.computeHash(hashFunction)
 			}
 		);
 	}

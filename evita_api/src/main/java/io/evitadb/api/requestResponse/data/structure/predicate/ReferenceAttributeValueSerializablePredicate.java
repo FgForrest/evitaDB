@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 	 * Returns true if the attributes were fetched along with the entity.
 	 */
 	public boolean wasFetched() {
-		return referenceAttributes.isRequiresEntityAttributes();
+		return this.referenceAttributes.isRequiresEntityAttributes();
 	}
 
 	/**
@@ -93,14 +93,14 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 	 * Returns true if the attribute of particular name was fetched along with the entity.
 	 */
 	public boolean wasFetched(@Nonnull String attributeName) {
-		return referenceAttributes.isRequiresEntityAttributes() && (referenceAttributes.attributeSet().isEmpty() || referenceAttributes.attributeSet().contains(attributeName));
+		return this.referenceAttributes.isRequiresEntityAttributes() && (this.referenceAttributes.attributeSet().isEmpty() || this.referenceAttributes.attributeSet().contains(attributeName));
 	}
 
 	/**
 	 * Returns true if the attribute of particular name was in specified locale were fetched along with the entity.
 	 */
 	public boolean wasFetched(@Nonnull String attributeName, @Nonnull Locale locale) {
-		return (referenceAttributes.isRequiresEntityAttributes() && (referenceAttributes.attributeSet().isEmpty() || referenceAttributes.attributeSet().contains(attributeName))) &&
+		return (this.referenceAttributes.isRequiresEntityAttributes() && (this.referenceAttributes.attributeSet().isEmpty() || this.referenceAttributes.attributeSet().contains(attributeName))) &&
 			(this.locales != null && this.locales.isEmpty() || this.locales.contains(locale));
 	}
 
@@ -108,7 +108,7 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 	 * Method verifies that the requested attribute was fetched with the entity.
 	 */
 	public void checkFetched() throws ContextMissingException {
-		if (!referenceAttributes.isRequiresEntityAttributes()) {
+		if (!this.referenceAttributes.isRequiresEntityAttributes()) {
 			throw ContextMissingException.referenceAttributeContextMissing();
 		}
 	}
@@ -117,10 +117,10 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 	 * Method verifies that the requested attribute was fetched with the entity.
 	 */
 	public void checkFetched(@Nonnull AttributeKey attributeKey) throws ContextMissingException {
-		if (!(referenceAttributes.isRequiresEntityAttributes() && (referenceAttributes.attributeSet().isEmpty() || referenceAttributes.attributeSet().contains(attributeKey.attributeName())))) {
+		if (!(this.referenceAttributes.isRequiresEntityAttributes() && (this.referenceAttributes.attributeSet().isEmpty() || this.referenceAttributes.attributeSet().contains(attributeKey.attributeName())))) {
 			throw ContextMissingException.referenceAttributeContextMissing(attributeKey.attributeName());
 		}
-		if (attributeKey.localized() && !(Objects.equals(locale, attributeKey.locale()) || this.locales != null && this.locales.isEmpty() || this.locales.contains(attributeKey.locale()))) {
+		if (attributeKey.localized() && !(Objects.equals(this.locale, attributeKey.locale()) || this.locales != null && this.locales.isEmpty() || this.locales.contains(attributeKey.locale()))) {
 			throw ContextMissingException.attributeLocalizationContextMissing(
 				attributeKey.attributeName(),
 				attributeKey.locale(),
@@ -138,10 +138,10 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 
 	@Override
 	public boolean test(AttributeValue attributeValue) {
-		if (referenceAttributes.isRequiresEntityAttributes()) {
+		if (this.referenceAttributes.isRequiresEntityAttributes()) {
 			final AttributeKey key = attributeValue.key();
 			final Locale attributeLocale = attributeValue.key().locale();
-			final Set<String> attributeSet = referenceAttributes.attributeSet();
+			final Set<String> attributeSet = this.referenceAttributes.attributeSet();
 			return attributeValue.exists() &&
 			(
 				!key.localized() ||

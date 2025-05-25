@@ -145,7 +145,7 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
 		return new GraphQLEndpointExecutionContext(
 			httpRequest,
             this.evita,
-			new ExecutedEvent(instanceType)
+			new ExecutedEvent(this.instanceType)
 		);
 	}
 
@@ -212,7 +212,7 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
         try {
             return readRawRequestBody(executionContext).thenApply(body -> {
 	            try {
-		            return objectMapper.readValue(body, dataClass);
+		            return this.objectMapper.readValue(body, dataClass);
 	            } catch (IOException e) {
                     if (e.getCause() instanceof EvitaInternalError internalError) {
                         throw internalError;
@@ -232,7 +232,7 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
                                               @Nonnull GraphQLRequest graphQLRequest) {
         try {
             final ExecutionInput executionInput = graphQLRequest.toExecutionInput(executionContext);
-            final ExecutionResult result = graphQL.get()
+            final ExecutionResult result = this.graphQL.get()
                 .executeAsync(executionInput)
                 .join();
 
@@ -274,7 +274,7 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLEndpointExecutionC
     @Override
     protected void writeResponse(@Nonnull GraphQLEndpointExecutionContext executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object response, @Nonnull EventLoop eventExecutors) {
         try {
-            responseWriter.write(HttpData.copyOf(objectMapper.writeValueAsBytes(response)));
+            responseWriter.write(HttpData.copyOf(this.objectMapper.writeValueAsBytes(response)));
         } catch (IOException e) {
             throw new GraphQLInternalError(
                 "Could not serialize GraphQL API response to JSON: " + e.getMessage(),

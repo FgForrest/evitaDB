@@ -191,7 +191,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				)
 				.build()
 		);
-		evita.defineCatalog(TEST_CATALOG);
+		this.evita.defineCatalog(TEST_CATALOG);
 	}
 
 	@AfterEach
@@ -204,7 +204,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that interface methods re analyzed and set up with defaults")
 	@Test
 	void shouldSetupNewSchemaByClassGetters() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntity.class);
@@ -350,7 +350,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that class fields are analyzed and set up with defaults")
 	@Test
 	void shouldSetupNewSchemaByClassFields() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntity.class);
@@ -496,7 +496,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that record components are analyzed and set up with defaults")
 	@Test
 	void shouldSetupNewSchemaByRecordComponents() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntity.class);
@@ -638,7 +638,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that all interface method annotation attributes are recognized and processed")
 	@Test
 	void shouldSetupNewSchemaByClassGettersWithAttributesDefined() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithNonDefaults.class);
@@ -742,7 +742,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that all class field annotation attributes are recognized and processed")
 	@Test
 	void shouldSetupNewSchemaByFieldsWithAttributesDefined() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithNonDefaults.class);
@@ -850,7 +850,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that all record components annotation attributes are recognized and processed")
 	@Test
 	void shouldSetupNewSchemaByRecordComponentsWithAttributesDefined() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithNonDefaults.class);
@@ -954,7 +954,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that external entities in methods are recognized and used in references")
 	@Test
 	void shouldSetupNewSchemaByClassGettersWithExternalReferences() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithReferencedEntity.Brand.class);
@@ -1002,7 +1002,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that external entities in methods are recognized and used in reflected references")
 	@Test
 	void shouldSetupNewSchemaByClassGettersWithReflectedReferences() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithReflectedReferencedEntity.Brand.class);
@@ -1056,7 +1056,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that external entities in fields are recognized and used in references")
 	@Test
 	void shouldSetupNewSchemaByClassFieldsWithExternalReferences() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithReflectedReferencedEntity.Brand.class);
@@ -1110,7 +1110,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that external entities in fields are recognized and used in reflected references")
 	@Test
 	void shouldSetupNewSchemaByClassFieldsWithReflectedReferences() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithReferencedEntity.Brand.class);
@@ -1158,7 +1158,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that external entities in record components are recognized and used in references")
 	@Test
 	void shouldSetupNewSchemaByRecordComponentsWithExternalReferences() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithReferencedEntity.Brand.class);
@@ -1206,7 +1206,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that external entities in record components are recognized and used in reflected references")
 	@Test
 	void shouldSetupNewSchemaByRecordComponentsWithReflectedReferences() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithReflectedReferencedEntity.Brand.class);
@@ -1260,7 +1260,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 	@Test
 	void shouldFailToSetupAttributeOnTwoPlaces() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				assertThrows(
@@ -1272,7 +1272,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 	@Test
 	void shouldFailToSetupAssociatedDataOnTwoPlaces() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				assertThrows(
@@ -1284,7 +1284,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 	@Test
 	void shouldMapSingleReferenceTwiceWithPrimitive() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(EntityWithReferenceMappedTwice.Brand.class);
@@ -1306,7 +1306,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 	@Test
 	void shouldFailToSetupReferencesOnTwoPlaces() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				assertThrows(

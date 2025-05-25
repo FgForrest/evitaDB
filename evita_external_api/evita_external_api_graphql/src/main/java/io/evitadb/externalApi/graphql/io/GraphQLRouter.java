@@ -88,7 +88,7 @@ public class GraphQLRouter implements HttpService {
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-		return delegateRouter.serve(ctx, req);
+		return this.delegateRouter.serve(ctx, req);
 	}
 
 	/**
@@ -109,18 +109,18 @@ public class GraphQLRouter implements HttpService {
 				new AtomicReference<>(systemApi)
 			)
 		);
-		delegateRouter.addPrefixPath(SYSTEM_PATH.toString(), apiRouter);
+		this.delegateRouter.addPrefixPath(SYSTEM_PATH.toString(), apiRouter);
 
-		systemApiRegistered = true;
+		this.systemApiRegistered = true;
 	}
 
 	/**
 	 * Registers new endpoints for defined catalog.
 	 */
 	public void registerCatalogApi(@Nonnull String catalogName, @Nonnull GraphQLInstanceType instanceType, @Nonnull GraphQL api) {
-		final RegisteredCatalog registeredCatalog = registeredCatalogs.computeIfAbsent(catalogName, k -> {
+		final RegisteredCatalog registeredCatalog = this.registeredCatalogs.computeIfAbsent(catalogName, k -> {
 			final RoutingHandlerService apiRouter = new RoutingHandlerService();
-			delegateRouter.addPrefixPath(constructCatalogPath(catalogName).toString(), apiRouter);
+			this.delegateRouter.addPrefixPath(constructCatalogPath(catalogName).toString(), apiRouter);
 			return new RegisteredCatalog(apiRouter);
 		});
 
@@ -137,7 +137,7 @@ public class GraphQLRouter implements HttpService {
 	 * Swaps GraphQL instance for already registered API for defined catalog
 	 */
 	public void refreshCatalogApi(@Nonnull String catalogName, @Nonnull GraphQLInstanceType instanceType, @Nonnull GraphQL newApi) {
-		final RegisteredCatalog registeredCatalog = registeredCatalogs.get(catalogName);
+		final RegisteredCatalog registeredCatalog = this.registeredCatalogs.get(catalogName);
 		if (registeredCatalog == null) {
 			throw new GraphQLInternalError("No catalog APIs registered for `" + catalogName + "`. Cannot refresh.");
 		}
@@ -149,9 +149,9 @@ public class GraphQLRouter implements HttpService {
 	 * Unregisters all APIs associated with the defined catalog.
 	 */
 	public void unregisterCatalogApis(@Nonnull String catalogName) {
-		final RegisteredCatalog registeredCatalog = registeredCatalogs.remove(catalogName);
+		final RegisteredCatalog registeredCatalog = this.registeredCatalogs.remove(catalogName);
 		if (registeredCatalog != null) {
-			delegateRouter.removePrefixPath(constructCatalogPath(catalogName).toString());
+			this.delegateRouter.removePrefixPath(constructCatalogPath(catalogName).toString());
 		}
 	}
 
@@ -214,14 +214,14 @@ public class GraphQLRouter implements HttpService {
 				() -> new GraphQLInternalError("API `" + instanceType.name() + "` is not allowed for catalog.")
 			);
 			Assert.isPremiseValid(
-				!apis.containsKey(instanceType),
+				!this.apis.containsKey(instanceType),
 				() -> new GraphQLInternalError("`" + instanceType.name() + "` API has been already registered.")
 			);
-			apis.put(instanceType, api);
+			this.apis.put(instanceType, api);
 		}
 
 		public RegisteredApi getApi(@Nonnull GraphQLInstanceType instanceType) {
-			final RegisteredApi api = apis.get(instanceType);
+			final RegisteredApi api = this.apis.get(instanceType);
 			Assert.isPremiseValid(
 				api != null,
 				() -> new GraphQLInternalError("API `" + instanceType.name() + "` has not been registered yet.")

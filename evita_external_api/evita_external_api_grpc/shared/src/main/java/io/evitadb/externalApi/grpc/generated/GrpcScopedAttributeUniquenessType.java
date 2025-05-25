@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,8 +43,8 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcScopedAttributeUniquenessType() {
-    scope_ = 0;
-    uniquenessType_ = 0;
+    this.scope_ = 0;
+    this.uniquenessType_ = 0;
   }
 
   @java.lang.Override
@@ -80,13 +80,13 @@ private static final long serialVersionUID = 0L;
           case 8: {
             int rawValue = input.readEnum();
 
-            scope_ = rawValue;
+            this.scope_ = rawValue;
             break;
           }
           case 16: {
             int rawValue = input.readEnum();
 
-            uniquenessType_ = rawValue;
+            this.uniquenessType_ = rawValue;
             break;
           }
           default: {
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for scope.
    */
   @java.lang.Override public int getScopeValue() {
-    return scope_;
+    return this.scope_;
   }
   /**
    * <pre>
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getScope() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(scope_);
+    io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(this.scope_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
   }
 
@@ -159,7 +159,7 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for uniquenessType.
    */
   @java.lang.Override public int getUniquenessTypeValue() {
-    return uniquenessType_;
+    return this.uniquenessType_;
   }
   /**
    * <pre>
@@ -171,49 +171,49 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUniquenessType() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(uniquenessType_);
+    io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(this.uniquenessType_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.UNRECOGNIZED : result;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (scope_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE.getNumber()) {
-      output.writeEnum(1, scope_);
+    if (this.scope_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE.getNumber()) {
+      output.writeEnum(1, this.scope_);
     }
-    if (uniquenessType_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.NOT_UNIQUE.getNumber()) {
-      output.writeEnum(2, uniquenessType_);
+    if (this.uniquenessType_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.NOT_UNIQUE.getNumber()) {
+      output.writeEnum(2, this.uniquenessType_);
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (scope_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE.getNumber()) {
+    if (this.scope_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(1, scope_);
+        .computeEnumSize(1, this.scope_);
     }
-    if (uniquenessType_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.NOT_UNIQUE.getNumber()) {
+    if (this.uniquenessType_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.NOT_UNIQUE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(2, uniquenessType_);
+        .computeEnumSize(2, this.uniquenessType_);
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -227,25 +227,25 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType other = (io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType) obj;
 
-    if (scope_ != other.scope_) return false;
-    if (uniquenessType_ != other.uniquenessType_) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (this.scope_ != other.scope_) return false;
+    if (this.uniquenessType_ != other.uniquenessType_) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + SCOPE_FIELD_NUMBER;
-    hash = (53 * hash) + scope_;
+    hash = (53 * hash) + this.scope_;
     hash = (37 * hash) + UNIQUENESSTYPE_FIELD_NUMBER;
-    hash = (53 * hash) + uniquenessType_;
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (53 * hash) + this.uniquenessType_;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -381,9 +381,9 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      scope_ = 0;
+      this.scope_ = 0;
 
-      uniquenessType_ = 0;
+      this.uniquenessType_ = 0;
 
       return this;
     }
@@ -411,8 +411,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType result = new io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeUniquenessType(this);
-      result.scope_ = scope_;
-      result.uniquenessType_ = uniquenessType_;
+      result.scope_ = this.scope_;
+      result.uniquenessType_ = this.uniquenessType_;
       onBuilt();
       return result;
     }
@@ -506,7 +506,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire for scope.
      */
     @java.lang.Override public int getScopeValue() {
-      return scope_;
+      return this.scope_;
     }
     /**
      * <pre>
@@ -518,8 +518,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setScopeValue(int value) {
-      
-      scope_ = value;
+
+      this.scope_ = value;
       onChanged();
       return this;
     }
@@ -534,7 +534,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getScope() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(scope_);
+      io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(this.scope_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
     }
     /**
@@ -550,8 +550,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
-      scope_ = value.getNumber();
+
+      this.scope_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -564,8 +564,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearScope() {
-      
-      scope_ = 0;
+
+      this.scope_ = 0;
       onChanged();
       return this;
     }
@@ -580,7 +580,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire for uniquenessType.
      */
     @java.lang.Override public int getUniquenessTypeValue() {
-      return uniquenessType_;
+      return this.uniquenessType_;
     }
     /**
      * <pre>
@@ -592,8 +592,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setUniquenessTypeValue(int value) {
-      
-      uniquenessType_ = value;
+
+      this.uniquenessType_ = value;
       onChanged();
       return this;
     }
@@ -608,7 +608,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUniquenessType() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(uniquenessType_);
+      io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(this.uniquenessType_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.UNRECOGNIZED : result;
     }
     /**
@@ -624,8 +624,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
-      uniquenessType_ = value.getNumber();
+
+      this.uniquenessType_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -638,8 +638,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearUniquenessType() {
-      
-      uniquenessType_ = 0;
+
+      this.uniquenessType_ = 0;
       onChanged();
       return this;
     }

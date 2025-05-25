@@ -49,7 +49,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 	@BeforeEach
 	void init() {
 		super.init();
-		this.converter = new FilterConstraintToJsonConverter(catalogSchema);
+		this.converter = new FilterConstraintToJsonConverter(this.catalogSchema);
 	}
 
 	@Test
@@ -59,7 +59,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 				"attributeCodeEquals",
 				jsonNodeFactory.numberNode(123)
 			),
-			converter.convert(
+			this.converter.convert(
 				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				attributeEquals("CODE", 123)
 			).get()
@@ -76,7 +76,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 
 		assertEquals(
 			new JsonConstraint("and", and1),
-			converter.convert(
+			this.converter.convert(
 				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				and(
 					attributeEquals("CODE", "123"),
@@ -95,7 +95,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 
 		assertEquals(
 			new JsonConstraint("and", and2),
-			converter.convert(
+			this.converter.convert(
 				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				and(
 					attributeEquals("CODE", "123"),
@@ -122,7 +122,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 
 		assertEquals(
 			new JsonConstraint("hierarchyCategoryWithin", within),
-			converter.convert(
+			this.converter.convert(
 				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				hierarchyWithin(
 					"CATEGORY",
@@ -141,7 +141,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 
 		assertEquals(
 			new JsonConstraint("attributeAgeBetween", between1),
-			converter.convert(
+			this.converter.convert(
 				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				attributeBetween(
 					"AGE",
@@ -157,7 +157,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 
 		assertEquals(
 			new JsonConstraint("attributeAgeBetween", between2),
-			converter.convert(
+			this.converter.convert(
 				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				attributeBetween(
 					"AGE",
@@ -173,7 +173,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 
 		assertEquals(
 			new JsonConstraint("attributeAgeBetween", between3),
-			converter.convert(
+			this.converter.convert(
 				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				attributeBetween(
 					"AGE",
@@ -253,7 +253,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 
 		assertEquals(
 			new JsonConstraint("filterBy", filterBy),
-			converter.convert(
+			this.converter.convert(
 				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				filterBy(
 					attributeEquals("CODE", "123"),

@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -73,7 +73,7 @@ public class ModifyCatalogSchemaMutationConverter extends TopLevelCatalogSchemaM
 			})
 			.get();
 		final LocalCatalogSchemaMutation[] localCatalogSchemaMutations = inputEntitySchemaMutations.stream()
-			.flatMap(m -> localCatalogSchemaMutationAggregateConverter.convertFromInput(m).stream())
+			.flatMap(m -> this.localCatalogSchemaMutationAggregateConverter.convertFromInput(m).stream())
 			.toArray(LocalCatalogSchemaMutation[]::new);
 
 		return new ModifyCatalogSchemaMutation(
@@ -86,7 +86,7 @@ public class ModifyCatalogSchemaMutationConverter extends TopLevelCatalogSchemaM
 	protected void convertToOutput(@Nonnull ModifyCatalogSchemaMutation mutation, @Nonnull Output output) {
 		output.setProperty(
 			ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS,
-			localCatalogSchemaMutationAggregateConverter.convertToOutput(mutation.getSchemaMutations())
+			this.localCatalogSchemaMutationAggregateConverter.convertToOutput(mutation.getSchemaMutations())
 		);
 		super.convertToOutput(mutation, output);
 	}

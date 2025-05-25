@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
 		CatalogSchemaWithImpactOnEntitySchemas alteredSchema = new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		ModifyEntitySchemaMutation[] aggregatedMutations = null;
-		for (LocalCatalogSchemaMutation schemaMutation : schemaMutations) {
+		for (LocalCatalogSchemaMutation schemaMutation : this.schemaMutations) {
 			alteredSchema = schemaMutation.mutate(alteredSchema.updatedCatalogSchema(), catalogSchema);
 			if (alteredSchema.entitySchemaMutations() != null) {
 				aggregatedMutations = aggregatedMutations == null ?
@@ -128,8 +128,8 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 
 	@Override
 	public String toString() {
-		return "Modify catalog `" + catalogName + "` schema:\n" +
-			Arrays.stream(schemaMutations)
+		return "Modify catalog `" + this.catalogName + "` schema:\n" +
+			Arrays.stream(this.schemaMutations)
 				.map(Object::toString)
 				.collect(Collectors.joining(",\n"));
 	}

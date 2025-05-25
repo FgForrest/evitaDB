@@ -2963,12 +2963,12 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 		@Override
 		public boolean test(SealedEntity entity) {
-			final Set<Integer> referenceSet = entity.getReferences(referenceSchema.getName())
+			final Set<Integer> referenceSet = entity.getReferences(this.referenceSchema.getName())
 				.stream()
 				.map(ReferenceContract::getReferencedPrimaryKey)
 				.collect(Collectors.toSet());
 			// has the facet
-			return Arrays.stream(facetIds).allMatch(referenceSet::contains);
+			return Arrays.stream(this.facetIds).allMatch(referenceSet::contains);
 		}
 
 		@Override
@@ -2984,7 +2984,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 		@Override
 		public String toString() {
-			return referenceSchema() + ofNullable(facetGroupId).map(it -> " " + it).orElse("") + " (AND):" + Arrays.toString(facetIds());
+			return referenceSchema() + ofNullable(this.facetGroupId).map(it -> " " + it).orElse("") + " (AND):" + Arrays.toString(facetIds());
 		}
 
 	}
@@ -2997,12 +2997,12 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 		@Override
 		public boolean test(SealedEntity entity) {
-			final Set<Integer> referenceSet = entity.getReferences(referenceSchema.getName())
+			final Set<Integer> referenceSet = entity.getReferences(this.referenceSchema.getName())
 				.stream()
 				.map(ReferenceContract::getReferencedPrimaryKey)
 				.collect(Collectors.toSet());
 			// has the facet
-			return Arrays.stream(facetIds).anyMatch(referenceSet::contains);
+			return Arrays.stream(this.facetIds).anyMatch(referenceSet::contains);
 		}
 
 		@Override
@@ -3018,7 +3018,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 		@Override
 		public String toString() {
-			return referenceSchema() + ofNullable(facetGroupId).map(it -> " " + it).orElse("") + " (OR):" + Arrays.toString(facetIds());
+			return referenceSchema() + ofNullable(this.facetGroupId).map(it -> " " + it).orElse("") + " (OR):" + Arrays.toString(facetIds());
 		}
 
 	}
@@ -3031,12 +3031,12 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 		@Override
 		public boolean test(SealedEntity entity) {
-			final Set<Integer> referenceSet = entity.getReferences(referenceSchema.getName())
+			final Set<Integer> referenceSet = entity.getReferences(this.referenceSchema.getName())
 				.stream()
 				.map(ReferenceContract::getReferencedPrimaryKey)
 				.collect(Collectors.toSet());
 			// has the facet
-			return Arrays.stream(facetIds).noneMatch(referenceSet::contains);
+			return Arrays.stream(this.facetIds).noneMatch(referenceSet::contains);
 		}
 
 		@Override
@@ -3052,7 +3052,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 		@Override
 		public String toString() {
-			return referenceSchema() + ofNullable(facetGroupId).map(it -> " " + it).orElse("") + " (NOT):" + Arrays.toString(facetIds());
+			return referenceSchema() + ofNullable(this.facetGroupId).map(it -> " " + it).orElse("") + " (NOT):" + Arrays.toString(facetIds());
 		}
 
 	}
@@ -3065,12 +3065,12 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 		@Override
 		public boolean test(SealedEntity entity) {
-			final Set<Integer> referenceSet = entity.getReferences(referenceSchema.getName())
+			final Set<Integer> referenceSet = entity.getReferences(this.referenceSchema.getName())
 				.stream()
 				.map(ReferenceContract::getReferencedPrimaryKey)
 				.collect(Collectors.toSet());
 			// has the facet
-			return Arrays.stream(facetIds).anyMatch(referenceSet::contains);
+			return Arrays.stream(this.facetIds).anyMatch(referenceSet::contains);
 		}
 
 		@Override
@@ -3086,7 +3086,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 		@Override
 		public String toString() {
-			return referenceSchema() + ofNullable(facetGroupId).map(it -> " " + it).orElse("") + " (EXCLUSIVE):" + Arrays.toString(facetIds());
+			return referenceSchema() + ofNullable(this.facetGroupId).map(it -> " " + it).orElse("") + " (EXCLUSIVE):" + Arrays.toString(facetIds());
 		}
 
 	}
@@ -3105,8 +3105,8 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 		@Override
 		public int compareTo(GroupReference o) {
-			final int first = referenceSchema.getName().compareTo(o.referenceSchema.getName());
-			return first == 0 ? ofNullable(groupId).map(it -> ofNullable(o.groupId).map(it::compareTo).orElse(-1)).orElseGet(() -> o.groupId != null ? 1 : 0) : first;
+			final int first = this.referenceSchema.getName().compareTo(o.referenceSchema.getName());
+			return first == 0 ? ofNullable(this.groupId).map(it -> ofNullable(o.groupId).map(it::compareTo).orElse(-1)).orElseGet(() -> o.groupId != null ? 1 : 0) : first;
 		}
 
 		@Override
@@ -3118,8 +3118,8 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 		@Override
 		public int hashCode() {
-			int result = referenceSchema.hashCode();
-			result = 31 * result + Objects.hashCode(groupId);
+			int result = this.referenceSchema.hashCode();
+			result = 31 * result + Objects.hashCode(this.groupId);
 			return result;
 		}
 	}
@@ -3142,7 +3142,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 		@Override
 		public String toString() {
-			return facetSummary.prettyPrint(groupRenderer, facetRenderer);
+			return this.facetSummary.prettyPrint(this.groupRenderer, this.facetRenderer);
 		}
 
 	}

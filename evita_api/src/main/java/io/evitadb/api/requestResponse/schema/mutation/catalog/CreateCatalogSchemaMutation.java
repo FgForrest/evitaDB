@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,12 +72,12 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
 		Assert.isTrue(
 			catalogSchema == null,
-			() -> new InvalidSchemaMutationException("Catalog `" + catalogName + "` already exists!")
+			() -> new InvalidSchemaMutationException("Catalog `" + this.catalogName + "` already exists!")
 		);
 		return new CatalogSchemaWithImpactOnEntitySchemas(
 			CatalogSchema._internalBuild(
-				catalogName,
-				NamingConvention.generate(catalogName),
+				this.catalogName,
+				NamingConvention.generate(this.catalogName),
 				EnumSet.allOf(CatalogEvolutionMode.class),
 				MutationEntitySchemaAccessor.INSTANCE
 			)
@@ -114,7 +114,7 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	@Override
 	public String toString() {
 		return "Create catalog: " +
-			"catalogName='" + catalogName + '\'';
+			"catalogName='" + this.catalogName + '\'';
 	}
 
 }

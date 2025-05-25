@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,8 +43,8 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcFacetGroupStatistics() {
-    referenceName_ = "";
-    facetStatistics_ = java.util.Collections.emptyList();
+    this.referenceName_ = "";
+    this.facetStatistics_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -81,46 +81,46 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            referenceName_ = s;
+            this.referenceName_ = s;
             break;
           }
           case 18: {
             io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder subBuilder = null;
-            if (groupEntityReference_ != null) {
-              subBuilder = groupEntityReference_.toBuilder();
+            if (this.groupEntityReference_ != null) {
+              subBuilder = this.groupEntityReference_.toBuilder();
             }
-            groupEntityReference_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEntityReference.parser(), extensionRegistry);
+            this.groupEntityReference_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEntityReference.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(groupEntityReference_);
-              groupEntityReference_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.groupEntityReference_);
+              this.groupEntityReference_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 26: {
             io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder subBuilder = null;
-            if (groupEntity_ != null) {
-              subBuilder = groupEntity_.toBuilder();
+            if (this.groupEntity_ != null) {
+              subBuilder = this.groupEntity_.toBuilder();
             }
-            groupEntity_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.parser(), extensionRegistry);
+            this.groupEntity_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(groupEntity_);
-              groupEntity_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.groupEntity_);
+              this.groupEntity_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 32: {
 
-            count_ = input.readInt32();
+            this.count_ = input.readInt32();
             break;
           }
           case 42: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              facetStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics>();
+              this.facetStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics>();
               mutable_bitField0_ |= 0x00000001;
             }
-            facetStatistics_.add(
+            this.facetStatistics_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.parser(), extensionRegistry));
             break;
           }
@@ -140,7 +140,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        facetStatistics_ = java.util.Collections.unmodifiableList(facetStatistics_);
+        this.facetStatistics_ = java.util.Collections.unmodifiableList(this.facetStatistics_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -171,14 +171,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getReferenceName() {
-    java.lang.Object ref = referenceName_;
+    java.lang.Object ref = this.referenceName_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      referenceName_ = s;
+      this.referenceName_ = s;
       return s;
     }
   }
@@ -193,12 +193,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getReferenceNameBytes() {
-    java.lang.Object ref = referenceName_;
+    java.lang.Object ref = this.referenceName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      referenceName_ = b;
+      this.referenceName_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -217,7 +217,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasGroupEntityReference() {
-    return groupEntityReference_ != null;
+    return this.groupEntityReference_ != null;
   }
   /**
    * <pre>
@@ -229,7 +229,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityReference getGroupEntityReference() {
-    return groupEntityReference_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : groupEntityReference_;
+    return this.groupEntityReference_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : this.groupEntityReference_;
   }
   /**
    * <pre>
@@ -255,7 +255,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasGroupEntity() {
-    return groupEntity_ != null;
+    return this.groupEntity_ != null;
   }
   /**
    * <pre>
@@ -267,7 +267,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getGroupEntity() {
-    return groupEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : groupEntity_;
+    return this.groupEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : this.groupEntity_;
   }
   /**
    * <pre>
@@ -293,7 +293,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getCount() {
-    return count_;
+    return this.count_;
   }
 
   public static final int FACETSTATISTICS_FIELD_NUMBER = 5;
@@ -307,7 +307,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics> getFacetStatisticsList() {
-    return facetStatistics_;
+    return this.facetStatistics_;
   }
   /**
    * <pre>
@@ -317,9 +317,9 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder>
       getFacetStatisticsOrBuilderList() {
-    return facetStatistics_;
+    return this.facetStatistics_;
   }
   /**
    * <pre>
@@ -330,7 +330,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getFacetStatisticsCount() {
-    return facetStatistics_.size();
+    return this.facetStatistics_.size();
   }
   /**
    * <pre>
@@ -341,7 +341,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics getFacetStatistics(int index) {
-    return facetStatistics_.get(index);
+    return this.facetStatistics_.get(index);
   }
   /**
    * <pre>
@@ -353,68 +353,68 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder getFacetStatisticsOrBuilder(
       int index) {
-    return facetStatistics_.get(index);
+    return this.facetStatistics_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(referenceName_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, referenceName_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.referenceName_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.referenceName_);
     }
-    if (groupEntityReference_ != null) {
+    if (this.groupEntityReference_ != null) {
       output.writeMessage(2, getGroupEntityReference());
     }
-    if (groupEntity_ != null) {
+    if (this.groupEntity_ != null) {
       output.writeMessage(3, getGroupEntity());
     }
-    if (count_ != 0) {
-      output.writeInt32(4, count_);
+    if (this.count_ != 0) {
+      output.writeInt32(4, this.count_);
     }
-    for (int i = 0; i < facetStatistics_.size(); i++) {
-      output.writeMessage(5, facetStatistics_.get(i));
+    for (int i = 0; i < this.facetStatistics_.size(); i++) {
+      output.writeMessage(5, this.facetStatistics_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(referenceName_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, referenceName_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.referenceName_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.referenceName_);
     }
-    if (groupEntityReference_ != null) {
+    if (this.groupEntityReference_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getGroupEntityReference());
     }
-    if (groupEntity_ != null) {
+    if (this.groupEntity_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getGroupEntity());
     }
-    if (count_ != 0) {
+    if (this.count_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(4, count_);
+        .computeInt32Size(4, this.count_);
     }
-    for (int i = 0; i < facetStatistics_.size(); i++) {
+    for (int i = 0; i < this.facetStatistics_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(5, facetStatistics_.get(i));
+        .computeMessageSize(5, this.facetStatistics_.get(i));
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -444,14 +444,14 @@ private static final long serialVersionUID = 0L;
         != other.getCount()) return false;
     if (!getFacetStatisticsList()
         .equals(other.getFacetStatisticsList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -471,8 +471,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + FACETSTATISTICS_FIELD_NUMBER;
       hash = (53 * hash) + getFacetStatisticsList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -609,27 +609,27 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      referenceName_ = "";
+      this.referenceName_ = "";
 
-      if (groupEntityReferenceBuilder_ == null) {
-        groupEntityReference_ = null;
+      if (this.groupEntityReferenceBuilder_ == null) {
+        this.groupEntityReference_ = null;
       } else {
-        groupEntityReference_ = null;
-        groupEntityReferenceBuilder_ = null;
+        this.groupEntityReference_ = null;
+        this.groupEntityReferenceBuilder_ = null;
       }
-      if (groupEntityBuilder_ == null) {
-        groupEntity_ = null;
+      if (this.groupEntityBuilder_ == null) {
+        this.groupEntity_ = null;
       } else {
-        groupEntity_ = null;
-        groupEntityBuilder_ = null;
+        this.groupEntity_ = null;
+        this.groupEntityBuilder_ = null;
       }
-      count_ = 0;
+      this.count_ = 0;
 
-      if (facetStatisticsBuilder_ == null) {
-        facetStatistics_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.facetStatisticsBuilder_ == null) {
+        this.facetStatistics_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       } else {
-        facetStatisticsBuilder_.clear();
+        this.facetStatisticsBuilder_.clear();
       }
       return this;
     }
@@ -657,27 +657,27 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics result = new io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics(this);
-      int from_bitField0_ = bitField0_;
-      result.referenceName_ = referenceName_;
-      if (groupEntityReferenceBuilder_ == null) {
-        result.groupEntityReference_ = groupEntityReference_;
+      int from_bitField0_ = this.bitField0_;
+      result.referenceName_ = this.referenceName_;
+      if (this.groupEntityReferenceBuilder_ == null) {
+        result.groupEntityReference_ = this.groupEntityReference_;
       } else {
-        result.groupEntityReference_ = groupEntityReferenceBuilder_.build();
+        result.groupEntityReference_ = this.groupEntityReferenceBuilder_.build();
       }
-      if (groupEntityBuilder_ == null) {
-        result.groupEntity_ = groupEntity_;
+      if (this.groupEntityBuilder_ == null) {
+        result.groupEntity_ = this.groupEntity_;
       } else {
-        result.groupEntity_ = groupEntityBuilder_.build();
+        result.groupEntity_ = this.groupEntityBuilder_.build();
       }
-      result.count_ = count_;
-      if (facetStatisticsBuilder_ == null) {
-        if (((bitField0_ & 0x00000001) != 0)) {
-          facetStatistics_ = java.util.Collections.unmodifiableList(facetStatistics_);
-          bitField0_ = (bitField0_ & ~0x00000001);
+      result.count_ = this.count_;
+      if (this.facetStatisticsBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000001) != 0)) {
+          this.facetStatistics_ = java.util.Collections.unmodifiableList(this.facetStatistics_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         }
-        result.facetStatistics_ = facetStatistics_;
+        result.facetStatistics_ = this.facetStatistics_;
       } else {
-        result.facetStatistics_ = facetStatisticsBuilder_.build();
+        result.facetStatistics_ = this.facetStatisticsBuilder_.build();
       }
       onBuilt();
       return result;
@@ -728,7 +728,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.getDefaultInstance()) return this;
       if (!other.getReferenceName().isEmpty()) {
-        referenceName_ = other.referenceName_;
+        this.referenceName_ = other.referenceName_;
         onChanged();
       }
       if (other.hasGroupEntityReference()) {
@@ -740,29 +740,29 @@ private static final long serialVersionUID = 0L;
       if (other.getCount() != 0) {
         setCount(other.getCount());
       }
-      if (facetStatisticsBuilder_ == null) {
+      if (this.facetStatisticsBuilder_ == null) {
         if (!other.facetStatistics_.isEmpty()) {
-          if (facetStatistics_.isEmpty()) {
-            facetStatistics_ = other.facetStatistics_;
-            bitField0_ = (bitField0_ & ~0x00000001);
+          if (this.facetStatistics_.isEmpty()) {
+            this.facetStatistics_ = other.facetStatistics_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
           } else {
             ensureFacetStatisticsIsMutable();
-            facetStatistics_.addAll(other.facetStatistics_);
+            this.facetStatistics_.addAll(other.facetStatistics_);
           }
           onChanged();
         }
       } else {
         if (!other.facetStatistics_.isEmpty()) {
-          if (facetStatisticsBuilder_.isEmpty()) {
-            facetStatisticsBuilder_.dispose();
-            facetStatisticsBuilder_ = null;
-            facetStatistics_ = other.facetStatistics_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-            facetStatisticsBuilder_ = 
+          if (this.facetStatisticsBuilder_.isEmpty()) {
+            this.facetStatisticsBuilder_.dispose();
+            this.facetStatisticsBuilder_ = null;
+            this.facetStatistics_ = other.facetStatistics_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+            this.facetStatisticsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getFacetStatisticsFieldBuilder() : null;
           } else {
-            facetStatisticsBuilder_.addAllMessages(other.facetStatistics_);
+            this.facetStatisticsBuilder_.addAllMessages(other.facetStatistics_);
           }
         }
       }
@@ -806,12 +806,12 @@ private static final long serialVersionUID = 0L;
      * @return The referenceName.
      */
     public java.lang.String getReferenceName() {
-      java.lang.Object ref = referenceName_;
+      java.lang.Object ref = this.referenceName_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        referenceName_ = s;
+        this.referenceName_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -827,12 +827,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getReferenceNameBytes() {
-      java.lang.Object ref = referenceName_;
+      java.lang.Object ref = this.referenceName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        referenceName_ = b;
+        this.referenceName_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -852,8 +852,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      referenceName_ = value;
+
+      this.referenceName_ = value;
       onChanged();
       return this;
     }
@@ -866,8 +866,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReferenceName() {
-      
-      referenceName_ = getDefaultInstance().getReferenceName();
+
+      this.referenceName_ = getDefaultInstance().getReferenceName();
       onChanged();
       return this;
     }
@@ -886,8 +886,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      referenceName_ = value;
+
+      this.referenceName_ = value;
       onChanged();
       return this;
     }
@@ -904,7 +904,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the groupEntityReference field is set.
      */
     public boolean hasGroupEntityReference() {
-      return groupEntityReferenceBuilder_ != null || groupEntityReference_ != null;
+      return this.groupEntityReferenceBuilder_ != null || this.groupEntityReference_ != null;
     }
     /**
      * <pre>
@@ -915,10 +915,10 @@ private static final long serialVersionUID = 0L;
      * @return The groupEntityReference.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference getGroupEntityReference() {
-      if (groupEntityReferenceBuilder_ == null) {
-        return groupEntityReference_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : groupEntityReference_;
+      if (this.groupEntityReferenceBuilder_ == null) {
+        return this.groupEntityReference_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : this.groupEntityReference_;
       } else {
-        return groupEntityReferenceBuilder_.getMessage();
+        return this.groupEntityReferenceBuilder_.getMessage();
       }
     }
     /**
@@ -929,14 +929,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      */
     public Builder setGroupEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
-      if (groupEntityReferenceBuilder_ == null) {
+      if (this.groupEntityReferenceBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        groupEntityReference_ = value;
+        this.groupEntityReference_ = value;
         onChanged();
       } else {
-        groupEntityReferenceBuilder_.setMessage(value);
+        this.groupEntityReferenceBuilder_.setMessage(value);
       }
 
       return this;
@@ -950,11 +950,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setGroupEntityReference(
         io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder builderForValue) {
-      if (groupEntityReferenceBuilder_ == null) {
-        groupEntityReference_ = builderForValue.build();
+      if (this.groupEntityReferenceBuilder_ == null) {
+        this.groupEntityReference_ = builderForValue.build();
         onChanged();
       } else {
-        groupEntityReferenceBuilder_.setMessage(builderForValue.build());
+        this.groupEntityReferenceBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -967,16 +967,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      */
     public Builder mergeGroupEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
-      if (groupEntityReferenceBuilder_ == null) {
-        if (groupEntityReference_ != null) {
-          groupEntityReference_ =
-            io.evitadb.externalApi.grpc.generated.GrpcEntityReference.newBuilder(groupEntityReference_).mergeFrom(value).buildPartial();
+      if (this.groupEntityReferenceBuilder_ == null) {
+        if (this.groupEntityReference_ != null) {
+          this.groupEntityReference_ =
+            io.evitadb.externalApi.grpc.generated.GrpcEntityReference.newBuilder(this.groupEntityReference_).mergeFrom(value).buildPartial();
         } else {
-          groupEntityReference_ = value;
+          this.groupEntityReference_ = value;
         }
         onChanged();
       } else {
-        groupEntityReferenceBuilder_.mergeFrom(value);
+        this.groupEntityReferenceBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -989,12 +989,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      */
     public Builder clearGroupEntityReference() {
-      if (groupEntityReferenceBuilder_ == null) {
-        groupEntityReference_ = null;
+      if (this.groupEntityReferenceBuilder_ == null) {
+        this.groupEntityReference_ = null;
         onChanged();
       } else {
-        groupEntityReference_ = null;
-        groupEntityReferenceBuilder_ = null;
+        this.groupEntityReference_ = null;
+        this.groupEntityReferenceBuilder_ = null;
       }
 
       return this;
@@ -1007,7 +1007,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder getGroupEntityReferenceBuilder() {
-      
+
       onChanged();
       return getGroupEntityReferenceFieldBuilder().getBuilder();
     }
@@ -1019,11 +1019,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getGroupEntityReferenceOrBuilder() {
-      if (groupEntityReferenceBuilder_ != null) {
-        return groupEntityReferenceBuilder_.getMessageOrBuilder();
+      if (this.groupEntityReferenceBuilder_ != null) {
+        return this.groupEntityReferenceBuilder_.getMessageOrBuilder();
       } else {
-        return groupEntityReference_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : groupEntityReference_;
+        return this.groupEntityReference_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance() : this.groupEntityReference_;
       }
     }
     /**
@@ -1034,17 +1034,17 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupEntityReference = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
         getGroupEntityReferenceFieldBuilder() {
-      if (groupEntityReferenceBuilder_ == null) {
-        groupEntityReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.groupEntityReferenceBuilder_ == null) {
+        this.groupEntityReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>(
                 getGroupEntityReference(),
                 getParentForChildren(),
                 isClean());
-        groupEntityReference_ = null;
+        this.groupEntityReference_ = null;
       }
-      return groupEntityReferenceBuilder_;
+      return this.groupEntityReferenceBuilder_;
     }
 
     private io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity_;
@@ -1059,7 +1059,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the groupEntity field is set.
      */
     public boolean hasGroupEntity() {
-      return groupEntityBuilder_ != null || groupEntity_ != null;
+      return this.groupEntityBuilder_ != null || this.groupEntity_ != null;
     }
     /**
      * <pre>
@@ -1070,10 +1070,10 @@ private static final long serialVersionUID = 0L;
      * @return The groupEntity.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getGroupEntity() {
-      if (groupEntityBuilder_ == null) {
-        return groupEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : groupEntity_;
+      if (this.groupEntityBuilder_ == null) {
+        return this.groupEntity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : this.groupEntity_;
       } else {
-        return groupEntityBuilder_.getMessage();
+        return this.groupEntityBuilder_.getMessage();
       }
     }
     /**
@@ -1084,14 +1084,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      */
     public Builder setGroupEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
-      if (groupEntityBuilder_ == null) {
+      if (this.groupEntityBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        groupEntity_ = value;
+        this.groupEntity_ = value;
         onChanged();
       } else {
-        groupEntityBuilder_.setMessage(value);
+        this.groupEntityBuilder_.setMessage(value);
       }
 
       return this;
@@ -1105,11 +1105,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setGroupEntity(
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
-      if (groupEntityBuilder_ == null) {
-        groupEntity_ = builderForValue.build();
+      if (this.groupEntityBuilder_ == null) {
+        this.groupEntity_ = builderForValue.build();
         onChanged();
       } else {
-        groupEntityBuilder_.setMessage(builderForValue.build());
+        this.groupEntityBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1122,16 +1122,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      */
     public Builder mergeGroupEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
-      if (groupEntityBuilder_ == null) {
-        if (groupEntity_ != null) {
-          groupEntity_ =
-            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.newBuilder(groupEntity_).mergeFrom(value).buildPartial();
+      if (this.groupEntityBuilder_ == null) {
+        if (this.groupEntity_ != null) {
+          this.groupEntity_ =
+            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.newBuilder(this.groupEntity_).mergeFrom(value).buildPartial();
         } else {
-          groupEntity_ = value;
+          this.groupEntity_ = value;
         }
         onChanged();
       } else {
-        groupEntityBuilder_.mergeFrom(value);
+        this.groupEntityBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1144,12 +1144,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      */
     public Builder clearGroupEntity() {
-      if (groupEntityBuilder_ == null) {
-        groupEntity_ = null;
+      if (this.groupEntityBuilder_ == null) {
+        this.groupEntity_ = null;
         onChanged();
       } else {
-        groupEntity_ = null;
-        groupEntityBuilder_ = null;
+        this.groupEntity_ = null;
+        this.groupEntityBuilder_ = null;
       }
 
       return this;
@@ -1162,7 +1162,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getGroupEntityBuilder() {
-      
+
       onChanged();
       return getGroupEntityFieldBuilder().getBuilder();
     }
@@ -1174,11 +1174,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getGroupEntityOrBuilder() {
-      if (groupEntityBuilder_ != null) {
-        return groupEntityBuilder_.getMessageOrBuilder();
+      if (this.groupEntityBuilder_ != null) {
+        return this.groupEntityBuilder_.getMessageOrBuilder();
       } else {
-        return groupEntity_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : groupEntity_;
+        return this.groupEntity_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : this.groupEntity_;
       }
     }
     /**
@@ -1189,17 +1189,17 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupEntity = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getGroupEntityFieldBuilder() {
-      if (groupEntityBuilder_ == null) {
-        groupEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.groupEntityBuilder_ == null) {
+        this.groupEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>(
                 getGroupEntity(),
                 getParentForChildren(),
                 isClean());
-        groupEntity_ = null;
+        this.groupEntity_ = null;
       }
-      return groupEntityBuilder_;
+      return this.groupEntityBuilder_;
     }
 
     private int count_ ;
@@ -1213,7 +1213,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getCount() {
-      return count_;
+      return this.count_;
     }
     /**
      * <pre>
@@ -1225,8 +1225,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCount(int value) {
-      
-      count_ = value;
+
+      this.count_ = value;
       onChanged();
       return this;
     }
@@ -1239,8 +1239,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCount() {
-      
-      count_ = 0;
+
+      this.count_ = 0;
       onChanged();
       return this;
     }
@@ -1248,9 +1248,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics> facetStatistics_ =
       java.util.Collections.emptyList();
     private void ensureFacetStatisticsIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        facetStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics>(facetStatistics_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.facetStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics>(this.facetStatistics_);
+        this.bitField0_ |= 0x00000001;
        }
     }
 
@@ -1265,10 +1265,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics> getFacetStatisticsList() {
-      if (facetStatisticsBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(facetStatistics_);
+      if (this.facetStatisticsBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.facetStatistics_);
       } else {
-        return facetStatisticsBuilder_.getMessageList();
+        return this.facetStatisticsBuilder_.getMessageList();
       }
     }
     /**
@@ -1279,10 +1279,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public int getFacetStatisticsCount() {
-      if (facetStatisticsBuilder_ == null) {
-        return facetStatistics_.size();
+      if (this.facetStatisticsBuilder_ == null) {
+        return this.facetStatistics_.size();
       } else {
-        return facetStatisticsBuilder_.getCount();
+        return this.facetStatisticsBuilder_.getCount();
       }
     }
     /**
@@ -1293,10 +1293,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics getFacetStatistics(int index) {
-      if (facetStatisticsBuilder_ == null) {
-        return facetStatistics_.get(index);
+      if (this.facetStatisticsBuilder_ == null) {
+        return this.facetStatistics_.get(index);
       } else {
-        return facetStatisticsBuilder_.getMessage(index);
+        return this.facetStatisticsBuilder_.getMessage(index);
       }
     }
     /**
@@ -1308,15 +1308,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setFacetStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics value) {
-      if (facetStatisticsBuilder_ == null) {
+      if (this.facetStatisticsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureFacetStatisticsIsMutable();
-        facetStatistics_.set(index, value);
+        this.facetStatistics_.set(index, value);
         onChanged();
       } else {
-        facetStatisticsBuilder_.setMessage(index, value);
+        this.facetStatisticsBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -1329,12 +1329,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setFacetStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder builderForValue) {
-      if (facetStatisticsBuilder_ == null) {
+      if (this.facetStatisticsBuilder_ == null) {
         ensureFacetStatisticsIsMutable();
-        facetStatistics_.set(index, builderForValue.build());
+        this.facetStatistics_.set(index, builderForValue.build());
         onChanged();
       } else {
-        facetStatisticsBuilder_.setMessage(index, builderForValue.build());
+        this.facetStatisticsBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1346,15 +1346,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder addFacetStatistics(io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics value) {
-      if (facetStatisticsBuilder_ == null) {
+      if (this.facetStatisticsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureFacetStatisticsIsMutable();
-        facetStatistics_.add(value);
+        this.facetStatistics_.add(value);
         onChanged();
       } else {
-        facetStatisticsBuilder_.addMessage(value);
+        this.facetStatisticsBuilder_.addMessage(value);
       }
       return this;
     }
@@ -1367,15 +1367,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addFacetStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics value) {
-      if (facetStatisticsBuilder_ == null) {
+      if (this.facetStatisticsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureFacetStatisticsIsMutable();
-        facetStatistics_.add(index, value);
+        this.facetStatistics_.add(index, value);
         onChanged();
       } else {
-        facetStatisticsBuilder_.addMessage(index, value);
+        this.facetStatisticsBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -1388,12 +1388,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addFacetStatistics(
         io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder builderForValue) {
-      if (facetStatisticsBuilder_ == null) {
+      if (this.facetStatisticsBuilder_ == null) {
         ensureFacetStatisticsIsMutable();
-        facetStatistics_.add(builderForValue.build());
+        this.facetStatistics_.add(builderForValue.build());
         onChanged();
       } else {
-        facetStatisticsBuilder_.addMessage(builderForValue.build());
+        this.facetStatisticsBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -1406,12 +1406,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addFacetStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder builderForValue) {
-      if (facetStatisticsBuilder_ == null) {
+      if (this.facetStatisticsBuilder_ == null) {
         ensureFacetStatisticsIsMutable();
-        facetStatistics_.add(index, builderForValue.build());
+        this.facetStatistics_.add(index, builderForValue.build());
         onChanged();
       } else {
-        facetStatisticsBuilder_.addMessage(index, builderForValue.build());
+        this.facetStatisticsBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1424,13 +1424,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllFacetStatistics(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics> values) {
-      if (facetStatisticsBuilder_ == null) {
+      if (this.facetStatisticsBuilder_ == null) {
         ensureFacetStatisticsIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, facetStatistics_);
+            values, this.facetStatistics_);
         onChanged();
       } else {
-        facetStatisticsBuilder_.addAllMessages(values);
+        this.facetStatisticsBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -1442,12 +1442,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder clearFacetStatistics() {
-      if (facetStatisticsBuilder_ == null) {
-        facetStatistics_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.facetStatisticsBuilder_ == null) {
+        this.facetStatistics_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        facetStatisticsBuilder_.clear();
+        this.facetStatisticsBuilder_.clear();
       }
       return this;
     }
@@ -1459,12 +1459,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder removeFacetStatistics(int index) {
-      if (facetStatisticsBuilder_ == null) {
+      if (this.facetStatisticsBuilder_ == null) {
         ensureFacetStatisticsIsMutable();
-        facetStatistics_.remove(index);
+        this.facetStatistics_.remove(index);
         onChanged();
       } else {
-        facetStatisticsBuilder_.remove(index);
+        this.facetStatisticsBuilder_.remove(index);
       }
       return this;
     }
@@ -1488,9 +1488,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder getFacetStatisticsOrBuilder(
         int index) {
-      if (facetStatisticsBuilder_ == null) {
-        return facetStatistics_.get(index);  } else {
-        return facetStatisticsBuilder_.getMessageOrBuilder(index);
+      if (this.facetStatisticsBuilder_ == null) {
+        return this.facetStatistics_.get(index);  } else {
+        return this.facetStatisticsBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -1500,12 +1500,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder>
          getFacetStatisticsOrBuilderList() {
-      if (facetStatisticsBuilder_ != null) {
-        return facetStatisticsBuilder_.getMessageOrBuilderList();
+      if (this.facetStatisticsBuilder_ != null) {
+        return this.facetStatisticsBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(facetStatistics_);
+        return java.util.Collections.unmodifiableList(this.facetStatistics_);
       }
     }
     /**
@@ -1538,23 +1538,23 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder>
          getFacetStatisticsBuilderList() {
       return getFacetStatisticsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder>
         getFacetStatisticsFieldBuilder() {
-      if (facetStatisticsBuilder_ == null) {
-        facetStatisticsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.facetStatisticsBuilder_ == null) {
+        this.facetStatisticsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder>(
-                facetStatistics_,
-                ((bitField0_ & 0x00000001) != 0),
+                this.facetStatistics_,
+                ((this.bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        facetStatistics_ = null;
+        this.facetStatistics_ = null;
       }
-      return facetStatisticsBuilder_;
+      return this.facetStatisticsBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

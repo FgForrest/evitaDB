@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ class ModifyAssociatedDataSchemaTypeMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyAssociatedDataSchemaTypeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyAssociatedDataSchemaTypeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -59,7 +59,7 @@ class ModifyAssociatedDataSchemaTypeMutationConverterTest {
 			ComplexDataObject.class
 		);
 
-		final ModifyAssociatedDataSchemaTypeMutation convertedMutation1 = converter.convertFromInput(
+		final ModifyAssociatedDataSchemaTypeMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.NAME.name(), "labels")
 				.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE.name(), ComplexDataObject.class)
@@ -67,7 +67,7 @@ class ModifyAssociatedDataSchemaTypeMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final ModifyAssociatedDataSchemaTypeMutation convertedMutation2 = converter.convertFromInput(
+		final ModifyAssociatedDataSchemaTypeMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.NAME.name(), "labels")
 				.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE.name(), "ComplexDataObject")
@@ -80,7 +80,7 @@ class ModifyAssociatedDataSchemaTypeMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.NAME.name(), "labels")
 					.build()
@@ -88,13 +88,13 @@ class ModifyAssociatedDataSchemaTypeMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE.name(), ComplexDataObject.class)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

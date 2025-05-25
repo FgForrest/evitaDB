@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcDataItemArray() {
-    children_ = java.util.Collections.emptyList();
+    this.children_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -79,10 +79,10 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              children_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcDataItem>();
+              this.children_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcDataItem>();
               mutable_bitField0_ |= 0x00000001;
             }
-            children_.add(
+            this.children_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcDataItem.parser(), extensionRegistry));
             break;
           }
@@ -102,7 +102,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        children_ = java.util.Collections.unmodifiableList(children_);
+        this.children_ = java.util.Collections.unmodifiableList(this.children_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcDataItem> getChildrenList() {
-    return children_;
+    return this.children_;
   }
   /**
    * <pre>
@@ -142,9 +142,9 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder>
       getChildrenOrBuilderList() {
-    return children_;
+    return this.children_;
   }
   /**
    * <pre>
@@ -155,7 +155,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getChildrenCount() {
-    return children_.size();
+    return this.children_.size();
   }
   /**
    * <pre>
@@ -166,7 +166,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcDataItem getChildren(int index) {
-    return children_.get(index);
+    return this.children_.get(index);
   }
   /**
    * <pre>
@@ -178,41 +178,41 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder getChildrenOrBuilder(
       int index) {
-    return children_.get(index);
+    return this.children_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    for (int i = 0; i < children_.size(); i++) {
-      output.writeMessage(1, children_.get(i));
+    for (int i = 0; i < this.children_.size(); i++) {
+      output.writeMessage(1, this.children_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    for (int i = 0; i < children_.size(); i++) {
+    for (int i = 0; i < this.children_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(1, children_.get(i));
+        .computeMessageSize(1, this.children_.get(i));
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -228,14 +228,14 @@ private static final long serialVersionUID = 0L;
 
     if (!getChildrenList()
         .equals(other.getChildrenList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -243,8 +243,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CHILDREN_FIELD_NUMBER;
       hash = (53 * hash) + getChildrenList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -381,11 +381,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (childrenBuilder_ == null) {
-        children_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.childrenBuilder_ == null) {
+        this.children_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       } else {
-        childrenBuilder_.clear();
+        this.childrenBuilder_.clear();
       }
       return this;
     }
@@ -413,15 +413,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcDataItemArray buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcDataItemArray result = new io.evitadb.externalApi.grpc.generated.GrpcDataItemArray(this);
-      int from_bitField0_ = bitField0_;
-      if (childrenBuilder_ == null) {
-        if (((bitField0_ & 0x00000001) != 0)) {
-          children_ = java.util.Collections.unmodifiableList(children_);
-          bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      if (this.childrenBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000001) != 0)) {
+          this.children_ = java.util.Collections.unmodifiableList(this.children_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         }
-        result.children_ = children_;
+        result.children_ = this.children_;
       } else {
-        result.children_ = childrenBuilder_.build();
+        result.children_ = this.childrenBuilder_.build();
       }
       onBuilt();
       return result;
@@ -471,29 +471,29 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcDataItemArray other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcDataItemArray.getDefaultInstance()) return this;
-      if (childrenBuilder_ == null) {
+      if (this.childrenBuilder_ == null) {
         if (!other.children_.isEmpty()) {
-          if (children_.isEmpty()) {
-            children_ = other.children_;
-            bitField0_ = (bitField0_ & ~0x00000001);
+          if (this.children_.isEmpty()) {
+            this.children_ = other.children_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
           } else {
             ensureChildrenIsMutable();
-            children_.addAll(other.children_);
+            this.children_.addAll(other.children_);
           }
           onChanged();
         }
       } else {
         if (!other.children_.isEmpty()) {
-          if (childrenBuilder_.isEmpty()) {
-            childrenBuilder_.dispose();
-            childrenBuilder_ = null;
-            children_ = other.children_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-            childrenBuilder_ = 
+          if (this.childrenBuilder_.isEmpty()) {
+            this.childrenBuilder_.dispose();
+            this.childrenBuilder_ = null;
+            this.children_ = other.children_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+            this.childrenBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getChildrenFieldBuilder() : null;
           } else {
-            childrenBuilder_.addAllMessages(other.children_);
+            this.childrenBuilder_.addAllMessages(other.children_);
           }
         }
       }
@@ -530,9 +530,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcDataItem> children_ =
       java.util.Collections.emptyList();
     private void ensureChildrenIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        children_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcDataItem>(children_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.children_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcDataItem>(this.children_);
+        this.bitField0_ |= 0x00000001;
        }
     }
 
@@ -547,10 +547,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcDataItem> getChildrenList() {
-      if (childrenBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(children_);
+      if (this.childrenBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.children_);
       } else {
-        return childrenBuilder_.getMessageList();
+        return this.childrenBuilder_.getMessageList();
       }
     }
     /**
@@ -561,10 +561,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
      */
     public int getChildrenCount() {
-      if (childrenBuilder_ == null) {
-        return children_.size();
+      if (this.childrenBuilder_ == null) {
+        return this.children_.size();
       } else {
-        return childrenBuilder_.getCount();
+        return this.childrenBuilder_.getCount();
       }
     }
     /**
@@ -575,10 +575,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDataItem getChildren(int index) {
-      if (childrenBuilder_ == null) {
-        return children_.get(index);
+      if (this.childrenBuilder_ == null) {
+        return this.children_.get(index);
       } else {
-        return childrenBuilder_.getMessage(index);
+        return this.childrenBuilder_.getMessage(index);
       }
     }
     /**
@@ -590,15 +590,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setChildren(
         int index, io.evitadb.externalApi.grpc.generated.GrpcDataItem value) {
-      if (childrenBuilder_ == null) {
+      if (this.childrenBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureChildrenIsMutable();
-        children_.set(index, value);
+        this.children_.set(index, value);
         onChanged();
       } else {
-        childrenBuilder_.setMessage(index, value);
+        this.childrenBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -611,12 +611,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setChildren(
         int index, io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder builderForValue) {
-      if (childrenBuilder_ == null) {
+      if (this.childrenBuilder_ == null) {
         ensureChildrenIsMutable();
-        children_.set(index, builderForValue.build());
+        this.children_.set(index, builderForValue.build());
         onChanged();
       } else {
-        childrenBuilder_.setMessage(index, builderForValue.build());
+        this.childrenBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -628,15 +628,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
      */
     public Builder addChildren(io.evitadb.externalApi.grpc.generated.GrpcDataItem value) {
-      if (childrenBuilder_ == null) {
+      if (this.childrenBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureChildrenIsMutable();
-        children_.add(value);
+        this.children_.add(value);
         onChanged();
       } else {
-        childrenBuilder_.addMessage(value);
+        this.childrenBuilder_.addMessage(value);
       }
       return this;
     }
@@ -649,15 +649,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addChildren(
         int index, io.evitadb.externalApi.grpc.generated.GrpcDataItem value) {
-      if (childrenBuilder_ == null) {
+      if (this.childrenBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureChildrenIsMutable();
-        children_.add(index, value);
+        this.children_.add(index, value);
         onChanged();
       } else {
-        childrenBuilder_.addMessage(index, value);
+        this.childrenBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -670,12 +670,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addChildren(
         io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder builderForValue) {
-      if (childrenBuilder_ == null) {
+      if (this.childrenBuilder_ == null) {
         ensureChildrenIsMutable();
-        children_.add(builderForValue.build());
+        this.children_.add(builderForValue.build());
         onChanged();
       } else {
-        childrenBuilder_.addMessage(builderForValue.build());
+        this.childrenBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -688,12 +688,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addChildren(
         int index, io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder builderForValue) {
-      if (childrenBuilder_ == null) {
+      if (this.childrenBuilder_ == null) {
         ensureChildrenIsMutable();
-        children_.add(index, builderForValue.build());
+        this.children_.add(index, builderForValue.build());
         onChanged();
       } else {
-        childrenBuilder_.addMessage(index, builderForValue.build());
+        this.childrenBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -706,13 +706,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllChildren(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcDataItem> values) {
-      if (childrenBuilder_ == null) {
+      if (this.childrenBuilder_ == null) {
         ensureChildrenIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, children_);
+            values, this.children_);
         onChanged();
       } else {
-        childrenBuilder_.addAllMessages(values);
+        this.childrenBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -724,12 +724,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
      */
     public Builder clearChildren() {
-      if (childrenBuilder_ == null) {
-        children_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.childrenBuilder_ == null) {
+        this.children_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        childrenBuilder_.clear();
+        this.childrenBuilder_.clear();
       }
       return this;
     }
@@ -741,12 +741,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
      */
     public Builder removeChildren(int index) {
-      if (childrenBuilder_ == null) {
+      if (this.childrenBuilder_ == null) {
         ensureChildrenIsMutable();
-        children_.remove(index);
+        this.children_.remove(index);
         onChanged();
       } else {
-        childrenBuilder_.remove(index);
+        this.childrenBuilder_.remove(index);
       }
       return this;
     }
@@ -770,9 +770,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder getChildrenOrBuilder(
         int index) {
-      if (childrenBuilder_ == null) {
-        return children_.get(index);  } else {
-        return childrenBuilder_.getMessageOrBuilder(index);
+      if (this.childrenBuilder_ == null) {
+        return this.children_.get(index);  } else {
+        return this.childrenBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -782,12 +782,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder>
          getChildrenOrBuilderList() {
-      if (childrenBuilder_ != null) {
-        return childrenBuilder_.getMessageOrBuilderList();
+      if (this.childrenBuilder_ != null) {
+        return this.childrenBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(children_);
+        return java.util.Collections.unmodifiableList(this.children_);
       }
     }
     /**
@@ -820,23 +820,23 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder>
          getChildrenBuilderList() {
       return getChildrenFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDataItem, io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcDataItem, io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder>
         getChildrenFieldBuilder() {
-      if (childrenBuilder_ == null) {
-        childrenBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.childrenBuilder_ == null) {
+        this.childrenBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcDataItem, io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder>(
-                children_,
-                ((bitField0_ & 0x00000001) != 0),
+                this.children_,
+                ((this.bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        children_ = null;
+        this.children_ = null;
       }
-      return childrenBuilder_;
+      return this.childrenBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

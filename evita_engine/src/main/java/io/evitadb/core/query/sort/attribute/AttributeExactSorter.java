@@ -245,14 +245,14 @@ public class AttributeExactSorter implements Sorter {
 		@Nonnull
 		@Override
 		public Iterable<EntityContract> getNonSortedEntities() {
-			return ofNullable((Iterable<EntityContract>) nonSortedEntities)
+			return ofNullable((Iterable<EntityContract>) this.nonSortedEntities)
 				.orElse(Collections.emptyList());
 		}
 
 		@Override
 		public int compare(EntityContract o1, EntityContract o2) {
-			final Serializable attribute1 = o1.getAttribute(attributeName);
-			final Serializable attribute2 = o2.getAttribute(attributeName);
+			final Serializable attribute1 = o1.getAttribute(this.attributeName);
+			final Serializable attribute2 = o2.getAttribute(this.attributeName);
 			if (attribute1 == null && attribute2 == null) {
 				this.nonSortedEntities = ofNullable(this.nonSortedEntities)
 					.orElseGet(() -> new CompositeObjectArray<>(EntityContract.class));
@@ -271,12 +271,12 @@ public class AttributeExactSorter implements Sorter {
 				return 1;
 			} else {
 				// and try to find primary keys of both entities in each provider
-				if (cache == null) {
+				if (this.cache == null) {
 					// let's create the cache with estimated size multiply 5 expected steps for binary search
-					cache = new ObjectIntHashMap<>(estimatedCount * 5);
+					this.cache = new ObjectIntHashMap<>(this.estimatedCount * 5);
 				}
-				final int attribute1Index = computeIfAbsent(cache, attribute1, it -> ArrayUtils.indexOf(it, attributeValues));
-				final int attribute2Index = computeIfAbsent(cache, attribute2, it -> ArrayUtils.indexOf(it, attributeValues));
+				final int attribute1Index = computeIfAbsent(this.cache, attribute1, it -> ArrayUtils.indexOf(it, this.attributeValues));
+				final int attribute2Index = computeIfAbsent(this.cache, attribute2, it -> ArrayUtils.indexOf(it, this.attributeValues));
 				return Integer.compare(attribute1Index, attribute2Index);
 			}
 		}

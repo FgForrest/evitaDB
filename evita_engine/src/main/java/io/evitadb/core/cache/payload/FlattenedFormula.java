@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,18 +73,18 @@ public class FlattenedFormula extends CachePayloadHeader implements Formula {
 
 	@Override
 	public long getHash() {
-		return recordHash;
+		return this.recordHash;
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		return transactionalIdHash;
+		return this.transactionalIdHash;
 	}
 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		return transactionalDataIds;
+		return this.transactionalDataIds;
 	}
 
 	@Override
@@ -104,7 +104,7 @@ public class FlattenedFormula extends CachePayloadHeader implements Formula {
 
 	@Override
 	public int getEstimatedCardinality() {
-		return memoizedResult.size();
+		return this.memoizedResult.size();
 	}
 
 	@Override
@@ -132,18 +132,18 @@ public class FlattenedFormula extends CachePayloadHeader implements Formula {
 	@Nonnull
 	@Override
 	public Bitmap compute() {
-		return memoizedResult;
+		return this.memoizedResult;
 	}
 
 	@Override
 	public String toString() {
-		return "FLATTENED: " +  memoizedResult.size() + " primary keys";
+		return "FLATTENED: " + this.memoizedResult.size() + " primary keys";
 	}
 
 	@Nonnull
 	@Override
 	public String toStringVerbose() {
-		return "FLATTENED: " +  memoizedResult.toString();
+		return "FLATTENED: " + this.memoizedResult.toString();
 	}
 
 	@Nonnull

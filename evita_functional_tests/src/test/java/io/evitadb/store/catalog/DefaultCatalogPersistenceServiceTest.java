@@ -144,7 +144,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 	private final UUID catalogId = UUID.randomUUID();
 	private final UUID transactionId = UUID.randomUUID();
-	private final Path walFile = getTestDirectory().resolve(transactionId.toString());
+	private final Path walFile = getTestDirectory().resolve(this.transactionId.toString());
 	private final Kryo kryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
 		TEST_CATALOG,
@@ -152,9 +152,9 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		Mockito.mock(Scheduler.class)
 	);
 	private final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-		getTestDirectory().resolve(transactionId.toString()),
+		getTestDirectory().resolve(this.transactionId.toString()),
 		getStorageOptions(),
-		observableOutputKeeper,
+		this.observableOutputKeeper,
 		new OffHeapMemoryManager(TEST_CATALOG, 512, 1)
 	);
 	private final DefaultIsolatedWalService walService = new DefaultIsolatedWalService(
@@ -224,7 +224,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	void tearDown() throws IOException {
 		this.walService.close();
 		this.observableOutputKeeper.close();
-		final File file = walFile.toFile();
+		final File file = this.walFile.toFile();
 		if (file.exists()) {
 			fail("File " + file + " should not exist after close!");
 		}
@@ -248,13 +248,13 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		when(mockSession.getCatalogSchema()).thenReturn(SEALED_CATALOG_SCHEMA);
 
 		final EntityCollection brandCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleBrandSchema(mockSession, EntitySchemaBuilder::toInstance), 1
+			ioService, SEALED_CATALOG_SCHEMA, this.dataGenerator.getSampleBrandSchema(mockSession, EntitySchemaBuilder::toInstance), 1
 		);
 		final EntityCollection storeCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleStoreSchema(mockSession, EntitySchemaBuilder::toInstance), 2
+			ioService, SEALED_CATALOG_SCHEMA, this.dataGenerator.getSampleStoreSchema(mockSession, EntitySchemaBuilder::toInstance), 2
 		);
 		final EntityCollection productCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleProductSchema(mockSession, EntitySchemaBuilder::toInstance), 3
+			ioService, SEALED_CATALOG_SCHEMA, this.dataGenerator.getSampleProductSchema(mockSession, EntitySchemaBuilder::toInstance), 3
 		);
 
 		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(3);
@@ -467,7 +467,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		this.walService.write(1L, DATA_MUTATION_EXAMPLE);
 		this.walService.write(1L, SCHEMA_MUTATION_EXAMPLE);
 
-		final OffHeapWithFileBackupReference walReference = walService.getWalReference();
+		final OffHeapWithFileBackupReference walReference = this.walService.getWalReference();
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
 
 		// first switch to the transactional mode
@@ -483,7 +483,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			cps.getStoragePartPersistenceService(0L)
 				.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
 			cps.storeHeader(
-				catalogId,
+				this.catalogId,
 				CatalogState.ALIVE,
 				2L,
 				0,
@@ -494,7 +494,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		}
 
 		final TransactionMutation writtenTransactionMutation = new TransactionMutation(
-			transactionId, 1L, 2, walReference.getContentLength(), OffsetDateTime.MIN
+			this.transactionId, 1L, 2, walReference.getContentLength(), OffsetDateTime.MIN
 		);
 
 		// and then write to the WAL
@@ -527,11 +527,11 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					// the 2 bytes are required to record the classId
 					final int offsetDateTimeDelta = 11;
 					assertEquals(walReference.getContentLength() + CatalogWriteAheadLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeDelta + 2, transactionSize);
-					final Mutation loadedTransactionMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+					final Mutation loadedTransactionMutation = (Mutation) StorageRecord.read(input, (stream, length) -> this.kryo.readClassAndObject(stream)).payload();
 					assertEquals(writtenTransactionMutation, loadedTransactionMutation);
-					final Mutation firstMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+					final Mutation firstMutation = (Mutation) StorageRecord.read(input, (stream, length) -> this.kryo.readClassAndObject(stream)).payload();
 					assertEquals(DATA_MUTATION_EXAMPLE, firstMutation);
-					final Mutation secondMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+					final Mutation secondMutation = (Mutation) StorageRecord.read(input, (stream, length) -> this.kryo.readClassAndObject(stream)).payload();
 					assertEquals(SCHEMA_MUTATION_EXAMPLE, secondMutation);
 					return null;
 				}
@@ -699,18 +699,18 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			when(mockSession.getCatalogSchema()).thenReturn(SEALED_CATALOG_SCHEMA);
 
 			final EntityCollection productCollection = constructEntityCollectionWithSomeEntities(
-				ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleProductSchema(mockSession, EntitySchemaBuilder::toInstance), 1
+				ioService, SEALED_CATALOG_SCHEMA, this.dataGenerator.getSampleProductSchema(mockSession, EntitySchemaBuilder::toInstance), 1
 			);
 			final EntityCollection brandCollection = constructEntityCollectionWithSomeEntities(
-				ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleBrandSchema(mockSession, EntitySchemaBuilder::toInstance), 2
+				ioService, SEALED_CATALOG_SCHEMA, this.dataGenerator.getSampleBrandSchema(mockSession, EntitySchemaBuilder::toInstance), 2
 			);
 			final EntityCollection storeCollection = constructEntityCollectionWithSomeEntities(
-				ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleStoreSchema(mockSession, EntitySchemaBuilder::toInstance), 3
+				ioService, SEALED_CATALOG_SCHEMA, this.dataGenerator.getSampleStoreSchema(mockSession, EntitySchemaBuilder::toInstance), 3
 			);
 
 			// try to serialize
 			ioService.storeHeader(
-				catalogId,
+				this.catalogId,
 				CatalogState.WARMING_UP,
 				0L, 0, null,
 				Arrays.asList(
@@ -791,7 +791,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			}
 		}).when(mockCatalog).applyMutation(mutationCaptor.capture());
 
-		dataGenerator.generateEntities(
+		this.dataGenerator.generateEntities(
 				entitySchema,
 				(serializable, faker) -> null,
 				40

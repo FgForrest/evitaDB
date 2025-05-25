@@ -211,16 +211,16 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 				return primaryKey == 0 ? null : primaryKey;
 			};
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleBrandSchema(session),
+			this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleBrandSchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(5)
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedCategories = dataGenerator.generateEntities(
-					dataGenerator.getSampleCategorySchema(
+			final List<EntityReference> storedCategories = this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleCategorySchema(
 						session,
 						schemaBuilder -> {
 							schemaBuilder.withAttribute(ATTRIBUTE_SHORTCUT, Boolean.class, whichIs -> whichIs.filterable());
@@ -233,24 +233,24 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				.map(session::upsertEntity)
 				.toList();
 
-			dataGenerator.generateEntities(
-					dataGenerator.getSamplePriceListSchema(session),
+			this.dataGenerator.generateEntities(
+					this.dataGenerator.getSamplePriceListSchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(4)
 				.forEach(session::upsertEntity);
 
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleStoreSchema(session),
+			this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleStoreSchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(12)
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
-					dataGenerator.getSampleProductSchema(
+			final List<EntityReference> storedProducts = this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleProductSchema(
 						session,
 						schemaBuilder -> {
 							schemaBuilder
@@ -306,7 +306,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				),
 				tuple(
 					"categoryHierarchy",
-					dataGenerator.getHierarchy(Entities.CATEGORY)
+					this.dataGenerator.getHierarchy(Entities.CATEGORY)
 				)
 			);
 		});
@@ -2892,7 +2892,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		private final EmptyHierarchicalEntityBehaviour emptyBehaviour = REMOVE_EMPTY;
 
 		public void recordCategoryVisible(int categoryId) {
-			childrenItemCount.merge(categoryId, 1, Integer::sum);
+			this.childrenItemCount.merge(categoryId, 1, Integer::sum);
 		}
 
 		public void record(@Nonnull List<Integer> categoryPath, int[] productIds, @Nonnull IntPredicate categoryValid) {
@@ -2905,7 +2905,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 			categoryPath
 				.stream()
 				.filter(categoryValid::test)
-				.forEach(it -> itemCardinality.merge(
+				.forEach(it -> this.itemCardinality.merge(
 					it, new BaseBitmap(productIds),
 					(pIds, pIds2) -> new BaseBitmap(
 						RoaringBitmap.or(
@@ -2917,17 +2917,17 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		}
 
 		public boolean isValid(int categoryId) {
-			return emptyBehaviour == LEAVE_EMPTY || itemCardinality.containsKey(categoryId);
+			return this.emptyBehaviour == LEAVE_EMPTY || this.itemCardinality.containsKey(categoryId);
 		}
 
 		@Override
 		public int getCardinality(int categoryId) {
-			return ofNullable(itemCardinality.get(categoryId)).map(Bitmap::size).orElse(0);
+			return ofNullable(this.itemCardinality.get(categoryId)).map(Bitmap::size).orElse(0);
 		}
 
 		@Override
 		public int getChildrenCount(int categoryId) {
-			return ofNullable(childrenItemCount.get(categoryId)).orElse(0);
+			return ofNullable(this.childrenItemCount.get(categoryId)).orElse(0);
 		}
 	}
 

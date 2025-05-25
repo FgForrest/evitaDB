@@ -706,7 +706,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			return new NumberedByteBuffer(
 				freeBlockId,
 				this.memoryBlock.get()
-					.slice(freeBlockId * blockSizeBytes, blockSizeBytes)
+					.slice(freeBlockId * this.blockSizeBytes, this.blockSizeBytes)
 			);
 		}
 	}

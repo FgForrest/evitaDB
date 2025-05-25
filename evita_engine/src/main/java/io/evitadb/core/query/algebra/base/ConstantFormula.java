@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,28 +53,28 @@ public class ConstantFormula extends AbstractFormula {
 	@Nonnull
 	@Override
 	public long[] gatherBitmapIdsInternal() {
-		return delegate instanceof TransactionalBitmap ?
-			new long[]{((TransactionalBitmap) delegate).getId()} : EMPTY_LONG_ARRAY;
+		return this.delegate instanceof TransactionalBitmap ?
+			new long[]{((TransactionalBitmap) this.delegate).getId()} : EMPTY_LONG_ARRAY;
 	}
 
 	@Override
 	public long getEstimatedCostInternal() {
-		return delegate.size();
+		return this.delegate.size();
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return delegate.size();
+		return this.delegate.size();
 	}
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		if (delegate instanceof TransactionalLayerProducer) {
-			return ((TransactionalLayerProducer<?, ?>) delegate).getId();
+		if (this.delegate instanceof TransactionalLayerProducer) {
+			return ((TransactionalLayerProducer<?, ?>) this.delegate).getId();
 		} else {
 			// this shouldn't happen for long arrays - these are expected to be always linked to transactional
 			// bitmaps located in indexes and represented by "transactional id"
-			return hashFunction.hashInts(delegate.getArray());
+			return hashFunction.hashInts(this.delegate.getArray());
 		}
 	}
 
@@ -97,17 +97,17 @@ public class ConstantFormula extends AbstractFormula {
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		return delegate;
+		return this.delegate;
 	}
 
 	@Override
 	public String toString() {
-		return delegate.size() + " primary keys";
+		return this.delegate.size() + " primary keys";
 	}
 
 	@Nonnull
 	@Override
 	public String toStringVerbose() {
-		return delegate.toString();
+		return this.delegate.toString();
 	}
 }

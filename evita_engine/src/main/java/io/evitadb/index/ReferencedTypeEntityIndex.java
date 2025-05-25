@@ -364,7 +364,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@Override
 	public <S extends PriceIndexContract> S getPriceIndex() {
 		//noinspection unchecked
-		return (S) priceIndex;
+		return (S) this.priceIndex;
 	}
 
 	@Override
@@ -387,13 +387,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull Set<String> facetIndexReferencedEntities
 	) {
 		return new EntityIndexStoragePart(
-			primaryKey, version, indexKey,
-			entityIds, entityIdsByLanguage,
+			this.primaryKey, this.version, this.indexKey,
+			this.entityIds, this.entityIdsByLanguage,
 			attributeIndexStorageKeys,
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
 			facetIndexReferencedEntities,
-			primaryKeyCardinality
+			this.primaryKeyCardinality
 		);
 	}
 
@@ -407,7 +407,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 				.stream()
 				.flatMap(
 					set -> set.stream()
-						.map(attributeKey -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.CARDINALITY, attributeKey))
+						.map(attributeKey -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.CARDINALITY, attributeKey))
 				)
 		);
 	}
@@ -647,19 +647,19 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		private final TransactionalContainerChanges<Void, CardinalityIndex, CardinalityIndex> cardinalityIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull CardinalityIndex cardinalityIndex) {
-			cardinalityIndexChanges.addCreatedItem(cardinalityIndex);
+			this.cardinalityIndexChanges.addCreatedItem(cardinalityIndex);
 		}
 
 		public void addRemovedItem(@Nonnull CardinalityIndex cardinalityIndex) {
-			cardinalityIndexChanges.addRemovedItem(cardinalityIndex);
+			this.cardinalityIndexChanges.addRemovedItem(cardinalityIndex);
 		}
 
 		public void clean(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			cardinalityIndexChanges.clean(transactionalLayer);
+			this.cardinalityIndexChanges.clean(transactionalLayer);
 		}
 
 		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			cardinalityIndexChanges.cleanAll(transactionalLayer);
+			this.cardinalityIndexChanges.cleanAll(transactionalLayer);
 		}
 
 	}

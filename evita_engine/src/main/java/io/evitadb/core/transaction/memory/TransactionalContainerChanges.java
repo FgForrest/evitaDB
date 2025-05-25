@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -71,19 +71,19 @@ public final class TransactionalContainerChanges<DIFF_PIECE, COPY, PRODUCER exte
 	 */
 	public void cleanAll(TransactionalLayerMaintainer transactionalLayer) {
 		final Consumer<PRODUCER> cleaningFct = item -> item.removeLayer(transactionalLayer);
-		ofNullable(createdItems).ifPresent(it -> it.forEach(cleaningFct));
-		ofNullable(removedItems).ifPresent(it -> it.forEach(cleaningFct));
+		ofNullable(this.createdItems).ifPresent(it -> it.forEach(cleaningFct));
+		ofNullable(this.removedItems).ifPresent(it -> it.forEach(cleaningFct));
 	}
 
 	/**
 	 * Collects both created and removed items. Removes instances that were registered as both created and removed.
 	 */
 	private Stream<PRODUCER> getCreatedAndRemovedItems() {
-		if (removedItems != null && createdItems != null) {
-			return removedItems
+		if (this.removedItems != null && this.createdItems != null) {
+			return this.removedItems
 				.stream()
 				.filter(it -> {
-					for (PRODUCER createdItem : createdItems) {
+					for (PRODUCER createdItem : this.createdItems) {
 						if (createdItem == it) {
 							return true;
 						}

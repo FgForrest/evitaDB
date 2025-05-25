@@ -175,21 +175,21 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * Returns true if the references were fetched along with the entity.
 	 */
 	public boolean wasFetched() {
-		return requiresEntityReferences;
+		return this.requiresEntityReferences;
 	}
 
 	/**
 	 * Returns true if the references of particular name were fetched along with the entity.
 	 */
 	public boolean wasFetched(@Nonnull String referenceName) {
-		return requiresEntityReferences && (referenceSet.isEmpty() || referenceSet.containsKey(referenceName));
+		return this.requiresEntityReferences && (this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName));
 	}
 
 	/**
 	 * Method verifies that references were fetched with the entity.
 	 */
 	public void checkFetched() throws ContextMissingException {
-		if (!requiresEntityReferences) {
+		if (!this.requiresEntityReferences) {
 			throw ContextMissingException.referenceContextMissing();
 		}
 	}
@@ -198,17 +198,17 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * Method verifies that the requested attribute was fetched with the entity.
 	 */
 	public void checkFetched(@Nonnull String referenceName) throws ContextMissingException {
-		if (!(requiresEntityReferences && (referenceSet.isEmpty() || referenceSet.containsKey(referenceName)))) {
+		if (!(this.requiresEntityReferences && (this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName)))) {
 			throw ContextMissingException.referenceContextMissing(referenceName);
 		}
 	}
 
 	@Override
 	public boolean test(ReferenceContract reference) {
-		if (requiresEntityReferences) {
+		if (this.requiresEntityReferences) {
 			final String referenceName = reference.getReferenceName();
 			return reference.exists() &&
-				(referenceSet.isEmpty() || referenceSet.containsKey(referenceName));
+				(this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName));
 		} else {
 			return false;
 		}
@@ -223,8 +223,8 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 *         or the set is empty; {@code false} otherwise.
 	 */
 	public boolean isReferenceRequested(@Nonnull String referenceName) {
-		if (requiresEntityReferences) {
-			return referenceSet.isEmpty() || referenceSet.containsKey(referenceName);
+		if (this.requiresEntityReferences) {
+			return this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName);
 		} else {
 			return false;
 		}
@@ -303,8 +303,8 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 			return Set.of(this.implicitLocale);
 		} else if (this.implicitLocale != null) {
 			return Stream.concat(
-				Stream.of(implicitLocale),
-				locales.stream()
+				Stream.of(this.implicitLocale),
+				this.locales.stream()
 			).collect(Collectors.toSet());
 		} else {
 			return this.locales;
@@ -401,7 +401,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 			requiredLanguages.addAll(this.locales);
 			requiredLanguages.addAll(newlyRequiredLanguages);
 		} else {
-			requiredLanguages = locales;
+			requiredLanguages = this.locales;
 		}
 		return requiredLanguages;
 	}

@@ -113,7 +113,7 @@ public record CatalogHeader(
 	 */
 	@Nonnull
 	public Collection<CollectionFileReference> getEntityTypeFileIndexes() {
-		return collectionFileIndex.values();
+		return this.collectionFileIndex.values();
 	}
 
 	/**
@@ -124,14 +124,14 @@ public record CatalogHeader(
 	 */
 	@Nonnull
 	public Optional<CollectionFileReference> getEntityTypeFileIndexIfExists(@Nonnull String entityType) throws CollectionNotFoundException {
-		return ofNullable(collectionFileIndex.get(entityType));
+		return ofNullable(this.collectionFileIndex.get(entityType));
 	}
 
 	/**
 	 * Returns true if catalog supports transaction.
 	 */
 	public boolean supportsTransaction() {
-		return catalogState == CatalogState.ALIVE;
+		return this.catalogState == CatalogState.ALIVE;
 	}
 
 }

@@ -117,7 +117,7 @@ public class ReadOnlyFileHandle implements ReadOnlyHandle {
 
 	@Override
 	public long getLastWrittenPosition() {
-		return targetFile.toFile().length();
+		return this.targetFile.toFile().length();
 	}
 
 	/**
@@ -135,6 +135,6 @@ public class ReadOnlyFileHandle implements ReadOnlyHandle {
 
 	@Override
 	public String toString() {
-		return "read handle: " + targetFile;
+		return "read handle: " + this.targetFile;
 	}
 }

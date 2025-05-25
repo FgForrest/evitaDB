@@ -131,8 +131,8 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 	@Override
 	public Formula createCountFormula(@Nonnull ReferenceSchemaContract referenceSchema, int facetId, @Nullable Integer facetGroupId, @Nonnull Bitmap[] facetEntityIds) {
 		// create formula that would capture all mandatory filtering constraints plus this single facet selected
-		final Formula hypotheticalFormula = facetFormulaGenerator.generateFormula(
-			baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
+		final Formula hypotheticalFormula = this.facetFormulaGenerator.generateFormula(
+			this.baseFormula, this.baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
 		);
 		// initialize the formula
 		hypotheticalFormula.initialize(this.executionContext);
@@ -148,11 +148,11 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 				.toArray(Formula[]::new)
 		);
 		final Formula hypotheticalFormula;
-		if (baseFormulaWithoutUserFilter == null) {
+		if (this.baseFormulaWithoutUserFilter == null) {
 			hypotheticalFormula = allFacetEntityIds;
 		} else {
 			hypotheticalFormula = FormulaFactory.and(
-				baseFormulaWithoutUserFilter,
+				this.baseFormulaWithoutUserFilter,
 				allFacetEntityIds
 			);
 		}

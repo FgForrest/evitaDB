@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -109,8 +109,8 @@ abstract class ApiClient {
 	@Nonnull
 	protected Optional<String> getResponseBodyString(@Nonnull Request request) {
 		RuntimeException firstException = null;
-		for (int i = 0; i < numberOfRetries; i++) {
-			try (Response response = client.newCall(request).execute()) {
+		for (int i = 0; i < this.numberOfRetries; i++) {
+			try (Response response = this.client.newCall(request).execute()) {
 				final int responseCode = response.code();
 				if (responseCode == 200) {
 					return Optional.of(response.body().string());
@@ -126,7 +126,7 @@ abstract class ApiClient {
 				firstException = firstException == null ? new GenericEvitaInternalError("Unexpected error.", e) : firstException;
 			}
 		}
-		throw new GenericEvitaInternalError("Error calling server even with " + numberOfRetries + " retries:", firstException);
+		throw new GenericEvitaInternalError("Error calling server even with " + this.numberOfRetries + " retries:", firstException);
 	}
 
 	@Nonnull

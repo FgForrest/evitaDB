@@ -109,8 +109,8 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 
 		@Override
 		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
-			first.initializeIfNotAlreadyInitialized(executionContext);
-			second.initializeIfNotAlreadyInitialized(executionContext);
+			this.first.initializeIfNotAlreadyInitialized(executionContext);
+			this.second.initializeIfNotAlreadyInitialized(executionContext);
 		}
 
 		@Override
@@ -120,12 +120,12 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 
 		@Override
 		public boolean test(int hierarchyNodeId) {
-			return first.test(hierarchyNodeId) && second.test(hierarchyNodeId);
+			return this.first.test(hierarchyNodeId) && this.second.test(hierarchyNodeId);
 		}
 
 		@Override
 		public String toString() {
-			return first + " AND " + second;
+			return this.first + " AND " + this.second;
 		}
 
 	}
@@ -154,8 +154,8 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 
 		@Override
 		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
-			first.initializeIfNotAlreadyInitialized(executionContext);
-			second.initializeIfNotAlreadyInitialized(executionContext);
+			this.first.initializeIfNotAlreadyInitialized(executionContext);
+			this.second.initializeIfNotAlreadyInitialized(executionContext);
 		}
 
 		@Override
@@ -166,12 +166,12 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 
 		@Override
 		public boolean test(int hierarchyNodeId) {
-			return first.test(hierarchyNodeId) || second.test(hierarchyNodeId);
+			return this.first.test(hierarchyNodeId) || this.second.test(hierarchyNodeId);
 		}
 
 		@Override
 		public String toString() {
-			return first + " OR " + second;
+			return this.first + " OR " + this.second;
 		}
 	}
 
@@ -234,7 +234,7 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 
 		@Override
 		public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
-			predicate.initializeIfNotAlreadyInitialized(executionContext);
+			this.predicate.initializeIfNotAlreadyInitialized(executionContext);
 		}
 
 		@Override
@@ -245,12 +245,12 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 
 		@Override
 		public boolean test(int value) {
-			return !predicate.test(value);
+			return !this.predicate.test(value);
 		}
 
 		@Override
 		public String toString() {
-			return "NOT(" + predicate + ")";
+			return "NOT(" + this.predicate + ")";
 		}
 
 		@Override
@@ -258,13 +258,13 @@ public non-sealed interface HierarchyFilteringPredicate extends IntPredicate, Ex
 			if (this == o) return true;
 			if (!(o instanceof NegatedHierarchyFilteringPredicate that)) return false;
 
-			return predicate.equals(that.predicate) && hash.equals(that.hash);
+			return this.predicate.equals(that.predicate) && this.hash.equals(that.hash);
 		}
 
 		@Override
 		public int hashCode() {
-			int result = predicate.hashCode();
-			result = 31 * result + hash.hashCode();
+			int result = this.predicate.hashCode();
+			result = 31 * result + this.hash.hashCode();
 			return result;
 		}
 	}

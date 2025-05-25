@@ -63,13 +63,13 @@ public class Input {
 	@Nonnull
 	public <T> Optional<T> getOptionalValue() {
 		//noinspection unchecked
-		return Optional.ofNullable(inputMutationObject)
+		return Optional.ofNullable(this.inputMutationObject)
 			.map(it -> (T) it);
 	}
 
 	@Nonnull
 	public <T extends Serializable> Optional<T> getOptionalValue(@Nonnull Class<T> targetType) {
-		return Optional.ofNullable(inputMutationObject)
+		return Optional.ofNullable(this.inputMutationObject)
 			.map(it -> toTargetType(it, targetType));
 	}
 
@@ -77,14 +77,14 @@ public class Input {
 	public <T> T getRequiredValue() {
 		assertMutationObjectNonNull();
 		//noinspection unchecked,DataFlowIssue
-		return (T) inputMutationObject;
+		return (T) this.inputMutationObject;
 	}
 
 	@Nonnull
 	public <T extends Serializable> T getRequiredValue(@Nonnull Class<T> targetType) {
 		assertMutationObjectNonNull();
 		//noinspection DataFlowIssue
-		return toTargetType(inputMutationObject, targetType);
+		return toTargetType(this.inputMutationObject, targetType);
 	}
 
 	/**
@@ -139,7 +139,7 @@ public class Input {
 	                  @Nullable T defaultValue) {
 		assertMutationObjectIsObject();
 		//noinspection unchecked,DataFlowIssue
-		final T propertyValue = Optional.ofNullable(((Map<String, Object>) inputMutationObject).get(name))
+		final T propertyValue = Optional.ofNullable(((Map<String, Object>) this.inputMutationObject).get(name))
 			.map(propertyMapper)
 			.orElse(defaultValue);
 		if (required) {
@@ -164,7 +164,7 @@ public class Input {
 	public <T extends Serializable> T getProperty(@Nonnull PropertyDescriptor propertyDescriptor, @Nullable T defaultValue) {
 		Assert.isPremiseValid(
 			propertyDescriptor.primitiveType() != null,
-			() -> exceptionFactory.createInternalError("Property descriptor of property `" + propertyDescriptor.name() + "` doesn't specify type. You must specify type explicitly.")
+			() -> this.exceptionFactory.createInternalError("Property descriptor of property `" + propertyDescriptor.name() + "` doesn't specify type. You must specify type explicitly.")
 		);
 		//noinspection unchecked,DataFlowIssue
 		return getProperty(propertyDescriptor.name(), propertyDescriptor.primitiveType().nonNull(), (Class<T>) propertyDescriptor.primitiveType().javaType(), defaultValue);
@@ -260,7 +260,7 @@ public class Input {
 	private <T extends Serializable> T toTargetType(@Nullable String propertyName, @Nonnull Object rawPropertyValue, @Nonnull Class<T> targetType) {
 		Assert.isPremiseValid(
 			!Any.class.isAssignableFrom(targetType),
-			() -> exceptionFactory.createInternalError("Java type `Any` cannot be converted directly, explicit mapper must be specified.")
+			() -> this.exceptionFactory.createInternalError("Java type `Any` cannot be converted directly, explicit mapper must be specified.")
 		);
 
 		if (targetType.isInstance(rawPropertyValue)) {
@@ -272,9 +272,9 @@ public class Input {
 			rawPropertyValue instanceof Serializable,
 			() -> {
 				if (propertyName == null) {
-					return exceptionFactory.createInternalError("Mutation `" + mutationName + "` has unsupported data type.");
+					return this.exceptionFactory.createInternalError("Mutation `" + this.mutationName + "` has unsupported data type.");
 				} else {
-					return exceptionFactory.createInternalError("Property `" + propertyName + "` of mutation `" + mutationName + "` has unsupported data type.");
+					return this.exceptionFactory.createInternalError("Property `" + propertyName + "` of mutation `" + this.mutationName + "` has unsupported data type.");
 				}
 			}
 		);
@@ -297,7 +297,7 @@ public class Input {
 	private <E extends Enum<E>, T extends Serializable> E toEnumType(@Nullable String propertyName, @Nonnull Object rawProperty, @Nonnull Class<T> targetType) {
 		Assert.isPremiseValid(
 			targetType.isEnum(),
-			() -> exceptionFactory.createInternalError("Expected enum class, found `" + targetType.getName() + "`.")
+			() -> this.exceptionFactory.createInternalError("Expected enum class, found `" + targetType.getName() + "`.")
 		);
 
 		if (targetType.isAssignableFrom(rawProperty.getClass())) {
@@ -308,7 +308,7 @@ public class Input {
 			//noinspection unchecked
 			return Enum.valueOf((Class<E>) targetType, s);
 		}
-		throw exceptionFactory.createInvalidArgumentException("Unsupported data type for property `" + propertyName + "`.");
+		throw this.exceptionFactory.createInvalidArgumentException("Unsupported data type for property `" + propertyName + "`.");
 	}
 
 	@SuppressWarnings("unchecked")
@@ -318,9 +318,9 @@ public class Input {
 			rawProperty instanceof List<?> && ((List<?>) rawProperty).size() == 2,
 			() -> {
 				if (propertyName == null) {
-					return exceptionFactory.createInvalidArgumentException("Mutation `" + mutationName + "` is expected to be a tuple of 2 items.");
+					return this.exceptionFactory.createInvalidArgumentException("Mutation `" + this.mutationName + "` is expected to be a tuple of 2 items.");
 				} else {
-					return exceptionFactory.createInvalidArgumentException("Property `" + propertyName + "` of mutation `" + mutationName + "` is expected to be a tuple of 2 items.");
+					return this.exceptionFactory.createInvalidArgumentException("Property `" + propertyName + "` of mutation `" + this.mutationName + "` is expected to be a tuple of 2 items.");
 				}
 			}
 		);
@@ -336,7 +336,7 @@ public class Input {
 			} else if (to != null) {
 				return (T) DateTimeRange.until(to);
 			} else {
-				throw exceptionFactory.createInvalidArgumentException("Datetime range can never be created with both bounds null!");
+				throw this.exceptionFactory.createInvalidArgumentException("Datetime range can never be created with both bounds null!");
 			}
 		} else if (targetType.equals(BigDecimalNumberRange.class)) {
 			final BigDecimal from = EvitaDataTypes.toTargetType((Serializable) tuple.get(0), BigDecimal.class);
@@ -348,7 +348,7 @@ public class Input {
 			} else if (to != null) {
 				return (T) BigDecimalNumberRange.to(to);
 			} else {
-				throw exceptionFactory.createInvalidArgumentException("BigDecimal range can never be created with both bounds null!");
+				throw this.exceptionFactory.createInvalidArgumentException("BigDecimal range can never be created with both bounds null!");
 			}
 		} else if (targetType.equals(LongNumberRange.class)) {
 			final Long from = EvitaDataTypes.toTargetType((Serializable) tuple.get(0), Long.class);
@@ -360,7 +360,7 @@ public class Input {
 			} else if (to != null) {
 				return (T) LongNumberRange.to(to);
 			} else {
-				throw exceptionFactory.createInvalidArgumentException("Long range can never be created with both bounds null!");
+				throw this.exceptionFactory.createInvalidArgumentException("Long range can never be created with both bounds null!");
 			}
 		} else if (targetType.equals(IntegerNumberRange.class)) {
 			final Integer from = EvitaDataTypes.toTargetType((Serializable) tuple.get(0), Integer.class);
@@ -372,7 +372,7 @@ public class Input {
 			} else if (to != null) {
 				return (T) IntegerNumberRange.to(to);
 			} else {
-				throw exceptionFactory.createInvalidArgumentException("Integer range can never be created with both bounds null!");
+				throw this.exceptionFactory.createInvalidArgumentException("Integer range can never be created with both bounds null!");
 			}
 		} else if (targetType.equals(ShortNumberRange.class)) {
 			final Short from = EvitaDataTypes.toTargetType((Serializable) tuple.get(0), Short.class);
@@ -384,7 +384,7 @@ public class Input {
 			} else if (to != null) {
 				return (T) ShortNumberRange.to(to);
 			} else {
-				throw exceptionFactory.createInvalidArgumentException("Short range can never be created with both bounds null!");
+				throw this.exceptionFactory.createInvalidArgumentException("Short range can never be created with both bounds null!");
 			}
 		} else if (targetType.equals(ByteNumberRange.class)) {
 			final Byte from = EvitaDataTypes.toTargetType((Serializable) tuple.get(0), Byte.class);
@@ -396,10 +396,10 @@ public class Input {
 			} else if (to != null) {
 				return (T) ByteNumberRange.to(to);
 			} else {
-				throw exceptionFactory.createInvalidArgumentException("Byte range can never be created with both bounds null!");
+				throw this.exceptionFactory.createInvalidArgumentException("Byte range can never be created with both bounds null!");
 			}
 		} else {
-			throw exceptionFactory.createInternalError("Unsupported range type `" + targetType + "`.");
+			throw this.exceptionFactory.createInternalError("Unsupported range type `" + targetType + "`.");
 		}
 	}
 
@@ -410,9 +410,9 @@ public class Input {
 			rawProperty instanceof Collection<?>,
 			() -> {
 				if (propertyName == null) {
-					return exceptionFactory.createInvalidArgumentException("Mutation `" + mutationName + "` is expected to be an array.");
+					return this.exceptionFactory.createInvalidArgumentException("Mutation `" + this.mutationName + "` is expected to be an array.");
 				} else {
-					return exceptionFactory.createInvalidArgumentException("Property `" + propertyName + "` of mutation `" + mutationName + "` is expected to be an array.");
+					return this.exceptionFactory.createInvalidArgumentException("Property `" + propertyName + "` of mutation `" + this.mutationName + "` is expected to be an array.");
 				}
 			}
 		);
@@ -424,8 +424,8 @@ public class Input {
 
 	private void assertMutationObjectNonNull() {
 		Assert.isTrue(
-			inputMutationObject != null,
-			() -> exceptionFactory.createInvalidArgumentException("Expected non-null mutation object.")
+			this.inputMutationObject != null,
+			() -> this.exceptionFactory.createInvalidArgumentException("Expected non-null mutation object.")
 		);
 	}
 
@@ -433,15 +433,15 @@ public class Input {
 		assertMutationObjectNonNull();
 		//noinspection DataFlowIssue
 		Assert.isPremiseValid(
-			inputMutationObject instanceof Map<?, ?>,
-			() -> exceptionFactory.createInternalError("Expected map for mutation but found `" + inputMutationObject.getClass().getName() + "`.")
+			this.inputMutationObject instanceof Map<?, ?>,
+			() -> this.exceptionFactory.createInternalError("Expected map for mutation but found `" + this.inputMutationObject.getClass().getName() + "`.")
 		);
 	}
 
 	private void assertRequiredPropertyNonNull(@Nonnull String name, @Nullable Object rawProperty) {
 		Assert.isTrue(
 			rawProperty != null,
-			() -> exceptionFactory.createInvalidArgumentException("Cannot find required mutation property `" + name + "`.")
+			() -> this.exceptionFactory.createInvalidArgumentException("Cannot find required mutation property `" + name + "`.")
 		);
 	}
 }

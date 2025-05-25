@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,33 +66,33 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 
 		kryo.register(
 			CatalogIndexStoragePart.class,
-			new SerialVersionBasedSerializer<>(new CatalogIndexStoragePartSerializer(keyCompressor), CatalogIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(-1216381352203651969L, new CatalogIndexStoragePartSerializer_2024_11(keyCompressor)),
+			new SerialVersionBasedSerializer<>(new CatalogIndexStoragePartSerializer(this.keyCompressor), CatalogIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(-1216381352203651969L, new CatalogIndexStoragePartSerializer_2024_11(this.keyCompressor)),
 			index++
 		);
 		kryo.register(
 			EntityIndexStoragePart.class,
-			new SerialVersionBasedSerializer<>(new EntityIndexStoragePartSerializer(keyCompressor), EntityIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(-6245538251957498672L, new EntityIndexStoragePartSerializer_2024_11(keyCompressor)),
+			new SerialVersionBasedSerializer<>(new EntityIndexStoragePartSerializer(this.keyCompressor), EntityIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(-6245538251957498672L, new EntityIndexStoragePartSerializer_2024_11(this.keyCompressor)),
 			index++
 		);
-		kryo.register(UniqueIndexStoragePart.class, new SerialVersionBasedSerializer<>(new UniqueIndexStoragePartSerializer(keyCompressor), UniqueIndexStoragePart.class), index++);
+		kryo.register(UniqueIndexStoragePart.class, new SerialVersionBasedSerializer<>(new UniqueIndexStoragePartSerializer(this.keyCompressor), UniqueIndexStoragePart.class), index++);
 		kryo.register(
 			FilterIndexStoragePart.class,
-			new SerialVersionBasedSerializer<>(new FilterIndexStoragePartSerializer(keyCompressor), FilterIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(6163295675316818632L, new FilterIndexStoragePartSerializer_2024_5(keyCompressor)),
+			new SerialVersionBasedSerializer<>(new FilterIndexStoragePartSerializer(this.keyCompressor), FilterIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(6163295675316818632L, new FilterIndexStoragePartSerializer_2024_5(this.keyCompressor)),
 			index++
 		);
-		kryo.register(SortIndexStoragePart.class, new SerialVersionBasedSerializer<>(new SortIndexStoragePartSerializer(keyCompressor), SortIndexStoragePart.class), index++);
-		kryo.register(ChainIndexStoragePart.class, new SerialVersionBasedSerializer<>(new ChainIndexStoragePartSerializer(keyCompressor), ChainIndexStoragePart.class), index++);
-		kryo.register(CardinalityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new CardinalityIndexStoragePartSerializer(keyCompressor), CardinalityIndexStoragePart.class), index++);
+		kryo.register(SortIndexStoragePart.class, new SerialVersionBasedSerializer<>(new SortIndexStoragePartSerializer(this.keyCompressor), SortIndexStoragePart.class), index++);
+		kryo.register(ChainIndexStoragePart.class, new SerialVersionBasedSerializer<>(new ChainIndexStoragePartSerializer(this.keyCompressor), ChainIndexStoragePart.class), index++);
+		kryo.register(CardinalityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new CardinalityIndexStoragePartSerializer(this.keyCompressor), CardinalityIndexStoragePart.class), index++);
 
 		kryo.register(EntityIndexType.class, new EnumNameSerializer<>(), index++);
 		kryo.register(AttributeIndexType.class, new EnumNameSerializer<>(), index++);
 		kryo.register(
 			GlobalUniqueIndexStoragePart.class,
-			new SerialVersionBasedSerializer<>(new GlobalUniqueIndexStoragePartSerializer(keyCompressor), GlobalUniqueIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(-8158322083280466471L, new GlobalUniqueIndexStoragePartSerializer_2024_11(keyCompressor)),
+			new SerialVersionBasedSerializer<>(new GlobalUniqueIndexStoragePartSerializer(this.keyCompressor), GlobalUniqueIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(-8158322083280466471L, new GlobalUniqueIndexStoragePartSerializer_2024_11(this.keyCompressor)),
 			index++
 		);
 		kryo.register(TransactionalBitmap.class, new SerialVersionBasedSerializer<>(new TransactionalIntegerBitmapSerializer(), TransactionalBitmap.class), index++);
@@ -105,12 +105,12 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 
 		kryo.register(CardinalityIndex.class, new SerialVersionBasedSerializer<>(new CardinalityIndexSerializer(), CardinalityIndex.class), index++);
 
-		kryo.register(PriceListAndCurrencySuperIndexStoragePart.class, new SerialVersionBasedSerializer<>(new PriceListAndCurrencySuperIndexStoragePartSerializer(keyCompressor), PriceListAndCurrencySuperIndexStoragePart.class), index++);
-		kryo.register(PriceListAndCurrencyRefIndexStoragePart.class, new SerialVersionBasedSerializer<>(new PriceListAndCurrencyRefIndexStoragePartSerializer(keyCompressor), PriceListAndCurrencyRefIndexStoragePart.class), index++);
+		kryo.register(PriceListAndCurrencySuperIndexStoragePart.class, new SerialVersionBasedSerializer<>(new PriceListAndCurrencySuperIndexStoragePartSerializer(this.keyCompressor), PriceListAndCurrencySuperIndexStoragePart.class), index++);
+		kryo.register(PriceListAndCurrencyRefIndexStoragePart.class, new SerialVersionBasedSerializer<>(new PriceListAndCurrencyRefIndexStoragePartSerializer(this.keyCompressor), PriceListAndCurrencyRefIndexStoragePart.class), index++);
 		kryo.register(
 			PriceWithInternalIds.class,
-			new SerialVersionBasedSerializer<>(new PriceWithInternalIdsSerializer(keyCompressor), PriceWithInternalIds.class)
-				.addBackwardCompatibleSerializer(5008194525461751557L, new PriceWithInternalIdsSerializer_2024_11(keyCompressor)),
+			new SerialVersionBasedSerializer<>(new PriceWithInternalIdsSerializer(this.keyCompressor), PriceWithInternalIds.class)
+				.addBackwardCompatibleSerializer(5008194525461751557L, new PriceWithInternalIdsSerializer_2024_11(this.keyCompressor)),
 			index++
 		);
 

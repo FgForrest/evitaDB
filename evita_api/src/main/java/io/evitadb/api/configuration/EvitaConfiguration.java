@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -128,7 +128,7 @@ public record EvitaConfiguration(
 	 */
 	@Nonnull
 	public String plainName() {
-		return name.startsWith(DEFAULT_SERVER_NAME + "-") ? DEFAULT_SERVER_NAME : name;
+		return this.name.startsWith(DEFAULT_SERVER_NAME + "-") ? DEFAULT_SERVER_NAME : this.name;
 	}
 
 	/**
@@ -184,7 +184,7 @@ public record EvitaConfiguration(
 
 		public EvitaConfiguration build() {
 			return new EvitaConfiguration(
-				name, server, storage, transaction, cache
+				this.name, this.server, this.storage, this.transaction, this.cache
 			);
 		}
 

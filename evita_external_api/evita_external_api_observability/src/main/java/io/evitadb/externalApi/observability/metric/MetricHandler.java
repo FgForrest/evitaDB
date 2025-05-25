@@ -368,7 +368,7 @@ public class MetricHandler {
 	 * Registers JVM metrics based on the configuration.
 	 */
 	private void registerJvmMetrics() {
-		final List<String> allowedEventsFromConfig = observabilityConfig.getAllowedEvents();
+		final List<String> allowedEventsFromConfig = this.observabilityConfig.getAllowedEvents();
 
 		if (allowedEventsFromConfig != null && allowedEventsFromConfig.stream().noneMatch(DEFAULT_JVM_METRICS_NAME::equals)) {
 			allowedEventsFromConfig
@@ -389,7 +389,7 @@ public class MetricHandler {
 	 */
 	@Nonnull
 	private Set<Class<? extends CustomMetricsExecutionEvent>> getAllowedEventSet() {
-		final List<String> allowedEventsFromConfig = observabilityConfig.getAllowedEvents();
+		final List<String> allowedEventsFromConfig = this.observabilityConfig.getAllowedEvents();
 		final Set<Class<? extends CustomMetricsExecutionEvent>> knownEvents = EvitaJfrEventRegistry.getEventClasses();
 
 		final Set<String> configuredEvents = new HashSet<>(16);

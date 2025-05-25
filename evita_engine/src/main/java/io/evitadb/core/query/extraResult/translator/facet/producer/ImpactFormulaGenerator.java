@@ -233,9 +233,9 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		@Override
 		public String toString() {
 			return "CacheKey{" +
-				"referenceName='" + referenceName + '\'' +
-				", relationType=" + relationType +
-				", facetGroupId=" + facetGroupId +
+				"referenceName='" + this.referenceName + '\'' +
+				", relationType=" + this.relationType +
+				", facetGroupId=" + this.facetGroupId +
 				'}';
 		}
 

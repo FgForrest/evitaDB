@@ -215,19 +215,19 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public int version() {
-		return baseEntity.version() + 1;
+		return this.baseEntity.version() + 1;
 	}
 
 	@Override
 	@Nonnull
 	public String getType() {
-		return baseEntity.getType();
+		return this.baseEntity.getType();
 	}
 
 	@Override
 	@Nonnull
 	public EntitySchemaContract getSchema() {
-		return baseEntity.getSchema();
+		return this.baseEntity.getSchema();
 	}
 
 	@Nonnull
@@ -248,12 +248,12 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Override
 	@Nullable
 	public Integer getPrimaryKey() {
-		return baseEntity.getPrimaryKey();
+		return this.baseEntity.getPrimaryKey();
 	}
 
 	@Override
 	public boolean parentAvailable() {
-		return baseEntity.parentAvailable();
+		return this.baseEntity.parentAvailable();
 	}
 
 	@Nonnull
@@ -306,11 +306,11 @@ public class ExistingEntityBuilder implements EntityBuilder {
 				this.referenceMutations
 					.entrySet()
 					.stream()
-					.filter(it -> baseEntity.getReference(it.getKey().referenceName(), it.getKey().primaryKey()).isEmpty())
+					.filter(it -> this.baseEntity.getReference(it.getKey().referenceName(), it.getKey().primaryKey()).isEmpty())
 					.map(Entry::getValue)
 					.map(it -> evaluateReferenceMutations(null, it))
 			)
-			.filter(referencePredicate)
+			.filter(this.referencePredicate)
 			.collect(Collectors.toList());
 	}
 
@@ -808,7 +808,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 		final Optional<ReferenceContract> theReference = this.baseEntity.getReferenceWithoutSchemaCheck(referenceKey)
 			.filter(Droppable::exists)
-			.filter(referencePredicate);
+			.filter(this.referencePredicate);
 		if (theReference.isPresent()) {
 			// if the reference was part of the previous entity version we build upon, remove it as-well
 			this.referenceMutations.put(
@@ -986,7 +986,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 					theReference,
 					entityValid ? originalReferencedEntity.get() : null,
 					entityGroupValid ? originalReferencedEntityGroup.get() : null,
-					referencePredicate.getAttributePredicate(theReference.getReferenceName())
+					this.referencePredicate.getAttributePredicate(theReference.getReferenceName())
 				);
 			}
 		}

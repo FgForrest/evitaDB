@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PlainPriceTerminationFormula(
-			innerFormulas[0], priceEvaluationContext
+			innerFormulas[0], this.priceEvaluationContext
 		);
 	}
 
@@ -116,7 +116,7 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return priceEvaluationContext.computeHash(hashFunction);
+		return this.priceEvaluationContext.computeHash(hashFunction);
 	}
 
 	@Override

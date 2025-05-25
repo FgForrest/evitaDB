@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ public class UpdateCatalogHandler extends CatalogHandler {
 
 				final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
 				final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-					restHandlingContext.getEvita().getCatalogInstance(catalogName));
+					this.restHandlingContext.getEvita().getCatalogInstance(catalogName));
 				if (catalog.isEmpty()) {
 					requestExecutedEvent.finishOperationExecution();
 					requestExecutedEvent.finishResultSerialization();
@@ -83,7 +83,7 @@ public class UpdateCatalogHandler extends CatalogHandler {
 					switchCatalogToAliveState(catalog.get(), requestBody);
 
 					final String nameOfUpdateCatalog = newCatalogName.orElse(catalogName);
-					return restHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
+					return this.restHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
 						.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
 				});
 				requestExecutedEvent.finishOperationExecution();
@@ -110,7 +110,7 @@ public class UpdateCatalogHandler extends CatalogHandler {
 	@Nonnull
 	private Optional<String> renameCatalog(@Nonnull CatalogContract catalog,
 	                                       @Nonnull UpdateCatalogRequestDto requestBody) {
-		final Evita evita = restHandlingContext.getEvita();
+		final Evita evita = this.restHandlingContext.getEvita();
 
 		final Optional<String> newCatalogName = Optional.ofNullable(requestBody.name());
 		if (newCatalogName.isEmpty()) {

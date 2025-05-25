@@ -100,23 +100,23 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	@Nullable
 	@Override
 	public Long getStoragePartPK() {
-		return (long) entityPrimaryKey;
+		return (long) this.entityPrimaryKey;
 	}
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		return entityPrimaryKey;
+		return this.entityPrimaryKey;
 	}
 
 	@Override
 	public boolean isEmpty() {
-		return references.length == 0 || Arrays.stream(references).noneMatch(Droppable::exists);
+		return this.references.length == 0 || Arrays.stream(this.references).noneMatch(Droppable::exists);
 	}
 
 	@Nonnull
 	@Override
 	public OptionalInt sizeInBytes() {
-		return sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(sizeInBytes);
+		return this.sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(this.sizeInBytes);
 	}
 
 	/**
@@ -204,9 +204,9 @@ public class ReferencesStoragePart implements EntityStoragePart {
 			this.references, referenceKey,
 			(referenceContract, theReferenceKey) -> referenceContract.getReferenceKey().compareTo(theReferenceKey)
 		);
-		Assert.isPremiseValid(index >= 0, () -> "Reference " + referenceKey + " for entity `" + entityPrimaryKey + "` was not found!");
+		Assert.isPremiseValid(index >= 0, () -> "Reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "` was not found!");
 		final ReferenceContract reference = this.references[index];
-		Assert.isPremiseValid(reference.exists(), () -> "Reference " + referenceKey + " for entity `" + entityPrimaryKey + "` was not found!");
+		Assert.isPremiseValid(reference.exists(), () -> "Reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "` was not found!");
 		return reference;
 	}
 

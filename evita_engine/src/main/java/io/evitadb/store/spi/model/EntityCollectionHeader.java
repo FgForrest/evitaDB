@@ -141,12 +141,12 @@ public record EntityCollectionHeader(
 	@Nonnull
 	@Override
 	public Long getStoragePartPK() {
-		return (long) entityTypePrimaryKey;
+		return (long) this.entityTypePrimaryKey;
 	}
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		return entityTypePrimaryKey;
+		return this.entityTypePrimaryKey;
 	}
 
 }

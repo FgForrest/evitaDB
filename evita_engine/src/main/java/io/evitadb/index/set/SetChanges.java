@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -110,15 +110,15 @@ public class SetChanges<K> implements Serializable {
 	 * Computes the size of the set taking changes in this diff layer into an account.
 	 */
 	public int size() {
-		return this.setDelegate.size() - removedKeys.size() + createdKeys.size();
+		return this.setDelegate.size() - this.removedKeys.size() + this.createdKeys.size();
 	}
 
 	/**
 	 * Resolves whether the original set with applied changes from this diff layer would produce empty set.
 	 */
 	public boolean isEmpty() {
-		if (removedKeys.isEmpty() && createdKeys.isEmpty()) {
-			return setDelegate.isEmpty();
+		if (this.removedKeys.isEmpty() && this.createdKeys.isEmpty()) {
+			return this.setDelegate.isEmpty();
 		} else {
 			return size() == 0;
 		}
@@ -150,7 +150,7 @@ public class SetChanges<K> implements Serializable {
 		//noinspection unchecked
 		final T[] resultArray = (T[]) Array.newInstance(a.getClass().getComponentType(), size());
 		// iterate original map and copy all values from it
-		for (K key : setDelegate) {
+		for (K key : this.setDelegate) {
 			// except those that were removed
 			if (!containsRemoved(key)) {
 				//noinspection unchecked
@@ -174,9 +174,9 @@ public class SetChanges<K> implements Serializable {
 	@SuppressWarnings("unchecked")
 	public Set<K> createMergedSet(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// create new hash set of requested size
-		final HashSet<K> copy = new HashSet<>(setDelegate.size());
+		final HashSet<K> copy = new HashSet<>(this.setDelegate.size());
 		// iterate original map and copy all values from it
-		for (K key : setDelegate) {
+		for (K key : this.setDelegate) {
 			// we need to always create copy - something in the referenced object might have changed
 			// even the removed values need to be evaluated (in order to discard them from transactional memory set)
 			if (key instanceof TransactionalLayerProducer) {
@@ -213,7 +213,7 @@ public class SetChanges<K> implements Serializable {
 	 */
 	void clearAll() {
 		this.createdKeys.clear();
-		this.removedKeys.addAll(setDelegate);
+		this.removedKeys.addAll(this.setDelegate);
 	}
 
 	/**
@@ -221,7 +221,7 @@ public class SetChanges<K> implements Serializable {
 	 * diff.
 	 */
 	boolean containsCreated(K key) {
-		return createdKeys.contains(key);
+		return this.createdKeys.contains(key);
 	}
 
 	/**
@@ -236,7 +236,7 @@ public class SetChanges<K> implements Serializable {
 	 */
 	@Nonnull
 	Set<K> getCreatedKeys() {
-		return createdKeys;
+		return this.createdKeys;
 	}
 
 
@@ -244,7 +244,7 @@ public class SetChanges<K> implements Serializable {
 	 * Returns true if particular key is recorded to be removed.
 	 */
 	boolean containsRemoved(K key) {
-		return removedKeys.contains(key);
+		return this.removedKeys.contains(key);
 	}
 
 	/**

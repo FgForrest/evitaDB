@@ -112,7 +112,7 @@ public abstract class MutationPredicate implements Predicate<Mutation> {
 
 		@Override
 		public boolean test(Mutation mutation) {
-			return former.test(mutation) && other.test(mutation);
+			return this.former.test(mutation) && this.other.test(mutation);
 		}
 	}
 

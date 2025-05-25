@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,11 +68,11 @@ public class PriceIdsWithPriceRecordsRecordState {
 	@Setup(Level.Trial)
 	public void setUp() {
 		final CompositeObjectArray<PriceRecordContract> priceRecordsA = new CompositeObjectArray<>(PriceRecordContract.class);
-		priceIds = generateBitmap(PRICE_COUNT, priceRecordsA);
-		entitiesPriceRecords = priceRecordsA.toArray();
-		Arrays.sort(entitiesPriceRecords, Comparator.comparingLong(PriceRecordContract::internalPriceId));
-		priceIndex = new MockPriceListAndCurrencyPriceSuperIndex(entitiesPriceRecords);
-		priceIdsFormula = new PriceIdContainerFormula(priceIndex, new ConstantFormula(priceIds));
+		this.priceIds = generateBitmap(PRICE_COUNT, priceRecordsA);
+		this.entitiesPriceRecords = priceRecordsA.toArray();
+		Arrays.sort(this.entitiesPriceRecords, Comparator.comparingLong(PriceRecordContract::internalPriceId));
+		this.priceIndex = new MockPriceListAndCurrencyPriceSuperIndex(this.entitiesPriceRecords);
+		this.priceIdsFormula = new PriceIdContainerFormula(this.priceIndex, new ConstantFormula(this.priceIds));
 	}
 
 	private Bitmap generateBitmap(int priceCount, CompositeObjectArray<PriceRecordContract> priceRecords) {

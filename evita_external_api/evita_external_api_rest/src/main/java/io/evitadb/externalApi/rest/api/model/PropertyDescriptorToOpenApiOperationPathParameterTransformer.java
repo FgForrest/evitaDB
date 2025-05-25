@@ -63,7 +63,7 @@ public class PropertyDescriptorToOpenApiOperationPathParameterTransformer implem
 		);
 
 		if (propertyDescriptor.type() != null) {
-			final OpenApiSimpleType openApiType = propertyDataTypeDescriptorTransformer.apply(propertyDescriptor.type());
+			final OpenApiSimpleType openApiType = this.propertyDataTypeDescriptorTransformer.apply(propertyDescriptor.type());
 			parameterBuilder.type(openApiType);
 		}
 

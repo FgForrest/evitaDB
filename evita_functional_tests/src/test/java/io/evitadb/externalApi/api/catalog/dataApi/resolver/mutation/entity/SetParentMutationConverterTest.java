@@ -49,21 +49,21 @@ class SetParentMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter =  new SetParentMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new SetParentMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final SetParentMutation expectedMutation = new SetParentMutation(1);
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), 1)
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
 				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), "1")
 				.build()
@@ -73,7 +73,7 @@ class SetParentMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), 10)
 				.build()
@@ -86,8 +86,8 @@ class SetParentMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -98,7 +98,7 @@ class SetParentMutationConverterTest {
 			map()
 				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), 1)
 				.build(),
-			converter.convertToOutput(inputMutation)
+			this.converter.convertToOutput(inputMutation)
 		);
 	}
 }

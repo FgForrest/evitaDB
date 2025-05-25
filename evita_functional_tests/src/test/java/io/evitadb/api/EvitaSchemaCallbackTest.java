@@ -60,11 +60,11 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST);
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST_EXPORT);
-		evita = new Evita(
+		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
-		evita.defineCatalog(TEST_CATALOG);
-		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.BODY)).subscribe(subscriber);
+		this.evita.defineCatalog(TEST_CATALOG);
+		this.evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.BODY)).subscribe(this.subscriber);
 		// todo lho implement
 //		evita.updateCatalog(
 //			TEST_CATALOG, session -> {
@@ -75,57 +75,57 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 
 	@AfterEach
 	void tearDown() {
-		evita.close();
+		this.evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST);
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST_EXPORT);
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogCreation() {
-		evita.defineCatalog("newCatalog");
+		this.evita.defineCatalog("newCatalog");
 
-		assertEquals(1, subscriber.getCatalogUpserted("newCatalog"));
+		assertEquals(1, this.subscriber.getCatalogUpserted("newCatalog"));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogDelete() {
-		evita.deleteCatalogIfExists(TEST_CATALOG);
+		this.evita.deleteCatalogIfExists(TEST_CATALOG);
 
-		assertEquals(1, subscriber.getCatalogDeleted(TEST_CATALOG));
+		assertEquals(1, this.subscriber.getCatalogDeleted(TEST_CATALOG));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogSchemaUpdate() {
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getCatalogSchema()
 				.openForWrite()
 				.withAttribute("newAttribute", int.class)
 				.updateVia(session);
 		});
 
-		assertEquals(1, subscriber.getCatalogSchemaUpdated(TEST_CATALOG));
+		assertEquals(1, this.subscriber.getCatalogSchemaUpdated(TEST_CATALOG));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogSchemaDescriptionChange() {
-		evita.update(
+		this.evita.update(
 			new ModifyCatalogSchemaMutation(
 				TEST_CATALOG,
 				new ModifyCatalogSchemaDescriptionMutation("Brand new description.")
 			)
 		);
 
-		assertEquals(1, subscriber.getCatalogSchemaUpdated(TEST_CATALOG));
+		assertEquals(1, this.subscriber.getCatalogSchemaUpdated(TEST_CATALOG));
 
 		assertEquals(
 			"Brand new description.",
-			evita.getCatalogInstanceOrThrowException(TEST_CATALOG).getSchema().getDescription()
+			this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG).getSchema().getDescription()
 		);
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutEntitySchemaDescriptionChange() {
-		evita.update(
+		this.evita.update(
 			new ModifyCatalogSchemaMutation(
 				TEST_CATALOG,
 				new CreateEntitySchemaMutation(Entities.PRODUCT),
@@ -138,107 +138,107 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 
 		assertEquals(
 			"Brand new description.",
-			evita.getCatalogInstanceOrThrowException(TEST_CATALOG).getEntitySchema(Entities.PRODUCT).orElseThrow().getDescription()
+			this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG).getEntitySchema(Entities.PRODUCT).orElseThrow().getDescription()
 		);
 
-		assertEquals(1, subscriber.getEntityCollectionCreated(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, this.subscriber.getEntityCollectionCreated(TEST_CATALOG, Entities.PRODUCT));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogSchemaUpdateInTransactionalMode() {
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.goLiveAndClose();
 		});
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getCatalogSchema()
 				.openForWrite()
 				.withAttribute("newAttribute", int.class)
 				.updateVia(session);
 		});
 
-		assertEquals(1, subscriber.getCatalogSchemaUpdated(TEST_CATALOG));
+		assertEquals(1, this.subscriber.getCatalogSchemaUpdated(TEST_CATALOG));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogEntityCollectionCreate() {
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema("newEntity");
 		});
 
-		assertEquals(1, subscriber.getEntityCollectionCreated(TEST_CATALOG, "newEntity"));
+		assertEquals(1, this.subscriber.getEntityCollectionCreated(TEST_CATALOG, "newEntity"));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogEntityCollectionCreateInTransactionalMode() {
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.goLiveAndClose();
 		});
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema("newEntity");
 		});
 
-		assertEquals(1, subscriber.getEntityCollectionCreated(TEST_CATALOG, "newEntity"));
+		assertEquals(1, this.subscriber.getEntityCollectionCreated(TEST_CATALOG, "newEntity"));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogEntityCollectionDelete() {
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.PRODUCT);
 		});
 
-		subscriber.reset();
+		this.subscriber.reset();
 
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.deleteCollection(Entities.PRODUCT);
 		});
 
-		assertEquals(1, subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, this.subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogEntityCollectionDeleteInTransactionalMode() {
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.PRODUCT);
 			session.goLiveAndClose();
 		});
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.deleteCollection(Entities.PRODUCT);
 		});
 
-		assertEquals(1, subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, this.subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogEntityCollectionSchemaUpdate() {
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.PRODUCT);
 		});
 
-		subscriber.reset();
+		this.subscriber.reset();
 
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.PRODUCT)
 				.withAttribute("code", String.class)
 				.updateVia(session);
 		});
 
-		assertEquals(1, subscriber.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, this.subscriber.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.PRODUCT));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogEntityCollectionSchemaUpdateInTransactionalMode() {
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.PRODUCT);
 			session.goLiveAndClose();
 		});
 
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.PRODUCT)
 				.withAttribute("code", String.class)
 				.updateVia(session);
 		});
 
-		assertEquals(1, subscriber.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, this.subscriber.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.PRODUCT));
 	}
 
 	@Nonnull

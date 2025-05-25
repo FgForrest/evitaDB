@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -120,8 +120,8 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	public MapChanges<K, V> createLayer() {
 		//noinspection unchecked,rawtypes
 		return this.valueType == null ?
-			new MapChanges<>(mapDelegate) :
-			new MapChanges<K, V>(mapDelegate, (Class)valueType, transactionalLayerWrapper);
+			new MapChanges<>(this.mapDelegate) :
+			new MapChanges<K, V>(this.mapDelegate, (Class) this.valueType, this.transactionalLayerWrapper);
 	}
 
 	@Nonnull
@@ -130,10 +130,10 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		// iterate over inserted or updated keys
 		if (layer != null) {
 			return layer.createMergedMap(transactionalLayer);
-		} else if (valueType == null || TransactionalLayerProducer.class.isAssignableFrom(valueType)) {
+		} else if (this.valueType == null || TransactionalLayerProducer.class.isAssignableFrom(this.valueType)) {
 			// iterate original map and copy all values from it
 			List<Tuple<K, V>> modifiedEntries = null;
-			for (Entry<K, V> entry : mapDelegate.entrySet()) {
+			for (Entry<K, V> entry : this.mapDelegate.entrySet()) {
 				K key = entry.getKey();
 				// we need to always create copy - something in the referenced object might have changed
 				// even the removed values need to be evaluated (in order to discard them from transactional memory set)
@@ -142,7 +142,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 				}
 				V value = entry.getValue();
 				if (value instanceof TransactionalLayerProducer<?,?> transactionalLayerProducer) {
-					value = transactionalLayerWrapper.apply(
+					value = this.transactionalLayerWrapper.apply(
 						transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
 					);
 				}
@@ -155,14 +155,14 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 				}
 			}
 			if (modifiedEntries == null) {
-				return mapDelegate;
+				return this.mapDelegate;
 			} else {
-				final Map<K, V> copy = new HashMap<>(mapDelegate);
+				final Map<K, V> copy = new HashMap<>(this.mapDelegate);
 				modifiedEntries.forEach(it -> copy.put(it.key(), it.value()));
 				return copy;
 			}
 		} else {
-			return mapDelegate;
+			return this.mapDelegate;
 		}
 	}
 
@@ -170,7 +170,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final MapChanges<K, V> changes = transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		ofNullable(changes).ifPresent(it -> it.cleanAll(transactionalLayer));
-		for (Entry<K, V> entry : mapDelegate.entrySet()) {
+		for (Entry<K, V> entry : this.mapDelegate.entrySet()) {
 			V value = entry.getValue();
 			if (value instanceof TransactionalLayerProducer<?,?> transactionalLayerProducer) {
 				transactionalLayerProducer.removeLayer(transactionalLayer);
@@ -403,42 +403,42 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 
 		@Override
 		public boolean hasNext() {
-			if (fetched) {
-				currentValue = computeNext();
-				fetched = false;
+			if (this.fetched) {
+				this.currentValue = computeNext();
+				this.fetched = false;
 			}
-			return !endOfData;
+			return !this.endOfData;
 		}
 
 		@Override
 		public Entry<K, V> next() {
-			if (endOfData) {
+			if (this.endOfData) {
 				throw new NoSuchElementException();
 			}
-			if (fetched) {
-				currentValue = computeNext();
+			if (this.fetched) {
+				this.currentValue = computeNext();
 			}
-			fetched = true;
-			return currentValue;
+			this.fetched = true;
+			return this.currentValue;
 		}
 
 		@Override
 		public void remove() {
-			if (currentValue == null) {
+			if (this.currentValue == null) {
 				throw new GenericEvitaInternalError("Value unexpectedly not found!");
 			}
 
-			final K key = currentValue.getKey();
-			final boolean existing = layer.getMapDelegate().containsKey(key);
-			boolean removedFromTransactionalMemory = !(currentValue instanceof TransactionalMemoryEntryWrapper);
+			final K key = this.currentValue.getKey();
+			final boolean existing = this.layer.getMapDelegate().containsKey(key);
+			boolean removedFromTransactionalMemory = !(this.currentValue instanceof TransactionalMemoryEntryWrapper);
 			if (removedFromTransactionalMemory) {
-				layerIt.remove();
+				this.layerIt.remove();
 				if (!existing) {
-					layer.decreaseCreatedKeyCount();
+					this.layer.decreaseCreatedKeyCount();
 				}
 			}
 			if (existing) {
-				layer.registerRemovedKey(key);
+				this.layer.registerRemovedKey(key);
 			}
 		}
 
@@ -448,21 +448,21 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		}
 
 		Entry<K, V> computeNext() {
-			if (endOfData) {
+			if (this.endOfData) {
 				return null;
 			}
-			if (layerIt.hasNext()) {
-				return layerIt.next();
-			} else if (stateIt.hasNext()) {
+			if (this.layerIt.hasNext()) {
+				return this.layerIt.next();
+			} else if (this.stateIt.hasNext()) {
 				Entry<K, V> adept;
 				do {
-					if (stateIt.hasNext()) {
-						adept = stateIt.next();
+					if (this.stateIt.hasNext()) {
+						adept = this.stateIt.next();
 					} else {
 						return endOfData();
 					}
-				} while (layer.containsRemoved(adept.getKey()) || layer.containsCreatedOrModified(adept.getKey()));
-				return new TransactionalMemoryEntryWrapper<>(layer, adept);
+				} while (this.layer.containsRemoved(adept.getKey()) || this.layer.containsCreatedOrModified(adept.getKey()));
+				return new TransactionalMemoryEntryWrapper<>(this.layer, adept);
 			} else {
 				return endOfData();
 			}
@@ -477,38 +477,38 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 
 		@Override
 		public K getKey() {
-			return delegate.getKey();
+			return this.delegate.getKey();
 		}
 
 		@Override
 		public V getValue() {
-			return delegate.getValue();
+			return this.delegate.getValue();
 		}
 
 		@Override
 		public V setValue(V value) {
-			return layer.registerModifiedKey(delegate.getKey(), value);
+			return this.layer.registerModifiedKey(this.delegate.getKey(), value);
 		}
 
 		@Override
 		public int hashCode() {
-			final V overwrittenValue = layer.getCreatedOrModifiedValue(delegate.getKey());
-			return overwrittenValue != null ? overwrittenValue.hashCode() : delegate.hashCode();
+			final V overwrittenValue = this.layer.getCreatedOrModifiedValue(this.delegate.getKey());
+			return overwrittenValue != null ? overwrittenValue.hashCode() : this.delegate.hashCode();
 		}
 
 		@Override
 		public boolean equals(Object obj) {
-			if (!delegate.getClass().isInstance(obj)) {
+			if (!this.delegate.getClass().isInstance(obj)) {
 				return false;
 			}
-			final V overwrittenValue = layer.getCreatedOrModifiedValue(delegate.getKey());
-			return overwrittenValue != null ? overwrittenValue.equals(obj) : delegate.equals(obj);
+			final V overwrittenValue = this.layer.getCreatedOrModifiedValue(this.delegate.getKey());
+			return overwrittenValue != null ? overwrittenValue.equals(obj) : this.delegate.equals(obj);
 		}
 
 		@Override
 		public String toString() {
-			final V overwrittenValue = layer.getCreatedOrModifiedValue(delegate.getKey());
-			return overwrittenValue != null ? overwrittenValue.toString() : delegate.toString();
+			final V overwrittenValue = this.layer.getCreatedOrModifiedValue(this.delegate.getKey());
+			return overwrittenValue != null ? overwrittenValue.toString() : this.delegate.toString();
 		}
 	}
 
@@ -524,43 +524,43 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		@Override
 		public Iterator<K> iterator() {
 			return new Iterator<>() {
-				private final Iterator<Entry<K, V>> i = new TransactionalMemoryEntrySet<>(layer).iterator();
+				private final Iterator<Entry<K, V>> i = new TransactionalMemoryEntrySet<>(TransactionalMemoryKeySet.this.layer).iterator();
 
 				@Override
 				public boolean hasNext() {
-					return i.hasNext();
+					return this.i.hasNext();
 				}
 
 				@Override
 				public K next() {
-					return i.next().getKey();
+					return this.i.next().getKey();
 				}
 
 				@Override
 				public void remove() {
-					i.remove();
+					this.i.remove();
 				}
 			};
 		}
 
 		@Override
 		public int size() {
-			return layer.size();
+			return this.layer.size();
 		}
 
 		@Override
 		public boolean isEmpty() {
-			return layer.isEmpty();
+			return this.layer.isEmpty();
 		}
 
 		@Override
 		public boolean contains(Object k) {
-			return layer.containsKey(k);
+			return this.layer.containsKey(k);
 		}
 
 		@Override
 		public void clear() {
-			layer.cleanAll(maintainer);
+			this.layer.cleanAll(this.maintainer);
 		}
 	}
 
@@ -576,43 +576,43 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		@Override
 		public Iterator<V> iterator() {
 			return new Iterator<>() {
-				private final Iterator<Entry<K, V>> i = new TransactionalMemoryEntrySet<>(layer).iterator();
+				private final Iterator<Entry<K, V>> i = new TransactionalMemoryEntrySet<>(TransactionalMemoryValues.this.layer).iterator();
 
 				@Override
 				public boolean hasNext() {
-					return i.hasNext();
+					return this.i.hasNext();
 				}
 
 				@Override
 				public V next() {
-					return i.next().getValue();
+					return this.i.next().getValue();
 				}
 
 				@Override
 				public void remove() {
-					i.remove();
+					this.i.remove();
 				}
 			};
 		}
 
 		@Override
 		public int size() {
-			return layer.size();
+			return this.layer.size();
 		}
 
 		@Override
 		public boolean isEmpty() {
-			return layer.isEmpty();
+			return this.layer.isEmpty();
 		}
 
 		@Override
 		public boolean contains(Object v) {
-			return layer.containsValue(v);
+			return this.layer.containsValue(v);
 		}
 
 		@Override
 		public void clear() {
-			layer.cleanAll(maintainer);
+			this.layer.cleanAll(this.maintainer);
 		}
 
 	}
@@ -630,12 +630,12 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		@Nonnull
 		@Override
 		public Iterator<Entry<K, V>> iterator() {
-			return new TransactionalMemoryEntryAbstractIterator<>(layer);
+			return new TransactionalMemoryEntryAbstractIterator<>(this.layer);
 		}
 
 		@Override
 		public int size() {
-			return layer.size();
+			return this.layer.size();
 		}
 
 		@Override
@@ -645,12 +645,12 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 			if (!super.equals(o)) return false;
 			@SuppressWarnings("unchecked")
 			TransactionalMemoryEntrySet<K, V> that = (TransactionalMemoryEntrySet<K, V>) o;
-			return layer.equals(that.layer);
+			return this.layer.equals(that.layer);
 		}
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(super.hashCode(), layer);
+			return Objects.hash(super.hashCode(), this.layer);
 		}
 	}
 

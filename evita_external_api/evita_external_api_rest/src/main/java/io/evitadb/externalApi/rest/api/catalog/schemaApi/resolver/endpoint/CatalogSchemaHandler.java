@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ public abstract class CatalogSchemaHandler extends JsonRestHandler<CatalogRestHa
 
 	protected CatalogSchemaHandler(@Nonnull CatalogRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-		catalogSchemaJsonSerializer = new CatalogSchemaJsonSerializer(restApiHandlingContext);
+		this.catalogSchemaJsonSerializer = new CatalogSchemaJsonSerializer(restApiHandlingContext);
 	}
 
 	@Nonnull
@@ -64,7 +64,7 @@ public abstract class CatalogSchemaHandler extends JsonRestHandler<CatalogRestHa
 			catalogSchema instanceof CatalogSchemaContract,
 			() -> new RestInternalError("Expected CatalogSchemaContract, but got `" + catalogSchema.getClass().getName() + "`.")
 		);
-		return catalogSchemaJsonSerializer.serialize(
+		return this.catalogSchemaJsonSerializer.serialize(
 			(CatalogSchemaContract) catalogSchema,
 			exchange.session()::getEntitySchemaOrThrow,
 			exchange.session().getAllEntityTypes()

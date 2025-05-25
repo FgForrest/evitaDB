@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -172,7 +172,7 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	@Nonnull
 	@Override
 	public EntityFetch getEntityRequire() {
-		return entityFetch;
+		return this.entityFetch;
 	}
 
 	@Nullable
@@ -184,8 +184,8 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	@Nonnull
 	@Override
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
-		Assert.isPremiseValid(filteredOutRecords != null, "Filter was not yet called on selling price bitmap filter, this is not expected!");
-		return filteredOutRecords;
+		Assert.isPremiseValid(this.filteredOutRecords != null, "Filter was not yet called on selling price bitmap filter, this is not expected!");
+		return this.filteredOutRecords;
 	}
 
 	@Nonnull
@@ -227,17 +227,17 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 					final int primaryKey = context.translateEntity(entity);
 					if (entity.isPriceForSaleContextAvailable()) {
 						// check whether they have valid selling price (applying filter on price lists and currency)
-						entity.getPriceForSale(filter)
+						entity.getPriceForSale(this.filter)
 							// and if there is still selling price add it to the output result
 							.ifPresentOrElse(
 								it -> {
-									theFilteredPriceRecords.add(converter.apply(primaryKey, indexedPricePlaces.get(), queryPriceMode, it));
+									theFilteredPriceRecords.add(this.converter.apply(primaryKey, indexedPricePlaces.get(), queryPriceMode, it));
 									result.add(primaryKey);
 								},
 								() -> filterOutResult.add(primaryKey)
 							);
 					} else {
-						if (entity.getPrices().stream().filter(PriceContract::indexed).anyMatch(filter)) {
+						if (entity.getPrices().stream().filter(PriceContract::indexed).anyMatch(this.filter)) {
 							result.add(primaryKey);
 						} else {
 							filterOutResult.add(primaryKey);

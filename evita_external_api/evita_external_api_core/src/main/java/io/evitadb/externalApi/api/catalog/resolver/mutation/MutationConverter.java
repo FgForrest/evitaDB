@@ -94,15 +94,15 @@ public abstract class MutationConverter<M extends Mutation> {
 	 */
 	@Nonnull
 	public M convertFromInput(@Nullable Object rawInputMutationObject) {
-		final Object inputMutationObject = objectParser.parse(rawInputMutationObject);
-		return convertFromInput(new Input(getMutationName(), inputMutationObject, exceptionFactory));
+		final Object inputMutationObject = this.objectParser.parse(rawInputMutationObject);
+		return convertFromInput(new Input(getMutationName(), inputMutationObject, this.exceptionFactory));
 	}
 
 	@Nullable
 	public Object convertToOutput(@Nonnull M mutation) {
-		final Output output = new Output(getMutationName(), exceptionFactory);
+		final Output output = new Output(getMutationName(), this.exceptionFactory);
 		convertToOutput(mutation, output);
-		return objectParser.serialize(output.getOutputMutationObject());
+		return this.objectParser.serialize(output.getOutputMutationObject());
 	}
 
 	/**
@@ -138,23 +138,23 @@ public abstract class MutationConverter<M extends Mutation> {
 				}
 
 				final Object originalValue;
-				final Method getter = reflectionLookup.findGetter(objectType, name);
+				final Method getter = this.reflectionLookup.findGetter(objectType, name);
 				if (getter != null) {
 					try {
 						originalValue = getter.invoke(object);
 					} catch (IllegalAccessException | InvocationTargetException e) {
-						throw exceptionFactory.createInternalError("Could not invoke getter for property `" + name + "` in mutation `" + getMutationName() + "`.", e);
+						throw this.exceptionFactory.createInternalError("Could not invoke getter for property `" + name + "` in mutation `" + getMutationName() + "`.", e);
 					}
 				} else {
-					final Field propertyField = reflectionLookup.findPropertyField(objectType, name);
+					final Field propertyField = this.reflectionLookup.findPropertyField(objectType, name);
 					if (propertyField != null) {
 						try {
 							originalValue = propertyField.get(object);
 						} catch (IllegalAccessException e) {
-							throw exceptionFactory.createInternalError("Could not invoke field for property `" + name + "` in mutation `" + getMutationName() + "`.", e);
+							throw this.exceptionFactory.createInternalError("Could not invoke field for property `" + name + "` in mutation `" + getMutationName() + "`.", e);
 						}
 					} else {
-						throw exceptionFactory.createInternalError("Could not find getter nor field for property `" + name + "` in mutation `" + getMutationName() + "`.");
+						throw this.exceptionFactory.createInternalError("Could not find getter nor field for property `" + name + "` in mutation `" + getMutationName() + "`.");
 					}
 				}
 
@@ -164,7 +164,7 @@ public abstract class MutationConverter<M extends Mutation> {
 					if (Serializable.class.isAssignableFrom(originalValue.getClass())) {
 						targetType = originalValue.getClass();
 					} else {
-						throw exceptionFactory.createInternalError(
+						throw this.exceptionFactory.createInternalError(
 							"Could not serialize property `" + name + "` in mutation `" + getMutationName() + "`. " +
 								"Value to serialize is not serializable as expected, it is `" + originalValue.getClass().getName() + "`."
 						);
@@ -185,13 +185,13 @@ public abstract class MutationConverter<M extends Mutation> {
 					for (int j = 0; j < arraySize; j++) {
 						final Object item = Array.get(originalValue, j);
 
-						final Output innerItemOutput = new Output(getMutationName(), exceptionFactory);
+						final Output innerItemOutput = new Output(getMutationName(), this.exceptionFactory);
 						convertObjectToOutput(item, innerItemOutput);
 						targetList.add(innerItemOutput);
 					}
 					targetValue = targetList;
 				} else {
-					final Output innerOutput = new Output(getMutationName(), exceptionFactory);
+					final Output innerOutput = new Output(getMutationName(), this.exceptionFactory);
 					convertObjectToOutput(originalValue, innerOutput);
 					targetValue = innerOutput;
 				}
@@ -253,11 +253,11 @@ public abstract class MutationConverter<M extends Mutation> {
 			rawPropertyValue -> {
 				Assert.isTrue(
 					rawPropertyValue instanceof Map<?, ?>,
-					() -> exceptionFactory.createInvalidArgumentException("Item in property `" + propertyName + "` of mutation `" + getMutationName() + "` is expected to be an object.")
+					() -> this.exceptionFactory.createInvalidArgumentException("Item in property `" + propertyName + "` of mutation `" + getMutationName() + "` is expected to be an object.")
 				);
 
 				final Map<String, Object> element = (Map<String, Object>) rawPropertyValue;
-				return convertObjectFromInput(new Input(getMutationName(), element, exceptionFactory), type);
+				return convertObjectFromInput(new Input(getMutationName(), element, this.exceptionFactory), type);
 			}
 		);
 	}
@@ -271,7 +271,7 @@ public abstract class MutationConverter<M extends Mutation> {
 			rawPropertyValue -> {
 				Assert.isTrue(
 					rawPropertyValue instanceof List<?>,
-					() -> exceptionFactory.createInvalidArgumentException("Property `" + propertyName + "` of mutation `" + getMutationName() + "` is expected to be an array.")
+					() -> this.exceptionFactory.createInvalidArgumentException("Property `" + propertyName + "` of mutation `" + getMutationName() + "` is expected to be an array.")
 				);
 
 				final List<Object> rawElements = (List<Object>) rawPropertyValue;
@@ -279,11 +279,11 @@ public abstract class MutationConverter<M extends Mutation> {
 					.map(rawElement -> {
 						Assert.isTrue(
 							rawElement instanceof Map<?, ?>,
-							() -> exceptionFactory.createInvalidArgumentException("Item in property `" + propertyName + "` of mutation `" + getMutationName() + "` is expected to be an object.")
+							() -> this.exceptionFactory.createInvalidArgumentException("Item in property `" + propertyName + "` of mutation `" + getMutationName() + "` is expected to be an object.")
 						);
 
 						final Map<String, Object> element = (Map<String, Object>) rawElement;
-						return convertObjectFromInput(new Input(getMutationName(), element, exceptionFactory), componentType);
+						return convertObjectFromInput(new Input(getMutationName(), element, this.exceptionFactory), componentType);
 					})
 					.toArray(size -> (T[]) Array.newInstance(componentType, size));
 			}

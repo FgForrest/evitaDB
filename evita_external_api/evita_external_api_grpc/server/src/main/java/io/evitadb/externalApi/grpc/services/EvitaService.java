@@ -433,7 +433,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void registerSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest request, StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver) {
-		final Publisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(
+		final Publisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(toCaptureContent(request.getContent()))
 		);
 
@@ -460,22 +460,22 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 
 		@Override
 		public void onSubscribe(Subscription subscription) {
-			delegate.onSubscribe(subscription);
+			this.delegate.onSubscribe(subscription);
 		}
 
 		@Override
 		public void onNext(C item) {
-			delegate.onNext(convertCapture(item));
+			this.delegate.onNext(convertCapture(item));
 		}
 
 		@Override
 		public void onError(Throwable throwable) {
-			delegate.onError(throwable);
+			this.delegate.onError(throwable);
 		}
 
 		@Override
 		public void onComplete() {
-			delegate.onComplete();
+			this.delegate.onComplete();
 		}
 
 		/**

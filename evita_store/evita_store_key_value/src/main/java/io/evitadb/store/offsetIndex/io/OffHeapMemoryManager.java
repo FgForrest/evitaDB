@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -104,7 +104,7 @@ public class OffHeapMemoryManager implements Closeable {
 	 */
 	@Nonnull
 	public Optional<OffHeapMemoryOutputStream> acquireRegionOutputStream() {
-		final ByteBuffer byteBuffer = memoryBlock.get();
+		final ByteBuffer byteBuffer = this.memoryBlock.get();
 		if (byteBuffer == null) {
 			return Optional.empty();
 		}
@@ -115,7 +115,7 @@ public class OffHeapMemoryManager implements Closeable {
 		if (occupiedIndex == -1) {
 			return Optional.empty();
 		} else {
-			final ByteBuffer region = byteBuffer.slice(occupiedIndex * regionSize, regionSize);
+			final ByteBuffer region = byteBuffer.slice(occupiedIndex * this.regionSize, this.regionSize);
 			newOutputStream.init(
 				occupiedIndex, region,
 				(index, clearedReference) -> {
@@ -178,8 +178,8 @@ public class OffHeapMemoryManager implements Closeable {
 	public int getFreeRegions() {
 		// iterate over the used regions and count the null values
 		int freeRegions = 0;
-		for (int i = 0; i < usedRegions.length(); i++) {
-			if (usedRegions.get(i) == null) {
+		for (int i = 0; i < this.usedRegions.length(); i++) {
+			if (this.usedRegions.get(i) == null) {
 				freeRegions++;
 			}
 		}
@@ -198,7 +198,7 @@ public class OffHeapMemoryManager implements Closeable {
 	private int findClearIndexAndSet(int regionCount, int randomIndex, @Nonnull OffHeapMemoryOutputStream newOutputStream) {
 		for (int i = 0; i < regionCount; i++) {
 			final int index = Math.abs(randomIndex + i) % regionCount;
-			if (usedRegions.compareAndSet(index, null, newOutputStream)) {
+			if (this.usedRegions.compareAndSet(index, null, newOutputStream)) {
 				return index;
 			}
 		}

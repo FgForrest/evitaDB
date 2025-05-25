@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ public class PriceSerializer extends Serializer<Price> {
 	public void write(Kryo kryo, Output output, Price price) {
 		output.writeVarInt(price.version(), true);
 		output.writeInt(price.priceId());
-		output.writeVarInt(keyCompressor.getId(new CompressiblePriceKey(price.priceKey())), true);
+		output.writeVarInt(this.keyCompressor.getId(new CompressiblePriceKey(price.priceKey())), true);
 		output.writeInt(ofNullable(price.innerRecordId()).orElse(-1));
 		kryo.writeObject(output, price.priceWithoutTax());
 		kryo.writeObject(output, price.taxRate());
@@ -65,7 +65,7 @@ public class PriceSerializer extends Serializer<Price> {
 	public Price read(Kryo kryo, Input input, Class<? extends Price> type) {
 		final int version = input.readVarInt(true);
 		final int priceId = input.readInt();
-		final CompressiblePriceKey priceKey = keyCompressor.getKeyForId(input.readVarInt(true));
+		final CompressiblePriceKey priceKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		final int innerRecordId = input.readInt();
 		final BigDecimal priceWithoutTax = kryo.readObject(input, BigDecimal.class);
 		final BigDecimal taxRate = kryo.readObject(input, BigDecimal.class);

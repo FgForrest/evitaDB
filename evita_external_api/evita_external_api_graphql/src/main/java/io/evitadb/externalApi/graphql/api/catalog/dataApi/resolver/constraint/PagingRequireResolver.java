@@ -60,8 +60,8 @@ public class PagingRequireResolver {
 			final Integer pageNumber = (Integer) recordField.getArguments().getOrDefault(RecordPageFieldHeaderDescriptor.NUMBER.name(), 1);
 			final Integer pageSize = (Integer) recordField.getArguments().getOrDefault(RecordPageFieldHeaderDescriptor.SIZE.name(), 20);
 			final Spacing spacing = (Spacing) Optional.ofNullable(recordField.getArguments().get(RecordPageFieldHeaderDescriptor.SPACING.name()))
-				.map(it -> requireConstraintResolver.resolve(
-					new SegmentDataLocator(new ManagedEntityTypePointer(entitySchema.getName())),
+				.map(it -> this.requireConstraintResolver.resolve(
+					new SegmentDataLocator(new ManagedEntityTypePointer(this.entitySchema.getName())),
 					RecordPageFieldHeaderDescriptor.SPACING.name(),
 					it
 				))

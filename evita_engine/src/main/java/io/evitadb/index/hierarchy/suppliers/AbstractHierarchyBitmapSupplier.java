@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -114,7 +114,7 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		return transactionalIds;
+		return this.transactionalIds;
 	}
 
 	@Override
@@ -126,7 +126,7 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 	public long getCost() {
 		if (this.cost == null) {
 			if (this.memoizedResult != null) {
-				this.cost = hierarchyIndex.getHierarchySize() * getOperationCost();
+				this.cost = this.hierarchyIndex.getHierarchySize() * getOperationCost();
 			} else {
 				return Long.MAX_VALUE;
 			}
@@ -141,14 +141,14 @@ public abstract class AbstractHierarchyBitmapSupplier implements BitmapSupplier 
 
 	@Override
 	public long getCostToPerformanceRatio() {
-		if (costToPerformance == null) {
+		if (this.costToPerformance == null) {
 			if (this.memoizedResult != null) {
 				this.costToPerformance = getCost() / (get().size() * getOperationCost());
 			} else {
 				return Long.MAX_VALUE;
 			}
 		}
-		return costToPerformance;
+		return this.costToPerformance;
 	}
 
 	@Override

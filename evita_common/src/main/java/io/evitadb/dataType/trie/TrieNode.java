@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -107,14 +107,14 @@ public class TrieNode<T extends Serializable> implements Serializable {
 	 * Returns all gathered edge labels.
 	 */
 	public String[] getEdgeLabels() {
-		return edgeLabel;
+		return this.edgeLabel;
 	}
 
 	/**
 	 * Returns all gathered children.
 	 */
 	public TrieNode<T>[] getChildren() {
-		return children;
+		return this.children;
 	}
 
 	/**
@@ -123,8 +123,8 @@ public class TrieNode<T extends Serializable> implements Serializable {
 	 * Doesn't check value duplicities!
 	 */
 	public final void addValue(@Nonnull IntFunction<T[]> arrayFactory, @Nonnull T addedValue) {
-		final T[] newValues = arrayFactory.apply(values.length + 1);
-		System.arraycopy(values, 0, newValues, 0, values.length);
+		final T[] newValues = arrayFactory.apply(this.values.length + 1);
+		System.arraycopy(this.values, 0, newValues, 0, this.values.length);
 		newValues[newValues.length - 1] = addedValue;
 		this.values = newValues;
 	}
@@ -135,9 +135,9 @@ public class TrieNode<T extends Serializable> implements Serializable {
 	 * Doesn't check value duplicities!
 	 */
 	public final void addValue(@Nonnull IntFunction<T[]> arrayFactory, @Nonnull T[] addedValue) {
-		final T[] newValues = arrayFactory.apply(values.length + addedValue.length);
-		System.arraycopy(values, 0, newValues, 0, values.length);
-		System.arraycopy(addedValue, 0, newValues, values.length, addedValue.length);
+		final T[] newValues = arrayFactory.apply(this.values.length + addedValue.length);
+		System.arraycopy(this.values, 0, newValues, 0, this.values.length);
+		System.arraycopy(addedValue, 0, newValues, this.values.length, addedValue.length);
 		this.values = newValues;
 	}
 
@@ -149,8 +149,8 @@ public class TrieNode<T extends Serializable> implements Serializable {
 	 */
 	public boolean removeValue(@Nonnull IntFunction<T[]> arrayFactory, @Nonnull T removedValue) {
 		int index = -1;
-		for (int i = 0; i < values.length; i++) {
-			if (removedValue.equals(values[i])) {
+		for (int i = 0; i < this.values.length; i++) {
+			if (removedValue.equals(this.values[i])) {
 				index = i;
 				break;
 			}
@@ -158,9 +158,9 @@ public class TrieNode<T extends Serializable> implements Serializable {
 		if (index == -1) {
 			return false;
 		} else {
-			final T[] newValues = arrayFactory.apply(values.length - 1);
-			System.arraycopy(values, 0, newValues, 0, index);
-			System.arraycopy(values, index + 1, newValues, index, values.length - index - 1);
+			final T[] newValues = arrayFactory.apply(this.values.length - 1);
+			System.arraycopy(this.values, 0, newValues, 0, index);
+			System.arraycopy(this.values, index + 1, newValues, index, this.values.length - index - 1);
 			this.values = newValues;
 			return true;
 		}
@@ -239,7 +239,7 @@ public class TrieNode<T extends Serializable> implements Serializable {
 	 * Returns true if all childrens are empty.
 	 */
 	public boolean hasNoChildren() {
-		for (TrieNode<T> child : children) {
+		for (TrieNode<T> child : this.children) {
 			if (child != null) {
 				return false;
 			}
@@ -253,10 +253,10 @@ public class TrieNode<T extends Serializable> implements Serializable {
 	 */
 	public int estimateSize(@Nonnull ToIntFunction<Serializable> valueSizeEstimator) {
 		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
-			MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.ARRAY_BASE_SIZE + MemoryMeasuringConstants.CHAR_SIZE * charIndex.length +
-			MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.ARRAY_BASE_SIZE + MemoryMeasuringConstants.REFERENCE_SIZE * children.length + Arrays.stream(children).mapToInt(it -> it.estimateSize(valueSizeEstimator)).sum() +
-			MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.ARRAY_BASE_SIZE + MemoryMeasuringConstants.REFERENCE_SIZE * edgeLabel.length + Arrays.stream(edgeLabel).mapToInt(MemoryMeasuringConstants::computeStringSize).sum() +
-			MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.ARRAY_BASE_SIZE + MemoryMeasuringConstants.REFERENCE_SIZE * values.length + Arrays.stream(values).mapToInt(valueSizeEstimator::applyAsInt).sum();
+			MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.ARRAY_BASE_SIZE + MemoryMeasuringConstants.CHAR_SIZE * this.charIndex.length +
+			MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.ARRAY_BASE_SIZE + MemoryMeasuringConstants.REFERENCE_SIZE * this.children.length + Arrays.stream(this.children).mapToInt(it -> it.estimateSize(valueSizeEstimator)).sum() +
+			MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.ARRAY_BASE_SIZE + MemoryMeasuringConstants.REFERENCE_SIZE * this.edgeLabel.length + Arrays.stream(this.edgeLabel).mapToInt(MemoryMeasuringConstants::computeStringSize).sum() +
+			MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.ARRAY_BASE_SIZE + MemoryMeasuringConstants.REFERENCE_SIZE * this.values.length + Arrays.stream(this.values).mapToInt(valueSizeEstimator::applyAsInt).sum();
 	}
 
 	/**
@@ -321,30 +321,30 @@ public class TrieNode<T extends Serializable> implements Serializable {
 
 		TrieNode<?> trieNode = (TrieNode<?>) o;
 
-		if (!Arrays.equals(charIndex, trieNode.charIndex)) return false;
-		if (!Arrays.equals(children, trieNode.children)) return false;
+		if (!Arrays.equals(this.charIndex, trieNode.charIndex)) return false;
+		if (!Arrays.equals(this.children, trieNode.children)) return false;
 
-		if (edgeLabel.length != trieNode.edgeLabel.length) return false;
-		for (int i = 0; i < edgeLabel.length; i++) {
-			if (!Objects.equals(edgeLabel[i], trieNode.edgeLabel[i]))
+		if (this.edgeLabel.length != trieNode.edgeLabel.length) return false;
+		for (int i = 0; i < this.edgeLabel.length; i++) {
+			if (!Objects.equals(this.edgeLabel[i], trieNode.edgeLabel[i]))
 				return false;
 		}
 
-		return Arrays.equals(values, trieNode.values);
+		return Arrays.equals(this.values, trieNode.values);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = Arrays.hashCode(charIndex);
-		result = 31 * result + Arrays.hashCode(children);
-		result = 31 * result + Arrays.hashCode(edgeLabel);
-		result = 31 * result + Arrays.hashCode(values);
+		int result = Arrays.hashCode(this.charIndex);
+		result = 31 * result + Arrays.hashCode(this.children);
+		result = 31 * result + Arrays.hashCode(this.edgeLabel);
+		result = 31 * result + Arrays.hashCode(this.values);
 		return result;
 	}
 
 	@Override
 	public String toString() {
-		return Arrays.toString(values);
+		return Arrays.toString(this.values);
 	}
 
 	private void assertCharacterPresent(char character, InsertionPosition position) {

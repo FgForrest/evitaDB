@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,13 +63,13 @@ public class MultipleEntityFormula extends AbstractFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashInts(directEntityReferences.getArray());
+		return hashFunction.hashInts(this.directEntityReferences.getArray());
 	}
 
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		return directEntityReferences;
+		return this.directEntityReferences;
 	}
 
 	@Nonnull
@@ -80,7 +80,7 @@ public class MultipleEntityFormula extends AbstractFormula {
 
 	@Override
 	public int getEstimatedCardinality() {
-		return directEntityReferences.size();
+		return this.directEntityReferences.size();
 	}
 
 	@Override
@@ -91,12 +91,12 @@ public class MultipleEntityFormula extends AbstractFormula {
 	@Nonnull
 	@Override
 	protected long[] gatherBitmapIdsInternal() {
-		return transactionalIds;
+		return this.transactionalIds;
 	}
 
 	@Override
 	public String toString() {
-		return "PREFETCH: " + directEntityReferences;
+		return "PREFETCH: " + this.directEntityReferences;
 	}
 
 }

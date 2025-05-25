@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ public class PriceIdContainerFormula extends AbstractFormula implements PriceInd
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
-		return new PriceIdContainerFormula(priceIndex, innerFormulas[0]);
+		return new PriceIdContainerFormula(this.priceIndex, innerFormulas[0]);
 	}
 
 	@Override
@@ -91,7 +91,7 @@ public class PriceIdContainerFormula extends AbstractFormula implements PriceInd
 
 	@Override
 	public String toString() {
-		return "DO WITH PRICES IN INDEX " + priceIndex.getPriceIndexKey();
+		return "DO WITH PRICES IN INDEX " + this.priceIndex.getPriceIndexKey();
 	}
 
 	@Nonnull

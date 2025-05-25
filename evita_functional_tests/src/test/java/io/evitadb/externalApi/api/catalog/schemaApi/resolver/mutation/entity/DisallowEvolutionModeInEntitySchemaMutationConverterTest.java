@@ -51,7 +51,7 @@ class DisallowEvolutionModeInEntitySchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new DisallowEvolutionModeInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new DisallowEvolutionModeInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -61,7 +61,7 @@ class DisallowEvolutionModeInEntitySchemaMutationConverterTest {
 			EvolutionMode.ADDING_PRICES
 		);
 
-		final DisallowEvolutionModeInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
+		final DisallowEvolutionModeInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(DisallowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of(
 					EvolutionMode.ADDING_LOCALES,
@@ -71,7 +71,7 @@ class DisallowEvolutionModeInEntitySchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final DisallowEvolutionModeInEntitySchemaMutation convertedMutation2 = converter.convertFromInput(
+		final DisallowEvolutionModeInEntitySchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(DisallowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of(
 					"ADDING_LOCALES",
@@ -85,7 +85,7 @@ class DisallowEvolutionModeInEntitySchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final DisallowEvolutionModeInEntitySchemaMutation expectedMutation = new DisallowEvolutionModeInEntitySchemaMutation();
 
-		final DisallowEvolutionModeInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
+		final DisallowEvolutionModeInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(DisallowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of())
 				.build()
@@ -95,8 +95,8 @@ class DisallowEvolutionModeInEntitySchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -107,7 +107,7 @@ class DisallowEvolutionModeInEntitySchemaMutationConverterTest {
 		);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

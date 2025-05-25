@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -112,8 +112,8 @@ public class HierarchyExtraResultRequireResolver {
 	                                                                @Nullable Locale desiredLocale) {
 
 		final OrderBy orderBy = (OrderBy) Optional.ofNullable(field.getArguments().get(HierarchyOfSelfHeaderDescriptor.ORDER_BY.name()))
-			.map(it -> orderConstraintResolver.resolve(
-				new EntityDataLocator(new ManagedEntityTypePointer(entitySchema.getName())),
+			.map(it -> this.orderConstraintResolver.resolve(
+				new EntityDataLocator(new ManagedEntityTypePointer(this.entitySchema.getName())),
 				HierarchyOfSelfHeaderDescriptor.ORDER_BY.name(),
 				it
 			))
@@ -121,8 +121,8 @@ public class HierarchyExtraResultRequireResolver {
 
 		final HierarchyRequireConstraint[] hierarchyRequires = resolveHierarchyRequirements(
 			field,
-			entitySchema,
-			new HierarchyDataLocator(new ManagedEntityTypePointer(entitySchema.getName())),
+			this.entitySchema,
+			new HierarchyDataLocator(new ManagedEntityTypePointer(this.entitySchema.getName())),
 			desiredLocale
 		);
 
@@ -133,13 +133,13 @@ public class HierarchyExtraResultRequireResolver {
 	@Nonnull
 	private Entry<String, RequireConstraint> resolveHierarchyOfReference(@Nonnull SelectedField field,
 	                                                                     @Nullable Locale desiredLocale) {
-		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceByName(field.getName(), PROPERTY_NAME_NAMING_CONVENTION)
+		final ReferenceSchemaContract referenceSchema = this.entitySchema.getReferenceByName(field.getName(), PROPERTY_NAME_NAMING_CONVENTION)
 			.orElseThrow(() ->
-				new GraphQLQueryResolvingInternalError("Could not find reference `" + field.getName() + "` in `" + entitySchema.getName() + "`."));
+				new GraphQLQueryResolvingInternalError("Could not find reference `" + field.getName() + "` in `" + this.entitySchema.getName() + "`."));
 
 		final String referenceName = referenceSchema.getName();
 		final EntitySchemaContract hierarchyEntitySchema = referenceSchema.isReferencedEntityTypeManaged()
-			? entitySchemaFetcher.apply(referenceSchema.getReferencedEntityType())
+			? this.entitySchemaFetcher.apply(referenceSchema.getReferencedEntityType())
 			: null;
 
 		final EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour =
@@ -147,7 +147,7 @@ public class HierarchyExtraResultRequireResolver {
 		final OrderBy orderBy;
 		if (referenceSchema.isReferencedEntityTypeManaged()) {
 			orderBy = (OrderBy) Optional.ofNullable(field.getArguments().get(HierarchyOfReferenceHeaderDescriptor.ORDER_BY.name()))
-				.map(it -> orderConstraintResolver.resolve(
+				.map(it -> this.orderConstraintResolver.resolve(
 					new EntityDataLocator(new ManagedEntityTypePointer(hierarchyEntitySchema.getName())),
 					HierarchyOfReferenceHeaderDescriptor.ORDER_BY.name(),
 					it
@@ -160,7 +160,7 @@ public class HierarchyExtraResultRequireResolver {
 		final HierarchyRequireConstraint[] hierarchyRequires = resolveHierarchyRequirements(
 			field,
 			hierarchyEntitySchema,
-			new HierarchyDataLocator(new ManagedEntityTypePointer(entitySchema.getName()), referenceName),
+			new HierarchyDataLocator(new ManagedEntityTypePointer(this.entitySchema.getName()), referenceName),
 			desiredLocale
 		);
 
@@ -236,7 +236,7 @@ public class HierarchyExtraResultRequireResolver {
 	                                                                                                      @Nonnull PropertyDescriptor argumentDescriptor) {
 		//noinspection unchecked
 		return (T) Optional.ofNullable(field.getArguments().get(argumentDescriptor.name()))
-			.map(it -> requireConstraintResolver.resolve(hierarchyDataLocator, hierarchyDataLocator, argumentDescriptor.name(), it))
+			.map(it -> this.requireConstraintResolver.resolve(hierarchyDataLocator, hierarchyDataLocator, argumentDescriptor.name(), it))
 			.orElse(null);
 	}
 
@@ -245,7 +245,7 @@ public class HierarchyExtraResultRequireResolver {
 	private EntityFetch resolveHierarchyEntityFetch(@Nonnull SelectedField field,
 	                                                @Nullable EntitySchemaContract hierarchyEntitySchema,
 	                                                @Nullable Locale desiredLocale) {
-		return entityFetchRequireResolver.resolveEntityFetch(
+		return this.entityFetchRequireResolver.resolveEntityFetch(
 			SelectionSetAggregator.from(
 				SelectionSetAggregator.getImmediateFields(LevelInfoDescriptor.ENTITY.name(), field.getSelectionSet())
 					.stream()
@@ -293,7 +293,7 @@ public class HierarchyExtraResultRequireResolver {
 		}
 
 		final HierarchyStopAt stopAt = Optional.ofNullable(siblingsSpecification.get(HierarchyParentsSiblingsSpecification.STOP_AT.name()))
-			.map(it -> (HierarchyStopAt) requireConstraintResolver.resolve(hierarchyDataLocator, hierarchyDataLocator, HierarchyParentsSiblingsSpecification.STOP_AT.name(), it))
+			.map(it -> (HierarchyStopAt) this.requireConstraintResolver.resolve(hierarchyDataLocator, hierarchyDataLocator, HierarchyParentsSiblingsSpecification.STOP_AT.name(), it))
 			.orElse(null);
 
 		return new HierarchySiblings(null, stopAt);

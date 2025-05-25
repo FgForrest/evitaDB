@@ -62,6 +62,6 @@ public class CollectionRestHandlingContext extends CatalogRestHandlingContext {
 
 	@Nonnull
 	public String getEntityType() {
-		return entitySchema.getName();
+		return this.entitySchema.getName();
 	}
 }

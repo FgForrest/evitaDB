@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ class ModifySortableAttributeCompoundSchemaNameMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifySortableAttributeCompoundSchemaNameMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifySortableAttributeCompoundSchemaNameMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -58,7 +58,7 @@ class ModifySortableAttributeCompoundSchemaNameMutationConverterTest {
 			"code",
 			"label"
 		);
-		final ModifySortableAttributeCompoundSchemaNameMutation convertedMutation = converter.convertFromInput(
+		final ModifySortableAttributeCompoundSchemaNameMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.NEW_NAME.name(), "label")
@@ -71,7 +71,7 @@ class ModifySortableAttributeCompoundSchemaNameMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 					.build()
@@ -79,13 +79,13 @@ class ModifySortableAttributeCompoundSchemaNameMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.NEW_NAME.name(), "label")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

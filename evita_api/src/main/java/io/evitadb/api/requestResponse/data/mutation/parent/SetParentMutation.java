@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ public class SetParentMutation extends ParentMutation {
 	@Nonnull
 	@Override
 	public OptionalInt mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable OptionalInt existingValue) {
-		return OptionalInt.of(parentPrimaryKey);
+		return OptionalInt.of(this.parentPrimaryKey);
 	}
 
 	@Override
@@ -64,7 +64,7 @@ public class SetParentMutation extends ParentMutation {
 
 	@Override
 	public Integer getComparableKey() {
-		return parentPrimaryKey;
+		return this.parentPrimaryKey;
 	}
 
 	@Nonnull
@@ -75,7 +75,7 @@ public class SetParentMutation extends ParentMutation {
 
 	@Override
 	public String toString() {
-		return "set parent to: `" + parentPrimaryKey + "`";
+		return "set parent to: `" + this.parentPrimaryKey + "`";
 	}
 
 }

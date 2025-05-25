@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -212,7 +212,7 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 			.filter(Objects::nonNull)
 			.map(EvitaEventGroup::events)
 			.flatMap(Arrays::stream)
-			.forEach(eventType -> recording.enable(eventType).withoutThreshold());
+			.forEach(eventType -> this.recording.enable(eventType).withoutThreshold());
 	}
 
 	/**
@@ -230,9 +230,9 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 
 		@Override
 		public String toString() {
-			return "AllowedEvents: " + Arrays.toString(allowedEvents) +
-				(maxSizeInBytes == null ? "" : ", maxSize: " + StringUtils.formatByteSize(maxSizeInBytes)) +
-				(maxAgeInSeconds == null ? "" : ", maxAge: " + StringUtils.formatDuration(Duration.ofSeconds(maxAgeInSeconds)));
+			return "AllowedEvents: " + Arrays.toString(this.allowedEvents) +
+				(this.maxSizeInBytes == null ? "" : ", maxSize: " + StringUtils.formatByteSize(this.maxSizeInBytes)) +
+				(this.maxAgeInSeconds == null ? "" : ", maxAge: " + StringUtils.formatDuration(Duration.ofSeconds(this.maxAgeInSeconds)));
 		}
 
 	}

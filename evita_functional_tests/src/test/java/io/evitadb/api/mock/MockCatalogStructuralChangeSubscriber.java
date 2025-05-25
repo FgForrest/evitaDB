@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,81 +68,81 @@ public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeS
 	}
 
 	public void reset() {
-		catalogUpserted.clear();
-		catalogDeleted.clear();
-		catalogSchemaUpdated.clear();
-		entityCollectionCreated.clear();
-		entityCollectionUpdated.clear();
-		entityCollectionDeleted.clear();
-		entityCollectionUpdated.clear();
+		this.catalogUpserted.clear();
+		this.catalogDeleted.clear();
+		this.catalogSchemaUpdated.clear();
+		this.entityCollectionCreated.clear();
+		this.entityCollectionUpdated.clear();
+		this.entityCollectionDeleted.clear();
+		this.entityCollectionUpdated.clear();
 	}
 
 	public int getCatalogUpserted(@Nonnull String catalogName) {
-		return catalogUpserted.getOrDefault(catalogName, 0);
+		return this.catalogUpserted.getOrDefault(catalogName, 0);
 	}
 
 	public int getCatalogDeleted(@Nonnull String catalogName) {
-		return catalogDeleted.getOrDefault(catalogName, 0);
+		return this.catalogDeleted.getOrDefault(catalogName, 0);
 	}
 
 	public int getCatalogSchemaUpdated(@Nonnull String catalogName) {
-		return catalogSchemaUpdated.getOrDefault(catalogName, 0);
+		return this.catalogSchemaUpdated.getOrDefault(catalogName, 0);
 	}
 
 	public int getEntityCollectionCreated(@Nonnull String catalogName, @Nonnull String entityType) {
-		return entityCollectionCreated.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
+		return this.entityCollectionCreated.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
 	}
 
 	public int getEntityCollectionUpdated(@Nonnull String catalogName, @Nonnull String entityType) {
-		return entityCollectionUpdated.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
+		return this.entityCollectionUpdated.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
 	}
 
 	public int getEntityCollectionDeleted(@Nonnull String catalogName, @Nonnull String entityType) {
-		return entityCollectionDeleted.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
+		return this.entityCollectionDeleted.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
 	}
 
 	public int getEntityCollectionSchemaUpdated(@Nonnull String catalogName, @Nonnull String entityType) {
-		return entityCollectionUpdated.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
+		return this.entityCollectionUpdated.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
 	}
 
 	@Override
 	public void onSubscribe(Subscription subscription) {
 		this.subscription = subscription;
-		if (initialRequestCount > 0) {
-			this.subscription.request(initialRequestCount);
+		if (this.initialRequestCount > 0) {
+			this.subscription.request(this.initialRequestCount);
 		}
 	}
 
 	@Override
 	public void onNext(ChangeSystemCapture item) {
 		switch (item.operation()) {
-			case UPSERT -> catalogUpserted
+			case UPSERT -> this.catalogUpserted
 				.compute(item.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
-			case REMOVE -> catalogDeleted
+			case REMOVE -> this.catalogDeleted
 				.compute(item.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 		}
-		if (countDownLatch != null) {
-			countDownLatch.countDown();
+		if (this.countDownLatch != null) {
+			this.countDownLatch.countDown();
 		}
 	}
 
 	@Override
 	public void onError(Throwable throwable) {
-		errors++;
+		this.errors++;
 		throw new RuntimeException(throwable);
 	}
 
 	@Override
 	public void onComplete() {
-		completed++;
+		this.completed++;
 	}
 
 	public void request(long n) {
-		subscription.request(n);
+		this.subscription.request(n);
 	}
 
 	public void cancel() {
-		subscription.cancel();
+		this.subscription.cancel();
 	}
 
 	private record EntityCollectionCatalogRecord(@Nonnull String catalogName, @Nonnull String entityType) {

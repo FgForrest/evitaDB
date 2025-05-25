@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -226,7 +226,7 @@ public class TransactionalLayerMaintainer {
 	public void verifyLayerWasFullySwept() throws StaleTransactionMemoryException {
 		// collect all data that has not been processed and discarded by the consumers and connect them with their creators
 		final List<TransactionalLayerCreator<?>> uncommittedData = new LinkedList<>();
-		for (Entry<TransactionalLayerCreatorKey, TransactionalLayerWrapper<?>> entry : transactionalLayer.entrySet()) {
+		for (Entry<TransactionalLayerCreatorKey, TransactionalLayerWrapper<?>> entry : this.transactionalLayer.entrySet()) {
 			if (entry.getValue().getState() == TransactionalLayerState.ALIVE) {
 				final TransactionalLayerCreatorKey key = entry.getKey();
 				final TransactionalLayerCreator<?> transactionalLayerCreator = key.transactionalLayerCreator();
@@ -289,7 +289,7 @@ public class TransactionalLayerMaintainer {
 	@Nullable
 	private <T> TransactionalLayerWrapper<T> getTransactionalMemoryLayerItemWrapperIfExists(@Nonnull TransactionalLayerCreator<T> layerProvider) {
 		final TransactionalLayerCreatorKey key = new TransactionalLayerCreatorKey(layerProvider);
-		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> transactionalMemory = (TransactionalLayerWrapper<T>) transactionalLayer.get(key);
+		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> transactionalMemory = (TransactionalLayerWrapper<T>) this.transactionalLayer.get(key);
 		if (transactionalMemory == null && this.parent != null) {
 			return this.parent.getTransactionalMemoryLayerItemWrapperIfExists(layerProvider);
 		}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,22 +54,22 @@ public class EvitaQLConstraintVisitor extends EvitaQLBaseConstraintVisitor<Const
     public Constraint<?> visitConstraint(@Nonnull EvitaQLParser.ConstraintContext ctx) {
         final EvitaQLParser.HeadConstraintContext headConstraintContext = ctx.headConstraint();
         if (headConstraintContext != null) {
-            return headConstraintContext.accept(headConstraintVisitor);
+            return headConstraintContext.accept(this.headConstraintVisitor);
         }
 
         final EvitaQLParser.FilterConstraintContext filterConstraintContext = ctx.filterConstraint();
         if (filterConstraintContext != null) {
-            return filterConstraintContext.accept(filterConstraintVisitor);
+            return filterConstraintContext.accept(this.filterConstraintVisitor);
         }
 
         final EvitaQLParser.OrderConstraintContext orderConstraintContext = ctx.orderConstraint();
         if (orderConstraintContext != null) {
-            return orderConstraintContext.accept(orderConstraintVisitor);
+            return orderConstraintContext.accept(this.orderConstraintVisitor);
         }
 
         final EvitaQLParser.RequireConstraintContext requireConstraintContext = ctx.requireConstraint();
         if (requireConstraintContext != null) {
-            return requireConstraintContext.accept(requireConstraintVisitor);
+            return requireConstraintContext.accept(this.requireConstraintVisitor);
         }
 
         throw new EvitaSyntaxException(ctx, "No supported constraint found.");

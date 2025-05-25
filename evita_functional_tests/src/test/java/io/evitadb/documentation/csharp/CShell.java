@@ -104,7 +104,7 @@ public class CShell {
      */
     @Nonnull
     public String evaluate(String command, @Nonnull String outputFormat, @Nullable String sourceVariable) throws CsharpExecutionException, CsharpCompilationException {
-        final ProcessBuilder processBuilder = getProcessBuilder(command, outputFormat, sourceVariable, profile);
+        final ProcessBuilder processBuilder = getProcessBuilder(command, outputFormat, sourceVariable, this.profile);
         final StringBuilder actualOutput = new StringBuilder(64);
         try {
             // Start the process
@@ -320,14 +320,14 @@ public class CShell {
 
             final HttpResponse<String> releaseResponse;
             try {
-                releaseResponse = httpClient.send(releaseRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                releaseResponse = this.httpClient.send(releaseRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             } catch (IOException | InterruptedException e) {
                 throw new GenericEvitaInternalError("Could not find GitHub release: ", e);
             }
 
             try {
                 //noinspection unchecked
-                return (Map<String, Object>) objectMapper.readValue(releaseResponse.body(), Map.class);
+                return (Map<String, Object>) this.objectMapper.readValue(releaseResponse.body(), Map.class);
             } catch (JsonProcessingException e) {
                 throw new GenericEvitaInternalError("Could not parse GitHub release: ", e);
             }

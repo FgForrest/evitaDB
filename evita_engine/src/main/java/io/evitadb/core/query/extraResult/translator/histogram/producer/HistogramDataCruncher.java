@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -142,9 +142,9 @@ public class HistogramDataCruncher<T> {
 		this.firstThreshold = thresholdRetriever.applyAsInt(sourceData[0]);
 		this.lastThreshold = thresholdRetriever.applyAsInt(sourceData[sourceData.length - 1]);
 
-		this.currentStep = toBigDecimalConverter.apply(firstThreshold);
-		this.optimalStep = toBigDecimalConverter.apply(lastThreshold)
-			.subtract(toBigDecimalConverter.apply(firstThreshold))
+		this.currentStep = toBigDecimalConverter.apply(this.firstThreshold);
+		this.optimalStep = toBigDecimalConverter.apply(this.lastThreshold)
+			.subtract(toBigDecimalConverter.apply(this.firstThreshold))
 			.divide(new BigDecimal(bucketCount), 10, RoundingMode.CEILING);
 
 		this.sourceData = sourceData;
@@ -160,7 +160,7 @@ public class HistogramDataCruncher<T> {
 		this.lastNonEmptyBucket = firstColumn;
 		elasticHistogram.add(firstColumn);
 		// examine source data until all are exhausted
-		while (!finished) {
+		while (!this.finished) {
 			computeNext(elasticHistogram);
 		}
 		// finalize elastic array and retrieve output histogram
@@ -232,7 +232,7 @@ public class HistogramDataCruncher<T> {
 	 * Returns maximal value found in the input data.
 	 */
 	public BigDecimal getMaxValue() {
-		return toBigDecimalConverter.apply(this.lastThreshold).setScale(limitDecimalPlacesTo, RoundingMode.UP);
+		return this.toBigDecimalConverter.apply(this.lastThreshold).setScale(this.limitDecimalPlacesTo, RoundingMode.UP);
 	}
 
 	/*
@@ -243,7 +243,7 @@ public class HistogramDataCruncher<T> {
 	 * Computes next bucket in the histogram.
 	 */
 	private void computeNext(@Nonnull CompositeObjectArray<CacheableBucket> histogram) {
-		if (!finished) {
+		if (!this.finished) {
 			final CacheableBucket nextBucket = consumeStep(histogram);
 			if (nextBucket.occurrences() == 0) {
 				// if the bucket is empty increase empty thresholds counter
@@ -275,19 +275,19 @@ public class HistogramDataCruncher<T> {
 	private CacheableBucket consumeStep(@Nonnull CompositeObjectArray<CacheableBucket> histogram) {
 		int distinctValues = 0;
 		// compute next threshold
-		final BigDecimal nextThresholdValue = this.currentStep.add(this.optimalStep).setScale(limitDecimalPlacesTo, RoundingMode.CEILING);
+		final BigDecimal nextThresholdValue = this.currentStep.add(this.optimalStep).setScale(this.limitDecimalPlacesTo, RoundingMode.CEILING);
 		// convert it to the int (if we are at the end of the source data add +1 to consume event he last item)
 		final int nextThreshold = histogram.getSize() + 1 == this.bucketCount || this.currentStep.compareTo(nextThresholdValue) == 0 ?
-			this.lastThreshold + 1 : fromBigDecimalConverter.applyAsInt(nextThresholdValue);
+			this.lastThreshold + 1 : this.fromBigDecimalConverter.applyAsInt(nextThresholdValue);
 
 		do {
 			distinctValues += consumeSourceDataUntil(nextThreshold);
 			// repeat until we cross the next threshold
-		} while (!finished && thresholdRetriever.applyAsInt(sourceData[sourceIndex]) < nextThreshold);
+		} while (!this.finished && this.thresholdRetriever.applyAsInt(this.sourceData[this.sourceIndex]) < nextThreshold);
 
 		// create bucket in the output histogram
 		final CacheableBucket result = new CacheableBucket(
-			this.currentStep.setScale(limitDecimalPlacesTo, RoundingMode.HALF_UP),
+			this.currentStep.setScale(this.limitDecimalPlacesTo, RoundingMode.HALF_UP),
 			distinctValues
 		);
 
@@ -302,15 +302,15 @@ public class HistogramDataCruncher<T> {
 	 */
 	private int consumeSourceDataUntil(int nextStop) {
 		int collectedWeight = 0;
-		int value = thresholdRetriever.applyAsInt(sourceData[sourceIndex]);
+		int value = this.thresholdRetriever.applyAsInt(this.sourceData[this.sourceIndex]);
 		while (value < nextStop) {
-			collectedWeight += weightRetriever.applyAsInt(sourceData[sourceIndex]);
-			if (sourceIndex + 1 >= sourceData.length) {
-				finished = true;
+			collectedWeight += this.weightRetriever.applyAsInt(this.sourceData[this.sourceIndex]);
+			if (this.sourceIndex + 1 >= this.sourceData.length) {
+				this.finished = true;
 				break;
 			} else {
-				sourceIndex++;
-				value = thresholdRetriever.applyAsInt(sourceData[sourceIndex]);
+				this.sourceIndex++;
+				value = this.thresholdRetriever.applyAsInt(this.sourceData[this.sourceIndex]);
 			}
 		}
 		return collectedWeight;
@@ -338,7 +338,7 @@ public class HistogramDataCruncher<T> {
 		 * Returns difference between end and start buckets that represents the empty columns.
 		 */
 		public BigDecimal getSpanWidth() {
-			return end.subtract(start);
+			return this.end.subtract(this.start);
 		}
 
 	}

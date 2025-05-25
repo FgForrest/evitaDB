@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,20 +58,20 @@ public class NegatingOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public BigDecimal compute(@Nonnull PredicateEvaluationContext context) {
-		return operator.compute(context, BigDecimal.class).negate();
+		return this.operator.compute(context, BigDecimal.class).negate();
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return ExpressionNode.transform(
-			operator.determinePossibleRange(),
+			this.operator.determinePossibleRange(),
 			BigDecimal::negate
 		);
 	}
 
 	@Override
 	public String toString() {
-		return "-" + operator.toString();
+		return "-" + this.operator.toString();
 	}
 }

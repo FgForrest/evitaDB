@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcEntityRemoveMutation() {
-    entityType_ = "";
+    this.entityType_ = "";
   }
 
   @java.lang.Override
@@ -80,12 +80,12 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            entityType_ = s;
+            this.entityType_ = s;
             break;
           }
           case 16: {
 
-            entityPrimaryKey_ = input.readInt32();
+            this.entityPrimaryKey_ = input.readInt32();
             break;
           }
           default: {
@@ -132,14 +132,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getEntityType() {
-    java.lang.Object ref = entityType_;
+    java.lang.Object ref = this.entityType_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      entityType_ = s;
+      this.entityType_ = s;
       return s;
     }
   }
@@ -154,12 +154,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getEntityTypeBytes() {
-    java.lang.Object ref = entityType_;
+    java.lang.Object ref = this.entityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      entityType_ = b;
+      this.entityType_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -178,47 +178,47 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getEntityPrimaryKey() {
-    return entityPrimaryKey_;
+    return this.entityPrimaryKey_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, entityType_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.entityType_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.entityType_);
     }
-    if (entityPrimaryKey_ != 0) {
-      output.writeInt32(2, entityPrimaryKey_);
+    if (this.entityPrimaryKey_ != 0) {
+      output.writeInt32(2, this.entityPrimaryKey_);
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, entityType_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.entityType_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.entityType_);
     }
-    if (entityPrimaryKey_ != 0) {
+    if (this.entityPrimaryKey_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, entityPrimaryKey_);
+        .computeInt32Size(2, this.entityPrimaryKey_);
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -236,14 +236,14 @@ private static final long serialVersionUID = 0L;
         .equals(other.getEntityType())) return false;
     if (getEntityPrimaryKey()
         != other.getEntityPrimaryKey()) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -251,8 +251,8 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getEntityType().hashCode();
     hash = (37 * hash) + ENTITYPRIMARYKEY_FIELD_NUMBER;
     hash = (53 * hash) + getEntityPrimaryKey();
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -389,9 +389,9 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      entityType_ = "";
+      this.entityType_ = "";
 
-      entityPrimaryKey_ = 0;
+      this.entityPrimaryKey_ = 0;
 
       return this;
     }
@@ -419,8 +419,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation result = new io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation(this);
-      result.entityType_ = entityType_;
-      result.entityPrimaryKey_ = entityPrimaryKey_;
+      result.entityType_ = this.entityType_;
+      result.entityPrimaryKey_ = this.entityPrimaryKey_;
       onBuilt();
       return result;
     }
@@ -470,7 +470,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.getDefaultInstance()) return this;
       if (!other.getEntityType().isEmpty()) {
-        entityType_ = other.entityType_;
+        this.entityType_ = other.entityType_;
         onChanged();
       }
       if (other.getEntityPrimaryKey() != 0) {
@@ -515,12 +515,12 @@ private static final long serialVersionUID = 0L;
      * @return The entityType.
      */
     public java.lang.String getEntityType() {
-      java.lang.Object ref = entityType_;
+      java.lang.Object ref = this.entityType_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        entityType_ = s;
+        this.entityType_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -536,12 +536,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getEntityTypeBytes() {
-      java.lang.Object ref = entityType_;
+      java.lang.Object ref = this.entityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        entityType_ = b;
+        this.entityType_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -561,8 +561,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      entityType_ = value;
+
+      this.entityType_ = value;
       onChanged();
       return this;
     }
@@ -575,8 +575,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityType() {
-      
-      entityType_ = getDefaultInstance().getEntityType();
+
+      this.entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
     }
@@ -595,8 +595,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      entityType_ = value;
+
+      this.entityType_ = value;
       onChanged();
       return this;
     }
@@ -612,7 +612,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getEntityPrimaryKey() {
-      return entityPrimaryKey_;
+      return this.entityPrimaryKey_;
     }
     /**
      * <pre>
@@ -624,8 +624,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setEntityPrimaryKey(int value) {
-      
-      entityPrimaryKey_ = value;
+
+      this.entityPrimaryKey_ = value;
       onChanged();
       return this;
     }
@@ -638,8 +638,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityPrimaryKey() {
-      
-      entityPrimaryKey_ = 0;
+
+      this.entityPrimaryKey_ = 0;
       onChanged();
       return this;
     }

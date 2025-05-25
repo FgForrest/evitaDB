@@ -95,7 +95,7 @@ public enum GrpcTransactionPhase
       throw new java.lang.IllegalArgumentException(
           "Can't get the number of an unknown enum value.");
     }
-    return value;
+    return this.value;
   }
 
   /**

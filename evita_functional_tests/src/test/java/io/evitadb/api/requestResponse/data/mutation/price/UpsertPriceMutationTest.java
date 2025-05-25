@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ class UpsertPriceMutationTest extends AbstractMutationTest {
 				true, false
 			)
 		);
-		final PriceContract createdPrice = mutation.mutateLocal(productSchema, null);
+		final PriceContract createdPrice = mutation.mutateLocal(this.productSchema, null);
 		assertEquals(1L, createdPrice.version());
 		assertEquals(1, createdPrice.priceId());
 		assertEquals("basic", createdPrice.priceList());
@@ -83,7 +83,7 @@ class UpsertPriceMutationTest extends AbstractMutationTest {
 			DateTimeRange.since(theDay),
 			true
 		);
-		final PriceContract createdPrice = mutation.mutateLocal(productSchema, null);
+		final PriceContract createdPrice = mutation.mutateLocal(this.productSchema, null);
 		assertEquals(1L, createdPrice.version());
 		assertEquals(1, createdPrice.priceId());
 		assertEquals("basic", createdPrice.priceList());
@@ -111,7 +111,7 @@ class UpsertPriceMutationTest extends AbstractMutationTest {
 			)
 		);
 		final PriceContract updatedPrice = mutation.mutateLocal(
-			productSchema,
+			this.productSchema,
 			new Price(
 				1, priceKey, 2, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.TEN,
 				DateTimeRange.since(theDay),
@@ -134,16 +134,16 @@ class UpsertPriceMutationTest extends AbstractMutationTest {
 	@Test
 	void shouldReturnSameSkipToken() {
 		assertEquals(
-			new UpsertPriceMutation(new PriceKey(1, "basic", CZK), 45, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true).getSkipToken(catalogSchema, productSchema),
-			new UpsertPriceMutation(new PriceKey(2, "reference", CZK), 46, BigDecimal.TEN, BigDecimal.ONE, BigDecimal.TEN, null, false).getSkipToken(catalogSchema, productSchema)
+			new UpsertPriceMutation(new PriceKey(1, "basic", CZK), 45, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true).getSkipToken(this.catalogSchema, this.productSchema),
+			new UpsertPriceMutation(new PriceKey(2, "reference", CZK), 46, BigDecimal.TEN, BigDecimal.ONE, BigDecimal.TEN, null, false).getSkipToken(this.catalogSchema, this.productSchema)
 		);
 	}
 
 	@Test
 	void shouldReturnDifferentSkipToken() {
 		assertNotEquals(
-			new UpsertPriceMutation(new PriceKey(1, "basic", CZK), 45, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true).getSkipToken(catalogSchema, productSchema),
-			new UpsertPriceMutation(new PriceKey(2, "reference", EUR), 46, BigDecimal.TEN, BigDecimal.ONE, BigDecimal.TEN, null, false).getSkipToken(catalogSchema, productSchema)
+			new UpsertPriceMutation(new PriceKey(1, "basic", CZK), 45, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true).getSkipToken(this.catalogSchema, this.productSchema),
+			new UpsertPriceMutation(new PriceKey(2, "reference", EUR), 46, BigDecimal.TEN, BigDecimal.ONE, BigDecimal.TEN, null, false).getSkipToken(this.catalogSchema, this.productSchema)
 		);
 	}
 

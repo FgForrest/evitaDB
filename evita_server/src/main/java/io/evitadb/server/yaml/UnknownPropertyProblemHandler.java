@@ -51,7 +51,7 @@ public class UnknownPropertyProblemHandler extends DeserializationProblemHandler
 	@Override
 	public boolean handleUnknownProperty(DeserializationContext ctxt, JsonParser jp, JsonDeserializer<?> deserializer, Object beanOrClass, String propertyName) throws IOException {
 		final String propertyPath = ctxt.getParser().getParsingContext().pathAsPointer().toString();
-		final String path = REPLACE_PATTERN.matcher((prefix == null ? "" : prefix) + propertyPath + "/" + propertyName).replaceAll(".");
+		final String path = REPLACE_PATTERN.matcher((this.prefix == null ? "" : this.prefix) + propertyPath + "/" + propertyName).replaceAll(".");
 		final boolean startsWithDot = path.charAt(0) == '.';
 		final String finalPath = startsWithDot ? path.substring(1) : path;
 		log.warn("Unsupported property '{}' encountered in YAML configuration.", finalPath);

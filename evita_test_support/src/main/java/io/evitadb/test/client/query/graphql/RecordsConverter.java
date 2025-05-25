@@ -70,7 +70,7 @@ public class RecordsConverter extends RequireConverter {
 				ResponseDescriptor.RECORD_PAGE,
 				recordPageBuilder -> recordPageBuilder
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
-						entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
+						this.entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
 				getRecordPageArguments(entityType, page)
 			);
 		} else if (strip != null) {
@@ -78,7 +78,7 @@ public class RecordsConverter extends RequireConverter {
 				ResponseDescriptor.RECORD_STRIP,
 				recordPageBuilder -> recordPageBuilder
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
-						entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
+						this.entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
 				getRecordStripArguments(strip)
 			);
 		} else if (entityFetch != null || !hasExtraResults) {
@@ -86,7 +86,7 @@ public class RecordsConverter extends RequireConverter {
 				ResponseDescriptor.RECORD_PAGE,
 				recordPageBuilder -> recordPageBuilder
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
-						entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
+						this.entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
 				getRecordPageArguments(entityType, new Page(null, null))
 			);
 		}

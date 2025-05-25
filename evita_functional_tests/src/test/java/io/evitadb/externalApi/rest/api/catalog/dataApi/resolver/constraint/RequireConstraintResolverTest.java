@@ -54,11 +54,11 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 	@BeforeEach
 	void init() {
 		super.init();
-		final AtomicReference<FilterConstraintResolver> filterConstraintResolver = new AtomicReference<>(new FilterConstraintResolver(catalogSchema));
-		resolver = new RequireConstraintResolver(
-			catalogSchema,
+		final AtomicReference<FilterConstraintResolver> filterConstraintResolver = new AtomicReference<>(new FilterConstraintResolver(this.catalogSchema));
+		this.resolver = new RequireConstraintResolver(
+			this.catalogSchema,
 			filterConstraintResolver,
-			new AtomicReference<>(new OrderConstraintResolver(catalogSchema, filterConstraintResolver))
+			new AtomicReference<>(new OrderConstraintResolver(this.catalogSchema, filterConstraintResolver))
 		);
 	}
 
@@ -66,7 +66,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 	void shouldResolveValueRequireConstraint() {
 		assertEquals(
 			facetGroupsConjunction(Entities.BRAND, filterBy(entityPrimaryKeyInSet(1, 2))),
-			resolver.resolve(
+			this.resolver.resolve(
 				Entities.PRODUCT,
 				"facetBrandGroupsConjunction",
 				map()
@@ -77,7 +77,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 		);
 		assertEquals(
 			facetGroupsConjunction(Entities.BRAND),
-			resolver.resolve(
+			this.resolver.resolve(
 				Entities.PRODUCT,
 				"facetBrandGroupsConjunction",
 				map().build()
@@ -95,7 +95,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 					)
 				)
 			),
-			resolver.resolve(
+			this.resolver.resolve(
 				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				"stopAt",
@@ -118,7 +118,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 					)
 				)
 			),
-			resolver.resolve(
+			this.resolver.resolve(
 				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				"require",
 				map()
@@ -138,7 +138,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 					)
 				)
 			),
-			resolver.resolve(
+			this.resolver.resolve(
 				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				"require",
 				map()
@@ -163,7 +163,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 			),
 			QueryPurifierVisitor.purify(
 				Objects.requireNonNull(
-					resolver.resolve(
+					this.resolver.resolve(
 						new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 						"require",
 						map()
@@ -181,6 +181,6 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveValueRequireConstraint() {
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "facetBrandGroupsConjunction", List.of()));
+		assertThrows(EvitaInternalError.class, () -> this.resolver.resolve(Entities.PRODUCT, "facetBrandGroupsConjunction", List.of()));
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -328,7 +328,7 @@ public class AssertionUtils {
 
 		@Override
 		public void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			this.committed = transactionalLayer.getStateCopyWithCommittedChanges(tested);
+			this.committed = transactionalLayer.getStateCopyWithCommittedChanges(this.tested);
 			transactionalLayer.verifyLayerWasFullySwept();
 		}
 
@@ -362,8 +362,8 @@ public class AssertionUtils {
 
 		@Override
 		public void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			this.committed = new ArrayList<>(tested.size());
-			for (T testedItem : tested) {
+			this.committed = new ArrayList<>(this.tested.size());
+			for (T testedItem : this.tested) {
 				this.committed.add(transactionalLayer.getStateCopyWithCommittedChanges(testedItem));
 			}
 			transactionalLayer.verifyLayerWasFullySwept();
@@ -371,8 +371,8 @@ public class AssertionUtils {
 
 		@Override
 		public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause) {
-			this.committed = new ArrayList<>(tested.size());
-			for (int i = 0; i < tested.size(); i++) {
+			this.committed = new ArrayList<>(this.tested.size());
+			for (int i = 0; i < this.tested.size(); i++) {
 				this.committed.add(null);
 			}
 		}

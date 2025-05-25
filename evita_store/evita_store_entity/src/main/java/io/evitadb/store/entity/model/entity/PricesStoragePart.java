@@ -122,24 +122,24 @@ public class PricesStoragePart implements EntityStoragePart {
 	@Nullable
 	@Override
 	public Long getStoragePartPK() {
-		return (long) entityPrimaryKey;
+		return (long) this.entityPrimaryKey;
 	}
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		return entityPrimaryKey;
+		return this.entityPrimaryKey;
 	}
 
 	@Override
 	public boolean isEmpty() {
-		return (prices.length == 0 || Arrays.stream(prices).noneMatch(Droppable::exists)) &&
-			priceInnerRecordHandling == PriceInnerRecordHandling.NONE;
+		return (this.prices.length == 0 || Arrays.stream(this.prices).noneMatch(Droppable::exists)) &&
+			this.priceInnerRecordHandling == PriceInnerRecordHandling.NONE;
 	}
 
 	@Nonnull
 	@Override
 	public OptionalInt sizeInBytes() {
-		return sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(sizeInBytes);
+		return this.sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(this.sizeInBytes);
 	}
 
 	/**
@@ -148,7 +148,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	@Nonnull
 	public Prices getAsPrices(@Nonnull EntitySchemaContract entitySchema) {
 		return new Prices(
-			entitySchema, version, Arrays.stream(prices).collect(Collectors.toList()), priceInnerRecordHandling
+			entitySchema, this.version, Arrays.stream(this.prices).collect(Collectors.toList()), this.priceInnerRecordHandling
 		);
 	}
 
@@ -231,7 +231,7 @@ public class PricesStoragePart implements EntityStoragePart {
 	 * Returns version of the entity for storing (incremented by one, if anything changed).
 	 */
 	public int getVersion() {
-		return dirty ? version + 1 : version;
+		return this.dirty ? this.version + 1 : this.version;
 	}
 
 }

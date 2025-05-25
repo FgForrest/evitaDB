@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GetMutationsHistoryPageResponse() {
-    changeCapture_ = java.util.Collections.emptyList();
+    this.changeCapture_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -79,10 +79,10 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              changeCapture_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture>();
+              this.changeCapture_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture>();
               mutable_bitField0_ |= 0x00000001;
             }
-            changeCapture_.add(
+            this.changeCapture_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.parser(), extensionRegistry));
             break;
           }
@@ -102,7 +102,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        changeCapture_ = java.util.Collections.unmodifiableList(changeCapture_);
+        this.changeCapture_ = java.util.Collections.unmodifiableList(this.changeCapture_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> getChangeCaptureList() {
-    return changeCapture_;
+    return this.changeCapture_;
   }
   /**
    * <pre>
@@ -142,9 +142,9 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>
       getChangeCaptureOrBuilderList() {
-    return changeCapture_;
+    return this.changeCapture_;
   }
   /**
    * <pre>
@@ -155,7 +155,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getChangeCaptureCount() {
-    return changeCapture_.size();
+    return this.changeCapture_.size();
   }
   /**
    * <pre>
@@ -166,7 +166,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture getChangeCapture(int index) {
-    return changeCapture_.get(index);
+    return this.changeCapture_.get(index);
   }
   /**
    * <pre>
@@ -178,41 +178,41 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder getChangeCaptureOrBuilder(
       int index) {
-    return changeCapture_.get(index);
+    return this.changeCapture_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    for (int i = 0; i < changeCapture_.size(); i++) {
-      output.writeMessage(1, changeCapture_.get(i));
+    for (int i = 0; i < this.changeCapture_.size(); i++) {
+      output.writeMessage(1, this.changeCapture_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    for (int i = 0; i < changeCapture_.size(); i++) {
+    for (int i = 0; i < this.changeCapture_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(1, changeCapture_.get(i));
+        .computeMessageSize(1, this.changeCapture_.get(i));
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -228,14 +228,14 @@ private static final long serialVersionUID = 0L;
 
     if (!getChangeCaptureList()
         .equals(other.getChangeCaptureList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -243,8 +243,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CHANGECAPTURE_FIELD_NUMBER;
       hash = (53 * hash) + getChangeCaptureList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -381,11 +381,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (changeCaptureBuilder_ == null) {
-        changeCapture_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.changeCaptureBuilder_ == null) {
+        this.changeCapture_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       } else {
-        changeCaptureBuilder_.clear();
+        this.changeCaptureBuilder_.clear();
       }
       return this;
     }
@@ -413,15 +413,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse result = new io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse(this);
-      int from_bitField0_ = bitField0_;
-      if (changeCaptureBuilder_ == null) {
-        if (((bitField0_ & 0x00000001) != 0)) {
-          changeCapture_ = java.util.Collections.unmodifiableList(changeCapture_);
-          bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      if (this.changeCaptureBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000001) != 0)) {
+          this.changeCapture_ = java.util.Collections.unmodifiableList(this.changeCapture_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         }
-        result.changeCapture_ = changeCapture_;
+        result.changeCapture_ = this.changeCapture_;
       } else {
-        result.changeCapture_ = changeCaptureBuilder_.build();
+        result.changeCapture_ = this.changeCaptureBuilder_.build();
       }
       onBuilt();
       return result;
@@ -471,29 +471,29 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse other) {
       if (other == io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse.getDefaultInstance()) return this;
-      if (changeCaptureBuilder_ == null) {
+      if (this.changeCaptureBuilder_ == null) {
         if (!other.changeCapture_.isEmpty()) {
-          if (changeCapture_.isEmpty()) {
-            changeCapture_ = other.changeCapture_;
-            bitField0_ = (bitField0_ & ~0x00000001);
+          if (this.changeCapture_.isEmpty()) {
+            this.changeCapture_ = other.changeCapture_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
           } else {
             ensureChangeCaptureIsMutable();
-            changeCapture_.addAll(other.changeCapture_);
+            this.changeCapture_.addAll(other.changeCapture_);
           }
           onChanged();
         }
       } else {
         if (!other.changeCapture_.isEmpty()) {
-          if (changeCaptureBuilder_.isEmpty()) {
-            changeCaptureBuilder_.dispose();
-            changeCaptureBuilder_ = null;
-            changeCapture_ = other.changeCapture_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-            changeCaptureBuilder_ = 
+          if (this.changeCaptureBuilder_.isEmpty()) {
+            this.changeCaptureBuilder_.dispose();
+            this.changeCaptureBuilder_ = null;
+            this.changeCapture_ = other.changeCapture_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+            this.changeCaptureBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getChangeCaptureFieldBuilder() : null;
           } else {
-            changeCaptureBuilder_.addAllMessages(other.changeCapture_);
+            this.changeCaptureBuilder_.addAllMessages(other.changeCapture_);
           }
         }
       }
@@ -530,9 +530,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> changeCapture_ =
       java.util.Collections.emptyList();
     private void ensureChangeCaptureIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        changeCapture_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture>(changeCapture_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.changeCapture_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture>(this.changeCapture_);
+        this.bitField0_ |= 0x00000001;
        }
     }
 
@@ -547,10 +547,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> getChangeCaptureList() {
-      if (changeCaptureBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(changeCapture_);
+      if (this.changeCaptureBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.changeCapture_);
       } else {
-        return changeCaptureBuilder_.getMessageList();
+        return this.changeCaptureBuilder_.getMessageList();
       }
     }
     /**
@@ -561,10 +561,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
      */
     public int getChangeCaptureCount() {
-      if (changeCaptureBuilder_ == null) {
-        return changeCapture_.size();
+      if (this.changeCaptureBuilder_ == null) {
+        return this.changeCapture_.size();
       } else {
-        return changeCaptureBuilder_.getCount();
+        return this.changeCaptureBuilder_.getCount();
       }
     }
     /**
@@ -575,10 +575,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture getChangeCapture(int index) {
-      if (changeCaptureBuilder_ == null) {
-        return changeCapture_.get(index);
+      if (this.changeCaptureBuilder_ == null) {
+        return this.changeCapture_.get(index);
       } else {
-        return changeCaptureBuilder_.getMessage(index);
+        return this.changeCaptureBuilder_.getMessage(index);
       }
     }
     /**
@@ -590,15 +590,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setChangeCapture(
         int index, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture value) {
-      if (changeCaptureBuilder_ == null) {
+      if (this.changeCaptureBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureChangeCaptureIsMutable();
-        changeCapture_.set(index, value);
+        this.changeCapture_.set(index, value);
         onChanged();
       } else {
-        changeCaptureBuilder_.setMessage(index, value);
+        this.changeCaptureBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -611,12 +611,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setChangeCapture(
         int index, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder builderForValue) {
-      if (changeCaptureBuilder_ == null) {
+      if (this.changeCaptureBuilder_ == null) {
         ensureChangeCaptureIsMutable();
-        changeCapture_.set(index, builderForValue.build());
+        this.changeCapture_.set(index, builderForValue.build());
         onChanged();
       } else {
-        changeCaptureBuilder_.setMessage(index, builderForValue.build());
+        this.changeCaptureBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -628,15 +628,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
      */
     public Builder addChangeCapture(io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture value) {
-      if (changeCaptureBuilder_ == null) {
+      if (this.changeCaptureBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureChangeCaptureIsMutable();
-        changeCapture_.add(value);
+        this.changeCapture_.add(value);
         onChanged();
       } else {
-        changeCaptureBuilder_.addMessage(value);
+        this.changeCaptureBuilder_.addMessage(value);
       }
       return this;
     }
@@ -649,15 +649,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addChangeCapture(
         int index, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture value) {
-      if (changeCaptureBuilder_ == null) {
+      if (this.changeCaptureBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureChangeCaptureIsMutable();
-        changeCapture_.add(index, value);
+        this.changeCapture_.add(index, value);
         onChanged();
       } else {
-        changeCaptureBuilder_.addMessage(index, value);
+        this.changeCaptureBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -670,12 +670,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addChangeCapture(
         io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder builderForValue) {
-      if (changeCaptureBuilder_ == null) {
+      if (this.changeCaptureBuilder_ == null) {
         ensureChangeCaptureIsMutable();
-        changeCapture_.add(builderForValue.build());
+        this.changeCapture_.add(builderForValue.build());
         onChanged();
       } else {
-        changeCaptureBuilder_.addMessage(builderForValue.build());
+        this.changeCaptureBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -688,12 +688,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addChangeCapture(
         int index, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder builderForValue) {
-      if (changeCaptureBuilder_ == null) {
+      if (this.changeCaptureBuilder_ == null) {
         ensureChangeCaptureIsMutable();
-        changeCapture_.add(index, builderForValue.build());
+        this.changeCapture_.add(index, builderForValue.build());
         onChanged();
       } else {
-        changeCaptureBuilder_.addMessage(index, builderForValue.build());
+        this.changeCaptureBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -706,13 +706,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllChangeCapture(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> values) {
-      if (changeCaptureBuilder_ == null) {
+      if (this.changeCaptureBuilder_ == null) {
         ensureChangeCaptureIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, changeCapture_);
+            values, this.changeCapture_);
         onChanged();
       } else {
-        changeCaptureBuilder_.addAllMessages(values);
+        this.changeCaptureBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -724,12 +724,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
      */
     public Builder clearChangeCapture() {
-      if (changeCaptureBuilder_ == null) {
-        changeCapture_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.changeCaptureBuilder_ == null) {
+        this.changeCapture_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        changeCaptureBuilder_.clear();
+        this.changeCaptureBuilder_.clear();
       }
       return this;
     }
@@ -741,12 +741,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
      */
     public Builder removeChangeCapture(int index) {
-      if (changeCaptureBuilder_ == null) {
+      if (this.changeCaptureBuilder_ == null) {
         ensureChangeCaptureIsMutable();
-        changeCapture_.remove(index);
+        this.changeCapture_.remove(index);
         onChanged();
       } else {
-        changeCaptureBuilder_.remove(index);
+        this.changeCaptureBuilder_.remove(index);
       }
       return this;
     }
@@ -770,9 +770,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder getChangeCaptureOrBuilder(
         int index) {
-      if (changeCaptureBuilder_ == null) {
-        return changeCapture_.get(index);  } else {
-        return changeCaptureBuilder_.getMessageOrBuilder(index);
+      if (this.changeCaptureBuilder_ == null) {
+        return this.changeCapture_.get(index);  } else {
+        return this.changeCaptureBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -782,12 +782,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>
          getChangeCaptureOrBuilderList() {
-      if (changeCaptureBuilder_ != null) {
-        return changeCaptureBuilder_.getMessageOrBuilderList();
+      if (this.changeCaptureBuilder_ != null) {
+        return this.changeCaptureBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(changeCapture_);
+        return java.util.Collections.unmodifiableList(this.changeCapture_);
       }
     }
     /**
@@ -820,23 +820,23 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder>
          getChangeCaptureBuilderList() {
       return getChangeCaptureFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>
         getChangeCaptureFieldBuilder() {
-      if (changeCaptureBuilder_ == null) {
-        changeCaptureBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.changeCaptureBuilder_ == null) {
+        this.changeCaptureBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>(
-                changeCapture_,
-                ((bitField0_ & 0x00000001) != 0),
+                this.changeCapture_,
+                ((this.bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        changeCapture_ = null;
+        this.changeCapture_ = null;
       }
-      return changeCaptureBuilder_;
+      return this.changeCaptureBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

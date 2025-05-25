@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ public record CatalogVersionDescriptor(
 	 * @return overall size of the mutations incorporated in this version
 	 */
 	public long mutationSizeInBytes() {
-		return Arrays.stream(transactionChanges)
+		return Arrays.stream(this.transactionChanges)
 			.mapToLong(TransactionChanges::mutationSizeInBytes)
 			.sum();
 	}
@@ -65,7 +65,7 @@ public record CatalogVersionDescriptor(
 	 * @return overall number of mutations incorporated in this version
 	 */
 	public int mutationCount() {
-		return Arrays.stream(transactionChanges)
+		return Arrays.stream(this.transactionChanges)
 			.mapToInt(TransactionChanges::mutationCount)
 			.sum();
 	}
@@ -77,7 +77,7 @@ public record CatalogVersionDescriptor(
 	 * @return the total number of catalog schema changes
 	 */
 	public int catalogSchemaChanges() {
-		return Arrays.stream(transactionChanges)
+		return Arrays.stream(this.transactionChanges)
 			.mapToInt(TransactionChanges::catalogSchemaChanges)
 			.sum();
 	}
@@ -90,7 +90,7 @@ public record CatalogVersionDescriptor(
 	 */
 	@Nonnull
 	public EntityCollectionChanges[] entityCollectionChanges() {
-		return Arrays.stream(transactionChanges)
+		return Arrays.stream(this.transactionChanges)
 			.flatMap(tc -> Arrays.stream(tc.entityCollectionChanges))
 			.collect(Collectors.toMap(
 				EntityCollectionChanges::entityName,
@@ -103,9 +103,9 @@ public record CatalogVersionDescriptor(
 
 	@Override
 	public String toString() {
-		return "Catalog version: " + version +
-			", processed at " + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(processedTimestamp) +
-			" with " + transactionChanges.length + " transactions " +
+		return "Catalog version: " + this.version +
+			", processed at " + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(this.processedTimestamp) +
+			" with " + this.transactionChanges.length + " transactions " +
 			"(" + (catalogSchemaChanges() > 0 ? catalogSchemaChanges() + " catalog schema changes, " : "") +
 			mutationCount() + " mutations, " + StringUtils.formatByteSize(mutationSizeInBytes()) + "):\n" +
 			Arrays.stream(entityCollectionChanges())
@@ -139,7 +139,7 @@ public record CatalogVersionDescriptor(
 		 */
 		@Nonnull
 		public Duration processingLag(@Nonnull OffsetDateTime processedTimestamp) {
-			return Duration.between(commitTimestamp, processedTimestamp);
+			return Duration.between(this.commitTimestamp, processedTimestamp);
 		}
 
 		@Override
@@ -148,8 +148,8 @@ public record CatalogVersionDescriptor(
 		}
 
 		public String toString(@Nullable OffsetDateTime processedTimestamp) {
-			return "Transaction to version: " + catalogVersion +
-				", committed at " + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(commitTimestamp) +
+			return "Transaction to version: " + this.catalogVersion +
+				", committed at " + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(this.commitTimestamp) +
 				(processedTimestamp != null ? "(processing lag " + StringUtils.formatDuration(processingLag(processedTimestamp)) + ")" : "") +
 				"(" + (catalogSchemaChanges() > 0 ? catalogSchemaChanges() + " catalog schema changes, " : "") +
 				mutationCount() + " mutations, " + StringUtils.formatByteSize(mutationSizeInBytes()) + "):\n" +
@@ -185,23 +185,23 @@ public record CatalogVersionDescriptor(
 		@Nonnull
 		public EntityCollectionChanges mergeWith(@Nonnull EntityCollectionChanges otherChanges) {
 			Assert.isPremiseValid(
-				entityName.equals(otherChanges.entityName),
+				this.entityName.equals(otherChanges.entityName),
 				"Entity name must be the same for merging changes"
 			);
 			return new EntityCollectionChanges(
-				entityName,
-				schemaChanges + otherChanges.schemaChanges,
-				upserted + otherChanges.upserted,
-				removed + otherChanges.removed
+				this.entityName,
+				this.schemaChanges + otherChanges.schemaChanges,
+				this.upserted + otherChanges.upserted,
+				this.removed + otherChanges.removed
 			);
 		}
 
 		@Override
 		public String toString() {
-			return "changes in `" + entityName + "`: " +
-				(schemaChanges > 0 ? schemaChanges + " schema changes" : "") +
-				(upserted > 0 ? (schemaChanges > 0 ? ", " : "") + upserted + " upserted entities" : "") +
-				(removed > 0 ? (schemaChanges > 0 || upserted > 0 ? ", " : "") + removed + " removed entities" : "");
+			return "changes in `" + this.entityName + "`: " +
+				(this.schemaChanges > 0 ? this.schemaChanges + " schema changes" : "") +
+				(this.upserted > 0 ? (this.schemaChanges > 0 ? ", " : "") + this.upserted + " upserted entities" : "") +
+				(this.removed > 0 ? (this.schemaChanges > 0 || this.upserted > 0 ? ", " : "") + this.removed + " removed entities" : "");
 		}
 	}
 

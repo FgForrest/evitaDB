@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 			final AssociatedDataKey associatedDataKey = upsertAssociatedDataMutation.getAssociatedDataKey();
 			final Serializable associatedDataValue = upsertAssociatedDataMutation.getAssociatedDataValue();
 			verifyAssociatedDataIsInSchemaAndTypeMatch(
-				baseAssociatedData.entitySchema,
+				this.baseAssociatedData.entitySchema,
 				associatedDataKey.associatedDataName(),
 				associatedDataValue.getClass(),
 				associatedDataKey.locale()
@@ -161,8 +161,8 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		} else {
 			final Serializable valueToStore = ComplexDataObjectConverter.getSerializableForm(associatedDataValue);
 			final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName);
-			verifyAssociatedDataIsInSchemaAndTypeMatch(baseAssociatedData.entitySchema, associatedDataName, valueToStore.getClass());
-			associatedDataMutations.put(
+			verifyAssociatedDataIsInSchemaAndTypeMatch(this.baseAssociatedData.entitySchema, associatedDataName, valueToStore.getClass());
+			this.associatedDataMutations.put(
 				associatedDataKey,
 				new UpsertAssociatedDataMutation(associatedDataKey, valueToStore)
 			);
@@ -179,8 +179,8 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 			valueToStore[i] = ComplexDataObjectConverter.getSerializableForm(dataItem);
 		}
 		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName);
-		verifyAssociatedDataIsInSchemaAndTypeMatch(baseAssociatedData.entitySchema, associatedDataName, valueToStore.getClass());
-		associatedDataMutations.put(
+		verifyAssociatedDataIsInSchemaAndTypeMatch(this.baseAssociatedData.entitySchema, associatedDataName, valueToStore.getClass());
+		this.associatedDataMutations.put(
 			associatedDataKey,
 			new UpsertAssociatedDataMutation(associatedDataKey, valueToStore)
 		);
@@ -207,8 +207,8 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		} else {
 			final Serializable valueToStore = ComplexDataObjectConverter.getSerializableForm(associatedDataValue);
 			final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName, locale);
-			verifyAssociatedDataIsInSchemaAndTypeMatch(baseAssociatedData.entitySchema, associatedDataName, valueToStore.getClass(), locale);
-			associatedDataMutations.put(
+			verifyAssociatedDataIsInSchemaAndTypeMatch(this.baseAssociatedData.entitySchema, associatedDataName, valueToStore.getClass(), locale);
+			this.associatedDataMutations.put(
 				associatedDataKey,
 				new UpsertAssociatedDataMutation(associatedDataKey, valueToStore)
 			);
@@ -228,8 +228,8 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 				valueToStore[i] = ComplexDataObjectConverter.getSerializableForm(dataItem);
 			}
 			final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName, locale);
-			verifyAssociatedDataIsInSchemaAndTypeMatch(baseAssociatedData.entitySchema, associatedDataName, valueToStore.getClass(), locale);
-			associatedDataMutations.put(
+			verifyAssociatedDataIsInSchemaAndTypeMatch(this.baseAssociatedData.entitySchema, associatedDataName, valueToStore.getClass(), locale);
+			this.associatedDataMutations.put(
 				associatedDataKey,
 				new UpsertAssociatedDataMutation(associatedDataKey, valueToStore)
 			);
@@ -240,7 +240,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	@Override
 	public AssociatedDataBuilder mutateAssociatedData(@Nonnull AssociatedDataMutation mutation) {
-		associatedDataMutations.put(mutation.getAssociatedDataKey(), mutation);
+		this.associatedDataMutations.put(mutation.getAssociatedDataKey(), mutation);
 		return this;
 	}
 
@@ -269,7 +269,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName) {
 		//noinspection unchecked
 		return (T) getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataName))
-			.filter(associatedDataPredicate)
+			.filter(this.associatedDataPredicate)
 			.map(AssociatedDataValue::value)
 			.orElse(null);
 	}
@@ -287,7 +287,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName) {
 		//noinspection unchecked
 		return (T[]) getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataName))
-			.filter(associatedDataPredicate)
+			.filter(this.associatedDataPredicate)
 			.map(AssociatedDataValue::value)
 			.orElse(null);
 	}
@@ -303,7 +303,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return (T) getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataName, locale))
-			.filter(associatedDataPredicate)
+			.filter(this.associatedDataPredicate)
 			.map(AssociatedDataValue::value)
 			.orElse(null);
 	}
@@ -321,7 +321,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return (T[]) getAssociatedDataValueInternal(new AssociatedDataKey(associatedDataName, locale))
-			.filter(associatedDataPredicate)
+			.filter(this.associatedDataPredicate)
 			.map(AssociatedDataValue::value)
 			.orElse(null);
 	}
@@ -345,7 +345,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	@Override
 	public Optional<AssociatedDataSchemaContract> getAssociatedDataSchema(@Nonnull String associatedDataName) {
-		return baseAssociatedData.getAssociatedDataSchema(associatedDataName);
+		return this.baseAssociatedData.getAssociatedDataSchema(associatedDataName);
 	}
 
 	@Nonnull
@@ -373,7 +373,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	public Collection<AssociatedDataValue> getAssociatedDataValues() {
 		return getAssociatedDataValuesWithoutPredicate()
-			.filter(associatedDataPredicate)
+			.filter(this.associatedDataPredicate)
 			.collect(Collectors.toList());
 	}
 
@@ -399,13 +399,13 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	@Override
 	public Stream<? extends AssociatedDataMutation> buildChangeSet() {
-		final Map<AssociatedDataKey, AssociatedDataValue> builtDataValues = new HashMap<>(baseAssociatedData.associatedDataValues);
-		return associatedDataMutations
+		final Map<AssociatedDataKey, AssociatedDataValue> builtDataValues = new HashMap<>(this.baseAssociatedData.associatedDataValues);
+		return this.associatedDataMutations
 			.values()
 			.stream()
 			.filter(it -> {
 				final AssociatedDataValue existingValue = builtDataValues.get(it.getAssociatedDataKey());
-				final AssociatedDataValue newAssociatedData = it.mutateLocal(entitySchema, existingValue);
+				final AssociatedDataValue newAssociatedData = it.mutateLocal(this.entitySchema, existingValue);
 				builtDataValues.put(it.getAssociatedDataKey(), newAssociatedData);
 				return existingValue == null || newAssociatedData.version() > existingValue.version();
 			});
@@ -417,11 +417,11 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		if (isThereAnyChangeInMutations()) {
 			final List<AssociatedDataValue> newAssociatedDataValues = getAssociatedDataValuesWithoutPredicate().toList();
 			final Map<String, AssociatedDataSchemaContract> newAssociatedDataTypes = Stream.concat(
-					baseAssociatedData.associatedDataTypes.values().stream(),
+					this.baseAssociatedData.associatedDataTypes.values().stream(),
 					newAssociatedDataValues
 						.stream()
 						// filter out new associate data that has no type yet
-						.filter(it -> !baseAssociatedData.associatedDataTypes.containsKey(it.key().associatedDataName()))
+						.filter(it -> !this.baseAssociatedData.associatedDataTypes.containsKey(it.key().associatedDataName()))
 						// create definition for them on the fly
 						.map(AssociatedDataBuilder::createImplicitSchema)
 				)
@@ -440,12 +440,12 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 				);
 
 			return new AssociatedData(
-				baseAssociatedData.entitySchema,
+				this.baseAssociatedData.entitySchema,
 				newAssociatedDataValues,
 				newAssociatedDataTypes
 			);
 		} else {
-			return baseAssociatedData;
+			return this.baseAssociatedData;
 		}
 	}
 
@@ -457,27 +457,27 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		return Stream.concat(
 			// process all original associatedData values - they will be: either kept intact if there is no mutation
 			// or mutated by the mutation - i.e. updated or removed
-			baseAssociatedData.associatedDataValues
+			this.baseAssociatedData.associatedDataValues
 				.entrySet()
 				.stream()
 				// use old associatedData, or apply mutation on the associatedData and return the mutated associatedData
-				.map(it -> ofNullable(associatedDataMutations.get(it.getKey()))
+				.map(it -> ofNullable(this.associatedDataMutations.get(it.getKey()))
 					.map(mutation -> {
 						final AssociatedDataValue originValue = it.getValue();
-						final AssociatedDataValue mutatedAssociatedData = mutation.mutateLocal(entitySchema, originValue);
+						final AssociatedDataValue mutatedAssociatedData = mutation.mutateLocal(this.entitySchema, originValue);
 						return mutatedAssociatedData.differsFrom(originValue) ? mutatedAssociatedData : originValue;
 					})
 					.orElse(it.getValue())
 				),
 			// all mutations that doesn't hit existing associatedData probably produce new ones
 			// we have to process them as well
-			associatedDataMutations
+			this.associatedDataMutations
 				.values()
 				.stream()
 				// we want to process only those mutations that have no associatedData to mutate in the original set
-				.filter(it -> !baseAssociatedData.getAssociatedDataKeys().contains(it.getAssociatedDataKey()))
+				.filter(it -> !this.baseAssociatedData.getAssociatedDataKeys().contains(it.getAssociatedDataKey()))
 				// apply mutation
-				.map(it -> it.mutateLocal(entitySchema, null))
+				.map(it -> it.mutateLocal(this.entitySchema, null))
 		);
 	}
 
@@ -488,25 +488,25 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		return Stream.concat(
 				// process all original attribute values - they will be: either kept intact if there is no mutation
 				// or mutated by the mutation - i.e. updated or removed
-				baseAssociatedData.associatedDataValues
+				this.baseAssociatedData.associatedDataValues
 					.entrySet()
 					.stream()
 					// use old attribute, or apply mutation on the attribute and return the mutated attribute
-					.map(it -> ofNullable(associatedDataMutations.get(it.getKey()))
+					.map(it -> ofNullable(this.associatedDataMutations.get(it.getKey()))
 						.map(mutation -> {
 							final AssociatedDataValue originValue = it.getValue();
-							final AssociatedDataValue mutatedAttribute = mutation.mutateLocal(entitySchema, originValue);
+							final AssociatedDataValue mutatedAttribute = mutation.mutateLocal(this.entitySchema, originValue);
 							return mutatedAttribute.differsFrom(originValue);
 						})
 						.orElse(false)
 					),
 				// all mutations that doesn't hit existing attribute probably produce new ones
 				// we have to process them as well
-				associatedDataMutations
+				this.associatedDataMutations
 					.values()
 					.stream()
 					// we want to process only those mutations that have no attribute to mutate in the original set
-					.filter(it -> !baseAssociatedData.getAssociatedDataKeys().contains(it.getAssociatedDataKey()))
+					.filter(it -> !this.baseAssociatedData.getAssociatedDataKeys().contains(it.getAssociatedDataKey()))
 					// apply mutation
 					.map(it -> true)
 			)
@@ -523,16 +523,16 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 			.map(it ->
 				ofNullable(this.associatedDataMutations.get(associatedDataKey))
 					.map(mut -> {
-						final AssociatedDataValue mutatedValue = mut.mutateLocal(entitySchema, it);
+						final AssociatedDataValue mutatedValue = mut.mutateLocal(this.entitySchema, it);
 						return mutatedValue.differsFrom(it) ? mutatedValue : it;
 					})
 					.orElse(it)
 			)
 			.or(() ->
 				ofNullable(this.associatedDataMutations.get(associatedDataKey))
-					.map(it -> it.mutateLocal(entitySchema, null))
+					.map(it -> it.mutateLocal(this.entitySchema, null))
 			);
-		return associatedDataValue.filter(associatedDataPredicate);
+		return associatedDataValue.filter(this.associatedDataPredicate);
 	}
 
 }

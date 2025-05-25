@@ -74,12 +74,12 @@ public class UriPath implements Comparable<UriPath> {
 
 	@Override
 	public String toString() {
-		return path;
+		return this.path;
 	}
 
 	@Override
 	public int compareTo(@Nonnull UriPath o) {
-		return path.compareTo(o.path);
+		return this.path.compareTo(o.path);
 	}
 
 	public static class Builder {
@@ -139,7 +139,7 @@ public class UriPath implements Comparable<UriPath> {
 
 		@Nonnull
 		public UriPath build() {
-			final String builtPath = String.join("/", parts).replaceAll("/+", PATH_SEPARATOR);
+			final String builtPath = String.join("/", this.parts).replaceAll("/+", PATH_SEPARATOR);
 			return new UriPath(builtPath);
 		}
 

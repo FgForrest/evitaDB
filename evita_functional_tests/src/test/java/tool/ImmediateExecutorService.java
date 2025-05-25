@@ -83,10 +83,10 @@ public class ImmediateExecutorService implements ExecutorService {
 
 		@Override
 		public T get() throws InterruptedException, ExecutionException {
-			if (exception != null) {
-				throw exception;
+			if (this.exception != null) {
+				throw this.exception;
 			}
-			return result;
+			return this.result;
 		}
 
 		@Override
@@ -185,23 +185,23 @@ public class ImmediateExecutorService implements ExecutorService {
 
 	@Override
 	public boolean isTerminated() {
-		return shutdown; // Terminated if shutdown has been called
+		return this.shutdown; // Terminated if shutdown has been called
 	}
 
 	@Override
 	public boolean isShutdown() {
-		return shutdown;
+		return this.shutdown;
 	}
 
 	@Nonnull
 	@Override
 	public List<Runnable> shutdownNow() {
-		shutdown = true;
+		this.shutdown = true;
 		return List.of(); // No pending tasks to return
 	}
 
 	@Override
 	public void shutdown() {
-		shutdown = true;
+		this.shutdown = true;
 	}
 }

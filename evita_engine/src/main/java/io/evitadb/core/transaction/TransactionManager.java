@@ -23,9 +23,8 @@
 
 package io.evitadb.core.transaction;
 
-import io.evitadb.api.TransactionContract.CommitBehavior;
-import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.CommitProgressRecord;
+import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.TransactionTimedOutException;
@@ -905,7 +904,7 @@ public class TransactionManager {
 	 */
 	@Nonnull
 	private SubmissionPublisher<ConflictResolutionTransactionTask> getTransactionalPublisher() {
-		final SubmissionPublisher<ConflictResolutionTransactionTask> thePipeline = transactionalPipeline.get();
+		final SubmissionPublisher<ConflictResolutionTransactionTask> thePipeline = this.transactionalPipeline.get();
 		if (thePipeline != null && !thePipeline.isClosed()) {
 			return thePipeline;
 		} else {

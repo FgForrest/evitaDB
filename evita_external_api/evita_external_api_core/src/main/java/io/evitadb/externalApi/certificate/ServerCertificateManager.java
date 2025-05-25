@@ -121,7 +121,7 @@ public class ServerCertificateManager {
 	 */
 	@Nonnull
 	public Path getCertificatePath(@Nonnull String certName) {
-		return certificateFolderPath.resolve(certName + CertificateUtils.getCertificateExtension());
+		return this.certificateFolderPath.resolve(certName + CertificateUtils.getCertificateExtension());
 	}
 
 	/**
@@ -129,7 +129,7 @@ public class ServerCertificateManager {
 	 */
 	@Nonnull
 	public Path getCertificatePrivateKeyPath(@Nonnull String certName) {
-		return certificateFolderPath.resolve(certName + CertificateUtils.getCertificateKeyExtension());
+		return this.certificateFolderPath.resolve(certName + CertificateUtils.getCertificateKeyExtension());
 	}
 
 	/**

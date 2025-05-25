@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -79,20 +79,20 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 
 	@BeforeEach
 	void setUp() {
-		facetIndex = new FacetIndex();
-		facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 1), 1, 1);
-		facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 2), 2, 2);
-		facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 1), 1, 3);
-		facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 3), 3, 4);
-		facetIndex.addFacet(new ReferenceKey(Entities.STORE, 1), 1, 5);
-		facetIndex.addFacet(new ReferenceKey(Entities.PARAMETER, 1), null, 100);
-		facetIndex.addFacet(new ReferenceKey(Entities.PARAMETER, 1), null, 101);
-		facetIndex.addFacet(new ReferenceKey(Entities.PARAMETER, 2), null, 102);
+		this.facetIndex = new FacetIndex();
+		this.facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 1), 1, 1);
+		this.facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 2), 2, 2);
+		this.facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 1), 1, 3);
+		this.facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 3), 3, 4);
+		this.facetIndex.addFacet(new ReferenceKey(Entities.STORE, 1), 1, 5);
+		this.facetIndex.addFacet(new ReferenceKey(Entities.PARAMETER, 1), null, 100);
+		this.facetIndex.addFacet(new ReferenceKey(Entities.PARAMETER, 1), null, 101);
+		this.facetIndex.addFacet(new ReferenceKey(Entities.PARAMETER, 2), null, 102);
 	}
 
 	@Test
 	void shouldReturnFacetingEntityTypes() {
-		final Set<String> referencedEntities = facetIndex.getReferencedEntities();
+		final Set<String> referencedEntities = this.facetIndex.getReferencedEntities();
 		assertEquals(3, referencedEntities.size());
 		assertTrue(referencedEntities.contains(BRAND_ENTITY));
 		assertTrue(referencedEntities.contains(STORE_ENTITY));
@@ -101,23 +101,23 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldReturnFacetingEntityIds() {
-		final List<FacetGroupFormula> brandReferencingEntityIds = facetIndex.getFacetReferencingEntityIdsFormula(
-			BRAND_ENTITY, fct.apply(BRAND_ENTITY), new ArrayBitmap(1)
+		final List<FacetGroupFormula> brandReferencingEntityIds = this.facetIndex.getFacetReferencingEntityIdsFormula(
+			BRAND_ENTITY, this.fct.apply(BRAND_ENTITY), new ArrayBitmap(1)
 		);
 
 		assertEquals(1, brandReferencingEntityIds.size());
 		assertArrayEquals(new int[]{1, 3}, brandReferencingEntityIds.get(0).compute().getArray());
 
-		final List<FacetGroupFormula> storeReferencingEntityIds = facetIndex.getFacetReferencingEntityIdsFormula(
-			STORE_ENTITY, fct.apply(STORE_ENTITY), new ArrayBitmap(1)
+		final List<FacetGroupFormula> storeReferencingEntityIds = this.facetIndex.getFacetReferencingEntityIdsFormula(
+			STORE_ENTITY, this.fct.apply(STORE_ENTITY), new ArrayBitmap(1)
 		);
 
 		assertEquals(1, storeReferencingEntityIds.size());
 		assertArrayEquals(new int[]{5}, storeReferencingEntityIds.get(0).compute().getArray());
 
-		assertEquals(0, facetIndex.getFacetReferencingEntityIdsFormula(BRAND_ENTITY, fct.apply(BRAND_ENTITY), new ArrayBitmap(8)).size());
-		assertEquals(0, facetIndex.getFacetReferencingEntityIdsFormula(STORE_ENTITY, fct.apply(STORE_ENTITY), new ArrayBitmap(8)).size());
-		assertEquals(0, facetIndex.getFacetReferencingEntityIdsFormula(CATEGORY_ENTITY, fct.apply(CATEGORY_ENTITY), new ArrayBitmap(1)).size());
+		assertEquals(0, this.facetIndex.getFacetReferencingEntityIdsFormula(BRAND_ENTITY, this.fct.apply(BRAND_ENTITY), new ArrayBitmap(8)).size());
+		assertEquals(0, this.facetIndex.getFacetReferencingEntityIdsFormula(STORE_ENTITY, this.fct.apply(STORE_ENTITY), new ArrayBitmap(8)).size());
+		assertEquals(0, this.facetIndex.getFacetReferencingEntityIdsFormula(CATEGORY_ENTITY, this.fct.apply(CATEGORY_ENTITY), new ArrayBitmap(1)).size());
 	}
 
 	@Test
@@ -137,36 +137,36 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 				"STORE:\n" +
 				"\tGROUP 1:\n" +
 				"\t\t1: [5]",
-			facetIndex.toString()
+			this.facetIndex.toString()
 		);
 	}
 
 	@Test
 	void shouldInsertNewFacetingEntityId() {
-		facetIndex.resetDirty();
-		assertEquals(0, facetIndex.getModifiedStorageParts(1).size());
+		this.facetIndex.resetDirty();
+		assertEquals(0, this.facetIndex.getModifiedStorageParts(1).size());
 
-		facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 2), 2, 8);
+		this.facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 2), 2, 8);
 
-		final List<FacetGroupFormula> brandReferencingEntityIds = facetIndex.getFacetReferencingEntityIdsFormula(
-			BRAND_ENTITY, fct.apply(BRAND_ENTITY), new ArrayBitmap(2)
+		final List<FacetGroupFormula> brandReferencingEntityIds = this.facetIndex.getFacetReferencingEntityIdsFormula(
+			BRAND_ENTITY, this.fct.apply(BRAND_ENTITY), new ArrayBitmap(2)
 		);
 		assertArrayEquals(new int[]{2, 8}, FormulaFactory.and(brandReferencingEntityIds.toArray(Formula[]::new)).compute().getArray());
-		assertEquals(1, facetIndex.getModifiedStorageParts(1).size());
+		assertEquals(1, this.facetIndex.getModifiedStorageParts(1).size());
 	}
 
 	@Test
 	void shouldRemoveExistingFacetingEntityId() {
-		facetIndex.resetDirty();
-		assertEquals(0, facetIndex.getModifiedStorageParts(1).size());
+		this.facetIndex.resetDirty();
+		assertEquals(0, this.facetIndex.getModifiedStorageParts(1).size());
 
-		facetIndex.removeFacet(new ReferenceKey(Entities.BRAND, 2), 2, 2);
+		this.facetIndex.removeFacet(new ReferenceKey(Entities.BRAND, 2), 2, 2);
 
-		final List<FacetGroupFormula> brandReferencingEntityIds = facetIndex.getFacetReferencingEntityIdsFormula(
-			BRAND_ENTITY, fct.apply(BRAND_ENTITY), new ArrayBitmap(1)
+		final List<FacetGroupFormula> brandReferencingEntityIds = this.facetIndex.getFacetReferencingEntityIdsFormula(
+			BRAND_ENTITY, this.fct.apply(BRAND_ENTITY), new ArrayBitmap(1)
 		);
 		assertArrayEquals(new int[]{1, 3}, FormulaFactory.and(brandReferencingEntityIds.toArray(Formula[]::new)).compute().getArray());
-		assertEquals(1, facetIndex.getModifiedStorageParts(1).size());
+		assertEquals(1, this.facetIndex.getModifiedStorageParts(1).size());
 	}
 
 	@ParameterizedTest(name = "FacetIndex should survive generational randomized test applying modifications on it")

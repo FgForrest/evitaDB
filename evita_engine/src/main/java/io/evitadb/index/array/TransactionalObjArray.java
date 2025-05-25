@@ -100,9 +100,9 @@ public class TransactionalObjArray<T> implements TransactionalLayerProducer<ObjA
 	public void add(@Nonnull T recordId) {
 		final ObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
-			this.delegate = ArrayUtils.insertRecordIntoOrderedArray(recordId, this.delegate, comparator);
+			this.delegate = ArrayUtils.insertRecordIntoOrderedArray(recordId, this.delegate, this.comparator);
 		} else {
-			layer.addRecordId(recordId, comparator);
+			layer.addRecordId(recordId, this.comparator);
 		}
 	}
 
@@ -121,9 +121,9 @@ public class TransactionalObjArray<T> implements TransactionalLayerProducer<ObjA
 	public void remove(@Nonnull T recordId) {
 		final ObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
-			this.delegate = ArrayUtils.removeRecordFromOrderedArray(recordId, this.delegate, comparator);
+			this.delegate = ArrayUtils.removeRecordFromOrderedArray(recordId, this.delegate, this.comparator);
 		} else {
-			layer.removeRecordId(recordId, comparator);
+			layer.removeRecordId(recordId, this.comparator);
 		}
 	}
 
@@ -180,9 +180,9 @@ public class TransactionalObjArray<T> implements TransactionalLayerProducer<ObjA
 	public boolean contains(@Nonnull T recordId) {
 		final ObjArrayChanges<T> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return Arrays.binarySearch(this.delegate, recordId, comparator) >= 0;
+			return Arrays.binarySearch(this.delegate, recordId, this.comparator) >= 0;
 		} else {
-			return layer.contains(recordId, comparator);
+			return layer.contains(recordId, this.comparator);
 		}
 	}
 

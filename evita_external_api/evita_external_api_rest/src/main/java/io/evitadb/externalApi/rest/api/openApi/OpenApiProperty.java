@@ -76,7 +76,7 @@ public class OpenApiProperty {
 	}
 
 	public boolean isNonNull() {
-		return type instanceof OpenApiNonNull;
+		return this.type instanceof OpenApiNonNull;
 	}
 
 	/**
@@ -213,14 +213,14 @@ public class OpenApiProperty {
 		@Nonnull
 		public OpenApiProperty build() {
 			Assert.isPremiseValid(
-				name != null && !name.isEmpty(),
+				this.name != null && !this.name.isEmpty(),
 				() -> new OpenApiBuildingError("Missing property name.")
 			);
 			Assert.isPremiseValid(
-				type != null,
-				() -> new OpenApiBuildingError("Property `" + name + "` is missing type.")
+				this.type != null,
+				() -> new OpenApiBuildingError("Property `" + this.name + "` is missing type.")
 			);
-			return new OpenApiProperty(name, description, deprecationNotice, type);
+			return new OpenApiProperty(this.name, this.description, this.deprecationNotice, this.type);
 		}
 	}
 }

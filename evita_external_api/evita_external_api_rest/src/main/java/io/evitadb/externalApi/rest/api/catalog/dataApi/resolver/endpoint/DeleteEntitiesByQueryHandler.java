@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -94,7 +94,7 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 						return query;
 					}
 				});
-				log.debug("Generated evitaDB query for deletion of entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), finalQuery);
+				log.debug("Generated evitaDB query for deletion of entity list of type `{}` is `{}`.", this.restHandlingContext.getEntitySchema(), finalQuery);
 
 				final SealedEntity[] deletedEntities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
 					executionContext.session().deleteSealedEntitiesAndReturnBodies(finalQuery));
@@ -120,8 +120,8 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 			deletedEntities instanceof SealedEntity[],
 			() -> new RestInternalError("Expected SealedEntity[], but got `" + deletedEntities.getClass().getName() + "`.")
 		);
-		return entityJsonSerializer.serialize(
-			new EntitySerializationContext(restHandlingContext.getCatalogSchema()),
+		return this.entityJsonSerializer.serialize(
+			new EntitySerializationContext(this.restHandlingContext.getCatalogSchema()),
 			(SealedEntity[]) deletedEntities
 		);
 	}

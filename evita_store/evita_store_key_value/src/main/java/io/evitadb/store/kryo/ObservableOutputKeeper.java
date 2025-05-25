@@ -179,8 +179,8 @@ public class ObservableOutputKeeper implements AutoCloseable {
 			}
 			Thread.onSpinWait();
 		} while (
-			!cachedOutputToFiles.isEmpty() &&
-				System.currentTimeMillis() - start < options.waitOnCloseSeconds() * 1000L
+			!this.cachedOutputToFiles.isEmpty() &&
+				System.currentTimeMillis() - start < this.options.waitOnCloseSeconds() * 1000L
 		);
 
 		// emit event
@@ -208,7 +208,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		@Nonnull Function<Path, ObservableOutput<FileOutputStream>> createFct
 	) {
 		this.cutTask.schedule();
-		return cachedOutputToFiles
+		return this.cachedOutputToFiles
 			.computeIfAbsent(targetFile, path -> new OpenedOutputToFile(createFct.apply(path)));
 	}
 
@@ -276,7 +276,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 			Assert.isPremiseValid(!this.leased, "The output is already leased");
 			this.leased = true;
 			this.lastReadTime = System.currentTimeMillis();
-			return output;
+			return this.output;
 		}
 
 		/**

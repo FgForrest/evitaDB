@@ -250,7 +250,7 @@ public abstract class EntityIndex implements
 	 * Registers new entity primary key to the superset of entity ids of this entity index.
 	 */
 	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey) {
-		final boolean added = entityIds.add(entityPrimaryKey);
+		final boolean added = this.entityIds.add(entityPrimaryKey);
 		if (added) {
 			this.dirty.setToTrue();
 		}
@@ -261,7 +261,7 @@ public abstract class EntityIndex implements
 	 * Removes existing from the superset of entity ids of this entity index.
 	 */
 	public boolean removePrimaryKey(int entityPrimaryKey) {
-		final boolean removed = entityIds.remove(entityPrimaryKey);
+		final boolean removed = this.entityIds.remove(entityPrimaryKey);
 		if (removed) {
 			this.dirty.setToTrue();
 		}
@@ -272,7 +272,7 @@ public abstract class EntityIndex implements
 	 * Returns true if the `entityPrimaryKey` is known in the index.
 	 */
 	public boolean isPrimaryKeyKnown(int entityPrimaryKey) {
-		return entityIds.contains(entityPrimaryKey);
+		return this.entityIds.contains(entityPrimaryKey);
 	}
 
 	/**
@@ -280,7 +280,7 @@ public abstract class EntityIndex implements
 	 */
 	@Nonnull
 	public Formula getAllPrimaryKeysFormula() {
-		return entityIds.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(entityIds);
+		return this.entityIds.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(this.entityIds);
 	}
 
 	/**
@@ -288,7 +288,7 @@ public abstract class EntityIndex implements
 	 */
 	@Nonnull
 	public Bitmap getAllPrimaryKeys() {
-		return entityIds;
+		return this.entityIds;
 	}
 
 	/**
@@ -394,7 +394,7 @@ public abstract class EntityIndex implements
 		final Set<AttributeIndexStorageKey> attributeIndexStorageKeys = getAttributeIndexStorageKeys();
 		final Set<PriceIndexKey> priceIndexKeys = getPriceIndexKeys(priceIndex);
 		final Set<String> facetIndexReferencedEntities = getFacetIndexReferencedEntities();
-		if (dirty.isTrue() ||
+		if (this.dirty.isTrue() ||
 			this.originalHierarchyIndexEmpty != hierarchyIndexEmpty ||
 			!Objects.equals(this.originalAttributeIndexes, attributeIndexStorageKeys) ||
 			!Objects.equals(this.originalPriceIndexes, priceIndexKeys) ||
@@ -406,10 +406,10 @@ public abstract class EntityIndex implements
 				)
 			);
 		}
-		ofNullable(hierarchyIndex.createStoragePart(primaryKey))
+		ofNullable(this.hierarchyIndex.createStoragePart(this.primaryKey))
 			.ifPresent(dirtyList::add);
-		dirtyList.addAll(attributeIndex.getModifiedStorageParts(primaryKey));
-		dirtyList.addAll(facetIndex.getModifiedStorageParts(primaryKey));
+		dirtyList.addAll(this.attributeIndex.getModifiedStorageParts(this.primaryKey));
+		dirtyList.addAll(this.facetIndex.getModifiedStorageParts(this.primaryKey));
 		return dirtyList;
 	}
 
@@ -490,7 +490,7 @@ public abstract class EntityIndex implements
 	 */
 	@Nonnull
 	private Set<String> getFacetIndexReferencedEntities() {
-		return facetIndex.getReferencedEntities();
+		return this.facetIndex.getReferencedEntities();
 	}
 
 	/**
@@ -531,10 +531,10 @@ public abstract class EntityIndex implements
 	@Nonnull
 	protected Stream<AttributeIndexStorageKey> getAttributeIndexStorageKeyStream() {
 		return Stream.of(
-				attributeIndex.getUniqueIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.UNIQUE, it)),
-				attributeIndex.getFilterIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.FILTER, it)),
-				attributeIndex.getSortIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.SORT, it)),
-				attributeIndex.getChainIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.CHAIN, it))
+				this.attributeIndex.getUniqueIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.UNIQUE, it)),
+				this.attributeIndex.getFilterIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.FILTER, it)),
+				this.attributeIndex.getSortIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.SORT, it)),
+				this.attributeIndex.getChainIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.CHAIN, it))
 			)
 			.flatMap(it -> it);
 	}

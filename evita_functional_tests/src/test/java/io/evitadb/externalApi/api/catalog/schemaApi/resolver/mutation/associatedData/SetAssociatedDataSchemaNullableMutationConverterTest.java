@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ class SetAssociatedDataSchemaNullableMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new SetAssociatedDataSchemaNullableMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new SetAssociatedDataSchemaNullableMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -58,7 +58,7 @@ class SetAssociatedDataSchemaNullableMutationConverterTest {
 			true
 		);
 
-		final SetAssociatedDataSchemaNullableMutation convertedMutation1 = converter.convertFromInput(
+		final SetAssociatedDataSchemaNullableMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(SetAssociatedDataSchemaNullableMutationDescriptor.NAME.name(), "labels")
 				.e(SetAssociatedDataSchemaNullableMutationDescriptor.NULLABLE.name(), true)
@@ -66,7 +66,7 @@ class SetAssociatedDataSchemaNullableMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final SetAssociatedDataSchemaNullableMutation convertedMutation2 = converter.convertFromInput(
+		final SetAssociatedDataSchemaNullableMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(SetAssociatedDataSchemaNullableMutationDescriptor.NAME.name(), "labels")
 				.e(SetAssociatedDataSchemaNullableMutationDescriptor.NULLABLE.name(), "true")
@@ -79,7 +79,7 @@ class SetAssociatedDataSchemaNullableMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(SetAssociatedDataSchemaNullableMutationDescriptor.NAME.name(), "labels")
 					.build()
@@ -87,13 +87,13 @@ class SetAssociatedDataSchemaNullableMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(SetAssociatedDataSchemaNullableMutationDescriptor.NULLABLE.name(), true)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -841,8 +841,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					this.getSortableAttributeCompounds(),
 					sortableAttributeCompoundName -> this.reflectedReference.getSortableAttributeCompound(sortableAttributeCompoundName).isPresent()
 				),
-			attributesInheritanceBehavior,
-			attributeInheritanceFilter,
+			this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter,
 			this.reflectedReference
 		);
 	}

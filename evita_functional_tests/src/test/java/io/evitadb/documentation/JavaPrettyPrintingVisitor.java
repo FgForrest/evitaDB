@@ -186,8 +186,8 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 	 * Traverses and prints the entire query.
 	 */
 	public void traverse(@Nonnull Query query) {
-		if (indent != null) {
-			this.result.append(fixedIndent);
+		if (this.indent != null) {
+			this.result.append(this.fixedIndent);
 		}
 		this.result.append("query" + ARG_OPENING).append(newLine());
 		this.level = 1;
@@ -213,13 +213,13 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 
 	@Override
 	public void visit(@Nonnull Constraint<?> constraint) {
-		if (firstConstraint) {
-			firstConstraint = false;
+		if (this.firstConstraint) {
+			this.firstConstraint = false;
 		} else {
-			result.append(newLine());
+			this.result.append(newLine());
 		}
-		indent(indent, level);
-		result.append(constraint.getName()).append(ARG_OPENING);
+		indent(this.indent, this.level);
+		this.result.append(constraint.getName()).append(ARG_OPENING);
 		if (constraint instanceof ConstraintContainer<?>) {
 			printContainer((ConstraintContainer<?>) constraint);
 		} else if (constraint instanceof ConstraintLeaf) {
@@ -228,7 +228,7 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 	}
 
 	public String getResult() {
-		return result.toString();
+		return this.result.toString();
 	}
 
 	/*
@@ -237,12 +237,12 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 
 	@Nonnull
 	public StringBuilder nextArgument() {
-		return result.append(",");
+		return this.result.append(",");
 	}
 
 	@Nonnull
 	public StringBuilder nextConstraint() {
-		return firstConstraint ? result : result.append(",");
+		return this.firstConstraint ? this.result : this.result.append(",");
 	}
 
 	/**
@@ -250,7 +250,7 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	private String newLine() {
-		return indent == null ? "" : "\n" + fixedIndent;
+		return this.indent == null ? "" : "\n" + this.fixedIndent;
 	}
 
 	/**
@@ -258,7 +258,7 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 	 */
 	private void indent(@Nullable String indent, int repeatCount) {
 		if (indent != null) {
-			result.append(indent.repeat(Math.max(0, repeatCount)));
+			this.result.append(indent.repeat(Math.max(0, repeatCount)));
 		}
 	}
 
@@ -268,7 +268,7 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 			return;
 		}
 
-		level++;
+		this.level++;
 		if (constraint.isApplicable()) {
 			final Constraint<?>[] children = constraint.getExplicitChildren();
 			final int childrenLength = children.length;
@@ -289,9 +289,9 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 					continue;
 				}
 
-				result.append(newLine());
-				indent(indent, level);
-				result.append(formatValue(argument));
+				this.result.append(newLine());
+				indent(this.indent, this.level);
+				this.result.append(formatValue(argument));
 
 				if (i + 1 < childrenLength || additionalChildrenLength > 0 || childrenLength > 0) {
 					nextArgument();
@@ -326,10 +326,10 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 				}
 			}
 		}
-		level--;
-		result.append(newLine());
-		indent(indent, level);
-		result.append(ARG_CLOSING);
+		this.level--;
+		this.result.append(newLine());
+		indent(this.indent, this.level);
+		this.result.append(ARG_CLOSING);
 	}
 
 	private void printLeaf(Constraint<?> constraint) {
@@ -345,22 +345,22 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 				argumentString.append(", ");
 			}
 		}
-		if (indent == null || argumentString.length() < ofNullable(fixedIndent).map(String::length).orElse(0) + indent.length() * level + 60) {
-			result.append(argumentString);
-			result.append(ARG_CLOSING);
+		if (this.indent == null || argumentString.length() < ofNullable(this.fixedIndent).map(String::length).orElse(0) + this.indent.length() * this.level + 60) {
+			this.result.append(argumentString);
+			this.result.append(ARG_CLOSING);
 		} else {
 			for (int i = 0; i < arguments.length; i++) {
 				final Serializable argument = arguments[i];
-				result.append(newLine());
-				indent(indent, level + 1);
-				result.append(formatValue(argument));
+				this.result.append(newLine());
+				indent(this.indent, this.level + 1);
+				this.result.append(formatValue(argument));
 				if (i + 1 < arguments.length) {
-					result.append(", ");
+					this.result.append(", ");
 				}
 			}
-			result.append(newLine());
-			indent(indent, level);
-			result.append(ARG_CLOSING);
+			this.result.append(newLine());
+			indent(this.indent, this.level);
+			this.result.append(ARG_CLOSING);
 		}
 	}
 

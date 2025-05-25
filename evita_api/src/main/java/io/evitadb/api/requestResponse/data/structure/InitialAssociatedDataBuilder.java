@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	public AssociatedDataBuilder removeAssociatedData(@Nonnull String associatedDataName) {
 		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName);
-		associatedDataValues.remove(associatedDataKey);
+		this.associatedDataValues.remove(associatedDataKey);
 		return this;
 	}
 
@@ -125,8 +125,8 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 		} else {
 			final Serializable valueToStore = ComplexDataObjectConverter.getSerializableForm(associatedDataValue);
 			final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName);
-			verifyAssociatedDataIsInSchemaAndTypeMatch(entitySchema, associatedDataName, valueToStore.getClass());
-			associatedDataValues.put(associatedDataKey, new AssociatedDataValue(associatedDataKey, valueToStore));
+			verifyAssociatedDataIsInSchemaAndTypeMatch(this.entitySchema, associatedDataName, valueToStore.getClass());
+			this.associatedDataValues.put(associatedDataKey, new AssociatedDataValue(associatedDataKey, valueToStore));
 			return this;
 		}
 	}
@@ -136,8 +136,8 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	public <T extends Serializable> AssociatedDataBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull T[] associatedDataValue) {
 		final Serializable valueToStore = ComplexDataObjectConverter.getSerializableForm(associatedDataValue);
 		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName);
-		verifyAssociatedDataIsInSchemaAndTypeMatch(entitySchema, associatedDataName, valueToStore.getClass());
-		associatedDataValues.put(associatedDataKey, new AssociatedDataValue(associatedDataKey, valueToStore));
+		verifyAssociatedDataIsInSchemaAndTypeMatch(this.entitySchema, associatedDataName, valueToStore.getClass());
+		this.associatedDataValues.put(associatedDataKey, new AssociatedDataValue(associatedDataKey, valueToStore));
 		return this;
 	}
 
@@ -145,7 +145,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nullable
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName) {
 		//noinspection unchecked
-		return (T) ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
+		return (T) ofNullable(this.associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
 				.map(AssociatedDataValue::value)
 				.orElse(null);
 	}
@@ -153,7 +153,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nullable
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
-		return ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
+		return ofNullable(this.associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
 				.map(AssociatedDataValue::value)
 				.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
 				.orElse(null);
@@ -163,7 +163,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nullable
 	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName) {
 		//noinspection unchecked
-		return (T[]) ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
+		return (T[]) ofNullable(this.associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
 			.map(AssociatedDataValue::value)
 			.orElse(null);
 	}
@@ -171,13 +171,13 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	@Override
 	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull String associatedDataName) {
-		return ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)));
+		return ofNullable(this.associatedDataValues.get(new AssociatedDataKey(associatedDataName)));
 	}
 
 	@Nonnull
 	@Override
 	public Collection<AssociatedDataValue> getAssociatedDataValues(@Nonnull String associatedDataName) {
-		return associatedDataValues
+		return this.associatedDataValues
 			.entrySet()
 			.stream()
 			.filter(it -> associatedDataName.equals(it.getKey().associatedDataName()))
@@ -205,7 +205,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 		} else {
 			final Serializable valueToStore = ComplexDataObjectConverter.getSerializableForm(associatedDataValue);
 			final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName, locale);
-			verifyAssociatedDataIsInSchemaAndTypeMatch(entitySchema, associatedDataName, valueToStore.getClass(), locale);
+			verifyAssociatedDataIsInSchemaAndTypeMatch(this.entitySchema, associatedDataName, valueToStore.getClass(), locale);
 			this.associatedDataValues.put(associatedDataKey, new AssociatedDataValue(associatedDataKey, valueToStore));
 			return this;
 		}
@@ -219,7 +219,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 		} else {
 			final Serializable valueToStore = ComplexDataObjectConverter.getSerializableForm(associatedDataValue);
 			final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName, locale);
-			verifyAssociatedDataIsInSchemaAndTypeMatch(entitySchema, associatedDataName, valueToStore.getClass(), locale);
+			verifyAssociatedDataIsInSchemaAndTypeMatch(this.entitySchema, associatedDataName, valueToStore.getClass(), locale);
 			this.associatedDataValues.put(associatedDataKey, new AssociatedDataValue(associatedDataKey, valueToStore));
 			return this;
 		}

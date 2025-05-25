@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ public class CachedRecord extends CacheRecordAdept {
 	 * the computational object must be removed from the cache.
 	 */
 	public int getCooling() {
-		return cooling.get();
+		return this.cooling.get();
 	}
 
 	/**
@@ -128,10 +128,10 @@ public class CachedRecord extends CacheRecordAdept {
 	 */
 	public <T> T getPayload(Class<T> expectedClass) {
 		Assert.isTrue(isInitialized(), "Cache record is not initialized!");
-		Assert.isTrue(expectedClass.isInstance(payload), "Cache record contains " + payload.getClass() + " but expected is " + expectedClass);
+		Assert.isTrue(expectedClass.isInstance(this.payload), "Cache record contains " + this.payload.getClass() + " but expected is " + expectedClass);
 		used();
 		//noinspection unchecked
-		return (T) payload;
+		return (T) this.payload;
 	}
 
 	/**
@@ -142,7 +142,7 @@ public class CachedRecord extends CacheRecordAdept {
 	 */
 	public long getTransactionalIdHash() {
 		Assert.isTrue(isInitialized(), "Cache record is not initialized!");
-		return transactionalIdHash;
+		return this.transactionalIdHash;
 	}
 
 	/**
@@ -150,7 +150,7 @@ public class CachedRecord extends CacheRecordAdept {
 	 * still zero) {@link #cooling} counter is increased otherwise cooling counter is reset to zero.
 	 */
 	public int reset() {
-		final int usedTimes = timesUsed.getAndSet(0);
+		final int usedTimes = this.timesUsed.getAndSet(0);
 		if (usedTimes == 0) {
 			return this.cooling.incrementAndGet();
 		} else {

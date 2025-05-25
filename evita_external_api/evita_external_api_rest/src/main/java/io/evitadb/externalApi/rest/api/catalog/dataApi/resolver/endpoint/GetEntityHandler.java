@@ -76,11 +76,11 @@ public class GetEntityHandler extends EntityHandler<CollectionRestHandlingContex
 
 				final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
 					buildHead(executionContext),
-					FilterByConstraintFromRequestQueryBuilder.buildFilterByForSingleEntity(parametersFromRequest, restHandlingContext.getEntitySchema()),
+					FilterByConstraintFromRequestQueryBuilder.buildFilterByForSingleEntity(parametersFromRequest, this.restHandlingContext.getEntitySchema()),
 					RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
 				));
 
-				log.debug("Generated evitaDB query for single entity fetch of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
+				log.debug("Generated evitaDB query for single entity fetch of type `{}` is `{}`.", this.restHandlingContext.getEntitySchema(), query);
 
 				final Optional<EntityClassifier> entity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
 					executionContext.session().queryOne(query, EntityClassifier.class));
@@ -99,7 +99,7 @@ public class GetEntityHandler extends EntityHandler<CollectionRestHandlingContex
 	@Nullable
 	protected Head buildHead(@Nonnull RestEndpointExecutionContext executionContext) {
 		final List<HeadConstraint> headConstraints = new LinkedList<>();
-		headConstraints.add(collection(restHandlingContext.getEntityType()));
+		headConstraints.add(collection(this.restHandlingContext.getEntityType()));
 		headConstraints.add(label(Label.LABEL_SOURCE_TYPE, RestQueryLabels.REST_SOURCE_TYPE_VALUE));
 
 		executionContext.trafficSourceQueryRecordingId()

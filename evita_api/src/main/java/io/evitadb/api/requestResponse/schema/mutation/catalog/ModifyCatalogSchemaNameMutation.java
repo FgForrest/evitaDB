@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,15 +70,15 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 			catalogSchema,
 			() -> new InvalidSchemaMutationException("Catalog doesn't exist!")
 		);
-		if (newCatalogName.equals(catalogSchema.getName())) {
+		if (this.newCatalogName.equals(catalogSchema.getName())) {
 			// nothing has changed - we can return existing schema
 			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
 			return new CatalogSchemaWithImpactOnEntitySchemas(
 				CatalogSchema._internalBuild(
 					catalogSchema.version() + 1,
-					newCatalogName,
-					NamingConvention.generate(newCatalogName),
+					this.newCatalogName,
+					NamingConvention.generate(this.newCatalogName),
 					catalogSchema.getDescription(),
 					catalogSchema.getCatalogEvolutionMode(),
 					catalogSchema.getAttributes(),
@@ -118,8 +118,8 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 
 	@Override
 	public String toString() {
-		return (overwriteTarget ? "Replace catalog " : "Modify catalog name") + "`" + catalogName + "`: " +
-			"newCatalogName='" + newCatalogName + '\'';
+		return (this.overwriteTarget ? "Replace catalog " : "Modify catalog name") + "`" + this.catalogName + "`: " +
+			"newCatalogName='" + this.newCatalogName + '\'';
 	}
 
 }

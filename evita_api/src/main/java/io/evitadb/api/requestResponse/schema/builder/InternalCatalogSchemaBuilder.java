@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -232,9 +232,9 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 								", cannot change this type to: " + requestedType + "!"
 						)
 					);
-					return new GlobalAttributeSchemaBuilder(baseSchema, it);
+					return new GlobalAttributeSchemaBuilder(this.baseSchema, it);
 				})
-				.orElseGet(() -> new GlobalAttributeSchemaBuilder(baseSchema, attributeName, requestedType));
+				.orElseGet(() -> new GlobalAttributeSchemaBuilder(this.baseSchema, attributeName, requestedType));
 
 		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
 		final GlobalAttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
@@ -275,7 +275,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	@Nonnull
 	@Override
 	public String getName() {
-		return baseSchema.getName();
+		return this.baseSchema.getName();
 	}
 
 	@Nullable
@@ -287,25 +287,25 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	@Nonnull
 	@Override
 	public Map<NamingConvention, String> getNameVariants() {
-		return baseSchema.getNameVariants();
+		return this.baseSchema.getNameVariants();
 	}
 
 	@Nonnull
 	@Override
 	public String getNameVariant(@Nonnull NamingConvention namingConvention) {
-		return baseSchema.getNameVariant(namingConvention);
+		return this.baseSchema.getNameVariant(namingConvention);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<EntitySchemaContract> getEntitySchemas() {
-		return updatedEntitySchemaAccessor.getEntitySchemas();
+		return this.updatedEntitySchemaAccessor.getEntitySchemas();
 	}
 
 	@Nonnull
 	@Override
 	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-		return updatedEntitySchemaAccessor.getEntitySchema(entityType);
+		return this.updatedEntitySchemaAccessor.getEntitySchema(entityType);
 	}
 
 	@Nonnull
@@ -333,9 +333,9 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 				this.baseSchema : this.updatedSchema;
 
 			// apply the mutations not reflected in the schema
-			for (int i = lastMutationReflectedInSchema + 1; i < this.mutations.size(); i++) {
+			for (int i = this.lastMutationReflectedInSchema + 1; i < this.mutations.size(); i++) {
 				final LocalCatalogSchemaMutation mutation = this.mutations.get(i);
-				final CatalogSchemaWithImpactOnEntitySchemas mutationImpact = mutation.mutate(currentSchema, updatedEntitySchemaAccessor);
+				final CatalogSchemaWithImpactOnEntitySchemas mutationImpact = mutation.mutate(currentSchema, this.updatedEntitySchemaAccessor);
 				if (mutationImpact == null || mutationImpact.updatedCatalogSchema() == null) {
 					throw new GenericEvitaInternalError("Catalog schema unexpectedly removed from inside!");
 				}

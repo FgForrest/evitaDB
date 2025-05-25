@@ -92,7 +92,7 @@ public class RestQueryConverter implements AutoCloseable {
 
 	@Override
 	public void close() throws Exception {
-		evita.close();
+		this.evita.close();
 	}
 
 	@Nonnull
@@ -111,7 +111,7 @@ public class RestQueryConverter implements AutoCloseable {
 			new AtomicReference<>(orderConstraintToJsonConverter)
 		);
 
-		final ObjectNode body = jsonNodeFactory.objectNode();
+		final ObjectNode body = this.jsonNodeFactory.objectNode();
 		final List<JsonConstraint> rootConstraints = new ArrayList<>(4);
 		if (query.getHead() != null) {
 			final HeadConstraint head = ConstraintCloneVisitor.clone(query.getHead(), (visitor, theConstraint) -> theConstraint instanceof Collection ? null : theConstraint);
@@ -144,7 +144,7 @@ public class RestQueryConverter implements AutoCloseable {
 		);
 
 		rootConstraints.forEach(c -> body.putIfAbsent(c.key(), c.value()));
-		return inputJsonPrinter.print(body);
+		return this.inputJsonPrinter.print(body);
 	}
 
 	@Nonnull

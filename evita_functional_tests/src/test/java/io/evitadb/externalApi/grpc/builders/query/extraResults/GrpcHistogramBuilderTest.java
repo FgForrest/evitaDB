@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,9 +56,9 @@ class GrpcHistogramBuilderTest {
 		final String[] types = {"test1", "test2", "test3"};
 		final AttributeHistogram attributeHistogram = new AttributeHistogram(
 			Map.of(
-				types[0], histogram,
-				types[1], histogram,
-				types[2], histogram
+				types[0], this.histogram,
+				types[1], this.histogram,
+				types[2], this.histogram
 			)
 		);
 
@@ -69,7 +69,7 @@ class GrpcHistogramBuilderTest {
 
 	@Test
 	void buildPriceHistogram() {
-		final PriceHistogram priceHistogram = new PriceHistogram(histogram);
+		final PriceHistogram priceHistogram = new PriceHistogram(this.histogram);
 		final GrpcHistogram grpcHistogram = GrpcHistogramBuilder.buildPriceHistogram(priceHistogram);
 		GrpcAssertions.assertPriceHistogram(priceHistogram, grpcHistogram);
 	}

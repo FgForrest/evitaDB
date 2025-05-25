@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,7 +77,7 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 	@Override
 	@Nonnull
 	public Serializable getAttributeValue() {
-		return value;
+		return this.value;
 	}
 
 	@Nonnull
@@ -85,10 +85,10 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 	public AttributeValue mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable AttributeValue existingValue) {
 		if (existingValue == null) {
 			// create new attribute value
-			return new AttributeValue(attributeKey, value);
+			return new AttributeValue(this.attributeKey, this.value);
 		} else if (!Objects.equals(existingValue.value(), this.value) || existingValue.dropped()) {
 			// update attribute version (we changed it) and return mutated value
-			return new AttributeValue(existingValue.version() + 1, attributeKey, this.value);
+			return new AttributeValue(existingValue.version() + 1, this.attributeKey, this.value);
 		} else {
 			return existingValue;
 		}
@@ -113,21 +113,21 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 
 		UpsertAttributeMutation that = (UpsertAttributeMutation) o;
 
-		return value.getClass().isArray() ?
-			that.value.getClass().isArray() && ArrayUtils.equals(value, that.value) : value.equals(that.value);
+		return this.value.getClass().isArray() ?
+			that.value.getClass().isArray() && ArrayUtils.equals(this.value, that.value) : this.value.equals(that.value);
 	}
 
 	@Override
 	public int hashCode() {
 		int result = super.hashCode();
 		result = 31 * result +
-			(value.getClass().isArray() ? ArrayUtils.hashCode(value) : value.hashCode());
+			(this.value.getClass().isArray() ? ArrayUtils.hashCode(this.value) : this.value.hashCode());
 		return result;
 	}
 
 	@Override
 	public String toString() {
-		return "upsert attribute `" + attributeKey + "` with value: " + StringUtils.toString(value);
+		return "upsert attribute `" + this.attributeKey + "` with value: " + StringUtils.toString(this.value);
 	}
 
 }

@@ -53,14 +53,14 @@ class InsertReferenceMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter =  new InsertReferenceMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new InsertReferenceMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final InsertReferenceMutation expectedMutation = new InsertReferenceMutation(new ReferenceKey(REFERENCE_TAGS, 1), Cardinality.ONE_OR_MORE, "Tag");
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -70,7 +70,7 @@ class InsertReferenceMutationConverterTest {
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
 				.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -83,7 +83,7 @@ class InsertReferenceMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -99,7 +99,7 @@ class InsertReferenceMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.build()
@@ -107,14 +107,14 @@ class InsertReferenceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -122,7 +122,7 @@ class InsertReferenceMutationConverterTest {
 		final InsertReferenceMutation inputMutation = new InsertReferenceMutation(new ReferenceKey(REFERENCE_TAGS, 1), Cardinality.ONE_OR_MORE, "Tag");
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

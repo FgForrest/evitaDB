@@ -58,7 +58,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new CreateSortableAttributeCompoundSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new CreateSortableAttributeCompoundSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -72,7 +72,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 			new AttributeElement("b", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
 
-		final CreateSortableAttributeCompoundSchemaMutation convertedMutation1 = converter.convertFromInput(
+		final CreateSortableAttributeCompoundSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -95,7 +95,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final CreateSortableAttributeCompoundSchemaMutation convertedMutation2 = converter.convertFromInput(
+		final CreateSortableAttributeCompoundSchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -128,7 +128,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 			new AttributeElement("a", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST)
 		);
 
-		final CreateSortableAttributeCompoundSchemaMutation convertedMutation1 = converter.convertFromInput(
+		final CreateSortableAttributeCompoundSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
@@ -147,7 +147,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
 						map()
@@ -161,14 +161,14 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -183,7 +183,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 		);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

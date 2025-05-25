@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,13 +77,13 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.Builder subBuilder = null;
-            if (catalogSchema_ != null) {
-              subBuilder = catalogSchema_.toBuilder();
+            if (this.catalogSchema_ != null) {
+              subBuilder = this.catalogSchema_.toBuilder();
             }
-            catalogSchema_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.parser(), extensionRegistry);
+            this.catalogSchema_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(catalogSchema_);
-              catalogSchema_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.catalogSchema_);
+              this.catalogSchema_ = subBuilder.buildPartial();
             }
 
             break;
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasCatalogSchema() {
-    return catalogSchema_ != null;
+    return this.catalogSchema_ != null;
   }
   /**
    * <pre>
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema getCatalogSchema() {
-    return catalogSchema_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.getDefaultInstance() : catalogSchema_;
+    return this.catalogSchema_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.getDefaultInstance() : this.catalogSchema_;
   }
   /**
    * <pre>
@@ -161,35 +161,35 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (catalogSchema_ != null) {
+    if (this.catalogSchema_ != null) {
       output.writeMessage(1, getCatalogSchema());
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (catalogSchema_ != null) {
+    if (this.catalogSchema_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getCatalogSchema());
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -208,14 +208,14 @@ private static final long serialVersionUID = 0L;
       if (!getCatalogSchema()
           .equals(other.getCatalogSchema())) return false;
     }
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -223,8 +223,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CATALOGSCHEMA_FIELD_NUMBER;
       hash = (53 * hash) + getCatalogSchema().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -360,11 +360,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (catalogSchemaBuilder_ == null) {
-        catalogSchema_ = null;
+      if (this.catalogSchemaBuilder_ == null) {
+        this.catalogSchema_ = null;
       } else {
-        catalogSchema_ = null;
-        catalogSchemaBuilder_ = null;
+        this.catalogSchema_ = null;
+        this.catalogSchemaBuilder_ = null;
       }
       return this;
     }
@@ -392,10 +392,10 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse result = new io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse(this);
-      if (catalogSchemaBuilder_ == null) {
-        result.catalogSchema_ = catalogSchema_;
+      if (this.catalogSchemaBuilder_ == null) {
+        result.catalogSchema_ = this.catalogSchema_;
       } else {
-        result.catalogSchema_ = catalogSchemaBuilder_.build();
+        result.catalogSchema_ = this.catalogSchemaBuilder_.build();
       }
       onBuilt();
       return result;
@@ -489,7 +489,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the catalogSchema field is set.
      */
     public boolean hasCatalogSchema() {
-      return catalogSchemaBuilder_ != null || catalogSchema_ != null;
+      return this.catalogSchemaBuilder_ != null || this.catalogSchema_ != null;
     }
     /**
      * <pre>
@@ -500,10 +500,10 @@ private static final long serialVersionUID = 0L;
      * @return The catalogSchema.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema getCatalogSchema() {
-      if (catalogSchemaBuilder_ == null) {
-        return catalogSchema_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.getDefaultInstance() : catalogSchema_;
+      if (this.catalogSchemaBuilder_ == null) {
+        return this.catalogSchema_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.getDefaultInstance() : this.catalogSchema_;
       } else {
-        return catalogSchemaBuilder_.getMessage();
+        return this.catalogSchemaBuilder_.getMessage();
       }
     }
     /**
@@ -514,14 +514,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     public Builder setCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema value) {
-      if (catalogSchemaBuilder_ == null) {
+      if (this.catalogSchemaBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        catalogSchema_ = value;
+        this.catalogSchema_ = value;
         onChanged();
       } else {
-        catalogSchemaBuilder_.setMessage(value);
+        this.catalogSchemaBuilder_.setMessage(value);
       }
 
       return this;
@@ -535,11 +535,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCatalogSchema(
         io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.Builder builderForValue) {
-      if (catalogSchemaBuilder_ == null) {
-        catalogSchema_ = builderForValue.build();
+      if (this.catalogSchemaBuilder_ == null) {
+        this.catalogSchema_ = builderForValue.build();
         onChanged();
       } else {
-        catalogSchemaBuilder_.setMessage(builderForValue.build());
+        this.catalogSchemaBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -552,16 +552,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     public Builder mergeCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema value) {
-      if (catalogSchemaBuilder_ == null) {
-        if (catalogSchema_ != null) {
-          catalogSchema_ =
-            io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.newBuilder(catalogSchema_).mergeFrom(value).buildPartial();
+      if (this.catalogSchemaBuilder_ == null) {
+        if (this.catalogSchema_ != null) {
+          this.catalogSchema_ =
+            io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.newBuilder(this.catalogSchema_).mergeFrom(value).buildPartial();
         } else {
-          catalogSchema_ = value;
+          this.catalogSchema_ = value;
         }
         onChanged();
       } else {
-        catalogSchemaBuilder_.mergeFrom(value);
+        this.catalogSchemaBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -574,12 +574,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     public Builder clearCatalogSchema() {
-      if (catalogSchemaBuilder_ == null) {
-        catalogSchema_ = null;
+      if (this.catalogSchemaBuilder_ == null) {
+        this.catalogSchema_ = null;
         onChanged();
       } else {
-        catalogSchema_ = null;
-        catalogSchemaBuilder_ = null;
+        this.catalogSchema_ = null;
+        this.catalogSchemaBuilder_ = null;
       }
 
       return this;
@@ -592,7 +592,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.Builder getCatalogSchemaBuilder() {
-      
+
       onChanged();
       return getCatalogSchemaFieldBuilder().getBuilder();
     }
@@ -604,11 +604,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOrBuilder getCatalogSchemaOrBuilder() {
-      if (catalogSchemaBuilder_ != null) {
-        return catalogSchemaBuilder_.getMessageOrBuilder();
+      if (this.catalogSchemaBuilder_ != null) {
+        return this.catalogSchemaBuilder_.getMessageOrBuilder();
       } else {
-        return catalogSchema_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.getDefaultInstance() : catalogSchema_;
+        return this.catalogSchema_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.getDefaultInstance() : this.catalogSchema_;
       }
     }
     /**
@@ -619,17 +619,17 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOrBuilder>
         getCatalogSchemaFieldBuilder() {
-      if (catalogSchemaBuilder_ == null) {
-        catalogSchemaBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.catalogSchemaBuilder_ == null) {
+        this.catalogSchemaBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOrBuilder>(
                 getCatalogSchema(),
                 getParentForChildren(),
                 isClean());
-        catalogSchema_ = null;
+        this.catalogSchema_ = null;
       }
-      return catalogSchemaBuilder_;
+      return this.catalogSchemaBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

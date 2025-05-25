@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -57,16 +57,16 @@ public class VariableOperand implements ExpressionNode {
 	@Nonnull
 	@Override
 	public Serializable compute(@Nonnull PredicateEvaluationContext context) {
-		return context.getVariable(variableName)
+		return context.getVariable(this.variableName)
 			.map(it -> {
 				Assert.isTrue(
 					it instanceof Serializable && EvitaDataTypes.isSupportedType(it.getClass()),
-					() -> new EvitaInvalidUsageException("Variable `" + variableName + "` has unsupported type: " + it.getClass().getSimpleName())
+					() -> new EvitaInvalidUsageException("Variable `" + this.variableName + "` has unsupported type: " + it.getClass().getSimpleName())
 				);
 				return (Serializable) it;
 			})
 			.orElseThrow(() -> new EvitaInvalidUsageException(
-				"Variable `" + variableName + "` not found! Only these variables are available: " +
+				"Variable `" + this.variableName + "` not found! Only these variables are available: " +
 					context.getVariableNames().map(it -> "`" + it + "`").collect(Collectors.joining(", ")))
 			);
 	}
@@ -79,6 +79,6 @@ public class VariableOperand implements ExpressionNode {
 
 	@Override
 	public String toString() {
-		return "$" + variableName;
+		return "$" + this.variableName;
 	}
 }

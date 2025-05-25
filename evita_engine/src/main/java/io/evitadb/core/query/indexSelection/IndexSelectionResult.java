@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ public record IndexSelectionResult<T extends Index<?>>(
 	 * Returns true if this DTO contains NO reference to the target indexes.
 	 */
 	public boolean isEmpty() {
-		return targetIndexes.isEmpty() || targetIndexes.stream().anyMatch(TargetIndexes::isEmpty);
+		return this.targetIndexes.isEmpty() || this.targetIndexes.stream().anyMatch(TargetIndexes::isEmpty);
 	}
 
 }

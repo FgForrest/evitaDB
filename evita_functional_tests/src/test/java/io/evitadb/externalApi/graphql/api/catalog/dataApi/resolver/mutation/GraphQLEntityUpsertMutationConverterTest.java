@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ class GraphQLEntityUpsertMutationConverterTest {
 			.withPrice()
 			.withReferenceTo(REFERENCE_TAGS, "tag", Cardinality.ZERO_OR_MORE)
 			.toInstance();
-		converter = new GraphQLEntityUpsertMutationConverter(new ObjectMapper(), entitySchema);
+		this.converter = new GraphQLEntityUpsertMutationConverter(new ObjectMapper(), entitySchema);
 	}
 
 	@Test
@@ -203,7 +203,7 @@ class GraphQLEntityUpsertMutationConverterTest {
 				.build()
 		);
 
-		final EntityMutation entityMutation = converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = this.converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 
@@ -287,7 +287,7 @@ class GraphQLEntityUpsertMutationConverterTest {
 				.build()
 		);
 
-		final EntityMutation entityMutation = converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = this.converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 
@@ -325,7 +325,7 @@ class GraphQLEntityUpsertMutationConverterTest {
 				.build()
 		);
 
-		final EntityMutation entityMutation = converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = this.converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 		final Collection<? extends LocalMutation<?, ?>> localMutations = entityMutation.getLocalMutations();

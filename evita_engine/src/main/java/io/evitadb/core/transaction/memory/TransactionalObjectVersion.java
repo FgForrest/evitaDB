@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -57,10 +57,10 @@ public class TransactionalObjectVersion {
 	 * Generates new unique id from the sequence.
 	 */
 	public long nextId() {
-		final long id = version.incrementAndGet();
-		if (!positiveDomain && id >= 0) {
-			positiveDomain = true;
-		} if (id == Long.MAX_VALUE || (id < 0 && positiveDomain)) {
+		final long id = this.version.incrementAndGet();
+		if (!this.positiveDomain && id >= 0) {
+			this.positiveDomain = true;
+		} if (id == Long.MAX_VALUE || (id < 0 && this.positiveDomain)) {
 			log.error(
 				"Transactional object version sequence overflowed, which can cause unpredictable results! " +
 					"Database cannot accept any new modifications. Please restart database to start counting from the beginning."

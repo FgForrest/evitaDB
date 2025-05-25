@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,14 +43,14 @@ public class ReferenceChanges<T> {
 	}
 
 	public void set(T value) {
-		theValue.set(value);;
+		this.theValue.set(value);;
 	}
 
 	public T get() {
-		return theValue.get();
+		return this.theValue.get();
 	}
 
 	public T compareAndExchange(T currentValue, T newValue) {
-		return theValue.compareAndExchange(currentValue, newValue);
+		return this.theValue.compareAndExchange(currentValue, newValue);
 	}
 }

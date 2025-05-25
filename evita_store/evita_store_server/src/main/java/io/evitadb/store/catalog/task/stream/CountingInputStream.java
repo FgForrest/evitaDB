@@ -132,7 +132,7 @@ public class CountingInputStream extends InputStream {
 
 	@Override
 	public long transferTo(OutputStream out) throws IOException {
-		final long transferredBytes = delegate.transferTo(out);
+		final long transferredBytes = this.delegate.transferTo(out);
 		this.count += transferredBytes;
 		return transferredBytes;
 	}

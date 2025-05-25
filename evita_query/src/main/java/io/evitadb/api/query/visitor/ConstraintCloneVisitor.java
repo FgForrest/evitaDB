@@ -134,13 +134,13 @@ public class ConstraintCloneVisitor implements ConstraintVisitor {
 		if (constraint instanceof final ConstraintContainer<?> container) {
 			this.parents.push(container);
 			try {
-				final Constraint<?> translatedConstraint = constraintTranslator.apply(this, constraint);
+				final Constraint<?> translatedConstraint = this.constraintTranslator.apply(this, constraint);
 				if (translatedConstraint == constraint) {
 					this.levelConstraints.push(new ArrayList<>(container.getChildrenCount()));
 					for (Constraint<?> child : container) {
 						child.accept(this);
 					}
-					final List<Constraint<?>> children = levelConstraints.pop();
+					final List<Constraint<?>> children = this.levelConstraints.pop();
 
 					this.levelConstraints.push(new ArrayList<>(container.getAdditionalChildrenCount()));
 					for (Constraint<?> additionalChild : container.getAdditionalChildren()) {
@@ -171,11 +171,11 @@ public class ConstraintCloneVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public List<Constraint<?>> analyseChildren(@Nonnull ConstraintContainer<?> constraint) {
-		levelConstraints.push(new ArrayList<>(constraint.getChildrenCount()));
+		this.levelConstraints.push(new ArrayList<>(constraint.getChildrenCount()));
 		for (Constraint<?> innerConstraint : constraint) {
 			innerConstraint.accept(this);
 		}
-		return levelConstraints.pop();
+		return this.levelConstraints.pop();
 	}
 
 	@Nullable

@@ -516,11 +516,11 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 		@Nonnull
 		public DefaultEntityCollectionPersistenceService getServiceByEntityTypePrimaryKey(int entityTypePrimaryKey) {
-			return ofNullable(serviceIndex.get(entityTypePrimaryKey)).map(ServiceWithStatistics::service).orElseThrow();
+			return ofNullable(this.serviceIndex.get(entityTypePrimaryKey)).map(ServiceWithStatistics::service).orElseThrow();
 		}
 
 		public int getServiceRecordCount(int entityTypePrimaryKey) {
-			return ofNullable(serviceIndex.get(entityTypePrimaryKey)).map(ServiceWithStatistics::totalRecordCount).orElseThrow();
+			return ofNullable(this.serviceIndex.get(entityTypePrimaryKey)).map(ServiceWithStatistics::totalRecordCount).orElseThrow();
 		}
 
 	}
@@ -552,9 +552,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		public String toString() {
 			return Objects.requireNonNull(
 				StringUtils.capitalize(
-					(pastMoment == null ? "" : "pastMoment=" + EvitaDataTypes.formatValue(pastMoment) + ", ") +
-						(catalogVersion == null ? "" : "catalogVersion=" + catalogVersion + ", ") +
-						"includingWAL=" + includingWAL
+					(this.pastMoment == null ? "" : "pastMoment=" + EvitaDataTypes.formatValue(this.pastMoment) + ", ") +
+						(this.catalogVersion == null ? "" : "catalogVersion=" + this.catalogVersion + ", ") +
+						"includingWAL=" + this.includingWAL
 				)
 			);
 		}

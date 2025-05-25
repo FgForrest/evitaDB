@@ -96,7 +96,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 		final GraphQLInputObjectType.Builder containerBuilder = newInputObject().name(containerName);
 		final GraphQLInputType containerPointer = typeRef(containerName);
 		// cache new container for reuse
-		sharedContext.cacheContainer(containerKey, containerPointer);
+		this.sharedContext.cacheContainer(containerKey, containerPointer);
 
 		final List<GraphQLInputObjectField> children = new LinkedList<>();
 		children.addAll(buildGenericChildren(buildContext, allowedChildrenPredicate));
@@ -111,7 +111,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 
 		// abort container creation and use boolean value instead as this container would be empty which wouldn't be user-friendly
 		if (children.isEmpty()) {
-			sharedContext.removeCachedContainer(containerKey);
+			this.sharedContext.removeCachedContainer(containerKey);
 			return buildNoneConstraintValue();
 		}
 
@@ -125,7 +125,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 			containerBuilder.field(field);
 		});
 
-		sharedContext.addNewType(containerBuilder.build());
+		this.sharedContext.addNewType(containerBuilder.build());
 		return containerPointer;
 	}
 
@@ -218,7 +218,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 			//noinspection unchecked
 			ConstraintDescriptorProvider.getConstraints((Class<? extends Constraint<?>>) childParameterType)
 				.forEach(childConstraintDescriptor -> {
-					final String key = keyBuilder.build(buildContext, childConstraintDescriptor, null);
+					final String key = this.keyBuilder.build(buildContext, childConstraintDescriptor, null);
 
 					// we need switch child domain again manually based on property type of the child constraint because there
 					// is no intermediate wrapper container that would do it for us (while generating all possible constraints for that container)
@@ -335,7 +335,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 			// no fields (no usable parameters), there is nothing specific to specify, but we still want to be able to use
 			// the constraint without parameters
 			final GraphQLInputType emptyWrapperObject = buildNoneConstraintValue();
-			sharedContext.cacheWrapperObject(wrapperObjectKey, emptyWrapperObject);
+			this.sharedContext.cacheWrapperObject(wrapperObjectKey, emptyWrapperObject);
 			return emptyWrapperObject;
 		}
 
@@ -344,9 +344,9 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 		wrapperObjectFields.forEach(wrapperObjectBuilder::field);
 		final GraphQLInputType wrapperObjectPointer = typeRef(wrapperObjectName);
 		// cache wrapper object for reuse
-		sharedContext.cacheWrapperObject(wrapperObjectKey, wrapperObjectPointer);
+		this.sharedContext.cacheWrapperObject(wrapperObjectKey, wrapperObjectPointer);
 
-		sharedContext.addNewType(wrapperObjectBuilder.build());
+		this.sharedContext.addNewType(wrapperObjectBuilder.build());
 		return wrapperObjectPointer;
 	}
 
@@ -360,7 +360,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 				valueType,
 				nonNull
 			);
-			sharedContext.getCatalogCtx().registerCustomEnumIfAbsent(convertedEnum.enumType());
+			this.sharedContext.getCatalogCtx().registerCustomEnumIfAbsent(convertedEnum.enumType());
 			return convertedEnum.resultType();
 		} else {
 			return DataTypesConverter.getGraphQLScalarType(valueType, nonNull);
@@ -382,7 +382,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 				replacementComponentType,
 				nonNull
 			);
-			sharedContext.getCatalogCtx().registerCustomEnumIfAbsent(convertedEnum.enumType());
+			this.sharedContext.getCatalogCtx().registerCustomEnumIfAbsent(convertedEnum.enumType());
 			return convertedEnum.resultType();
 		} else {
 			return DataTypesConverter.getGraphQLScalarType(valueType, replacementComponentType, nonNull);

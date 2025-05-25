@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,8 +43,8 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcUpsertEntityRequest() {
-    require_ = "";
-    positionalQueryParams_ = java.util.Collections.emptyList();
+    this.require_ = "";
+    this.positionalQueryParams_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -80,13 +80,13 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.Builder subBuilder = null;
-            if (entityMutation_ != null) {
-              subBuilder = entityMutation_.toBuilder();
+            if (this.entityMutation_ != null) {
+              subBuilder = this.entityMutation_.toBuilder();
             }
-            entityMutation_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.parser(), extensionRegistry);
+            this.entityMutation_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(entityMutation_);
-              entityMutation_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.entityMutation_);
+              this.entityMutation_ = subBuilder.buildPartial();
             }
 
             break;
@@ -94,28 +94,28 @@ private static final long serialVersionUID = 0L;
           case 18: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            require_ = s;
+            this.require_ = s;
             break;
           }
           case 26: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              positionalQueryParams_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryParam>();
+              this.positionalQueryParams_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryParam>();
               mutable_bitField0_ |= 0x00000001;
             }
-            positionalQueryParams_.add(
+            this.positionalQueryParams_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcQueryParam.parser(), extensionRegistry));
             break;
           }
           case 34: {
             if (!((mutable_bitField0_ & 0x00000002) != 0)) {
-              namedQueryParams_ = com.google.protobuf.MapField.newMapField(
+              this.namedQueryParams_ = com.google.protobuf.MapField.newMapField(
                   NamedQueryParamsDefaultEntryHolder.defaultEntry);
               mutable_bitField0_ |= 0x00000002;
             }
             com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>
             namedQueryParams__ = input.readMessage(
                 NamedQueryParamsDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
-            namedQueryParams_.getMutableMap().put(
+            this.namedQueryParams_.getMutableMap().put(
                 namedQueryParams__.getKey(), namedQueryParams__.getValue());
             break;
           }
@@ -135,7 +135,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        positionalQueryParams_ = java.util.Collections.unmodifiableList(positionalQueryParams_);
+        this.positionalQueryParams_ = java.util.Collections.unmodifiableList(this.positionalQueryParams_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -178,7 +178,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasEntityMutation() {
-    return entityMutation_ != null;
+    return this.entityMutation_ != null;
   }
   /**
    * <pre>
@@ -190,7 +190,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityMutation getEntityMutation() {
-    return entityMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.getDefaultInstance() : entityMutation_;
+    return this.entityMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.getDefaultInstance() : this.entityMutation_;
   }
   /**
    * <pre>
@@ -216,14 +216,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getRequire() {
-    java.lang.Object ref = require_;
+    java.lang.Object ref = this.require_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      require_ = s;
+      this.require_ = s;
       return s;
     }
   }
@@ -238,12 +238,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getRequireBytes() {
-    java.lang.Object ref = require_;
+    java.lang.Object ref = this.require_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      require_ = b;
+      this.require_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -261,7 +261,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam> getPositionalQueryParamsList() {
-    return positionalQueryParams_;
+    return this.positionalQueryParams_;
   }
   /**
    * <pre>
@@ -271,9 +271,9 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder>
       getPositionalQueryParamsOrBuilderList() {
-    return positionalQueryParams_;
+    return this.positionalQueryParams_;
   }
   /**
    * <pre>
@@ -284,7 +284,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getPositionalQueryParamsCount() {
-    return positionalQueryParams_.size();
+    return this.positionalQueryParams_.size();
   }
   /**
    * <pre>
@@ -295,7 +295,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcQueryParam getPositionalQueryParams(int index) {
-    return positionalQueryParams_.get(index);
+    return this.positionalQueryParams_.get(index);
   }
   /**
    * <pre>
@@ -307,7 +307,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder getPositionalQueryParamsOrBuilder(
       int index) {
-    return positionalQueryParams_.get(index);
+    return this.positionalQueryParams_.get(index);
   }
 
   public static final int NAMEDQUERYPARAMS_FIELD_NUMBER = 4;
@@ -316,7 +316,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcUpsertEntityRequest_NamedQueryParamsEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcUpsertEntityRequest_NamedQueryParamsEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -326,11 +326,11 @@ private static final long serialVersionUID = 0L;
       java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> namedQueryParams_;
   private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>
   internalGetNamedQueryParams() {
-    if (namedQueryParams_ == null) {
+    if (this.namedQueryParams_ == null) {
       return com.google.protobuf.MapField.emptyMapField(
           NamedQueryParamsDefaultEntryHolder.defaultEntry);
     }
-    return namedQueryParams_;
+    return this.namedQueryParams_;
   }
 
   public int getNamedQueryParamsCount() {
@@ -410,25 +410,25 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (entityMutation_ != null) {
+    if (this.entityMutation_ != null) {
       output.writeMessage(1, getEntityMutation());
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(require_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, require_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.require_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, this.require_);
     }
-    for (int i = 0; i < positionalQueryParams_.size(); i++) {
-      output.writeMessage(3, positionalQueryParams_.get(i));
+    for (int i = 0; i < this.positionalQueryParams_.size(); i++) {
+      output.writeMessage(3, this.positionalQueryParams_.get(i));
     }
     com.google.protobuf.GeneratedMessageV3
       .serializeStringMapTo(
@@ -436,25 +436,25 @@ private static final long serialVersionUID = 0L;
         internalGetNamedQueryParams(),
         NamedQueryParamsDefaultEntryHolder.defaultEntry,
         4);
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (entityMutation_ != null) {
+    if (this.entityMutation_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getEntityMutation());
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(require_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, require_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.require_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, this.require_);
     }
-    for (int i = 0; i < positionalQueryParams_.size(); i++) {
+    for (int i = 0; i < this.positionalQueryParams_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(3, positionalQueryParams_.get(i));
+        .computeMessageSize(3, this.positionalQueryParams_.get(i));
     }
     for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> entry
          : internalGetNamedQueryParams().getMap().entrySet()) {
@@ -466,8 +466,8 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(4, namedQueryParams__);
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -492,14 +492,14 @@ private static final long serialVersionUID = 0L;
         .equals(other.getPositionalQueryParamsList())) return false;
     if (!internalGetNamedQueryParams().equals(
         other.internalGetNamedQueryParams())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -517,8 +517,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + NAMEDQUERYPARAMS_FIELD_NUMBER;
       hash = (53 * hash) + internalGetNamedQueryParams().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -677,19 +677,19 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (entityMutationBuilder_ == null) {
-        entityMutation_ = null;
+      if (this.entityMutationBuilder_ == null) {
+        this.entityMutation_ = null;
       } else {
-        entityMutation_ = null;
-        entityMutationBuilder_ = null;
+        this.entityMutation_ = null;
+        this.entityMutationBuilder_ = null;
       }
-      require_ = "";
+      this.require_ = "";
 
-      if (positionalQueryParamsBuilder_ == null) {
-        positionalQueryParams_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.positionalQueryParamsBuilder_ == null) {
+        this.positionalQueryParams_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       } else {
-        positionalQueryParamsBuilder_.clear();
+        this.positionalQueryParamsBuilder_.clear();
       }
       internalGetMutableNamedQueryParams().clear();
       return this;
@@ -718,21 +718,21 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest result = new io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest(this);
-      int from_bitField0_ = bitField0_;
-      if (entityMutationBuilder_ == null) {
-        result.entityMutation_ = entityMutation_;
+      int from_bitField0_ = this.bitField0_;
+      if (this.entityMutationBuilder_ == null) {
+        result.entityMutation_ = this.entityMutation_;
       } else {
-        result.entityMutation_ = entityMutationBuilder_.build();
+        result.entityMutation_ = this.entityMutationBuilder_.build();
       }
-      result.require_ = require_;
-      if (positionalQueryParamsBuilder_ == null) {
-        if (((bitField0_ & 0x00000001) != 0)) {
-          positionalQueryParams_ = java.util.Collections.unmodifiableList(positionalQueryParams_);
-          bitField0_ = (bitField0_ & ~0x00000001);
+      result.require_ = this.require_;
+      if (this.positionalQueryParamsBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000001) != 0)) {
+          this.positionalQueryParams_ = java.util.Collections.unmodifiableList(this.positionalQueryParams_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         }
-        result.positionalQueryParams_ = positionalQueryParams_;
+        result.positionalQueryParams_ = this.positionalQueryParams_;
       } else {
-        result.positionalQueryParams_ = positionalQueryParamsBuilder_.build();
+        result.positionalQueryParams_ = this.positionalQueryParamsBuilder_.build();
       }
       result.namedQueryParams_ = internalGetNamedQueryParams();
       result.namedQueryParams_.makeImmutable();
@@ -788,32 +788,32 @@ private static final long serialVersionUID = 0L;
         mergeEntityMutation(other.getEntityMutation());
       }
       if (!other.getRequire().isEmpty()) {
-        require_ = other.require_;
+        this.require_ = other.require_;
         onChanged();
       }
-      if (positionalQueryParamsBuilder_ == null) {
+      if (this.positionalQueryParamsBuilder_ == null) {
         if (!other.positionalQueryParams_.isEmpty()) {
-          if (positionalQueryParams_.isEmpty()) {
-            positionalQueryParams_ = other.positionalQueryParams_;
-            bitField0_ = (bitField0_ & ~0x00000001);
+          if (this.positionalQueryParams_.isEmpty()) {
+            this.positionalQueryParams_ = other.positionalQueryParams_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
           } else {
             ensurePositionalQueryParamsIsMutable();
-            positionalQueryParams_.addAll(other.positionalQueryParams_);
+            this.positionalQueryParams_.addAll(other.positionalQueryParams_);
           }
           onChanged();
         }
       } else {
         if (!other.positionalQueryParams_.isEmpty()) {
-          if (positionalQueryParamsBuilder_.isEmpty()) {
-            positionalQueryParamsBuilder_.dispose();
-            positionalQueryParamsBuilder_ = null;
-            positionalQueryParams_ = other.positionalQueryParams_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-            positionalQueryParamsBuilder_ = 
+          if (this.positionalQueryParamsBuilder_.isEmpty()) {
+            this.positionalQueryParamsBuilder_.dispose();
+            this.positionalQueryParamsBuilder_ = null;
+            this.positionalQueryParams_ = other.positionalQueryParams_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+            this.positionalQueryParamsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getPositionalQueryParamsFieldBuilder() : null;
           } else {
-            positionalQueryParamsBuilder_.addAllMessages(other.positionalQueryParams_);
+            this.positionalQueryParamsBuilder_.addAllMessages(other.positionalQueryParams_);
           }
         }
       }
@@ -861,7 +861,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the entityMutation field is set.
      */
     public boolean hasEntityMutation() {
-      return entityMutationBuilder_ != null || entityMutation_ != null;
+      return this.entityMutationBuilder_ != null || this.entityMutation_ != null;
     }
     /**
      * <pre>
@@ -872,10 +872,10 @@ private static final long serialVersionUID = 0L;
      * @return The entityMutation.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityMutation getEntityMutation() {
-      if (entityMutationBuilder_ == null) {
-        return entityMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.getDefaultInstance() : entityMutation_;
+      if (this.entityMutationBuilder_ == null) {
+        return this.entityMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.getDefaultInstance() : this.entityMutation_;
       } else {
-        return entityMutationBuilder_.getMessage();
+        return this.entityMutationBuilder_.getMessage();
       }
     }
     /**
@@ -886,14 +886,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 1;</code>
      */
     public Builder setEntityMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityMutation value) {
-      if (entityMutationBuilder_ == null) {
+      if (this.entityMutationBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        entityMutation_ = value;
+        this.entityMutation_ = value;
         onChanged();
       } else {
-        entityMutationBuilder_.setMessage(value);
+        this.entityMutationBuilder_.setMessage(value);
       }
 
       return this;
@@ -907,11 +907,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setEntityMutation(
         io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.Builder builderForValue) {
-      if (entityMutationBuilder_ == null) {
-        entityMutation_ = builderForValue.build();
+      if (this.entityMutationBuilder_ == null) {
+        this.entityMutation_ = builderForValue.build();
         onChanged();
       } else {
-        entityMutationBuilder_.setMessage(builderForValue.build());
+        this.entityMutationBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -924,16 +924,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 1;</code>
      */
     public Builder mergeEntityMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityMutation value) {
-      if (entityMutationBuilder_ == null) {
-        if (entityMutation_ != null) {
-          entityMutation_ =
-            io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.newBuilder(entityMutation_).mergeFrom(value).buildPartial();
+      if (this.entityMutationBuilder_ == null) {
+        if (this.entityMutation_ != null) {
+          this.entityMutation_ =
+            io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.newBuilder(this.entityMutation_).mergeFrom(value).buildPartial();
         } else {
-          entityMutation_ = value;
+          this.entityMutation_ = value;
         }
         onChanged();
       } else {
-        entityMutationBuilder_.mergeFrom(value);
+        this.entityMutationBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -946,12 +946,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 1;</code>
      */
     public Builder clearEntityMutation() {
-      if (entityMutationBuilder_ == null) {
-        entityMutation_ = null;
+      if (this.entityMutationBuilder_ == null) {
+        this.entityMutation_ = null;
         onChanged();
       } else {
-        entityMutation_ = null;
-        entityMutationBuilder_ = null;
+        this.entityMutation_ = null;
+        this.entityMutationBuilder_ = null;
       }
 
       return this;
@@ -964,7 +964,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.Builder getEntityMutationBuilder() {
-      
+
       onChanged();
       return getEntityMutationFieldBuilder().getBuilder();
     }
@@ -976,11 +976,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder getEntityMutationOrBuilder() {
-      if (entityMutationBuilder_ != null) {
-        return entityMutationBuilder_.getMessageOrBuilder();
+      if (this.entityMutationBuilder_ != null) {
+        return this.entityMutationBuilder_.getMessageOrBuilder();
       } else {
-        return entityMutation_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.getDefaultInstance() : entityMutation_;
+        return this.entityMutation_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.getDefaultInstance() : this.entityMutation_;
       }
     }
     /**
@@ -991,17 +991,17 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder>
         getEntityMutationFieldBuilder() {
-      if (entityMutationBuilder_ == null) {
-        entityMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.entityMutationBuilder_ == null) {
+        this.entityMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcEntityMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder>(
                 getEntityMutation(),
                 getParentForChildren(),
                 isClean());
-        entityMutation_ = null;
+        this.entityMutation_ = null;
       }
-      return entityMutationBuilder_;
+      return this.entityMutationBuilder_;
     }
 
     private java.lang.Object require_ = "";
@@ -1014,12 +1014,12 @@ private static final long serialVersionUID = 0L;
      * @return The require.
      */
     public java.lang.String getRequire() {
-      java.lang.Object ref = require_;
+      java.lang.Object ref = this.require_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        require_ = s;
+        this.require_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -1035,12 +1035,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getRequireBytes() {
-      java.lang.Object ref = require_;
+      java.lang.Object ref = this.require_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        require_ = b;
+        this.require_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -1060,8 +1060,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      require_ = value;
+
+      this.require_ = value;
       onChanged();
       return this;
     }
@@ -1074,8 +1074,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearRequire() {
-      
-      require_ = getDefaultInstance().getRequire();
+
+      this.require_ = getDefaultInstance().getRequire();
       onChanged();
       return this;
     }
@@ -1094,8 +1094,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      require_ = value;
+
+      this.require_ = value;
       onChanged();
       return this;
     }
@@ -1103,9 +1103,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam> positionalQueryParams_ =
       java.util.Collections.emptyList();
     private void ensurePositionalQueryParamsIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        positionalQueryParams_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryParam>(positionalQueryParams_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.positionalQueryParams_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryParam>(this.positionalQueryParams_);
+        this.bitField0_ |= 0x00000001;
        }
     }
 
@@ -1120,10 +1120,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam> getPositionalQueryParamsList() {
-      if (positionalQueryParamsBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(positionalQueryParams_);
+      if (this.positionalQueryParamsBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.positionalQueryParams_);
       } else {
-        return positionalQueryParamsBuilder_.getMessageList();
+        return this.positionalQueryParamsBuilder_.getMessageList();
       }
     }
     /**
@@ -1134,10 +1134,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public int getPositionalQueryParamsCount() {
-      if (positionalQueryParamsBuilder_ == null) {
-        return positionalQueryParams_.size();
+      if (this.positionalQueryParamsBuilder_ == null) {
+        return this.positionalQueryParams_.size();
       } else {
-        return positionalQueryParamsBuilder_.getCount();
+        return this.positionalQueryParamsBuilder_.getCount();
       }
     }
     /**
@@ -1148,10 +1148,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryParam getPositionalQueryParams(int index) {
-      if (positionalQueryParamsBuilder_ == null) {
-        return positionalQueryParams_.get(index);
+      if (this.positionalQueryParamsBuilder_ == null) {
+        return this.positionalQueryParams_.get(index);
       } else {
-        return positionalQueryParamsBuilder_.getMessage(index);
+        return this.positionalQueryParamsBuilder_.getMessage(index);
       }
     }
     /**
@@ -1163,15 +1163,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setPositionalQueryParams(
         int index, io.evitadb.externalApi.grpc.generated.GrpcQueryParam value) {
-      if (positionalQueryParamsBuilder_ == null) {
+      if (this.positionalQueryParamsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensurePositionalQueryParamsIsMutable();
-        positionalQueryParams_.set(index, value);
+        this.positionalQueryParams_.set(index, value);
         onChanged();
       } else {
-        positionalQueryParamsBuilder_.setMessage(index, value);
+        this.positionalQueryParamsBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -1184,12 +1184,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setPositionalQueryParams(
         int index, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder builderForValue) {
-      if (positionalQueryParamsBuilder_ == null) {
+      if (this.positionalQueryParamsBuilder_ == null) {
         ensurePositionalQueryParamsIsMutable();
-        positionalQueryParams_.set(index, builderForValue.build());
+        this.positionalQueryParams_.set(index, builderForValue.build());
         onChanged();
       } else {
-        positionalQueryParamsBuilder_.setMessage(index, builderForValue.build());
+        this.positionalQueryParamsBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1201,15 +1201,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public Builder addPositionalQueryParams(io.evitadb.externalApi.grpc.generated.GrpcQueryParam value) {
-      if (positionalQueryParamsBuilder_ == null) {
+      if (this.positionalQueryParamsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensurePositionalQueryParamsIsMutable();
-        positionalQueryParams_.add(value);
+        this.positionalQueryParams_.add(value);
         onChanged();
       } else {
-        positionalQueryParamsBuilder_.addMessage(value);
+        this.positionalQueryParamsBuilder_.addMessage(value);
       }
       return this;
     }
@@ -1222,15 +1222,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addPositionalQueryParams(
         int index, io.evitadb.externalApi.grpc.generated.GrpcQueryParam value) {
-      if (positionalQueryParamsBuilder_ == null) {
+      if (this.positionalQueryParamsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensurePositionalQueryParamsIsMutable();
-        positionalQueryParams_.add(index, value);
+        this.positionalQueryParams_.add(index, value);
         onChanged();
       } else {
-        positionalQueryParamsBuilder_.addMessage(index, value);
+        this.positionalQueryParamsBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -1243,12 +1243,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addPositionalQueryParams(
         io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder builderForValue) {
-      if (positionalQueryParamsBuilder_ == null) {
+      if (this.positionalQueryParamsBuilder_ == null) {
         ensurePositionalQueryParamsIsMutable();
-        positionalQueryParams_.add(builderForValue.build());
+        this.positionalQueryParams_.add(builderForValue.build());
         onChanged();
       } else {
-        positionalQueryParamsBuilder_.addMessage(builderForValue.build());
+        this.positionalQueryParamsBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -1261,12 +1261,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addPositionalQueryParams(
         int index, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder builderForValue) {
-      if (positionalQueryParamsBuilder_ == null) {
+      if (this.positionalQueryParamsBuilder_ == null) {
         ensurePositionalQueryParamsIsMutable();
-        positionalQueryParams_.add(index, builderForValue.build());
+        this.positionalQueryParams_.add(index, builderForValue.build());
         onChanged();
       } else {
-        positionalQueryParamsBuilder_.addMessage(index, builderForValue.build());
+        this.positionalQueryParamsBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1279,13 +1279,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllPositionalQueryParams(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParam> values) {
-      if (positionalQueryParamsBuilder_ == null) {
+      if (this.positionalQueryParamsBuilder_ == null) {
         ensurePositionalQueryParamsIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, positionalQueryParams_);
+            values, this.positionalQueryParams_);
         onChanged();
       } else {
-        positionalQueryParamsBuilder_.addAllMessages(values);
+        this.positionalQueryParamsBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -1297,12 +1297,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public Builder clearPositionalQueryParams() {
-      if (positionalQueryParamsBuilder_ == null) {
-        positionalQueryParams_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.positionalQueryParamsBuilder_ == null) {
+        this.positionalQueryParams_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        positionalQueryParamsBuilder_.clear();
+        this.positionalQueryParamsBuilder_.clear();
       }
       return this;
     }
@@ -1314,12 +1314,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public Builder removePositionalQueryParams(int index) {
-      if (positionalQueryParamsBuilder_ == null) {
+      if (this.positionalQueryParamsBuilder_ == null) {
         ensurePositionalQueryParamsIsMutable();
-        positionalQueryParams_.remove(index);
+        this.positionalQueryParams_.remove(index);
         onChanged();
       } else {
-        positionalQueryParamsBuilder_.remove(index);
+        this.positionalQueryParamsBuilder_.remove(index);
       }
       return this;
     }
@@ -1343,9 +1343,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder getPositionalQueryParamsOrBuilder(
         int index) {
-      if (positionalQueryParamsBuilder_ == null) {
-        return positionalQueryParams_.get(index);  } else {
-        return positionalQueryParamsBuilder_.getMessageOrBuilder(index);
+      if (this.positionalQueryParamsBuilder_ == null) {
+        return this.positionalQueryParams_.get(index);  } else {
+        return this.positionalQueryParamsBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -1355,12 +1355,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder>
          getPositionalQueryParamsOrBuilderList() {
-      if (positionalQueryParamsBuilder_ != null) {
-        return positionalQueryParamsBuilder_.getMessageOrBuilderList();
+      if (this.positionalQueryParamsBuilder_ != null) {
+        return this.positionalQueryParamsBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(positionalQueryParams_);
+        return java.util.Collections.unmodifiableList(this.positionalQueryParams_);
       }
     }
     /**
@@ -1393,46 +1393,46 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder>
          getPositionalQueryParamsBuilderList() {
       return getPositionalQueryParamsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcQueryParam, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcQueryParam, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder>
         getPositionalQueryParamsFieldBuilder() {
-      if (positionalQueryParamsBuilder_ == null) {
-        positionalQueryParamsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.positionalQueryParamsBuilder_ == null) {
+        this.positionalQueryParamsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcQueryParam, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder>(
-                positionalQueryParams_,
-                ((bitField0_ & 0x00000001) != 0),
+                this.positionalQueryParams_,
+                ((this.bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        positionalQueryParams_ = null;
+        this.positionalQueryParams_ = null;
       }
-      return positionalQueryParamsBuilder_;
+      return this.positionalQueryParamsBuilder_;
     }
 
     private com.google.protobuf.MapField<
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> namedQueryParams_;
     private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>
     internalGetNamedQueryParams() {
-      if (namedQueryParams_ == null) {
+      if (this.namedQueryParams_ == null) {
         return com.google.protobuf.MapField.emptyMapField(
             NamedQueryParamsDefaultEntryHolder.defaultEntry);
       }
-      return namedQueryParams_;
+      return this.namedQueryParams_;
     }
     private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>
     internalGetMutableNamedQueryParams() {
       onChanged();;
-      if (namedQueryParams_ == null) {
-        namedQueryParams_ = com.google.protobuf.MapField.newMapField(
+      if (this.namedQueryParams_ == null) {
+        this.namedQueryParams_ = com.google.protobuf.MapField.newMapField(
             NamedQueryParamsDefaultEntryHolder.defaultEntry);
       }
-      if (!namedQueryParams_.isMutable()) {
-        namedQueryParams_ = namedQueryParams_.copy();
+      if (!this.namedQueryParams_.isMutable()) {
+        this.namedQueryParams_ = this.namedQueryParams_.copy();
       }
-      return namedQueryParams_;
+      return this.namedQueryParams_;
     }
 
     public int getNamedQueryParamsCount() {

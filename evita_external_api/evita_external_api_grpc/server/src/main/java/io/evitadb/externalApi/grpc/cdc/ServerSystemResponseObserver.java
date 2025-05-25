@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -52,15 +52,15 @@ public class ServerSystemResponseObserver implements StreamObserver<GrpcRegister
         this.serverCallStreamObserver.setOnReadyHandler(new OnReadyHandler(serverCallStreamObserver));
         this.serverCallStreamObserver.setOnCancelHandler(serverCallStreamObserver::onCompleted);
         this.systemChangeSubscriber = new SystemChangeSubscriber();
-        this.systemChangeSubscriber.setPublishers(publishers);
+        this.systemChangeSubscriber.setPublishers(this.publishers);
     }
 
     @Override
     public void onNext(GrpcRegisterSystemChangeCaptureRequest grpcRegisterSystemChangeCaptureRequest) {
-        final Flow.Publisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(
+        final Flow.Publisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
                 new ChangeSystemCaptureRequest(toCaptureContent(grpcRegisterSystemChangeCaptureRequest.getContent()))
         );
-        publishers.add(publisher);
+	    this.publishers.add(publisher);
     }
 
     @Override
@@ -85,12 +85,12 @@ public class ServerSystemResponseObserver implements StreamObserver<GrpcRegister
 
         @Override
         public void run() {
-            if (serverCallStreamObserver.isReady() && !wasReady) {
-                wasReady = true;
+            if (this.serverCallStreamObserver.isReady() && !this.wasReady) {
+	            this.wasReady = true;
                 // Signal the request sender to send one message. This happens when isReady() turns true, signaling that
                 // the receive buffer has enough free space to receive more messages. Calling request() serves to prime
                 // the message pump.
-                serverCallStreamObserver.request(1);
+	            this.serverCallStreamObserver.request(1);
             }
         }
     }

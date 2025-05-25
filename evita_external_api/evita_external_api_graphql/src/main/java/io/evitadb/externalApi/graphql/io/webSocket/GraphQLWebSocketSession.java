@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,36 +52,36 @@ public class GraphQLWebSocketSession {
 	private final Map<String, GraphQLWebSocketSubscription> subscriptions = createConcurrentHashMap(5);
 
 	public boolean isNew() {
-		return state == GraphQLWebSocketConnectionState.NEW;
+		return this.state == GraphQLWebSocketConnectionState.NEW;
 	}
 
 	public boolean isActive() {
-		return state == GraphQLWebSocketConnectionState.ACTIVE;
+		return this.state == GraphQLWebSocketConnectionState.ACTIVE;
 	}
 
 	public void activate() {
-		state = GraphQLWebSocketConnectionState.ACTIVE;
+		this.state = GraphQLWebSocketConnectionState.ACTIVE;
 	}
 
 	public boolean isExistsSubscription(@Nonnull String id) {
-		return subscriptions.containsKey(id);
+		return this.subscriptions.containsKey(id);
 	}
 
 	@Nonnull
 	public Optional<GraphQLWebSocketSubscription> getSubscription(@Nonnull String id) {
-		return Optional.ofNullable(subscriptions.get(id));
+		return Optional.ofNullable(this.subscriptions.get(id));
 	}
 
 	public void addSubscription(@Nonnull GraphQLWebSocketSubscription subscription) {
-		subscriptions.put(subscription.getId(), subscription);
+		this.subscriptions.put(subscription.getId(), subscription);
 	}
 
 	public void removeSubscription(@Nonnull String id) {
-		subscriptions.remove(id);
+		this.subscriptions.remove(id);
 	}
 
 	public void removeSubscription(@Nonnull GraphQLWebSocketSubscription subscription) {
-		subscriptions.remove(subscription.getId());
+		this.subscriptions.remove(subscription.getId());
 	}
 
 	/**
@@ -90,7 +90,7 @@ public class GraphQLWebSocketSession {
 	public void sendMessage(@Nonnull GraphQLWebSocketMessage message) {
 		final String serializedMessage;
 		try {
-			serializedMessage = objectMapper.writeValueAsString(message);
+			serializedMessage = this.objectMapper.writeValueAsString(message);
 		} catch (JsonProcessingException e) {
 			throw new GraphQLInternalError("Couldn't serialize message.", e);
 		}

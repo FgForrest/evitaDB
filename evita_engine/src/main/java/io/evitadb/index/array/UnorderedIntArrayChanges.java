@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -96,11 +96,11 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 * contained in original array and not removed so far.
 	 */
 	public boolean contains(int recordId) {
-		final int delegateIndex = delegate.findPosition(recordId);
-		boolean result = delegateIndex >= 0 && Arrays.binarySearch(removals, delegateIndex) < 0;
+		final int delegateIndex = this.delegate.findPosition(recordId);
+		boolean result = delegateIndex >= 0 && Arrays.binarySearch(this.removals, delegateIndex) < 0;
 
 		if (!result) {
-			for (UnorderedLookup insertedValue : insertedValues) {
+			for (UnorderedLookup insertedValue : this.insertedValues) {
 				result = insertedValue.findPosition(recordId) >= 0;
 				if (result) {
 					break;
@@ -117,36 +117,36 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 * @return -1 if record id was not found (or was removed)
 	 */
 	public int indexOf(int recordId) {
-		int delegateIndex = delegate.findPosition(recordId);
+		int delegateIndex = this.delegate.findPosition(recordId);
 
 		int removalsCount = 0;
 		int insertsCount = 0;
 		if (delegateIndex < 0) {
 			// record was not present in the delegate array - check insertions
 			int insertPosition = -1;
-			for (int i = 0; i < insertedValues.length; i++) {
-				final UnorderedLookup insertedValue = insertedValues[i];
+			for (int i = 0; i < this.insertedValues.length; i++) {
+				final UnorderedLookup insertedValue = this.insertedValues[i];
 				final int position = insertedValue.findPosition(recordId);
 				if (position >= 0) {
 					insertPosition = position;
-					delegateIndex = insertions[i];
+					delegateIndex = this.insertions[i];
 					break;
 				}
 			}
 			if (insertPosition < 0) {
 				return -1;
 			}
-			for (int removal : removals) {
+			for (int removal : this.removals) {
 				if (removal < delegateIndex) {
 					removalsCount++;
 				} else {
 					break;
 				}
 			}
-			for (int i = 0; i < insertions.length; i++) {
-				final int insertion = insertions[i];
+			for (int i = 0; i < this.insertions.length; i++) {
+				final int insertion = this.insertions[i];
 				if (insertion < delegateIndex) {
-					insertsCount += insertedValues[i].size();
+					insertsCount += this.insertedValues[i].size();
 				} else if (insertion == delegateIndex) {
 					insertsCount += insertPosition;
 				} else {
@@ -156,7 +156,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 		} else {
 			// record was present in the delegate array - count for removals and insertions
 			boolean wasRemoved = false;
-			for (int removal : removals) {
+			for (int removal : this.removals) {
 				if (removal < delegateIndex) {
 					removalsCount++;
 				} else if (removal == delegateIndex) {
@@ -167,10 +167,10 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 			}
 			// count insertions
 			boolean wasAdded = false;
-			for (int i = 0; i < insertions.length; i++) {
-				final int insertion = insertions[i];
+			for (int i = 0; i < this.insertions.length; i++) {
+				final int insertion = this.insertions[i];
 				if (insertion <= delegateIndex || wasRemoved) {
-					final UnorderedLookup insertedValue = insertedValues[i];
+					final UnorderedLookup insertedValue = this.insertedValues[i];
 					final int position = insertedValue.findPosition(recordId);
 					if (position < 0) {
 						insertsCount += insertedValue.size();
@@ -197,26 +197,26 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 * @throws ArrayIndexOutOfBoundsException when array is empty
 	 */
 	public int getLastRecordId() throws ArrayIndexOutOfBoundsException {
-		if (memoizedMergedArray != null) {
-			return memoizedMergedArray[memoizedMergedArray.length - 1];
+		if (this.memoizedMergedArray != null) {
+			return this.memoizedMergedArray[this.memoizedMergedArray.length - 1];
 		} else {
-			final int[] recordIds = delegate.getRecordIds();
+			final int[] recordIds = this.delegate.getRecordIds();
 			// find out the last non-removed element from the original array
 			int lastRealElement = recordIds.length - 1;
 			while (Arrays.binarySearch(this.removals, lastRealElement) >= 0) {
 				lastRealElement--;
 			}
 			// if anything was appended at the end of the array
-			for (int i = insertions.length - 1; i >= 0; i--) {
-				if (insertions[i] > lastRealElement) {
-					return insertedValues[i].getLastRecordId();
-				} else if (insertions[i] < lastRealElement) {
+			for (int i = this.insertions.length - 1; i >= 0; i--) {
+				if (this.insertions[i] > lastRealElement) {
+					return this.insertedValues[i].getLastRecordId();
+				} else if (this.insertions[i] < lastRealElement) {
 					break;
 				}
 			}
 
 			// else return the last record of the underlying array
-			return delegate.getRecordAt(lastRealElement);
+			return this.delegate.getRecordAt(lastRealElement);
 		}
 	}
 
@@ -242,15 +242,15 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 * This operation also nullifies previous record id removal (if any).
 	 */
 	void addIntAfterRecord(int previousRecordId, int recordId) {
-		final PositionLookup prevRecLookup = new PositionLookup(delegate, removals, insertions, insertedValues, previousRecordId);
-		final PositionLookup recLookup = new PositionLookup(delegate, removals, insertions, insertedValues, recordId);
+		final PositionLookup prevRecLookup = new PositionLookup(this.delegate, this.removals, this.insertions, this.insertedValues, previousRecordId);
+		final PositionLookup recLookup = new PositionLookup(this.delegate, this.removals, this.insertions, this.insertedValues, recordId);
 
 		Assert.isTrue(
 			previousRecordId == Integer.MIN_VALUE || prevRecLookup.exists(),
 			"Previous record " + previousRecordId + " is not present in the array!"
 		);
 
-		int len = insertions.length;
+		int len = this.insertions.length;
 
 		// added record was already inserted / moved in this transaction, remove original command so that new can be created
 		if (recLookup.isPresentInDiff()) {
@@ -268,7 +268,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 			this.memoizedMergedArray = null;
 		} else if (prevRecLookup.getExistingPosition() != recLookup.getExistingPosition() - 1) {
 			final int position = prevRecLookup.getExistingPosition() == Integer.MIN_VALUE ? 0 : prevRecLookup.getExistingPosition() + 1;
-			if (delegate.size() > position && delegate.getRecordAt(position) == recordId && Arrays.binarySearch(this.removals, position) >= 0) {
+			if (this.delegate.size() > position && this.delegate.getRecordAt(position) == recordId && Arrays.binarySearch(this.removals, position) >= 0) {
 				this.removals = ArrayUtils.removeIntFromOrderedArray(position, this.removals);
 				final int insertsOnThePosition = Arrays.binarySearch(this.insertions, position);
 				/* if there are insertions at the restored spot */
@@ -289,7 +289,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 				} else {
 					final int startIndex = -1 * insertsOnThePosition - 1;
 					final int targetSize = len + 1;
-					final int suffixLength = insertions.length - startIndex;
+					final int suffixLength = this.insertions.length - startIndex;
 
 					setupInsertionArraysForRecord(recordId, position, startIndex, targetSize, suffixLength);
 				}
@@ -305,9 +305,9 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 * This operation also nullifies previous record id removal (if any).
 	 */
 	void addIntOnIndex(int index, int recordId) {
-		final PositionLookup recLookup = new PositionLookup(delegate, removals, insertions, insertedValues, recordId);
+		final PositionLookup recLookup = new PositionLookup(this.delegate, this.removals, this.insertions, this.insertedValues, recordId);
 
-		int len = insertions.length;
+		int len = this.insertions.length;
 
 		// added record was already inserted / moved in this transaction, remove original command so that new can be created
 		if (recLookup.isPresentInDiff()) {
@@ -317,7 +317,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 		int insertionIndex = 0;
 		int removalIndex = 0;
 		int relativeIndex = index;
-		for (int i = 0; i <= delegate.size(); i++) {
+		for (int i = 0; i <= this.delegate.size(); i++) {
 			if (this.insertions.length > insertionIndex && this.insertions[insertionIndex] == i) {
 				relativeIndex -= this.insertedValues[insertionIndex].size();
 				if (relativeIndex <= 0) {
@@ -333,7 +333,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 			}
 			if (relativeIndex == 0) {
 				final int targetSize = len + 1;
-				final int suffixLength = insertions.length - insertionIndex;
+				final int suffixLength = this.insertions.length - insertionIndex;
 
 				setupInsertionArraysForRecord(recordId, i, insertionIndex, targetSize, suffixLength);
 
@@ -372,7 +372,7 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 * This operation also nullifies previous record id insertion (if any).
 	 */
 	void removeRecord(int recordId) {
-		final PositionLookup recLookup = new PositionLookup(delegate, removals, insertions, insertedValues, recordId);
+		final PositionLookup recLookup = new PositionLookup(this.delegate, this.removals, this.insertions, this.insertedValues, recordId);
 		if (recLookup.isPresentInDiff()) {
 			// record was added / moved in the same transaction, just remove it from diff
 			removeIntOnChangePosition(recordId, recLookup.getInsertionIndex());
@@ -409,22 +409,22 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 * it.
 	 */
 	int[] getMergedArray() {
-		if (insertions.length == 0 && removals.length == 0) {
+		if (this.insertions.length == 0 && this.removals.length == 0) {
 			// if there are no insertions / removals - return the original
-			return delegate.getArray();
+			return this.delegate.getArray();
 		} else {
 			// compute results only when we can't reuse previous computation
-			if (memoizedMergedArray == null) {
+			if (this.memoizedMergedArray == null) {
 				// create new array that will be filled with updated data
 				final int[] computedArray = new int[getMergedLength()];
 				int lastPosition = 0;
 				int lastComputedPosition = 0;
 
 				int insPositionIndex = -1;
-				int nextInsertionPosition = insertions.length > 0 ? insertions[insPositionIndex + 1] : -1;
+				int nextInsertionPosition = this.insertions.length > 0 ? this.insertions[insPositionIndex + 1] : -1;
 
 				int remPositionIndex = -1;
-				int nextRemovalPosition = removals.length > 0 ? removals[remPositionIndex + 1] : -1;
+				int nextRemovalPosition = this.removals.length > 0 ? this.removals[remPositionIndex + 1] : -1;
 
 				// from left to right get first position with change operations
 				final ChangePlan plan = new ChangePlan();
@@ -438,9 +438,9 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 						remPositionIndex++;
 
 						// insert requested records in to the target array and skip removed record from original array
-						final UnorderedLookup insertedRecords = insertedValues[insPositionIndex];
+						final UnorderedLookup insertedRecords = this.insertedValues[insPositionIndex];
 						final int originalCopyLength = position - lastPosition;
-						System.arraycopy(delegate.getArray(), lastPosition, computedArray, lastComputedPosition, originalCopyLength);
+						System.arraycopy(this.delegate.getArray(), lastPosition, computedArray, lastComputedPosition, originalCopyLength);
 						final int insertedLength = insertedRecords.size();
 						System.arraycopy(insertedRecords.getArray(), 0, computedArray, lastComputedPosition + originalCopyLength, insertedLength);
 						lastPosition = position + 1;
@@ -452,9 +452,9 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 							insPositionIndex++;
 
 							// insert requested records in to the target array and after the existing record in original array
-							final UnorderedLookup insertedRecords = insertedValues[insPositionIndex];
+							final UnorderedLookup insertedRecords = this.insertedValues[insPositionIndex];
 							final int originalCopyLength = position - lastPosition;
-							System.arraycopy(delegate.getArray(), lastPosition, computedArray, lastComputedPosition, originalCopyLength);
+							System.arraycopy(this.delegate.getArray(), lastPosition, computedArray, lastComputedPosition, originalCopyLength);
 							final int insertedLength = insertedRecords.size();
 							System.arraycopy(insertedRecords.getArray(), 0, computedArray, lastComputedPosition + originalCopyLength, insertedLength);
 							lastPosition = position;
@@ -465,31 +465,31 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 
 							// copy contents of the original array skipping removed record
 							final int originalCopyLength = position - lastPosition;
-							System.arraycopy(delegate.getArray(), lastPosition, computedArray, lastComputedPosition, originalCopyLength);
+							System.arraycopy(this.delegate.getArray(), lastPosition, computedArray, lastComputedPosition, originalCopyLength);
 							lastPosition = position + 1;
 							lastComputedPosition = lastComputedPosition + originalCopyLength;
 						}
 					}
 
 					// move insertions / removal cursors - if there are any
-					nextInsertionPosition = insertions.length > insPositionIndex + 1 ? insertions[insPositionIndex + 1] : -1;
-					nextRemovalPosition = removals.length > remPositionIndex + 1 ? removals[remPositionIndex + 1] : -1;
+					nextInsertionPosition = this.insertions.length > insPositionIndex + 1 ? this.insertions[insPositionIndex + 1] : -1;
+					nextRemovalPosition = this.removals.length > remPositionIndex + 1 ? this.removals[remPositionIndex + 1] : -1;
 
 					// plan next operations
 					getNextOperations(nextInsertionPosition, nextRemovalPosition, plan);
 				}
 
 				// copy rest of the original array into the result (no operations were planned for this part)
-				if (lastPosition < delegate.size()) {
-					System.arraycopy(delegate.getArray(), lastPosition, computedArray, lastComputedPosition, delegate.size() - lastPosition);
+				if (lastPosition < this.delegate.size()) {
+					System.arraycopy(this.delegate.getArray(), lastPosition, computedArray, lastComputedPosition, this.delegate.size() - lastPosition);
 				}
 
 				// memoize costly computation and return
-				memoizedMergedArray = computedArray;
+				this.memoizedMergedArray = computedArray;
 				return computedArray;
 			} else {
 				// quickly return previous result
-				return memoizedMergedArray;
+				return this.memoizedMergedArray;
 			}
 		}
 	}
@@ -498,8 +498,8 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 * Computes length of the array with all requested changes applied.
 	 */
 	int getMergedLength() {
-		int result = delegate.size() - removals.length;
-		for (UnorderedLookup insertedValue : insertedValues) {
+		int result = this.delegate.size() - this.removals.length;
+		for (UnorderedLookup insertedValue : this.insertedValues) {
 			result += insertedValue.size();
 		}
 		return result;
@@ -510,14 +510,14 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 */
 	private void setupInsertionArraysForRecord(int recordId, int position, int startIndex, int targetSize, int suffixLength) {
 		int[] newInsertions = new int[targetSize];
-		System.arraycopy(insertions, 0, newInsertions, 0, startIndex);
-		System.arraycopy(insertions, startIndex, newInsertions, startIndex + 1, suffixLength);
+		System.arraycopy(this.insertions, 0, newInsertions, 0, startIndex);
+		System.arraycopy(this.insertions, startIndex, newInsertions, startIndex + 1, suffixLength);
 		newInsertions[startIndex] = position;
 		this.insertions = newInsertions;
 
 		UnorderedLookup[] newInsertedValues = new UnorderedLookup[targetSize];
-		System.arraycopy(insertedValues, 0, newInsertedValues, 0, startIndex);
-		System.arraycopy(insertedValues, startIndex, newInsertedValues, startIndex + 1, suffixLength);
+		System.arraycopy(this.insertedValues, 0, newInsertedValues, 0, startIndex);
+		System.arraycopy(this.insertedValues, startIndex, newInsertedValues, startIndex + 1, suffixLength);
 		newInsertedValues[startIndex] = new UnorderedLookup(recordId);
 		this.insertedValues = newInsertedValues;
 	}
@@ -526,17 +526,17 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 	 * Removes record id that is present in diff index (i.e. was not in original array but was added in the meantime).
 	 */
 	private void removeIntOnChangePosition(int recordId, int insertionIndex) {
-		UnorderedLookup diffValues = insertedValues[insertionIndex];
+		UnorderedLookup diffValues = this.insertedValues[insertionIndex];
 		diffValues.removeRecord(recordId);
 		if (diffValues.size() == 0) {
-			int[] newInsertions = new int[insertions.length - 1];
-			System.arraycopy(insertions, 0, newInsertions, 0, insertionIndex);
-			System.arraycopy(insertions, insertionIndex + 1, newInsertions, insertionIndex, insertions.length - insertionIndex - 1);
+			int[] newInsertions = new int[this.insertions.length - 1];
+			System.arraycopy(this.insertions, 0, newInsertions, 0, insertionIndex);
+			System.arraycopy(this.insertions, insertionIndex + 1, newInsertions, insertionIndex, this.insertions.length - insertionIndex - 1);
 			this.insertions = newInsertions;
 
-			UnorderedLookup[] newInsertedValues = new UnorderedLookup[insertedValues.length - 1];
-			System.arraycopy(insertedValues, 0, newInsertedValues, 0, insertionIndex);
-			System.arraycopy(insertedValues, insertionIndex + 1, newInsertedValues, insertionIndex, insertedValues.length - insertionIndex - 1);
+			UnorderedLookup[] newInsertedValues = new UnorderedLookup[this.insertedValues.length - 1];
+			System.arraycopy(this.insertedValues, 0, newInsertedValues, 0, insertionIndex);
+			System.arraycopy(this.insertedValues, insertionIndex + 1, newInsertedValues, insertionIndex, this.insertedValues.length - insertionIndex - 1);
 			this.insertedValues = newInsertedValues;
 		}
 
@@ -592,14 +592,14 @@ public class UnorderedIntArrayChanges implements ArrayChangesIteratorSupport {
 		 * Returns true if the record id was newly added (i.e. was not in the original array).
 		 */
 		public boolean isPresentInDiff() {
-			return diffPosition >= 0;
+			return this.diffPosition >= 0;
 		}
 
 		/**
 		 * Returns true if the record id was present in the original array.
 		 */
 		public boolean isPresentInBase() {
-			return existingPosition >= 0;
+			return this.existingPosition >= 0;
 		}
 
 		/**

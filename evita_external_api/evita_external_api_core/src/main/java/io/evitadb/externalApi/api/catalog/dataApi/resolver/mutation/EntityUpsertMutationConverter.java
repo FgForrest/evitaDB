@@ -76,27 +76,27 @@ public abstract class EntityUpsertMutationConverter<A> {
 	                                             @Nonnull A inputLocalMutationAggregates) {
 		final List<Object> rawInputLocalMutationAggregates = convertAggregates(inputLocalMutationAggregates);
 		final List<LocalMutation<?, ?>> localMutations = rawInputLocalMutationAggregates.stream()
-			.flatMap(agg -> localMutationAggregateConverter.convertFromInput(agg).stream())
+			.flatMap(agg -> this.localMutationAggregateConverter.convertFromInput(agg).stream())
 			.toList();
 
-		return new EntityUpsertMutation(entitySchema.getName(), primaryKey, entityExistence, localMutations);
+		return new EntityUpsertMutation(this.entitySchema.getName(), primaryKey, entityExistence, localMutations);
 	}
 
 	@Nonnull
 	public Object convertToOutput(@Nonnull EntityUpsertMutation entityUpsertMutation) {
-		final Output output = new Output(EntityUpsertMutation.class.getSimpleName(), exceptionFactory);
+		final Output output = new Output(EntityUpsertMutation.class.getSimpleName(), this.exceptionFactory);
 		output.setProperty(EntityUpsertMutationDescriptor.ENTITY_PRIMARY_KEY, entityUpsertMutation.getEntityPrimaryKey());
 		output.setProperty(EntityUpsertMutationDescriptor.ENTITY_TYPE, entityUpsertMutation.getEntityType());
 		output.setProperty(EntityUpsertMutationDescriptor.ENTITY_EXISTENCE, entityUpsertMutation.expects());
 		//noinspection unchecked
 		output.setProperty(
 			EntityUpsertMutationDescriptor.LOCAL_MUTATIONS,
-			localMutationAggregateConverter.convertToOutput((Collection<LocalMutation<?,?>>) entityUpsertMutation.getLocalMutations())
+			this.localMutationAggregateConverter.convertToOutput((Collection<LocalMutation<?,?>>) entityUpsertMutation.getLocalMutations())
 		);
 		final Object outputMutationObject = output.getOutputMutationObject();
 		Assert.isPremiseValid(
 			outputMutationObject != null,
-			() -> exceptionFactory.createInternalError("Output mutation cannot be null, because input mutation is present.")
+			() -> this.exceptionFactory.createInternalError("Output mutation cannot be null, because input mutation is present.")
 		);
 		return outputMutationObject;
 	}

@@ -52,14 +52,14 @@ class SetReferenceGroupMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter =  new SetReferenceGroupMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new SetReferenceGroupMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final SetReferenceGroupMutation expectedMutation = new SetReferenceGroupMutation(new ReferenceKey(REFERENCE_TAGS, 1), "TagsGroup", 2);
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(SetReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(SetReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -74,7 +74,7 @@ class SetReferenceGroupMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final SetReferenceGroupMutation expectedMutation = new SetReferenceGroupMutation(new ReferenceKey(REFERENCE_TAGS, 1), null, 2);
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(SetReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(SetReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -88,7 +88,7 @@ class SetReferenceGroupMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(SetReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(SetReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -97,7 +97,7 @@ class SetReferenceGroupMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(SetReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY.name(), 2)
@@ -106,15 +106,15 @@ class SetReferenceGroupMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(SetReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY.name(), 2)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -122,7 +122,7 @@ class SetReferenceGroupMutationConverterTest {
 		final SetReferenceGroupMutation inputMutation = new SetReferenceGroupMutation(new ReferenceKey(REFERENCE_TAGS, 1), "TagsGroup", 2);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

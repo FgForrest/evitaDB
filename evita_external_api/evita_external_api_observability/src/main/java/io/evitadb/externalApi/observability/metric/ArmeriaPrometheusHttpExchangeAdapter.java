@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -57,12 +57,12 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 
 	@Override
 	public PrometheusHttpRequest getRequest() {
-		return request;
+		return this.request;
 	}
 
 	@Override
 	public PrometheusHttpResponse getResponse() {
-		return response;
+		return this.response;
 	}
 
 	@Override
@@ -85,7 +85,7 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 	 */
 	@Nonnull
 	ResponseHeadersBuilder headersBuilder() {
-		return response.headersBuilder;
+		return this.response.headersBuilder;
 	}
 
 	/**
@@ -97,22 +97,22 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 
 		@Override
 		public String getQueryString() {
-			return request.uri().getQuery();
+			return this.request.uri().getQuery();
 		}
 
 		@Override
 		public Enumeration<String> getHeaders(String name) {
-			return Collections.enumeration(request.headers().names().stream().map(AsciiString::toString).toList());
+			return Collections.enumeration(this.request.headers().names().stream().map(AsciiString::toString).toList());
 		}
 
 		@Override
 		public String getMethod() {
-			return request.method().name();
+			return this.request.method().name();
 		}
 
 		@Override
 		public String getRequestPath() {
-			return request.path();
+			return this.request.path();
 		}
 	}
 
@@ -128,17 +128,17 @@ public class ArmeriaPrometheusHttpExchangeAdapter implements PrometheusHttpExcha
 
 		@Override
 		public void setHeader(String name, String value) {
-			headersBuilder.set(name, value);
+			this.headersBuilder.set(name, value);
 		}
 
 		@Override
 		public OutputStream sendHeadersAndGetBody(int statusCode, int contentLength) {
 			if (contentLength > 0) {
-				headersBuilder.status(statusCode);
-				headersBuilder.contentLength(contentLength);
-				context.setMaxRequestLength(contentLength);
+				this.headersBuilder.status(statusCode);
+				this.headersBuilder.contentLength(contentLength);
+				this.context.setMaxRequestLength(contentLength);
 			}
-			return outputStream;
+			return this.outputStream;
 		}
 	}
 }

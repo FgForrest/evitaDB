@@ -55,7 +55,7 @@ public class PropertyDescriptorToOpenApiOperationQueryParameterTransformer imple
 			parameterBuilder.deprecationNotice(propertyDescriptor.deprecate());
 		}
 		if (propertyDescriptor.type() != null) {
-			final OpenApiSimpleType openApiType = propertyDataTypeDescriptorTransformer.apply(propertyDescriptor.type());
+			final OpenApiSimpleType openApiType = this.propertyDataTypeDescriptorTransformer.apply(propertyDescriptor.type());
 			parameterBuilder.type(openApiType);
 		}
 		if (propertyDescriptor.defaultValue() != null) {

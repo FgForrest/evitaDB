@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -176,13 +176,13 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 
 	@Override
 	public boolean test(PriceContract priceContract) {
-		return switch (priceContentMode) {
+		return switch (this.priceContentMode) {
 			case NONE -> false;
 			case ALL -> priceContract.exists();
 			case RESPECTING_FILTER -> priceContract.exists() &&
-				(currency == null || Objects.equals(currency, priceContract.currency())) &&
-				(ArrayUtils.isEmpty(priceLists) || priceListsAsSet.contains(priceContract.priceList())) &&
-				(validIn == null || ofNullable(priceContract.validity()).map(it -> it.isValidFor(validIn)).orElse(true));
+				(this.currency == null || Objects.equals(this.currency, priceContract.currency())) &&
+				(ArrayUtils.isEmpty(this.priceLists) || this.priceListsAsSet.contains(priceContract.priceList())) &&
+				(this.validIn == null || ofNullable(priceContract.validity()).map(it -> it.isValidFor(this.validIn)).orElse(true));
 		};
 	}
 
@@ -214,16 +214,16 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	 * along with the entity.
 	 */
 	public void checkFetched(@Nullable Currency currency, @Nonnull String... priceList) throws ContextMissingException {
-		switch (priceContentMode) {
+		switch (this.priceContentMode) {
 			case NONE -> throw ContextMissingException.pricesNotFetched();
 			case RESPECTING_FILTER -> {
 				if (this.currency != null && currency != null && !Objects.equals(this.currency, currency)) {
 					throw ContextMissingException.pricesNotFetched(currency, this.currency);
 				}
-				if (!priceListsAsSet.isEmpty()) {
+				if (!this.priceListsAsSet.isEmpty()) {
 					for (String checkedPriceList : priceList) {
-						if (!priceListsAsSet.contains(checkedPriceList)) {
-							throw ContextMissingException.pricesNotFetched(checkedPriceList, priceListsAsSet);
+						if (!this.priceListsAsSet.contains(checkedPriceList)) {
+							throw ContextMissingException.pricesNotFetched(checkedPriceList, this.priceListsAsSet);
 						}
 					}
 				}
@@ -235,7 +235,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	 * Returns true if the prices were fetched.
 	 */
 	public boolean isFetched() {
-		return priceContentMode != PriceContentMode.NONE;
+		return this.priceContentMode != PriceContentMode.NONE;
 	}
 
 	/**
@@ -244,7 +244,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	 * @throws ContextMissingException if no price was fetched with the entity
 	 */
 	public void checkPricesFetched() throws ContextMissingException {
-		if (priceContentMode == PriceContentMode.NONE) {
+		if (this.priceContentMode == PriceContentMode.NONE) {
 			throw ContextMissingException.pricesNotFetched();
 		}
 	}

@@ -85,8 +85,8 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 			collections.forEach(c -> {
 				final SealedEntitySchema entitySchema = session.getEntitySchema(c)
 					.orElseThrow(() -> new GenericEvitaInternalError("Schema for `" + c + "` entity type unexpectedly not found!"));
-				supportedLocales.addAll(entitySchema.getLocales());
-				supportedCurrencies.addAll(entitySchema.getCurrencies());
+				this.supportedLocales.addAll(entitySchema.getLocales());
+				this.supportedCurrencies.addAll(entitySchema.getCurrencies());
 				schemas.add(entitySchema);
 			});
 			return schemas;
@@ -99,7 +99,7 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 	@Nonnull
 	@Override
 	protected List<Server> buildOpenApiServers() {
-		return Arrays.stream(restConfig.getBaseUrls())
+		return Arrays.stream(this.restConfig.getBaseUrls())
 			.map(baseUrl -> new Server()
 				.url(baseUrl + getSchema().getName()))
 			.toList();
@@ -113,7 +113,7 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 
 	@Nonnull
 	public CatalogSchemaContract getSchema() {
-		return catalog.getSchema();
+		return this.catalog.getSchema();
 	}
 
 	@Nonnull

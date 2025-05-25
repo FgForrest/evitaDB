@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,8 +44,8 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcSetReferenceSchemaFacetedMutation() {
-    name_ = "";
-    facetedInScopes_ = java.util.Collections.emptyList();
+    this.name_ = "";
+    this.facetedInScopes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -82,26 +82,26 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            name_ = s;
+            this.name_ = s;
             break;
           }
           case 16: {
 
-            faceted_ = input.readBool();
+            this.faceted_ = input.readBool();
             break;
           }
           case 24: {
 
-            inherited_ = input.readBool();
+            this.inherited_ = input.readBool();
             break;
           }
           case 32: {
             int rawValue = input.readEnum();
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              facetedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+              this.facetedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
               mutable_bitField0_ |= 0x00000001;
             }
-            facetedInScopes_.add(rawValue);
+            this.facetedInScopes_.add(rawValue);
             break;
           }
           case 34: {
@@ -110,10 +110,10 @@ private static final long serialVersionUID = 0L;
             while(input.getBytesUntilLimit() > 0) {
               int rawValue = input.readEnum();
               if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-                facetedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+                this.facetedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
                 mutable_bitField0_ |= 0x00000001;
               }
-              facetedInScopes_.add(rawValue);
+              this.facetedInScopes_.add(rawValue);
             }
             input.popLimit(oldLimit);
             break;
@@ -134,7 +134,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        facetedInScopes_ = java.util.Collections.unmodifiableList(facetedInScopes_);
+        this.facetedInScopes_ = java.util.Collections.unmodifiableList(this.facetedInScopes_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -165,14 +165,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getName() {
-    java.lang.Object ref = name_;
+    java.lang.Object ref = this.name_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      name_ = s;
+      this.name_ = s;
       return s;
     }
   }
@@ -187,12 +187,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getNameBytes() {
-    java.lang.Object ref = name_;
+    java.lang.Object ref = this.name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      name_ = b;
+      this.name_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -218,7 +218,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   @java.lang.Deprecated public boolean getFaceted() {
-    return faceted_;
+    return this.faceted_;
   }
 
   public static final int INHERITED_FIELD_NUMBER = 3;
@@ -235,7 +235,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean getInherited() {
-    return inherited_;
+    return this.inherited_;
   }
 
   public static final int FACETEDINSCOPES_FIELD_NUMBER = 4;
@@ -266,7 +266,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getFacetedInScopesList() {
     return new com.google.protobuf.Internal.ListAdapter<
-        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(facetedInScopes_, facetedInScopes_converter_);
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(this.facetedInScopes_, facetedInScopes_converter_);
   }
   /**
    * <pre>
@@ -283,7 +283,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getFacetedInScopesCount() {
-    return facetedInScopes_.size();
+    return this.facetedInScopes_.size();
   }
   /**
    * <pre>
@@ -301,7 +301,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getFacetedInScopes(int index) {
-    return facetedInScopes_converter_.convert(facetedInScopes_.get(index));
+    return facetedInScopes_converter_.convert(this.facetedInScopes_.get(index));
   }
   /**
    * <pre>
@@ -319,7 +319,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<java.lang.Integer>
   getFacetedInScopesValueList() {
-    return facetedInScopes_;
+    return this.facetedInScopes_;
   }
   /**
    * <pre>
@@ -337,18 +337,18 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getFacetedInScopesValue(int index) {
-    return facetedInScopes_.get(index);
+    return this.facetedInScopes_.get(index);
   }
   private int facetedInScopesMemoizedSerializedSize;
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
@@ -356,56 +356,56 @@ private static final long serialVersionUID = 0L;
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
     getSerializedSize();
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, name_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.name_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.name_);
     }
-    if (faceted_ != false) {
-      output.writeBool(2, faceted_);
+    if (this.faceted_ != false) {
+      output.writeBool(2, this.faceted_);
     }
-    if (inherited_ != false) {
-      output.writeBool(3, inherited_);
+    if (this.inherited_ != false) {
+      output.writeBool(3, this.inherited_);
     }
     if (getFacetedInScopesList().size() > 0) {
       output.writeUInt32NoTag(34);
-      output.writeUInt32NoTag(facetedInScopesMemoizedSerializedSize);
+      output.writeUInt32NoTag(this.facetedInScopesMemoizedSerializedSize);
     }
-    for (int i = 0; i < facetedInScopes_.size(); i++) {
-      output.writeEnumNoTag(facetedInScopes_.get(i));
+    for (int i = 0; i < this.facetedInScopes_.size(); i++) {
+      output.writeEnumNoTag(this.facetedInScopes_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, name_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.name_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.name_);
     }
-    if (faceted_ != false) {
+    if (this.faceted_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(2, faceted_);
+        .computeBoolSize(2, this.faceted_);
     }
-    if (inherited_ != false) {
+    if (this.inherited_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(3, inherited_);
+        .computeBoolSize(3, this.inherited_);
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < facetedInScopes_.size(); i++) {
+      for (int i = 0; i < this.facetedInScopes_.size(); i++) {
         dataSize += com.google.protobuf.CodedOutputStream
-          .computeEnumSizeNoTag(facetedInScopes_.get(i));
+          .computeEnumSizeNoTag(this.facetedInScopes_.get(i));
       }
       size += dataSize;
       if (!getFacetedInScopesList().isEmpty()) {  size += 1;
         size += com.google.protobuf.CodedOutputStream
           .computeUInt32SizeNoTag(dataSize);
-      }facetedInScopesMemoizedSerializedSize = dataSize;
+      }this.facetedInScopesMemoizedSerializedSize = dataSize;
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -425,15 +425,15 @@ private static final long serialVersionUID = 0L;
         != other.getFaceted()) return false;
     if (getInherited()
         != other.getInherited()) return false;
-    if (!facetedInScopes_.equals(other.facetedInScopes_)) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.facetedInScopes_.equals(other.facetedInScopes_)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -447,10 +447,10 @@ private static final long serialVersionUID = 0L;
         getInherited());
     if (getFacetedInScopesCount() > 0) {
       hash = (37 * hash) + FACETEDINSCOPES_FIELD_NUMBER;
-      hash = (53 * hash) + facetedInScopes_.hashCode();
+      hash = (53 * hash) + this.facetedInScopes_.hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -587,14 +587,14 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      name_ = "";
+      this.name_ = "";
 
-      faceted_ = false;
+      this.faceted_ = false;
 
-      inherited_ = false;
+      this.inherited_ = false;
 
-      facetedInScopes_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.facetedInScopes_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       return this;
     }
 
@@ -621,15 +621,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation result = new io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation(this);
-      int from_bitField0_ = bitField0_;
-      result.name_ = name_;
-      result.faceted_ = faceted_;
-      result.inherited_ = inherited_;
-      if (((bitField0_ & 0x00000001) != 0)) {
-        facetedInScopes_ = java.util.Collections.unmodifiableList(facetedInScopes_);
-        bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      result.name_ = this.name_;
+      result.faceted_ = this.faceted_;
+      result.inherited_ = this.inherited_;
+      if (((this.bitField0_ & 0x00000001) != 0)) {
+        this.facetedInScopes_ = java.util.Collections.unmodifiableList(this.facetedInScopes_);
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       }
-      result.facetedInScopes_ = facetedInScopes_;
+      result.facetedInScopes_ = this.facetedInScopes_;
       onBuilt();
       return result;
     }
@@ -679,7 +679,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation.getDefaultInstance()) return this;
       if (!other.getName().isEmpty()) {
-        name_ = other.name_;
+        this.name_ = other.name_;
         onChanged();
       }
       if (other.getFaceted() != false) {
@@ -689,12 +689,12 @@ private static final long serialVersionUID = 0L;
         setInherited(other.getInherited());
       }
       if (!other.facetedInScopes_.isEmpty()) {
-        if (facetedInScopes_.isEmpty()) {
-          facetedInScopes_ = other.facetedInScopes_;
-          bitField0_ = (bitField0_ & ~0x00000001);
+        if (this.facetedInScopes_.isEmpty()) {
+          this.facetedInScopes_ = other.facetedInScopes_;
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         } else {
           ensureFacetedInScopesIsMutable();
-          facetedInScopes_.addAll(other.facetedInScopes_);
+          this.facetedInScopes_.addAll(other.facetedInScopes_);
         }
         onChanged();
       }
@@ -738,12 +738,12 @@ private static final long serialVersionUID = 0L;
      * @return The name.
      */
     public java.lang.String getName() {
-      java.lang.Object ref = name_;
+      java.lang.Object ref = this.name_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        name_ = s;
+        this.name_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -759,12 +759,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getNameBytes() {
-      java.lang.Object ref = name_;
+      java.lang.Object ref = this.name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        name_ = b;
+        this.name_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -784,8 +784,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      name_ = value;
+
+      this.name_ = value;
       onChanged();
       return this;
     }
@@ -798,8 +798,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-      
-      name_ = getDefaultInstance().getName();
+
+      this.name_ = getDefaultInstance().getName();
       onChanged();
       return this;
     }
@@ -818,8 +818,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      name_ = value;
+
+      this.name_ = value;
       onChanged();
       return this;
     }
@@ -842,7 +842,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     @java.lang.Deprecated public boolean getFaceted() {
-      return faceted_;
+      return this.faceted_;
     }
     /**
      * <pre>
@@ -861,8 +861,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder setFaceted(boolean value) {
-      
-      faceted_ = value;
+
+      this.faceted_ = value;
       onChanged();
       return this;
     }
@@ -882,8 +882,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearFaceted() {
-      
-      faceted_ = false;
+
+      this.faceted_ = false;
       onChanged();
       return this;
     }
@@ -901,7 +901,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean getInherited() {
-      return inherited_;
+      return this.inherited_;
     }
     /**
      * <pre>
@@ -915,8 +915,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setInherited(boolean value) {
-      
-      inherited_ = value;
+
+      this.inherited_ = value;
       onChanged();
       return this;
     }
@@ -931,8 +931,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearInherited() {
-      
-      inherited_ = false;
+
+      this.inherited_ = false;
       onChanged();
       return this;
     }
@@ -940,9 +940,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<java.lang.Integer> facetedInScopes_ =
       java.util.Collections.emptyList();
     private void ensureFacetedInScopesIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        facetedInScopes_ = new java.util.ArrayList<java.lang.Integer>(facetedInScopes_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.facetedInScopes_ = new java.util.ArrayList<java.lang.Integer>(this.facetedInScopes_);
+        this.bitField0_ |= 0x00000001;
       }
     }
     /**
@@ -960,7 +960,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getFacetedInScopesList() {
       return new com.google.protobuf.Internal.ListAdapter<
-          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(facetedInScopes_, facetedInScopes_converter_);
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(this.facetedInScopes_, facetedInScopes_converter_);
     }
     /**
      * <pre>
@@ -976,7 +976,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of facetedInScopes.
      */
     public int getFacetedInScopesCount() {
-      return facetedInScopes_.size();
+      return this.facetedInScopes_.size();
     }
     /**
      * <pre>
@@ -993,7 +993,7 @@ private static final long serialVersionUID = 0L;
      * @return The facetedInScopes at the given index.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getFacetedInScopes(int index) {
-      return facetedInScopes_converter_.convert(facetedInScopes_.get(index));
+      return facetedInScopes_converter_.convert(this.facetedInScopes_.get(index));
     }
     /**
      * <pre>
@@ -1016,7 +1016,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureFacetedInScopesIsMutable();
-      facetedInScopes_.set(index, value.getNumber());
+      this.facetedInScopes_.set(index, value.getNumber());
       onChanged();
       return this;
     }
@@ -1039,7 +1039,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureFacetedInScopesIsMutable();
-      facetedInScopes_.add(value.getNumber());
+      this.facetedInScopes_.add(value.getNumber());
       onChanged();
       return this;
     }
@@ -1061,7 +1061,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityScope> values) {
       ensureFacetedInScopesIsMutable();
       for (io.evitadb.externalApi.grpc.generated.GrpcEntityScope value : values) {
-        facetedInScopes_.add(value.getNumber());
+        this.facetedInScopes_.add(value.getNumber());
       }
       onChanged();
       return this;
@@ -1080,8 +1080,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearFacetedInScopes() {
-      facetedInScopes_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.facetedInScopes_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
@@ -1100,7 +1100,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<java.lang.Integer>
     getFacetedInScopesValueList() {
-      return java.util.Collections.unmodifiableList(facetedInScopes_);
+      return java.util.Collections.unmodifiableList(this.facetedInScopes_);
     }
     /**
      * <pre>
@@ -1117,7 +1117,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire of facetedInScopes at the given index.
      */
     public int getFacetedInScopesValue(int index) {
-      return facetedInScopes_.get(index);
+      return this.facetedInScopes_.get(index);
     }
     /**
      * <pre>
@@ -1137,7 +1137,7 @@ private static final long serialVersionUID = 0L;
     public Builder setFacetedInScopesValue(
         int index, int value) {
       ensureFacetedInScopesIsMutable();
-      facetedInScopes_.set(index, value);
+      this.facetedInScopes_.set(index, value);
       onChanged();
       return this;
     }
@@ -1157,7 +1157,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addFacetedInScopesValue(int value) {
       ensureFacetedInScopesIsMutable();
-      facetedInScopes_.add(value);
+      this.facetedInScopes_.add(value);
       onChanged();
       return this;
     }
@@ -1179,7 +1179,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<java.lang.Integer> values) {
       ensureFacetedInScopesIsMutable();
       for (int value : values) {
-        facetedInScopes_.add(value);
+        this.facetedInScopes_.add(value);
       }
       onChanged();
       return this;

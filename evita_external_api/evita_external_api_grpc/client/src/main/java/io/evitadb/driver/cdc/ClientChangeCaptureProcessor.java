@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -93,11 +93,11 @@ public abstract class ClientChangeCaptureProcessor<C extends ChangeCapture, REQ,
     public void subscribe(Subscriber<? super C> subscriber) {
         assertActive();
 
-        if (hasSubscriber) {
+        if (this.hasSubscriber) {
             throw new EvitaInvalidUsageException("Only one subscriber is allowed.");
         }
-        clientPublisher.subscribe(subscriber);
-        hasSubscriber = true;
+	    this.clientPublisher.subscribe(subscriber);
+	    this.hasSubscriber = true;
     }
 
     @Override
@@ -108,7 +108,7 @@ public abstract class ClientChangeCaptureProcessor<C extends ChangeCapture, REQ,
         // so we fallback to auto flow control
         this.serverObserver = observer;
         // for now, we will use default buffer size as we don't have any information about what number to use otherwise
-        this.clientPublisher = new SubmissionPublisher<>(executor, Flow.defaultBufferSize());
+        this.clientPublisher = new SubmissionPublisher<>(this.executor, Flow.defaultBufferSize());
 
         this.state = State.ACTIVE;
     }
@@ -119,7 +119,7 @@ public abstract class ClientChangeCaptureProcessor<C extends ChangeCapture, REQ,
 
         final C capture = deserializeCaptureResponse(itemResponse);
         // the blocking submit call should be ok here, the gRPC connection should wait before sending request for more items
-        clientPublisher.submit(capture);
+	    this.clientPublisher.submit(capture);
     }
 
     @Override
@@ -130,21 +130,21 @@ public abstract class ClientChangeCaptureProcessor<C extends ChangeCapture, REQ,
             // apparently, gRPC server doesn't know if cancellation was initiated by the client or by some network error
             onCompleted();
         } else {
-            clientPublisher.closeExceptionally(throwable);
+	        this.clientPublisher.closeExceptionally(throwable);
         }
     }
 
     @Override
     public void onCompleted() {
         assertActive();
-        clientPublisher.close();
+	    this.clientPublisher.close();
     }
 
     @Override
     public void close() {
-        if (state != State.CLOSED) {
+        if (this.state != State.CLOSED) {
             // this will eventually trigger the `onComplete` callback (through `onError` callback) and close this publisher
-            serverObserver.cancel("Closed manually by client.", new PublisherClosedByClientException());
+	        this.serverObserver.cancel("Closed manually by client.", new PublisherClosedByClientException());
         }
     }
 
@@ -157,7 +157,7 @@ public abstract class ClientChangeCaptureProcessor<C extends ChangeCapture, REQ,
      * Verifies this instance is still new and not initialized.
      */
     private void assertNew() {
-        if (state != State.NEW) {
+        if (this.state != State.NEW) {
             throw new EvitaInvalidUsageException("Client change capture publisher has been already initialized.");
         }
     }
@@ -166,7 +166,7 @@ public abstract class ClientChangeCaptureProcessor<C extends ChangeCapture, REQ,
      * Verifies this instance is still active.
      */
     private void assertActive() {
-        if (state != State.ACTIVE) {
+        if (this.state != State.ACTIVE) {
             throw new InstanceTerminatedException("client change capture publisher");
         }
     }

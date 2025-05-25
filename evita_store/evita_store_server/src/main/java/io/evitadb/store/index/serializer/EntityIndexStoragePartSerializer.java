@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -98,14 +98,14 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		output.writeVarInt(attributeIndexes.size(), true);
 		for (AttributeIndexStorageKey attributeIndexKey : attributeIndexes) {
 			kryo.writeObject(output, attributeIndexKey.indexType());
-			output.writeVarInt(keyCompressor.getId(attributeIndexKey.attribute()), true);
+			output.writeVarInt(this.keyCompressor.getId(attributeIndexKey.attribute()), true);
 		}
 
 		final Set<PriceIndexKey> priceIndexes = entityIndex.getPriceIndexes();
 		output.writeVarInt(priceIndexes.size(), true);
 		for (PriceIndexKey priceIndexKey : priceIndexes) {
 			final CompressiblePriceKey cpk = new CompressiblePriceKey(priceIndexKey.getPriceList(), priceIndexKey.getCurrency());
-			output.writeVarInt(keyCompressor.getId(cpk), true);
+			output.writeVarInt(this.keyCompressor.getId(cpk), true);
 			output.writeVarInt(priceIndexKey.getRecordHandling().ordinal(), true);
 		}
 
@@ -114,7 +114,7 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		final Set<String> facetIndexes = entityIndex.getFacetIndexes();
 		output.writeVarInt(facetIndexes.size(), true);
 		for (String referencedEntity : facetIndexes) {
-			output.writeVarInt(keyCompressor.getId(referencedEntity), true);
+			output.writeVarInt(this.keyCompressor.getId(referencedEntity), true);
 		}
 
 		final CardinalityIndex primaryKeyCardinality = entityIndex.getPrimaryKeyCardinality();
@@ -155,14 +155,14 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		final Set<AttributeIndexStorageKey> attributeIndexes = createHashSet(attributeIndexesCount);
 		for (int i = 0; i < attributeIndexesCount; i++) {
 			final AttributeIndexType attributeIndexType = kryo.readObject(input, AttributeIndexType.class);
-			final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
+			final AttributeKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 			attributeIndexes.add(new AttributeIndexStorageKey(entityIndexKey, attributeIndexType, attributeKey));
 		}
 
 		final int priceIndexesCount = input.readVarInt(true);
 		final Set<PriceIndexKey> priceIndexes = createHashSet(priceIndexesCount);
 		for (int i = 0; i < priceIndexesCount; i++) {
-			final CompressiblePriceKey priceKey = keyCompressor.getKeyForId(input.readVarInt(true));
+			final CompressiblePriceKey priceKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 			final PriceInnerRecordHandling innerRecordHandling = PriceInnerRecordHandling.values()[input.readVarInt(true)];
 			priceIndexes.add(
 				new PriceIndexKey(priceKey.getPriceList(), priceKey.getCurrency(), innerRecordHandling)
@@ -174,7 +174,7 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		final int facetIndexesCount = input.readVarInt(true);
 		final Set<String> facetIndexes = createHashSet(facetIndexesCount);
 		for (int i = 0; i < facetIndexesCount; i++) {
-			final String entityType = keyCompressor.getKeyForId(input.readVarInt(true));
+			final String entityType = this.keyCompressor.getKeyForId(input.readVarInt(true));
 			facetIndexes.add(entityType);
 		}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -680,7 +680,7 @@ public class ClassSchemaAnalyzer {
 				}
 
 				// define sortable attribute compounds
-				defineSortableAttributeCompounds(modelClass, entityBuilder);
+				defineSortableAttributeCompounds(this.modelClass, entityBuilder);
 
 				// if the schema consumer is available invoke it
 				ofNullable(this.postProcessor)
@@ -729,7 +729,7 @@ public class ClassSchemaAnalyzer {
 				final Class<?> returnedType = verifyDataType(getReturnedType(this.modelClass, getter));
 				@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) returnedType;
 				final Serializable defaultValue = getter.isDefault() ? extractDefaultValue(this.modelClass, getter) : null;
-				defineAttribute(catalogBuilder, entityBuilder, attributeAnnotation, attributeName, getter.toGenericString(), attributeType, defaultValue, attributesDefined);
+				defineAttribute(catalogBuilder, entityBuilder, attributeAnnotation, attributeName, getter.toGenericString(), attributeType, defaultValue, this.attributesDefined);
 			}
 			final AssociatedData associatedDataAnnotation = this.reflectionLookup.getAnnotationInstance(getter, AssociatedData.class);
 			if (associatedDataAnnotation != null) {
@@ -918,7 +918,7 @@ public class ClassSchemaAnalyzer {
 	) {
 		Assert.isTrue(
 			!this.primaryKeyDefined,
-			"Class `" + modelClass + "` contains multiple methods marked with `@PrimaryKey` annotation," +
+			"Class `" + this.modelClass + "` contains multiple methods marked with `@PrimaryKey` annotation," +
 				" which is not allowed!"
 		);
 		this.primaryKeyDefined = true;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,17 +49,17 @@ public class Expression implements ExpressionNode {
 	@Nonnull
 	@Override
 	public Serializable compute(@Nonnull PredicateEvaluationContext context) throws ExpressionEvaluationException {
-		return root.compute(context);
+		return this.root.compute(context);
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		return root.determinePossibleRange();
+		return this.root.determinePossibleRange();
 	}
 
 	@Override
 	public String toString() {
-		return EvitaDataTypes.formatValue(root.toString());
+		return EvitaDataTypes.formatValue(this.root.toString());
 	}
 }

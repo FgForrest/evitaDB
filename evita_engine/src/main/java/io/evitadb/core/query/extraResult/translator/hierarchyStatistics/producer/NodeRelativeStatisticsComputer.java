@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -80,10 +80,10 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 	) {
 		final FilteringFormulaHierarchyEntityPredicate parentIdPredicate = new FilteringFormulaHierarchyEntityPredicate(
 			executionContext.getQueryContext(),
-			context.entityIndex(),
-			parentId,
-			context.entitySchema(),
-			context.referenceSchema()
+			this.context.entityIndex(),
+			this.parentId,
+			this.context.entitySchema(),
+			this.context.referenceSchema()
 		);
 		parentIdPredicate.initializeIfNotAlreadyInitialized(executionContext);
 		final Bitmap parentId = parentIdPredicate.getFilteringFormula().compute();
@@ -94,20 +94,20 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 				() -> "The filter by constraint: `" + parentIdPredicate.getFilterBy() + "` matches multiple (" + parentId.size() + ") hierarchy nodes! " +
 					"Hierarchy statistics computation expects only single node will be matched (due to performance reasons)."
 			);
-			final Bitmap hierarchyNodes = context.rootHierarchyNodesSupplier().get();
+			final Bitmap hierarchyNodes = this.context.rootHierarchyNodesSupplier().get();
 			// we always start at specific node, but we respect the excluded children
 			final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 				executionContext,
-				context.removeEmptyResults(),
+				this.context.removeEmptyResults(),
 				0,
 				hierarchyNodes::contains,
 				scopePredicate,
 				filterPredicate,
-				value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
-				entityFetcher,
-				statisticsType
+				value -> this.context.directlyQueriedEntitiesFormulaProducer().apply(value, this.statisticsBase),
+				this.entityFetcher,
+				this.statisticsType
 			);
-			context.entityIndex().traverseHierarchyFromNode(
+			this.context.entityIndex().traverseHierarchyFromNode(
 				visitor,
 				parentId.getFirst(),
 				false,

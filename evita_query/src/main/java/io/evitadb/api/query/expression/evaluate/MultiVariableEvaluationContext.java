@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,12 +53,12 @@ public final class MultiVariableEvaluationContext extends AbstractPredicateEvalu
 	@Nonnull
 	@Override
 	public Optional<Object> getVariable(@Nonnull String variableName) {
-		return Optional.ofNullable(variables.get(variableName));
+		return Optional.ofNullable(this.variables.get(variableName));
 	}
 
 	@Nonnull
 	@Override
 	public Stream<String> getVariableNames() {
-		return variables.keySet().stream();
+		return this.variables.keySet().stream();
 	}
 }

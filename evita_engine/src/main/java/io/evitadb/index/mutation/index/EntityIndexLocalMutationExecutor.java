@@ -191,7 +191,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.priceInternalIdSupplier = priceInternalIdSupplier;
 		this.entityType = schemaAccessor.get().getName();
 		this.undoActions = undoOnError ? new LinkedList<>() : null;
-		this.undoActionsAppender = undoOnError ? undoActions::add : null;
+		this.undoActionsAppender = undoOnError ? this.undoActions::add : null;
 		this.fullEntitySupplier = fullEntitySupplier;
 	}
 
@@ -287,7 +287,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			);
 			attributeUpdateApplicator.accept(true, globalIndex);
 			ReferenceIndexMutator.executeWithReferenceIndexes(
-				entityType,
+				this.entityType,
 				this,
 				entityIndex -> attributeUpdateApplicator.accept(false, entityIndex),
 				Droppable::exists
@@ -367,9 +367,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	@Override
 	public void rollback() {
 		// execute all undo actions in reverse order of how they have been registered
-		if (undoActions != null) {
-			for (int i = undoActions.size() - 1; i >= 0; i--) {
-				undoActions.get(i).run();
+		if (this.undoActions != null) {
+			for (int i = this.undoActions.size() - 1; i >= 0; i--) {
+				this.undoActions.get(i).run();
 			}
 		}
 	}
@@ -446,19 +446,19 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			AttributeIndexMutator.executeAttributeUpsert(
 				this, attributeSchemaProvider, compoundSchemaProvider, existingValueSupplier,
 				index, affectedAttribute, attributeValue, updateGlobalIndex, updateCompounds,
-				undoActionsAppender
+				this.undoActionsAppender
 			);
 		} else if (attributeMutation instanceof RemoveAttributeMutation) {
 			AttributeIndexMutator.executeAttributeRemoval(
 				this, attributeSchemaProvider, compoundSchemaProvider, existingValueSupplier,
 				index, affectedAttribute, updateGlobalIndex, updateCompounds,
-				undoActionsAppender
+				this.undoActionsAppender
 			);
 		} else if (attributeMutation instanceof ApplyDeltaAttributeMutation<?> applyDeltaAttributeMutation) {
 			final Number attributeValue = applyDeltaAttributeMutation.getAttributeValue();
 			AttributeIndexMutator.executeAttributeDelta(
 				this, attributeSchemaProvider, compoundSchemaProvider, existingValueSupplier,
-				index, affectedAttribute, attributeValue, undoActionsAppender
+				index, affectedAttribute, attributeValue, this.undoActionsAppender
 			);
 		} else {
 			// SHOULD NOT EVER HAPPEN
@@ -1127,14 +1127,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				upsertReferenceGroupMutation.getReferenceKey(),
 				upsertReferenceGroupMutation.getGroupPrimaryKey(),
 				this,
-				entityType
+				this.entityType
 			);
 			ReferenceIndexMutator.setFacetGroupInIndex(
 				theEntityPrimaryKey, referenceIndex,
 				upsertReferenceGroupMutation.getReferenceKey(),
 				upsertReferenceGroupMutation.getGroupPrimaryKey(),
 				this,
-				entityType
+				this.entityType
 			);
 		} else if (referenceMutation instanceof RemoveReferenceGroupMutation removeReferenceGroupMutation) {
 			final EntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, referenceKey, scope);
@@ -1142,13 +1142,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				theEntityPrimaryKey, entityIndex,
 				removeReferenceGroupMutation.getReferenceKey(),
 				this,
-				entityType
+				this.entityType
 			);
 			ReferenceIndexMutator.removeFacetGroupInIndex(
 				theEntityPrimaryKey, referenceIndex,
 				removeReferenceGroupMutation.getReferenceKey(),
 				this,
-				entityType
+				this.entityType
 			);
 		} else {
 			if (referenceMutation instanceof ReferenceAttributeMutation referenceAttributesUpdateMutation) {
@@ -1311,7 +1311,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull SetPriceInnerRecordHandlingMutation priceHandlingMutation,
 		@Nonnull EntityIndex index
 	) {
-		final PricesStoragePart priceStorageContainer = getContainerAccessor().getPriceStoragePart(entityType, getPrimaryKeyToIndex(IndexType.PRICE_INDEX));
+		final PricesStoragePart priceStorageContainer = getContainerAccessor().getPriceStoragePart(this.entityType, getPrimaryKeyToIndex(IndexType.PRICE_INDEX));
 		final PriceInnerRecordHandling originalInnerRecordHandling = priceStorageContainer.getPriceInnerRecordHandling();
 		final PriceInnerRecordHandling newPriceInnerRecordHandling = priceHandlingMutation.getPriceInnerRecordHandling();
 
@@ -1323,7 +1323,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						this, theIndex, price.priceKey(),
 						price,
 						originalInnerRecordHandling,
-						undoActionsAppender
+						this.undoActionsAppender
 					);
 				}
 			};
@@ -1340,13 +1340,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						null,
 						newPriceInnerRecordHandling,
 						PriceIndexMutator.createPriceProvider(price),
-						undoActionsAppender
+						this.undoActionsAppender
 					);
 				}
 			};
 
 			// first remove data from reduced indexes
-			ReferenceIndexMutator.executeWithReferenceIndexes(entityType, this, pricesRemoval);
+			ReferenceIndexMutator.executeWithReferenceIndexes(this.entityType, this, pricesRemoval);
 
 			// now we can safely remove the data from super index
 			pricesRemoval.accept(index);
@@ -1355,7 +1355,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			pricesInsertion.accept(index);
 
 			// and then we can add data to reduced indexes
-			ReferenceIndexMutator.executeWithReferenceIndexes(entityType, this, pricesInsertion);
+			ReferenceIndexMutator.executeWithReferenceIndexes(this.entityType, this, pricesInsertion);
 		}
 	}
 
@@ -1413,13 +1413,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				this, index,
 				getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX),
 				setMutation.getParentPrimaryKey(),
-				undoActionsAppender
+				this.undoActionsAppender
 			);
 		} else if (parentMutation instanceof RemoveParentMutation) {
 			removeParent(
 				this, index,
 				getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX),
-				undoActionsAppender
+				this.undoActionsAppender
 			);
 		} else {
 			// SHOULD NOT EVER HAPPEN

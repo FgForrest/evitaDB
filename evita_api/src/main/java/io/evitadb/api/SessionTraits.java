@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ public record SessionTraits(
 	 * When TRUE all entity bodies in this session are returned in RAW binary format, used in PRIVATE API.
 	 */
 	public boolean isBinary() {
-		return flags.contains(SessionFlags.BINARY);
+		return this.flags.contains(SessionFlags.BINARY);
 	}
 
 	/**
@@ -96,14 +96,14 @@ public record SessionTraits(
 	 * read-write no change would really occur.
 	 */
 	public boolean isDryRun() {
-		return flags.contains(SessionFlags.DRY_RUN);
+		return this.flags.contains(SessionFlags.DRY_RUN);
 	}
 
 	/**
 	 * When TRUE the session will accept write requests, otherwise its considered to be read-only.
 	 */
 	public boolean isReadWrite() {
-		return flags.contains(SessionFlags.READ_WRITE);
+		return this.flags.contains(SessionFlags.READ_WRITE);
 	}
 
 	/**

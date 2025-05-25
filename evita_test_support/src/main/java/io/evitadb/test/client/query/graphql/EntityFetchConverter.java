@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ public class EntityFetchConverter extends RequireConverter {
 	                    @Nullable String entityType,
 	                    @Nullable Locale locale,
 	                    @Nullable EntityFetchRequire entityFetch) {
-		final Optional<EntitySchemaContract> entitySchema = Optional.ofNullable(entityType).flatMap(catalogSchema::getEntitySchema);
+		final Optional<EntitySchemaContract> entitySchema = Optional.ofNullable(entityType).flatMap(this.catalogSchema::getEntitySchema);
 
 		fieldsBuilder.addPrimitiveField(EntityDescriptor.PRIMARY_KEY);
 
@@ -321,8 +321,8 @@ public class EntityFetchConverter extends RequireConverter {
 			if (fetchMode == PriceContentMode.NONE) {
 				return;
 			} else if (fetchMode == PriceContentMode.RESPECTING_FILTER) {
-				final PriceInPriceLists priceInPriceLists = QueryUtils.findFilter(query, PriceInPriceLists.class);
-				final PriceInCurrency priceInCurrency = QueryUtils.findFilter(query, PriceInCurrency.class);
+				final PriceInPriceLists priceInPriceLists = QueryUtils.findFilter(this.query, PriceInPriceLists.class);
+				final PriceInCurrency priceInCurrency = QueryUtils.findFilter(this.query, PriceInCurrency.class);
 				final String[] additionalPriceLists = priceContent.getAdditionalPriceListsToFetch();
 
 				final boolean isEligibleForPriceForSale = priceInPriceLists != null && priceInCurrency != null;

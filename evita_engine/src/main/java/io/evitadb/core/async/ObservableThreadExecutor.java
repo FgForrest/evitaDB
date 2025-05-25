@@ -136,7 +136,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	 */
 	@Nonnull
 	public ForkJoinPool getForkJoinPoolInternal() {
-		return forkJoinPool;
+		return this.forkJoinPool;
 	}
 
 	@Override

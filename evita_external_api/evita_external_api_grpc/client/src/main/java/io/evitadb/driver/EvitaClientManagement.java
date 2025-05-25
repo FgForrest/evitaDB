@@ -164,7 +164,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 
 						@Override
 						public void onNext(GrpcRestoreCatalogResponse value) {
-							bytesReceived.accumulateAndGet(value.getRead(), Math::max);
+							this.bytesReceived.accumulateAndGet(value.getRead(), Math::max);
 							if (value.hasTask()) {
 								taskStatus.set(EvitaDataTypesConverter.toTaskStatus(value.getTask()));
 							}
@@ -178,12 +178,12 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 
 						@Override
 						public void onCompleted() {
-							if (bytesSent.get() == bytesReceived.get()) {
+							if (bytesSent.get() == this.bytesReceived.get()) {
 								result.complete(taskStatus.get());
 							} else {
 								result.completeExceptionally(
 									new UnexpectedIOException(
-										"Number of bytes sent and received during catalog restoration does not match (sent " + bytesSent.get() + ", received " + bytesReceived.get() + ")!",
+										"Number of bytes sent and received during catalog restoration does not match (sent " + bytesSent.get() + ", received " + this.bytesReceived.get() + ")!",
 										"Number of bytes sent and received during catalog restoration does not match!"
 									)
 								);
@@ -218,7 +218,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 				}
 
 				//noinspection unchecked
-				return (Task<?, Void>) clientTaskTracker.createTask(
+				return (Task<?, Void>) this.clientTaskTracker.createTask(
 					Objects.requireNonNull(result.get())
 				);
 			}

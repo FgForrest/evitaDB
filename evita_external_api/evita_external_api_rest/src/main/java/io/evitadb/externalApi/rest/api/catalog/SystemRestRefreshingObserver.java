@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,12 +51,12 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 	@Override
 	public void onNext(ChangeSystemCapture item) {
 		switch (item.operation()) {
-			case UPSERT -> restManager.registerCatalog(item.catalog());
+			case UPSERT -> this.restManager.registerCatalog(item.catalog());
 			/* TODO JNO - distinguish */
 			/*case UPDATE -> restManager.refreshCatalog(item.catalog());*/
-			case REMOVE -> restManager.unregisterCatalog(item.catalog());
+			case REMOVE -> this.restManager.unregisterCatalog(item.catalog());
 		}
-		subscription.request(1);
+		this.subscription.request(1);
 	}
 
 	@Override

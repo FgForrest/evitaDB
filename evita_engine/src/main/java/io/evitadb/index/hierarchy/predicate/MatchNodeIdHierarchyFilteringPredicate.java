@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,16 +55,16 @@ public class MatchNodeIdHierarchyFilteringPredicate implements HierarchyFilterin
 
 	@Override
 	public long getHash() {
-		return hash;
+		return this.hash;
 	}
 
 	@Override
 	public boolean test(int nodeId) {
-		return nodeId == matchNodeId;
+		return nodeId == this.matchNodeId;
 	}
 
 	@Override
 	public String toString() {
-		return "MATCH NODE " + matchNodeId;
+		return "MATCH NODE " + this.matchNodeId;
 	}
 }

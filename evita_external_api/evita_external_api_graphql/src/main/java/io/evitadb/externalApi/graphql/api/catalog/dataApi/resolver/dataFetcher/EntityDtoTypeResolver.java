@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ public class EntityDtoTypeResolver implements TypeResolver {
 	@Override
 	public GraphQLObjectType getType(@Nonnull TypeResolutionEnvironment env) {
 		final EntityClassifier entity = env.getObject();
-		return Optional.ofNullable(entityTypeToEntityDtoMapping.get(entity.getType()))
+		return Optional.ofNullable(this.entityTypeToEntityDtoMapping.get(entity.getType()))
 			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing entity dto for entity type `" + entity.getType() + "`."));
 	}
 }

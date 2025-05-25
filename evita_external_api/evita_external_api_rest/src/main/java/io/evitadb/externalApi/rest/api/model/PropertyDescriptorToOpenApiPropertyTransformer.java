@@ -62,7 +62,7 @@ public class PropertyDescriptorToOpenApiPropertyTransformer implements PropertyD
 		}
 
 		if (propertyDescriptor.type() != null) {
-			final OpenApiSimpleType openApiType = propertyDataTypeDescriptorTransformer.apply(propertyDescriptor.type());
+			final OpenApiSimpleType openApiType = this.propertyDataTypeDescriptorTransformer.apply(propertyDescriptor.type());
 			propertyBuilder.type(openApiType);
 		}
 

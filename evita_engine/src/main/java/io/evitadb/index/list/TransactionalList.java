@@ -92,7 +92,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public ListChanges<V> createLayer() {
-		return new ListChanges<>(listDelegate);
+		return new ListChanges<>(this.listDelegate);
 	}
 
 	@Nonnull
@@ -442,8 +442,8 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 		// create new array list of requested size
 		final ArrayList<V> copy = new ArrayList<>(size());
 		// iterate original list and copy all values from it
-		for (int i = 0; i < listDelegate.size(); i++) {
-			V value = listDelegate.get(i);
+		for (int i = 0; i < this.listDelegate.size(); i++) {
+			V value = this.listDelegate.get(i);
 			// we need to always create copy - something in the referenced object might have changed
 			// even the removed values need to be evaluated (in order to discard them from transactional memory set)
 			if (value instanceof TransactionalLayerProducer) {
@@ -485,14 +485,14 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 		@Override
 		public boolean hasNext() {
-			return layer.size() > this.currentPosition;
+			return this.layer.size() > this.currentPosition;
 		}
 
 		@Override
 		public V next() {
-			if (this.layer.size() > currentPosition) {
-				previousPosition = currentPosition;
-				return this.layer.get(currentPosition++);
+			if (this.layer.size() > this.currentPosition) {
+				this.previousPosition = this.currentPosition;
+				return this.layer.get(this.currentPosition++);
 			} else {
 				throw new NoSuchElementException();
 			}
@@ -505,48 +505,48 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 		@Override
 		public V previous() {
-			if (currentPosition <= 0) {
+			if (this.currentPosition <= 0) {
 				throw new NoSuchElementException();
 			}
-			previousPosition = currentPosition;
-			return this.layer.get(--currentPosition);
+			this.previousPosition = this.currentPosition;
+			return this.layer.get(--this.currentPosition);
 		}
 
 		@Override
 		public int nextIndex() {
-			return currentPosition;
+			return this.currentPosition;
 		}
 
 		@Override
 		public int previousIndex() {
-			return currentPosition - 1;
+			return this.currentPosition - 1;
 		}
 
 		@Override
 		public void remove() {
-			if (previousPosition > -1) {
-				currentPosition = previousPosition;
-				layer.remove(previousPosition);
+			if (this.previousPosition > -1) {
+				this.currentPosition = this.previousPosition;
+				this.layer.remove(this.previousPosition);
 			} else {
-				throw new GenericEvitaInternalError("Previous position unexpectedly: " + previousPosition);
+				throw new GenericEvitaInternalError("Previous position unexpectedly: " + this.previousPosition);
 			}
 		}
 
 		@Override
 		public void set(V v) {
-			if (currentPosition > 0) {
-				final int index = currentPosition - 1;
+			if (this.currentPosition > 0) {
+				final int index = this.currentPosition - 1;
 				// remove element and add on the same index new value
-				final V result = layer.remove(index);
-				layer.add(index, v);
+				final V result = this.layer.remove(index);
+				this.layer.add(index, v);
 			} else {
-				throw new GenericEvitaInternalError("Current position unexpectedly: " + previousPosition);
+				throw new GenericEvitaInternalError("Current position unexpectedly: " + this.previousPosition);
 			}
 		}
 
 		@Override
 		public void add(V v) {
-			layer.add(currentPosition, v);
+			this.layer.add(this.currentPosition, v);
 		}
 
 	}

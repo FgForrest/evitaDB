@@ -50,13 +50,13 @@ public record Label(
 	public boolean equals(Object o) {
 		if (!(o instanceof Label label)) return false;
 
-		return name.equals(label.name) && Objects.equals(value, label.value);
+		return this.name.equals(label.name) && Objects.equals(this.value, label.value);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = name.hashCode();
-		result = 31 * result + Objects.hashCode(value);
+		int result = this.name.hashCode();
+		result = 31 * result + Objects.hashCode(this.value);
 		return result;
 	}
 

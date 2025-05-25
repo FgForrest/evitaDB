@@ -58,28 +58,28 @@ class SerialVersionBasedSerializerTest {
 
 	@BeforeEach
 	void setUp() {
-		attributeSchemaSerializer = new SerialVersionBasedSerializer<>(new AttributeSchemaSerializer(), AttributeSchema.class);
-		kryo.register(AttributeSchema.class, attributeSchemaSerializer);
-		kryo.register(OldAttributeSchema.class, new SerialVersionBasedSerializer<>(new OldAttributeSchemaSerializer(), OldAttributeSchema.class));
+		this.attributeSchemaSerializer = new SerialVersionBasedSerializer<>(new AttributeSchemaSerializer(), AttributeSchema.class);
+		this.kryo.register(AttributeSchema.class, this.attributeSchemaSerializer);
+		this.kryo.register(OldAttributeSchema.class, new SerialVersionBasedSerializer<>(new OldAttributeSchemaSerializer(), OldAttributeSchema.class));
 	}
 
 	@Test
 	void shouldFailToDeserializeOldVersion() {
 		final ByteArrayOutputStream baos = writeOldFormat();
 		try (final ByteBufferInput input = new ByteBufferInput(new ByteArrayInputStream(baos.toByteArray()))) {
-			assertThrows(StoredVersionNotSupportedException.class, () -> kryo.readObject(input, AttributeSchema.class));
+			assertThrows(StoredVersionNotSupportedException.class, () -> this.kryo.readObject(input, AttributeSchema.class));
 		}
 	}
 
 	@Test
 	void shouldDeserializeOldVersion() {
-		attributeSchemaSerializer.addBackwardCompatibleSerializer(
+		this.attributeSchemaSerializer.addBackwardCompatibleSerializer(
 				-7465757161178326011L, new OldAttributeSchemaDeserializer()
 		);
 
 		final ByteArrayOutputStream baos = writeOldFormat();
 		try (final ByteBufferInput input = new ByteBufferInput(new ByteArrayInputStream(baos.toByteArray()))) {
-			final AttributeSchema attributeSchema = kryo.readObject(input, AttributeSchema.class);
+			final AttributeSchema attributeSchema = this.kryo.readObject(input, AttributeSchema.class);
 			assertEquals("A", attributeSchema.getName());
 			assertEquals(String.class, attributeSchema.getType());
 		}
@@ -90,7 +90,7 @@ class SerialVersionBasedSerializerTest {
 		final OldAttributeSchema oldSchema = new OldAttributeSchema("A", String.class);
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(2048);
 		try (final ByteBufferOutput output = new ByteBufferOutput(baos)) {
-			kryo.writeObject(output, oldSchema);
+			this.kryo.writeObject(output, oldSchema);
 		}
 		return baos;
 	}

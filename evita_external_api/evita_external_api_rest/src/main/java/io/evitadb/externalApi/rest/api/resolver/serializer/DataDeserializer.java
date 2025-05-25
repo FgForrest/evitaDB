@@ -91,12 +91,12 @@ public class DataDeserializer {
 	@Nullable
 	public Object deserializeValue(@Nonnull Schema schema, @Nonnull String[] data) {
 		if (data.length == 0) {
-			final Class schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi));
+			final Class schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), this.openApi));
 			return Array.newInstance(schemaClass, 0);
 		}
 		if (OpenApiConstants.TYPE_ARRAY.equals(schema.getType())) {
 			if(OpenApiConstants.FORMAT_RANGE.equals(schema.getFormat())) {
-				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi)), data, schema.getName());
+				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), this.openApi)), data, schema.getName());
 			}
 			return deserializeArray(schema, data);
 		} else {
@@ -112,12 +112,12 @@ public class DataDeserializer {
 	 */
 	public Object deserializeValue(@Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
 		if((jsonNode.isArray() && jsonNode.isEmpty()) || jsonNode.asText() == null) {
-			final Class<?> schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi));
+			final Class<?> schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), this.openApi));
 			return Array.newInstance(schemaClass, 0);
 		}
 		if(OpenApiConstants.TYPE_ARRAY.equals(schema.getType())) {
 			if(OpenApiConstants.FORMAT_RANGE.equals(schema.getFormat())) {
-				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi)), jsonNode, schema.getName());
+				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), this.openApi)), jsonNode, schema.getName());
 			}
 			return deserializeArray(schema, getNodeValuesAsStringArray(jsonNode, schema.getName()));
 		} else {
@@ -229,7 +229,7 @@ public class DataDeserializer {
 
 			final ArrayList<Object> objects = new ArrayList<>(arrayNode.size());
 			for (JsonNode node : arrayNode) {
-				objects.add(deserializeTree(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi), node));
+				objects.add(deserializeTree(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), this.openApi), node));
 			}
 			return objects;
 		} else if (schema.getType() == null || OpenApiConstants.TYPE_OBJECT.equals(schema.getType())) {
@@ -248,7 +248,7 @@ public class DataDeserializer {
 				final String fieldName = namesIterator.next();
 				final Schema<?> propertySchema = schema.getProperties().get(fieldName);
 				if (propertySchema != null) {
-					final Schema<?> targetPropertySchema = SchemaUtils.getTargetSchemaFromRefOrOneOf(propertySchema, openApi);
+					final Schema<?> targetPropertySchema = SchemaUtils.getTargetSchemaFromRefOrOneOf(propertySchema, this.openApi);
 					dataMap.put(fieldName, deserializeTree(targetPropertySchema, objectNode.get(fieldName)));
 				} else {
 					throw new RestInvalidArgumentException("Invalid property name: " + fieldName);
@@ -290,10 +290,10 @@ public class DataDeserializer {
 
 	@Nonnull
 	private Object[] deserializeArray(@Nonnull Schema<?> schema, @Nonnull String[] data) {
-		final Class<?> arrayClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi));
+		final Class<?> arrayClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), this.openApi));
 		final Object[] dataArray = (Object[]) Array.newInstance(arrayClass, data.length);
 		for (int i = 0; i < data.length; i++) {
-			dataArray[i] = deserializeValue(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi), data[i]);
+			dataArray[i] = deserializeValue(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), this.openApi), data[i]);
 		}
 		return dataArray;
 	}
@@ -445,7 +445,7 @@ public class DataDeserializer {
 		if(OpenApiConstants.TYPE_STRING.equals(schema.getType())) {
 			if(schema.getFormat() == null) {
 				if (schema.getEnum() != null) {
-					final Class<? extends Enum<?>> enumTemplate = enumMapping.get(schema.getName());
+					final Class<? extends Enum<?>> enumTemplate = this.enumMapping.get(schema.getName());
 					Assert.isPremiseValid(
 						enumTemplate != null,
 						() -> new RestInternalError("No Java enum for enum `" + schema.getName() + "` found.")

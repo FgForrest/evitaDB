@@ -304,7 +304,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 
 		final TransactionMutation transactionMutation = Objects.requireNonNull(
 			StorageRecord.read(
-				theObservableInput, (stream, length) -> (TransactionMutation) kryo.readClassAndObject(stream)
+				theObservableInput, (stream, length) -> (TransactionMutation) this.kryo.readClassAndObject(stream)
 			).payload()
 		);
 		// measure the lead mutation size + verify the content length

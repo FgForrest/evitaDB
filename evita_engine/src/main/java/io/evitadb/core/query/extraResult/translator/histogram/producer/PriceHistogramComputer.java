@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -249,7 +249,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	@Override
 	public long getOperationCost() {
 		// if the behavior is optimized we add 33% penalty because some histograms would need to be computed twice
-		return behavior == HistogramBehavior.STANDARD ? 7511 : 11267;
+		return this.behavior == HistogramBehavior.STANDARD ? 7511 : 11267;
 	}
 
 	@Override
@@ -258,7 +258,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 			if (this.memoizedResult == null) {
 				return Long.MAX_VALUE;
 			} else {
-				this.costToPerformance = getCost() / (getOperationCost() * bucketCount);
+				this.costToPerformance = getCost() / (getOperationCost() * this.bucketCount);
 			}
 		}
 		return this.costToPerformance;
@@ -291,22 +291,22 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 		@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator
 	) {
 		return new PriceHistogramComputer(
-			selfOperator, bucketCount, behavior, indexedPricePlaces, queryPriceMode,
-			filteringFormula, filteringFormulaWithFilteredOutRecords,
-			filteredPriceRecordAccessors, priceRecordsLookupResult
+			selfOperator, this.bucketCount, this.behavior, this.indexedPricePlaces, this.queryPriceMode,
+			this.filteringFormula, this.filteringFormulaWithFilteredOutRecords,
+			this.filteredPriceRecordAccessors, this.priceRecordsLookupResult
 		);
 	}
 
 	@Nonnull
 	@Override
 	public CacheableHistogramContract compute() {
-		if (memoizedResult == null) {
+		if (this.memoizedResult == null) {
 			final PriceRecordContract[] priceRecords = getPriceRecords();
 			if (!ArrayUtils.isEmpty(priceRecords)) {
 				// initialize comparator and price extractor according to query price mode
 				final Comparator<PriceRecordContract> priceComparator;
 				final ToIntFunction<PriceRecordContract> priceRetriever;
-				if (queryPriceMode == QueryPriceMode.WITH_TAX) {
+				if (this.queryPriceMode == QueryPriceMode.WITH_TAX) {
 					priceComparator = Comparator.comparingInt(PriceRecordContract::priceWithTax);
 					priceRetriever = PriceRecordContract::priceWithTax;
 				} else {
@@ -319,21 +319,21 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 
 				// use histogram data cruncher to produce the histogram
 				final HistogramDataCruncher<PriceRecordContract> resultHistogram;
-				if (behavior == HistogramBehavior.OPTIMIZED) {
+				if (this.behavior == HistogramBehavior.OPTIMIZED) {
 					resultHistogram = HistogramDataCruncher.createOptimalHistogram(
-						"price histogram", bucketCount, indexedPricePlaces, priceRecords,
+						"price histogram", this.bucketCount, this.indexedPricePlaces, priceRecords,
 						priceRetriever,
 						value -> 1,
-						value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
-						value -> indexedPricePlaces == 0 ? value.intValueExact() : value.scaleByPowerOfTen(indexedPricePlaces).intValueExact()
+						value -> this.indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * this.indexedPricePlaces),
+						value -> this.indexedPricePlaces == 0 ? value.intValueExact() : value.scaleByPowerOfTen(this.indexedPricePlaces).intValueExact()
 					);
 				} else {
 					resultHistogram = new HistogramDataCruncher<>(
-						"price histogram", bucketCount, indexedPricePlaces, priceRecords,
+						"price histogram", this.bucketCount, this.indexedPricePlaces, priceRecords,
 						priceRetriever,
 						value -> 1,
-						value -> indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * indexedPricePlaces),
-						value -> indexedPricePlaces == 0 ? value.intValueExact() : value.scaleByPowerOfTen(indexedPricePlaces).intValueExact()
+						value -> this.indexedPricePlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).scaleByPowerOfTen(-1 * this.indexedPricePlaces),
+						value -> this.indexedPricePlaces == 0 ? value.intValueExact() : value.scaleByPowerOfTen(this.indexedPricePlaces).intValueExact()
 					);
 				}
 
@@ -346,7 +346,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 				this.memoizedResult = CacheableHistogramContract.EMPTY;
 			}
 
-			ofNullable(onComputationCallback).ifPresent(it -> it.accept(this));
+			ofNullable(this.onComputationCallback).ifPresent(it -> it.accept(this));
 		}
 		return this.memoizedResult;
 	}
@@ -373,13 +373,13 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 
 			// collect all price records that match filtering formula computation (ignoring price between query)
 			final PriceRecordContract[] priceRecords;
-			if (filteringFormulaWithFilteredOutRecords == null) {
+			if (this.filteringFormulaWithFilteredOutRecords == null) {
 				// there were no entity pks filtered out due to price between query, we can simply reuse
 				// the filtering query result
 				priceRecords = priceRecordsCollector.getResult().getPriceRecords();
 			} else {
 				// now compute the remainder with altered filtering formula
-				final Bitmap pricePredicateFilteredOutEntities = filteringFormulaWithFilteredOutRecords.compute();
+				final Bitmap pricePredicateFilteredOutEntities = this.filteringFormulaWithFilteredOutRecords.compute();
 				if (pricePredicateFilteredOutEntities.isEmpty()) {
 					// we can simply reuse the filtering query result as is, nothing has been filtered out
 					priceRecords = priceRecordsCollector.getResult().getPriceRecords();

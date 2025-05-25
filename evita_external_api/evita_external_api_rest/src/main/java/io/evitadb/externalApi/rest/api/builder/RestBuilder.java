@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -80,12 +80,12 @@ public abstract class RestBuilder<C extends RestBuildingContext> {
 	protected RestBuilder(@Nonnull C buildingContext) {
 		this.buildingContext = buildingContext;
 		this.propertyDataTypeBuilderTransformer = new PropertyDataTypeDescriptorToOpenApiTypeTransformer(buildingContext);
-		this.propertyBuilderTransformer = new PropertyDescriptorToOpenApiPropertyTransformer(propertyDataTypeBuilderTransformer);
-		this.objectBuilderTransformer = new ObjectDescriptorToOpenApiObjectTransformer(propertyBuilderTransformer);
+		this.propertyBuilderTransformer = new PropertyDescriptorToOpenApiPropertyTransformer(this.propertyDataTypeBuilderTransformer);
+		this.objectBuilderTransformer = new ObjectDescriptorToOpenApiObjectTransformer(this.propertyBuilderTransformer);
 		this.unionBuilderTransformer = new ObjectDescriptorToOpenApiUnionTransformer();
 		this.dictionaryBuilderTransformer = new ObjectDescriptorToOpenApiDictionaryTransformer();
-		this.operationPathParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationPathParameterTransformer(propertyDataTypeBuilderTransformer);
-		this.operationQueryParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationQueryParameterTransformer(propertyDataTypeBuilderTransformer);
+		this.operationPathParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationPathParameterTransformer(this.propertyDataTypeBuilderTransformer);
+		this.operationQueryParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationQueryParameterTransformer(this.propertyDataTypeBuilderTransformer);
 	}
 
 	@Nonnull

@@ -437,12 +437,12 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 			catalogVersion,
 			walFileLocation,
 			collectionFileReferenceIndex,
-			offsetIndex.getCompressedKeys(),
+			this.offsetIndex.getCompressedKeys(),
 			catalogId,
 			catalogName,
 			catalogState,
 			lastEntityCollectionPrimaryKey,
-			offsetIndex.getActiveRecordShare(catalogStoragePath.resolve(name).toFile().length())
+			this.offsetIndex.getActiveRecordShare(catalogStoragePath.resolve(this.name).toFile().length())
 		);
 		putStoragePart(catalogVersion, newCatalogHeader);
 		this.currentCatalogHeader = newCatalogHeader;

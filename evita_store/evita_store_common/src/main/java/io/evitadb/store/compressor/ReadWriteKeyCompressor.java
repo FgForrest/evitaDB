@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -86,21 +86,21 @@ public class ReadWriteKeyCompressor implements KeyCompressor {
 	 * Method returns TRUE if there were any changes in this instance since last reset or creation.
 	 */
 	public boolean resetDirtyFlag() {
-		return dirty.getAndSet(false);
+		return this.dirty.getAndSet(false);
 	}
 
 	@Override
 	public @Nonnull
 	Map<Integer, Object> getKeys() {
-		return idToKeyIndex;
+		return this.idToKeyIndex;
 	}
 
 	@Override
 	public <T extends Comparable<T>> int getId(@Nonnull T key) {
-		return keyToIdIndex.computeIfAbsent(key, o -> {
-			final int id = sequence.incrementAndGet();
-			idToKeyIndex.put(id, o);
-			dirty.compareAndSet(false, true);
+		return this.keyToIdIndex.computeIfAbsent(key, o -> {
+			final int id = this.sequence.incrementAndGet();
+			this.idToKeyIndex.put(id, o);
+			this.dirty.compareAndSet(false, true);
 			return id;
 		});
 	}
@@ -116,7 +116,7 @@ public class ReadWriteKeyCompressor implements KeyCompressor {
 	@Nonnull
 	@Override
 	public <T extends Comparable<T>> T getKeyForId(int id) {
-		final Object key = idToKeyIndex.get(id);
+		final Object key = this.idToKeyIndex.get(id);
 		Assert.notNull(key, "There is no key for id " + id + "!");
 		//noinspection unchecked
 		return (T) key;
@@ -125,7 +125,7 @@ public class ReadWriteKeyCompressor implements KeyCompressor {
 	@Nullable
 	@Override
 	public <T extends Comparable<T>> T getKeyForIdIfExists(int id) {
-		final Object key = idToKeyIndex.get(id);
+		final Object key = this.idToKeyIndex.get(id);
 		//noinspection unchecked
 		return (T) key;
 	}

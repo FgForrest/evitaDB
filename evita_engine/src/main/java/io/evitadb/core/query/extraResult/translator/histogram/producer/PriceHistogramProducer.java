@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -98,13 +98,13 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 		final Formula formulaWithFilteredOutResults = getFormulaWithFilteredOutResults(requestedPricePredicate, filteredRecordsFound);
 
 		final PriceHistogramComputer computer = new PriceHistogramComputer(
-			bucketCount,
-			behavior,
-			queryContext.getSchema().getIndexedPricePlaces(),
-			queryContext.getQueryPriceMode(),
-			filteringFormula,
+			this.bucketCount,
+			this.behavior,
+			this.queryContext.getSchema().getIndexedPricePlaces(),
+			this.queryContext.getQueryPriceMode(),
+			this.filteringFormula,
 			filteredRecordsFound.get() ? formulaWithFilteredOutResults : null,
-			filteredPriceRecordAccessors, priceRecordsLookupResult
+			this.filteredPriceRecordAccessors, this.priceRecordsLookupResult
 		);
 		computer.initialize(context);
 		final CacheableHistogramContract optimalHistogram = context.analyse(computer).compute();
@@ -134,7 +134,7 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 	@Nonnull
 	private Formula getFormulaWithFilteredOutResults(@Nonnull AtomicReference<Predicate<BigDecimal>> requestedPricePredicate, @Nonnull AtomicBoolean filteredRecordsFound) {
 		return FormulaCloner.clone(
-			filteringFormula, (formulaCloner, theFormula) -> {
+			this.filteringFormula, (formulaCloner, theFormula) -> {
 				if (theFormula instanceof UserFilterFormula) {
 					// we need to reconstruct the user filter formula
 					final Formula updatedUserFilterFormula = FormulaCloner.clone(

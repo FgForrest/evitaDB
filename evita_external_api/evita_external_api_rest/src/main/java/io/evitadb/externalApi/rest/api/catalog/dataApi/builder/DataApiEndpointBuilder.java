@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -107,10 +107,10 @@ public class DataApiEndpointBuilder {
 			operationId = CatalogDataApiRootDescriptor.GET_ENTITY.operation(entitySchema, getLocalizedSuffix(localized));
 		}
 
-		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
+		return newCollectionEndpoint(this.buildingContext.getSchema(), entitySchema)
 			.path(localized, p -> p
 				.staticItem(CatalogDataApiRootDescriptor.GET_ENTITY.urlPathItem())
-				.paramItem(withPkInPath ? GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.to(operationPathParameterBuilderTransformer) : null))
+				.paramItem(withPkInPath ? GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.to(this.operationPathParameterBuilderTransformer) : null))
 			.method(HttpMethod.GET)
 			.operationId(operationId)
 			.description(CatalogDataApiRootDescriptor.GET_ENTITY.description(entitySchema.getName()))
@@ -124,7 +124,7 @@ public class DataApiEndpointBuilder {
 	@Nonnull
 	public OpenApiCollectionEndpoint buildListEntityEndpoint(@Nonnull EntitySchemaContract entitySchema,
 	                                                         boolean localized) {
-		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
+		return newCollectionEndpoint(this.buildingContext.getSchema(), entitySchema)
 			.path(localized, p -> p
 				.staticItem(CatalogDataApiRootDescriptor.LIST_ENTITY.urlPathItem()))
 			.method(HttpMethod.POST)
@@ -140,7 +140,7 @@ public class DataApiEndpointBuilder {
 	@Nonnull
 	public OpenApiCollectionEndpoint buildQueryEntityEndpoint(@Nonnull EntitySchemaContract entitySchema,
 	                                                          boolean localized) {
-		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
+		return newCollectionEndpoint(this.buildingContext.getSchema(), entitySchema)
 			.path(localized, p -> p
 				.staticItem(CatalogDataApiRootDescriptor.QUERY_ENTITY.urlPathItem()))
 			.method(HttpMethod.POST)
@@ -162,7 +162,7 @@ public class DataApiEndpointBuilder {
 			.operationId(CatalogDataApiRootDescriptor.COLLECTIONS.operation())
 			.description(CatalogDataApiRootDescriptor.COLLECTIONS.description())
 			.queryParameter(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT
-				.to(operationQueryParameterBuilderTransformer)
+				.to(this.operationQueryParameterBuilderTransformer)
 				.type(DataTypesConverter.getOpenApiScalar(Boolean.class))
 				.build())
 			.successResponse(nonNull(arrayOf(typeRefTo(CollectionDescriptor.THIS.name()))))
@@ -189,9 +189,9 @@ public class DataApiEndpointBuilder {
 					.build())
 				.toList()
 		);
-		queryParameters.add(UnknownEntityEndpointHeaderDescriptor.SCOPE.to(operationQueryParameterBuilderTransformer).build());
+		queryParameters.add(UnknownEntityEndpointHeaderDescriptor.SCOPE.to(this.operationQueryParameterBuilderTransformer).build());
 		queryParameters.add(UnknownEntityEndpointHeaderDescriptor.FILTER_JOIN
-			.to(operationQueryParameterBuilderTransformer)
+			.to(this.operationQueryParameterBuilderTransformer)
 			.build());
 
 		final boolean localeArgumentNeeded = !buildingContext.getSupportedLocales().isEmpty();
@@ -222,7 +222,7 @@ public class DataApiEndpointBuilder {
 
 		final List<OpenApiEndpointParameter> queryParameters = new LinkedList<>();
 		queryParameters.add(ListUnknownEntitiesEndpointHeaderDescriptor.LIMIT
-			.to(operationQueryParameterBuilderTransformer)
+			.to(this.operationQueryParameterBuilderTransformer)
 			.build());
 		queryParameters.addAll(
 			globallyUniqueAttributes.stream()
@@ -234,9 +234,9 @@ public class DataApiEndpointBuilder {
 					.build())
 				.toList()
 		);
-		queryParameters.add(ListUnknownEntitiesEndpointHeaderDescriptor.SCOPE.to(operationQueryParameterBuilderTransformer).build());
+		queryParameters.add(ListUnknownEntitiesEndpointHeaderDescriptor.SCOPE.to(this.operationQueryParameterBuilderTransformer).build());
 		queryParameters.add(ListUnknownEntitiesEndpointHeaderDescriptor.FILTER_JOIN
-			.to(operationQueryParameterBuilderTransformer)
+			.to(this.operationQueryParameterBuilderTransformer)
 			.build());
 
 		final boolean localeArgumentNeeded = !buildingContext.getSupportedLocales().isEmpty();
@@ -260,10 +260,10 @@ public class DataApiEndpointBuilder {
 	@Nonnull
 	public OpenApiCollectionEndpoint buildUpsertEntityEndpoint(@Nonnull EntitySchemaContract entitySchema,
 	                                                           boolean withPrimaryKeyInPath) {
-		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
+		return newCollectionEndpoint(this.buildingContext.getSchema(), entitySchema)
 			.path(p -> p
 				.staticItem(CatalogDataApiRootDescriptor.UPSERT_ENTITY.urlPathItem())
-				.paramItem(withPrimaryKeyInPath ? UpsertEntityEndpointHeaderDescriptor.PRIMARY_KEY.to(operationPathParameterBuilderTransformer) : null))
+				.paramItem(withPrimaryKeyInPath ? UpsertEntityEndpointHeaderDescriptor.PRIMARY_KEY.to(this.operationPathParameterBuilderTransformer) : null))
 			.method(withPrimaryKeyInPath ? HttpMethod.PUT : HttpMethod.POST)
 			.operationId(CatalogDataApiRootDescriptor.UPSERT_ENTITY.operation(entitySchema))
 			.description(CatalogDataApiRootDescriptor.UPSERT_ENTITY.description(entitySchema.getName()))
@@ -276,11 +276,11 @@ public class DataApiEndpointBuilder {
 
 	@Nonnull
 	public OpenApiCollectionEndpoint buildDeleteEntityEndpoint(@Nonnull EntitySchemaContract entitySchema) {
-		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
+		return newCollectionEndpoint(this.buildingContext.getSchema(), entitySchema)
 			.path(p -> p
 				.staticItem(CatalogDataApiRootDescriptor.DELETE_ENTITY.urlPathItem())
 				.paramItem(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY
-					.to(operationPathParameterBuilderTransformer)
+					.to(this.operationPathParameterBuilderTransformer)
 					.type(DataTypesConverter.getOpenApiScalar(Integer.class, true))))
 			.method(HttpMethod.DELETE)
 			.operationId(CatalogDataApiRootDescriptor.DELETE_ENTITY.operation(entitySchema))
@@ -294,7 +294,7 @@ public class DataApiEndpointBuilder {
 
 	@Nonnull
 	public OpenApiCollectionEndpoint buildDeleteEntitiesByQueryEndpoint(@Nonnull EntitySchemaContract entitySchema) {
-		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
+		return newCollectionEndpoint(this.buildingContext.getSchema(), entitySchema)
 			.path(p -> p
 				.staticItem(CatalogDataApiRootDescriptor.DELETE_ENTITY.urlPathItem()))
 			.method(HttpMethod.DELETE)
@@ -313,16 +313,16 @@ public class DataApiEndpointBuilder {
 
 		//build fetch params
 		if (needsLocale) {
-			queryParameters.add(FetchEntityEndpointHeaderDescriptor.LOCALE.to(operationQueryParameterBuilderTransformer).build());
+			queryParameters.add(FetchEntityEndpointHeaderDescriptor.LOCALE.to(this.operationQueryParameterBuilderTransformer).build());
 		}
-		queryParameters.add(FetchEntityEndpointHeaderDescriptor.DATA_IN_LOCALES.to(operationQueryParameterBuilderTransformer).build());
-		queryParameters.add(FetchEntityEndpointHeaderDescriptor.FETCH_ALL.to(operationQueryParameterBuilderTransformer).build());
-		queryParameters.add(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.to(operationQueryParameterBuilderTransformer).build());
-		queryParameters.add(FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT_ALL.to(operationQueryParameterBuilderTransformer).build());
-		queryParameters.add(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT_ALL.to(operationQueryParameterBuilderTransformer).build());
-		queryParameters.add(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.to(operationQueryParameterBuilderTransformer).build());
-		queryParameters.add(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT_ALL.to(operationQueryParameterBuilderTransformer).build());
-		queryParameters.add(FetchEntityEndpointHeaderDescriptor.HIERARCHY_CONTENT.to(operationQueryParameterBuilderTransformer).build());
+		queryParameters.add(FetchEntityEndpointHeaderDescriptor.DATA_IN_LOCALES.to(this.operationQueryParameterBuilderTransformer).build());
+		queryParameters.add(FetchEntityEndpointHeaderDescriptor.FETCH_ALL.to(this.operationQueryParameterBuilderTransformer).build());
+		queryParameters.add(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.to(this.operationQueryParameterBuilderTransformer).build());
+		queryParameters.add(FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT_ALL.to(this.operationQueryParameterBuilderTransformer).build());
+		queryParameters.add(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT_ALL.to(this.operationQueryParameterBuilderTransformer).build());
+		queryParameters.add(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.to(this.operationQueryParameterBuilderTransformer).build());
+		queryParameters.add(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT_ALL.to(this.operationQueryParameterBuilderTransformer).build());
+		queryParameters.add(FetchEntityEndpointHeaderDescriptor.HIERARCHY_CONTENT.to(this.operationQueryParameterBuilderTransformer).build());
 
 		return queryParameters;
 	}
@@ -334,7 +334,7 @@ public class DataApiEndpointBuilder {
 		final List<OpenApiEndpointParameter> parameters = new LinkedList<>();
 
 		if (!withPkInPath) {
-			parameters.add(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.to(operationQueryParameterBuilderTransformer).build());
+			parameters.add(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.to(this.operationQueryParameterBuilderTransformer).build());
 		}
 
 		// build locale argument
@@ -343,13 +343,13 @@ public class DataApiEndpointBuilder {
 
 			if (!localized) {
 				final OpenApiEndpointParameter dataInLocalesParameter = FetchEntityEndpointHeaderDescriptor.DATA_IN_LOCALES
-					.to(operationQueryParameterBuilderTransformer)
+					.to(this.operationQueryParameterBuilderTransformer)
 					.type(arrayOf(localeEnum))
 					.build();
 				parameters.add(dataInLocalesParameter);
 
 				final OpenApiEndpointParameter localeParameter = GetEntityEndpointHeaderDescriptor.LOCALE
-					.to(operationQueryParameterBuilderTransformer)
+					.to(this.operationQueryParameterBuilderTransformer)
 					.type(localeEnum)
 					.build();
 				parameters.add(localeParameter);
@@ -359,12 +359,12 @@ public class DataApiEndpointBuilder {
 		// build price arguments
 		if (!entitySchema.getCurrencies().isEmpty()) {
 			parameters.add(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY
-				.to(operationQueryParameterBuilderTransformer)
+				.to(this.operationQueryParameterBuilderTransformer)
 				.type(typeRefTo(CURRENCY_ENUM.name()))
 				.build());
-			parameters.add(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.to(operationQueryParameterBuilderTransformer).build());
-			parameters.add(GetEntityEndpointHeaderDescriptor.PRICE_VALID_IN.to(operationQueryParameterBuilderTransformer).build());
-			parameters.add(GetEntityEndpointHeaderDescriptor.PRICE_VALID_NOW.to(operationQueryParameterBuilderTransformer).build());
+			parameters.add(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.to(this.operationQueryParameterBuilderTransformer).build());
+			parameters.add(GetEntityEndpointHeaderDescriptor.PRICE_VALID_IN.to(this.operationQueryParameterBuilderTransformer).build());
+			parameters.add(GetEntityEndpointHeaderDescriptor.PRICE_VALID_NOW.to(this.operationQueryParameterBuilderTransformer).build());
 		}
 
 		// build unique attribute filter arguments
@@ -382,7 +382,7 @@ public class DataApiEndpointBuilder {
 				.toList());
 		}
 
-		parameters.add(GetEntityEndpointHeaderDescriptor.SCOPE.to(operationQueryParameterBuilderTransformer).build());
+		parameters.add(GetEntityEndpointHeaderDescriptor.SCOPE.to(this.operationQueryParameterBuilderTransformer).build());
 
 		//build fetch params
 		parameters.addAll(buildEntityFetchQueryParameters(entitySchema));
@@ -394,25 +394,25 @@ public class DataApiEndpointBuilder {
 	private List<OpenApiEndpointParameter> buildEntityFetchQueryParameters(@Nonnull EntitySchemaContract entitySchema) {
 		final List<OpenApiEndpointParameter> parameters = new LinkedList<>();
 
-		parameters.add(FetchEntityEndpointHeaderDescriptor.FETCH_ALL.to(operationQueryParameterBuilderTransformer).build());
-		parameters.add(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.to(operationQueryParameterBuilderTransformer).build());
+		parameters.add(FetchEntityEndpointHeaderDescriptor.FETCH_ALL.to(this.operationQueryParameterBuilderTransformer).build());
+		parameters.add(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.to(this.operationQueryParameterBuilderTransformer).build());
 		if (!entitySchema.getAssociatedData().isEmpty()) {
-			parameters.add(FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT.to(operationQueryParameterBuilderTransformer).build());
-			parameters.add(FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT_ALL.to(operationQueryParameterBuilderTransformer).build());
+			parameters.add(FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT.to(this.operationQueryParameterBuilderTransformer).build());
+			parameters.add(FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT_ALL.to(this.operationQueryParameterBuilderTransformer).build());
 		}
 		if (!entitySchema.getAttributes().isEmpty()) {
-			parameters.add(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.to(operationQueryParameterBuilderTransformer).build());
-			parameters.add(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT_ALL.to(operationQueryParameterBuilderTransformer).build());
+			parameters.add(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.to(this.operationQueryParameterBuilderTransformer).build());
+			parameters.add(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT_ALL.to(this.operationQueryParameterBuilderTransformer).build());
 		}
 		if (!entitySchema.getCurrencies().isEmpty()) {
-			parameters.add(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.to(operationQueryParameterBuilderTransformer).build());
+			parameters.add(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.to(this.operationQueryParameterBuilderTransformer).build());
 		}
 		if (!entitySchema.getReferences().isEmpty()) {
-			parameters.add(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT.to(operationQueryParameterBuilderTransformer).build());
-			parameters.add(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT_ALL.to(operationQueryParameterBuilderTransformer).build());
+			parameters.add(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT.to(this.operationQueryParameterBuilderTransformer).build());
+			parameters.add(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT_ALL.to(this.operationQueryParameterBuilderTransformer).build());
 		}
 		if (entitySchema.isWithHierarchy()) {
-			parameters.add(FetchEntityEndpointHeaderDescriptor.HIERARCHY_CONTENT.to(operationQueryParameterBuilderTransformer).build());
+			parameters.add(FetchEntityEndpointHeaderDescriptor.HIERARCHY_CONTENT.to(this.operationQueryParameterBuilderTransformer).build());
 		}
 
 		return parameters;

@@ -85,7 +85,7 @@ public class FormulaDeduplicator extends FormulaCloner implements FormulaPostPro
 			if (clonerInstance.originalFormula == null) {
 				clonerInstance.originalFormula = formula;
 			}
-			final Formula existingFormula = formulaCache.putIfAbsent(formula.getHash(), formula);
+			final Formula existingFormula = this.formulaCache.putIfAbsent(formula.getHash(), formula);
 			if (existingFormula != null) {
 				clonerInstance.deduplicationHappened = true;
 				return existingFormula;

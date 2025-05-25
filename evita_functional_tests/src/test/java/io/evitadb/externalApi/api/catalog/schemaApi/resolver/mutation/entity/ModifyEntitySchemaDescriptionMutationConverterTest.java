@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,14 +48,14 @@ class ModifyEntitySchemaDescriptionMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyEntitySchemaDescriptionMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyEntitySchemaDescriptionMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final ModifyEntitySchemaDescriptionMutation expectedMutation = new ModifyEntitySchemaDescriptionMutation("desc");
 
-		final ModifyEntitySchemaDescriptionMutation convertedMutation = converter.convertFromInput(
+		final ModifyEntitySchemaDescriptionMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(ModifyEntitySchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
 				.build()
@@ -66,12 +66,12 @@ class ModifyEntitySchemaDescriptionMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final ModifyEntitySchemaDescriptionMutation expectedMutation = new ModifyEntitySchemaDescriptionMutation(null);
 
-		final ModifyEntitySchemaDescriptionMutation convertedMutation = converter.convertFromInput(Map.of());
+		final ModifyEntitySchemaDescriptionMutation convertedMutation = this.converter.convertFromInput(Map.of());
 		assertEquals(expectedMutation, convertedMutation);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

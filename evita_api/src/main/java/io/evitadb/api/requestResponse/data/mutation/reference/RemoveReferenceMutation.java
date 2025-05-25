@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
 	public ReferenceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
-			() -> new InvalidMutationException("Cannot remove reference " + referenceKey + " - reference doesn't exist!")
+			() -> new InvalidMutationException("Cannot remove reference " + this.referenceKey + " - reference doesn't exist!")
 		);
 		return new Reference(
 			entitySchema,
@@ -84,7 +84,7 @@ public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
 
 	@Override
 	public ReferenceKey getComparableKey() {
-		return referenceKey;
+		return this.referenceKey;
 	}
 
 	@Nonnull
@@ -95,6 +95,6 @@ public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
 
 	@Override
 	public String toString() {
-		return "Remove reference `" + referenceKey + "`";
+		return "Remove reference `" + this.referenceKey + "`";
 	}
 }

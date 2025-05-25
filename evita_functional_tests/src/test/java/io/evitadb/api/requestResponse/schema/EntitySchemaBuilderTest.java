@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -80,24 +80,24 @@ class EntitySchemaBuilderTest {
 			@Override
 			public Collection<EntitySchemaContract> getEntitySchemas() {
 				return List.of(
-					productSchema,
-					categorySchema,
-					brandSchema,
-					storeSchema
+					EntitySchemaBuilderTest.this.productSchema,
+					EntitySchemaBuilderTest.this.categorySchema,
+					EntitySchemaBuilderTest.this.brandSchema,
+					EntitySchemaBuilderTest.this.storeSchema
 				);
 			}
 
 			@Nonnull
 			@Override
 			public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-				if (entityType.equals(productSchema.getName())) {
-					return of(productSchema);
-				} else if (entityType.equals(categorySchema.getName())) {
-					return of(categorySchema);
-				} else if (entityType.equals(brandSchema.getName())) {
-					return of(brandSchema);
-				} else if (entityType.equals(storeSchema.getName())) {
-					return of(storeSchema);
+				if (entityType.equals(EntitySchemaBuilderTest.this.productSchema.getName())) {
+					return of(EntitySchemaBuilderTest.this.productSchema);
+				} else if (entityType.equals(EntitySchemaBuilderTest.this.categorySchema.getName())) {
+					return of(EntitySchemaBuilderTest.this.categorySchema);
+				} else if (entityType.equals(EntitySchemaBuilderTest.this.brandSchema.getName())) {
+					return of(EntitySchemaBuilderTest.this.brandSchema);
+				} else if (entityType.equals(EntitySchemaBuilderTest.this.storeSchema.getName())) {
+					return of(EntitySchemaBuilderTest.this.storeSchema);
 				} else {
 					return empty();
 				}
@@ -298,8 +298,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldDefineProductSchema() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		final EntitySchemaContract updatedSchema = constructExampleSchema(schemaBuilder);
@@ -309,8 +309,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldWorkWithAttributesInNamingConventionsWorkProperly() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		schemaBuilder
@@ -347,8 +347,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldWorkWithSortableAttributeCompoundsInNamingConventionsWorkProperly() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		schemaBuilder
@@ -385,8 +385,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldWorkWithReferenceAttributesInNamingConventionsWorkProperly() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		schemaBuilder
@@ -432,8 +432,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldWorkWithReferenceAttributesInNamingConventionsWorkProperlyBuildingInstanceInTheMiddle() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		final EntitySchemaContract instance = schemaBuilder
@@ -453,7 +453,7 @@ class EntitySchemaBuilderTest {
 			.toInstance();
 
 		final EntitySchemaContract updatedSchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
+			this.catalogSchema,
 			instance
 		)
 			.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> {
@@ -482,8 +482,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldWorkWithReferenceSortableAttributeCompoundsInNamingConventionsWorkProperly() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		schemaBuilder
@@ -531,8 +531,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldWorkWithReferenceSortableAttributeCompoundsInNamingConventionsWorkProperlyBuildingInstanceInTheMiddle() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		final EntitySchemaContract instance = schemaBuilder
@@ -553,7 +553,7 @@ class EntitySchemaBuilderTest {
 			).toInstance();
 
 		final EntitySchemaContract updatedSchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
+			this.catalogSchema,
 			instance
 		)
 			.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> {
@@ -581,8 +581,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldWorkWithAssociatedDatasInNamingConventionsWorkProperly() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		schemaBuilder
@@ -619,8 +619,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldWorkWithReferenceInNamingConventionsWorkProperly() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		schemaBuilder
@@ -657,7 +657,7 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldUpdateBuildExactlySameProductSchema() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema, productSchema
+			this.catalogSchema, this.productSchema
 		);
 
 		final EntitySchemaContract updatedSchema = constructExampleSchema(schemaBuilder);
@@ -665,21 +665,21 @@ class EntitySchemaBuilderTest {
 
 		assertSchemaContents(
 			new InternalEntitySchemaBuilder(
-				catalogSchema, updatedSchema
+				this.catalogSchema, updatedSchema
 			).toInstance()
 		);
 	}
 
 	@Test
 	void shouldFailToDefineProductSchemaWithConflictingAttributes() {
-		final CatalogSchemaContract updatedCatalogSchema = new InternalCatalogSchemaBuilder(catalogSchema)
+		final CatalogSchemaContract updatedCatalogSchema = new InternalCatalogSchemaBuilder(this.catalogSchema)
 			.withAttribute("code", String.class, whichIs -> whichIs.unique())
 			.withAttribute("name", String.class, whichIs -> whichIs.filterable().sortable())
 			.toInstance();
 
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
 			updatedCatalogSchema,
-			productSchema
+			this.productSchema
 		);
 
 		assertThrows(
@@ -694,8 +694,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldFailToDefineProductSchemaWithConflictingSortableAttributeCompounds() {
 		final EntitySchema theSchema = (EntitySchema) new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		)
 			.withAttribute("code", String.class)
 			.withAttribute("name", String.class)
@@ -709,7 +709,7 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			AttributeAlreadyPresentInEntitySchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
+				this.catalogSchema,
 				theSchema
 			)
 				.withSortableAttributeCompound(
@@ -722,8 +722,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldFailToDefineProductSchemaWithConflictingSortableAttributeCompoundsInSpecificNamingConvention() {
 		final EntitySchema theSchema = (EntitySchema) new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		)
 			.withAttribute("code", String.class)
 			.withAttribute("name", String.class)
@@ -737,7 +737,7 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			AttributeAlreadyPresentInEntitySchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
+				this.catalogSchema,
 				theSchema
 			)
 				.withSortableAttributeCompound(
@@ -750,8 +750,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldFailToDefineProductSchemaWithConflictingAttributeAndSortableAttributeCompound() {
 		final EntitySchema theSchema = (EntitySchema) new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		)
 			.withAttribute("code", String.class)
 			.withAttribute("name", String.class)
@@ -765,7 +765,7 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			AttributeAlreadyPresentInEntitySchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
+				this.catalogSchema,
 				theSchema
 			)
 				.withSortableAttributeCompound(
@@ -778,8 +778,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldFailToDefineProductSchemaWithConflictingAttributeAndSortableAttributeCompoundInSpecificNamingConvention() {
 		final EntitySchema theSchema = (EntitySchema) new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		)
 			.withAttribute("code", String.class)
 			.withAttribute("name", String.class)
@@ -792,7 +792,7 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			AttributeAlreadyPresentInEntitySchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
+				this.catalogSchema,
 				theSchema
 			)
 				.withAttribute(
@@ -807,8 +807,8 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			SortableAttributeCompoundSchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
-				productSchema
+				this.catalogSchema,
+				this.productSchema
 			)
 				.withAttribute("code", String.class)
 				.withAttribute("name", String.class)
@@ -825,8 +825,8 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			SortableAttributeCompoundSchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
-				productSchema
+				this.catalogSchema,
+				this.productSchema
 			)
 				.withAttribute("code", String.class)
 				.withAttribute("name", String.class)
@@ -844,8 +844,8 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			SortableAttributeCompoundSchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
-				productSchema
+				this.catalogSchema,
+				this.productSchema
 			)
 				.withAttribute("code", String.class)
 				.withAttribute("name", String.class)
@@ -861,8 +861,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldFailToRemoveAttributePresentInSortableAttributeCompound() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		)
 			.withAttribute("code", String.class)
 			.withAttribute("name", String.class)
@@ -882,7 +882,7 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			SortableAttributeCompoundSchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
+				this.catalogSchema,
 				instance
 			)
 				.withoutAttribute("code")
@@ -893,8 +893,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldFailToDefineProductSchemaWithConflictingReferenceSortableAttributeCompounds() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		final EntitySchemaContract instance = schemaBuilder
@@ -910,7 +910,7 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			AttributeAlreadyPresentInEntitySchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
+				this.catalogSchema,
 				instance
 			)
 				.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> thatIs.withSortableAttributeCompound(
@@ -935,8 +935,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldFailToDefineProductSchemaWithConflictingReferenceAttributeAndSortableAttributeCompound() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		final EntitySchemaContract instance = schemaBuilder
@@ -952,7 +952,7 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			AttributeAlreadyPresentInEntitySchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
+				this.catalogSchema,
 				instance
 			)
 				.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE, thatIs -> thatIs.withAttribute("codeName", String.class)
@@ -973,8 +973,8 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			SortableAttributeCompoundSchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
-				productSchema
+				this.catalogSchema,
+				this.productSchema
 			)
 				.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE,
 					thatIs -> thatIs.withAttribute("code", String.class)
@@ -993,8 +993,8 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			SortableAttributeCompoundSchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
-				productSchema
+				this.catalogSchema,
+				this.productSchema
 			)
 				.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE,
 					thatIs -> thatIs.withAttribute("code", String.class)
@@ -1013,8 +1013,8 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			SortableAttributeCompoundSchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
-				productSchema
+				this.catalogSchema,
+				this.productSchema
 			)
 				.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE,
 					thatIs -> thatIs.withAttribute("code", String.class)
@@ -1031,8 +1031,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldFailToRemoveReferenceAttributePresentInSortableAttributeCompound() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		)
 			.withReferenceTo("testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE,
 				thatIs -> thatIs.withAttribute("code", String.class)
@@ -1058,7 +1058,7 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			SortableAttributeCompoundSchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
+				this.catalogSchema,
 				schema
 			).withReferenceToEntity(
 				"testReference", Entities.PRODUCT, Cardinality.ZERO_OR_ONE,
@@ -1071,14 +1071,14 @@ class EntitySchemaBuilderTest {
 
 	@Test
 	void shouldDefineProductSchemaWithSharedAttributes() {
-		final CatalogSchemaContract updatedCatalogSchema = new InternalCatalogSchemaBuilder(catalogSchema)
+		final CatalogSchemaContract updatedCatalogSchema = new InternalCatalogSchemaBuilder(this.catalogSchema)
 			.withAttribute("code", String.class, whichIs -> whichIs.unique().representative())
 			.withAttribute("name", String.class, whichIs -> whichIs.filterable().sortable())
 			.toInstance();
 
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
 			updatedCatalogSchema,
-			productSchema
+			this.productSchema
 		);
 
 		final EntitySchemaContract productSchema = schemaBuilder
@@ -1152,7 +1152,7 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldDefineCategorySchema() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema, categorySchema
+			this.catalogSchema, this.categorySchema
 		);
 
 		final EntitySchemaContract updatedSchema = schemaBuilder
@@ -1200,8 +1200,8 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			AttributeAlreadyPresentInEntitySchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
-				productSchema
+				this.catalogSchema,
+				this.productSchema
 			)
 				.withAttribute("abc", String.class)
 				.withAttribute("Abc", String.class)
@@ -1213,8 +1213,8 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			AttributeAlreadyPresentInEntitySchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
-				productSchema
+				this.catalogSchema,
+				this.productSchema
 			)
 				.withReferenceTo(
 					"brand",
@@ -1232,8 +1232,8 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			ReferenceAlreadyPresentInEntitySchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
-				productSchema
+				this.catalogSchema,
+				this.productSchema
 			)
 				.withReferenceTo("abc", Entities.BRAND, Cardinality.ZERO_OR_ONE)
 				.withReferenceTo("Abc", Entities.BRAND, Cardinality.ZERO_OR_ONE)
@@ -1245,8 +1245,8 @@ class EntitySchemaBuilderTest {
 		assertThrows(
 			AssociatedDataAlreadyPresentInEntitySchemaException.class,
 			() -> new InternalEntitySchemaBuilder(
-				catalogSchema,
-				productSchema
+				this.catalogSchema,
+				this.productSchema
 			)
 				.withAssociatedData("abc", String.class)
 				.withAssociatedData("Abc", String.class)
@@ -1256,7 +1256,7 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldNotThrowWhenAssigningTheSameTypeToExistingAssociatedData() {
 		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema, categorySchema
+			this.catalogSchema, this.categorySchema
 		);
 
 		final EntitySchemaContract updatedSchema = schemaBuilder
@@ -1264,7 +1264,7 @@ class EntitySchemaBuilderTest {
 			.toInstance();
 
 		final EntitySchemaBuilder schemaBuilder2 = new InternalEntitySchemaBuilder(
-			catalogSchema, updatedSchema
+			this.catalogSchema, updatedSchema
 		);
 
 		assertDoesNotThrow(() ->
@@ -1284,8 +1284,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldDefineBidirectionalReferenceWithImplicitAttributeInheritance() {
 		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		final String baseReferenceName = "productCategories";
@@ -1301,8 +1301,8 @@ class EntitySchemaBuilderTest {
 		);
 
 		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			categorySchema
+			this.catalogSchema,
+			this.categorySchema
 		);
 
 		categorySchemaBuilder.withReflectedReferenceToEntity(
@@ -1345,8 +1345,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldDefineBidirectionalReferenceWithExplicitAttributeInheritance() {
 		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		final String baseReferenceName = "productCategories";
@@ -1362,8 +1362,8 @@ class EntitySchemaBuilderTest {
 		);
 
 		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			categorySchema
+			this.catalogSchema,
+			this.categorySchema
 		);
 
 		categorySchemaBuilder.withReflectedReferenceToEntity(
@@ -1406,8 +1406,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldDefineBidirectionalReferenceWithAllAttributesInherited() {
 		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		final String baseReferenceName = "productCategories";
@@ -1423,8 +1423,8 @@ class EntitySchemaBuilderTest {
 		);
 
 		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			categorySchema
+			this.catalogSchema,
+			this.categorySchema
 		);
 
 		categorySchemaBuilder.withReflectedReferenceToEntity(
@@ -1468,8 +1468,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldDefineBidirectionalReferenceWithNoneAttributesInherited() {
 		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		final String baseReferenceName = "productCategories";
@@ -1485,8 +1485,8 @@ class EntitySchemaBuilderTest {
 		);
 
 		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			categorySchema
+			this.catalogSchema,
+			this.categorySchema
 		);
 
 		categorySchemaBuilder.withReflectedReferenceToEntity(
@@ -1528,8 +1528,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldDefineBidirectionalReferencesWithInheritedProperties() {
 		final EntitySchemaBuilder productSchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			productSchema
+			this.catalogSchema,
+			this.productSchema
 		);
 
 		final String baseReferenceName = "productCategories";
@@ -1545,8 +1545,8 @@ class EntitySchemaBuilderTest {
 		);
 
 		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			categorySchema
+			this.catalogSchema,
+			this.categorySchema
 		);
 
 		categorySchemaBuilder.withReflectedReferenceToEntity(
@@ -1582,8 +1582,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldFailToDefineReferencesAndRedefineToBiDiDirectly() {
 		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			categorySchema
+			this.catalogSchema,
+			this.categorySchema
 		);
 
 		final String sharedReferenceName = "categoryProducts";
@@ -1598,8 +1598,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldDefineReferencesAndRedefineToBiDi() {
 		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			categorySchema
+			this.catalogSchema,
+			this.categorySchema
 		);
 
 		final String sharedReferenceName = "categoryProducts";
@@ -1617,8 +1617,8 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldDefineBidiReferenceAndRedefineToStandardOne() {
 		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			categorySchema
+			this.catalogSchema,
+			this.categorySchema
 		);
 
 		final String sharedReferenceName = "categoryProducts";
@@ -1638,10 +1638,10 @@ class EntitySchemaBuilderTest {
 	void shouldFailToDefineReferencesAndRedefineToBiDiDirectlyOnPreviouslyStoredInstance() {
 		final String sharedReferenceName = "categoryProducts";
 		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
+			this.catalogSchema,
 			new InternalEntitySchemaBuilder(
-				catalogSchema,
-				categorySchema
+				this.catalogSchema,
+				this.categorySchema
 			).withReferenceToEntity(sharedReferenceName, Entities.PRODUCT, Cardinality.ONE_OR_MORE)
 				.toInstance()
 		);
@@ -1657,10 +1657,10 @@ class EntitySchemaBuilderTest {
 	void shouldDefineReferencesAndRedefineToBiDiOnPreviouslyStoredInstance() {
 		final String sharedReferenceName = "categoryProducts";
 		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
+			this.catalogSchema,
 			new InternalEntitySchemaBuilder(
-				catalogSchema,
-				categorySchema
+				this.catalogSchema,
+				this.categorySchema
 			)
 				.withReferenceToEntity(sharedReferenceName, Entities.PRODUCT, Cardinality.ONE_OR_MORE)
 				.toInstance()
@@ -1681,10 +1681,10 @@ class EntitySchemaBuilderTest {
 	void shouldDefineBidiReferenceAndRedefineToStandardOneOnPreviouslyStoredInstance() {
 		final String sharedReferenceName = "categoryProducts";
 		final EntitySchemaBuilder categorySchemaBuilder = new InternalEntitySchemaBuilder(
-			catalogSchema,
+			this.catalogSchema,
 			new InternalEntitySchemaBuilder(
-				catalogSchema,
-				categorySchema
+				this.catalogSchema,
+				this.categorySchema
 			)
 				.withReflectedReferenceToEntity(sharedReferenceName, Entities.PRODUCT, "productCategories")
 				.toInstance()

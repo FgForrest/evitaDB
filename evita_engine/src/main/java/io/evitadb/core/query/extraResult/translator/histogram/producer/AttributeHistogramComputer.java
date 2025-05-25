@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -304,13 +304,13 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator
 	) {
 		return new AttributeHistogramComputer(
-			attributeName, selfOperator, filterFormula, bucketCount, behavior, request
+			this.attributeName, selfOperator, this.filterFormula, this.bucketCount, this.behavior, this.request
 		);
 	}
 
 	@Nonnull
 	public List<FilterIndex> getAttributeIndexes() {
-		return request.attributeIndexes();
+		return this.request.attributeIndexes();
 	}
 
 	@Override
@@ -359,7 +359,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	@Override
 	public long getOperationCost() {
 		// if the behavior is optimized we add 33% penalty because some histograms would need to be computed twice
-		return behavior == HistogramBehavior.STANDARD ? 2213 : 3320;
+		return this.behavior == HistogramBehavior.STANDARD ? 2213 : 3320;
 	}
 
 	@Override
@@ -368,7 +368,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			if (this.memoizedResult == null) {
 				return Long.MAX_VALUE;
 			} else {
-				this.costToPerformance = getCost() / (getOperationCost() * bucketCount);
+				this.costToPerformance = getCost() / (getOperationCost() * this.bucketCount);
 			}
 		}
 		return this.costToPerformance;
@@ -452,7 +452,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 * Returns true if passed `formula` represents the formula targeting this attribute.
 	 */
 	private boolean shouldBeExcluded(@Nonnull Formula formula) {
-		return request.attributeFormulas().contains(formula);
+		return this.request.attributeFormulas().contains(formula);
 	}
 
 }

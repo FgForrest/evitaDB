@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ public class PriceListAndCurrencySuperIndexStoragePartSerializer extends Seriali
 		final Long uniquePartId = priceIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(keyCompressor.getId(priceIndex.getPriceIndexKey()), true);
+		output.writeVarInt(this.keyCompressor.getId(priceIndex.getPriceIndexKey()), true);
 
 		kryo.writeObject(output, priceIndex.getValidityIndex());
 
@@ -86,7 +86,7 @@ public class PriceListAndCurrencySuperIndexStoragePartSerializer extends Seriali
 	public PriceListAndCurrencySuperIndexStoragePart read(Kryo kryo, Input input, Class<? extends PriceListAndCurrencySuperIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
-		final PriceIndexKey priceIndexKey = keyCompressor.getKeyForId(input.readVarInt(true));
+		final PriceIndexKey priceIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 
 		final RangeIndex validityIndex = kryo.readObject(input, RangeIndex.class);
 

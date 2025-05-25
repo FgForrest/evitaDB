@@ -657,10 +657,10 @@ public record StorageRecord<T>(
 
 	@Override
 	public int hashCode() {
-		int result = (int) (generationId ^ (generationId >>> 32));
-		result = 31 * result + (closesGeneration ? 1 : 0);
-		result = 31 * result + (payload != null ? payload.hashCode() : 0);
-		result = 31 * result + fileLocation.hashCode();
+		int result = (int) (this.generationId ^ (this.generationId >>> 32));
+		result = 31 * result + (this.closesGeneration ? 1 : 0);
+		result = 31 * result + (this.payload != null ? this.payload.hashCode() : 0);
+		result = 31 * result + this.fileLocation.hashCode();
 		return result;
 	}
 
@@ -826,7 +826,7 @@ public record StorageRecord<T>(
 			final byte controlByte = setBit((byte) 0, CONTINUATION_BIT, true);
 			final FileLocation incompleteRecordLocation = filledOutput.markEnd(controlByte);
 			// register file location of the continuous record
-			this.recordLocations.set(new FileLocationPointer(recordLocations.get(), incompleteRecordLocation));
+			this.recordLocations.set(new FileLocationPointer(this.recordLocations.get(), incompleteRecordLocation));
 			// write storage record header for another record
 			writeHeader(this.output, this.generationId);
 		}

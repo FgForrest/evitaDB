@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -91,19 +91,19 @@ public class DataLocatorResolverTest {
 				@Nonnull
 				@Override
 				public Collection<EntitySchemaContract> getEntitySchemas() {
-					return entitySchemaIndex.values();
+					return DataLocatorResolverTest.this.entitySchemaIndex.values();
 				}
 
 				@Nonnull
 				@Override
 				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-					return ofNullable(entitySchemaIndex.get(entityType));
+					return ofNullable(DataLocatorResolverTest.this.entitySchemaIndex.get(entityType));
 				}
 			}
 		);
 
 		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
+			this.catalogSchema,
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withPrice()
@@ -113,25 +113,25 @@ public class DataLocatorResolverTest {
 			.withReferenceTo(EXTERNAL_ENTITY_TAG, EXTERNAL_ENTITY_TAG, Cardinality.EXACTLY_ONE)
 			.toInstance();
 
-		entitySchemaIndex.put(Entities.PRODUCT, productSchema);
+		this.entitySchemaIndex.put(Entities.PRODUCT, productSchema);
 
 		final EntitySchemaContract categorySchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
+			this.catalogSchema,
 			EntitySchema._internalBuild(Entities.CATEGORY)
 		)
 			.withPrice()
 			.withAttribute(ATTRIBUTE_NAME, String.class)
 			.toInstance();
-		entitySchemaIndex.put(Entities.CATEGORY, categorySchema);
+		this.entitySchemaIndex.put(Entities.CATEGORY, categorySchema);
 
 		final EntitySchemaContract parameterSchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
+			this.catalogSchema,
 			EntitySchema._internalBuild(Entities.PARAMETER)
 		)
 			.toInstance();
-		entitySchemaIndex.put(Entities.PARAMETER, parameterSchema);
+		this.entitySchemaIndex.put(Entities.PARAMETER, parameterSchema);
 
-		dataLocatorResolver = new DataLocatorResolver(catalogSchema);
+		this.dataLocatorResolver = new DataLocatorResolver(this.catalogSchema);
 	}
 
 	@ParameterizedTest
@@ -141,7 +141,7 @@ public class DataLocatorResolverTest {
 	                                            @Nonnull DataLocator expectedChildDataLocator) {
 		assertEquals(
 			expectedChildDataLocator,
-			dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain).get()
+			this.dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain).get()
 		);
 	}
 
@@ -197,7 +197,7 @@ public class DataLocatorResolverTest {
 	                                               @Nonnull ConstraintDomain desiredChildDomain) {
 		assertThrows(
 			ExternalApiInternalError.class,
-			() -> dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain)
+			() -> this.dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain)
 		);
 	}
 
@@ -255,7 +255,7 @@ public class DataLocatorResolverTest {
 	                                             @Nonnull DataLocator expectedChildDataLocator) {
 		assertEquals(
 			expectedChildDataLocator,
-			dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, ofNullable(classifier))
+			this.dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, ofNullable(classifier))
 		);
 	}
 
@@ -408,7 +408,7 @@ public class DataLocatorResolverTest {
 	                                           @Nullable String classifier) {
 		assertThrows(
 			ExternalApiInternalError.class,
-			() -> dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, ofNullable(classifier))
+			() -> this.dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, ofNullable(classifier))
 		);
 	}
 

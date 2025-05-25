@@ -148,7 +148,7 @@ public class SortIndexChanges implements Serializable {
 	 * with {@link io.evitadb.index.array.TransactionalUnorderedIntArray#add(int, int)} contract.
 	 */
 	public int computePreviousRecord(@Nonnull Serializable value, int recordId) {
-		final ValueStartIndex[] valueIndex = getValueIndex(sortIndex.sortedRecordsValues, sortIndex.valueCardinalities);
+		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
 		// compute index of the value in the value index
 		//noinspection unchecked
 		final InsertionPosition valueInsertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
@@ -176,10 +176,10 @@ public class SortIndexChanges implements Serializable {
 				return Integer.MIN_VALUE;
 			} else if (position < valueIndex.length) {
 				// value is not in the index and should be placed in the middle
-				return sortIndex.sortedRecords.get(valueIndex[position].getIndex() - 1);
+				return this.sortIndex.sortedRecords.get(valueIndex[position].getIndex() - 1);
 			} else {
 				// value is not in the index and should be placed as last
-				return sortIndex.sortedRecords.get(sortIndex.sortedRecords.getLength() - 1);
+				return this.sortIndex.sortedRecords.get(this.sortIndex.sortedRecords.getLength() - 1);
 			}
 		}
 	}

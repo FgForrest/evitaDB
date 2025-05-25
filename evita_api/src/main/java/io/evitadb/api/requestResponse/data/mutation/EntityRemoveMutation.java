@@ -199,6 +199,6 @@ public class EntityRemoveMutation implements EntityMutation {
 
 	@Override
 	public String toString() {
-		return "entity `" + entityType + "` removal: " + entityPrimaryKey;
+		return "entity `" + this.entityType + "` removal: " + this.entityPrimaryKey;
 	}
 }

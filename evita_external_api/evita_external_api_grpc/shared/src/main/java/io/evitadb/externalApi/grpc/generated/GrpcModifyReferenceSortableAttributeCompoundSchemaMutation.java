@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcModifyReferenceSortableAttributeCompoundSchemaMutation() {
-    name_ = "";
+    this.name_ = "";
   }
 
   @java.lang.Override
@@ -80,18 +80,18 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            name_ = s;
+            this.name_ = s;
             break;
           }
           case 18: {
             io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.Builder subBuilder = null;
-            if (sortableAttributeCompoundSchemaMutation_ != null) {
-              subBuilder = sortableAttributeCompoundSchemaMutation_.toBuilder();
+            if (this.sortableAttributeCompoundSchemaMutation_ != null) {
+              subBuilder = this.sortableAttributeCompoundSchemaMutation_.toBuilder();
             }
-            sortableAttributeCompoundSchemaMutation_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.parser(), extensionRegistry);
+            this.sortableAttributeCompoundSchemaMutation_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(sortableAttributeCompoundSchemaMutation_);
-              sortableAttributeCompoundSchemaMutation_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.sortableAttributeCompoundSchemaMutation_);
+              this.sortableAttributeCompoundSchemaMutation_ = subBuilder.buildPartial();
             }
 
             break;
@@ -140,14 +140,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getName() {
-    java.lang.Object ref = name_;
+    java.lang.Object ref = this.name_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      name_ = s;
+      this.name_ = s;
       return s;
     }
   }
@@ -162,12 +162,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getNameBytes() {
-    java.lang.Object ref = name_;
+    java.lang.Object ref = this.name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      name_ = b;
+      this.name_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -186,7 +186,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasSortableAttributeCompoundSchemaMutation() {
-    return sortableAttributeCompoundSchemaMutation_ != null;
+    return this.sortableAttributeCompoundSchemaMutation_ != null;
   }
   /**
    * <pre>
@@ -198,7 +198,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation getSortableAttributeCompoundSchemaMutation() {
-    return sortableAttributeCompoundSchemaMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.getDefaultInstance() : sortableAttributeCompoundSchemaMutation_;
+    return this.sortableAttributeCompoundSchemaMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.getDefaultInstance() : this.sortableAttributeCompoundSchemaMutation_;
   }
   /**
    * <pre>
@@ -215,41 +215,41 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, name_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.name_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.name_);
     }
-    if (sortableAttributeCompoundSchemaMutation_ != null) {
+    if (this.sortableAttributeCompoundSchemaMutation_ != null) {
       output.writeMessage(2, getSortableAttributeCompoundSchemaMutation());
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, name_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.name_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.name_);
     }
-    if (sortableAttributeCompoundSchemaMutation_ != null) {
+    if (this.sortableAttributeCompoundSchemaMutation_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getSortableAttributeCompoundSchemaMutation());
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -270,14 +270,14 @@ private static final long serialVersionUID = 0L;
       if (!getSortableAttributeCompoundSchemaMutation()
           .equals(other.getSortableAttributeCompoundSchemaMutation())) return false;
     }
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -287,8 +287,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + SORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION_FIELD_NUMBER;
       hash = (53 * hash) + getSortableAttributeCompoundSchemaMutation().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -425,13 +425,13 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      name_ = "";
+      this.name_ = "";
 
-      if (sortableAttributeCompoundSchemaMutationBuilder_ == null) {
-        sortableAttributeCompoundSchemaMutation_ = null;
+      if (this.sortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        this.sortableAttributeCompoundSchemaMutation_ = null;
       } else {
-        sortableAttributeCompoundSchemaMutation_ = null;
-        sortableAttributeCompoundSchemaMutationBuilder_ = null;
+        this.sortableAttributeCompoundSchemaMutation_ = null;
+        this.sortableAttributeCompoundSchemaMutationBuilder_ = null;
       }
       return this;
     }
@@ -459,11 +459,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation result = new io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation(this);
-      result.name_ = name_;
-      if (sortableAttributeCompoundSchemaMutationBuilder_ == null) {
-        result.sortableAttributeCompoundSchemaMutation_ = sortableAttributeCompoundSchemaMutation_;
+      result.name_ = this.name_;
+      if (this.sortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        result.sortableAttributeCompoundSchemaMutation_ = this.sortableAttributeCompoundSchemaMutation_;
       } else {
-        result.sortableAttributeCompoundSchemaMutation_ = sortableAttributeCompoundSchemaMutationBuilder_.build();
+        result.sortableAttributeCompoundSchemaMutation_ = this.sortableAttributeCompoundSchemaMutationBuilder_.build();
       }
       onBuilt();
       return result;
@@ -514,7 +514,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.getDefaultInstance()) return this;
       if (!other.getName().isEmpty()) {
-        name_ = other.name_;
+        this.name_ = other.name_;
         onChanged();
       }
       if (other.hasSortableAttributeCompoundSchemaMutation()) {
@@ -559,12 +559,12 @@ private static final long serialVersionUID = 0L;
      * @return The name.
      */
     public java.lang.String getName() {
-      java.lang.Object ref = name_;
+      java.lang.Object ref = this.name_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        name_ = s;
+        this.name_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -580,12 +580,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getNameBytes() {
-      java.lang.Object ref = name_;
+      java.lang.Object ref = this.name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        name_ = b;
+        this.name_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -605,8 +605,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      name_ = value;
+
+      this.name_ = value;
       onChanged();
       return this;
     }
@@ -619,8 +619,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-      
-      name_ = getDefaultInstance().getName();
+
+      this.name_ = getDefaultInstance().getName();
       onChanged();
       return this;
     }
@@ -639,8 +639,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      name_ = value;
+
+      this.name_ = value;
       onChanged();
       return this;
     }
@@ -657,7 +657,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the sortableAttributeCompoundSchemaMutation field is set.
      */
     public boolean hasSortableAttributeCompoundSchemaMutation() {
-      return sortableAttributeCompoundSchemaMutationBuilder_ != null || sortableAttributeCompoundSchemaMutation_ != null;
+      return this.sortableAttributeCompoundSchemaMutationBuilder_ != null || this.sortableAttributeCompoundSchemaMutation_ != null;
     }
     /**
      * <pre>
@@ -668,10 +668,10 @@ private static final long serialVersionUID = 0L;
      * @return The sortableAttributeCompoundSchemaMutation.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation getSortableAttributeCompoundSchemaMutation() {
-      if (sortableAttributeCompoundSchemaMutationBuilder_ == null) {
-        return sortableAttributeCompoundSchemaMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.getDefaultInstance() : sortableAttributeCompoundSchemaMutation_;
+      if (this.sortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        return this.sortableAttributeCompoundSchemaMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.getDefaultInstance() : this.sortableAttributeCompoundSchemaMutation_;
       } else {
-        return sortableAttributeCompoundSchemaMutationBuilder_.getMessage();
+        return this.sortableAttributeCompoundSchemaMutationBuilder_.getMessage();
       }
     }
     /**
@@ -682,14 +682,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      */
     public Builder setSortableAttributeCompoundSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation value) {
-      if (sortableAttributeCompoundSchemaMutationBuilder_ == null) {
+      if (this.sortableAttributeCompoundSchemaMutationBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        sortableAttributeCompoundSchemaMutation_ = value;
+        this.sortableAttributeCompoundSchemaMutation_ = value;
         onChanged();
       } else {
-        sortableAttributeCompoundSchemaMutationBuilder_.setMessage(value);
+        this.sortableAttributeCompoundSchemaMutationBuilder_.setMessage(value);
       }
 
       return this;
@@ -703,11 +703,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setSortableAttributeCompoundSchemaMutation(
         io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.Builder builderForValue) {
-      if (sortableAttributeCompoundSchemaMutationBuilder_ == null) {
-        sortableAttributeCompoundSchemaMutation_ = builderForValue.build();
+      if (this.sortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        this.sortableAttributeCompoundSchemaMutation_ = builderForValue.build();
         onChanged();
       } else {
-        sortableAttributeCompoundSchemaMutationBuilder_.setMessage(builderForValue.build());
+        this.sortableAttributeCompoundSchemaMutationBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -720,16 +720,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      */
     public Builder mergeSortableAttributeCompoundSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation value) {
-      if (sortableAttributeCompoundSchemaMutationBuilder_ == null) {
-        if (sortableAttributeCompoundSchemaMutation_ != null) {
-          sortableAttributeCompoundSchemaMutation_ =
-            io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.newBuilder(sortableAttributeCompoundSchemaMutation_).mergeFrom(value).buildPartial();
+      if (this.sortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        if (this.sortableAttributeCompoundSchemaMutation_ != null) {
+          this.sortableAttributeCompoundSchemaMutation_ =
+            io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.newBuilder(this.sortableAttributeCompoundSchemaMutation_).mergeFrom(value).buildPartial();
         } else {
-          sortableAttributeCompoundSchemaMutation_ = value;
+          this.sortableAttributeCompoundSchemaMutation_ = value;
         }
         onChanged();
       } else {
-        sortableAttributeCompoundSchemaMutationBuilder_.mergeFrom(value);
+        this.sortableAttributeCompoundSchemaMutationBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -742,12 +742,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      */
     public Builder clearSortableAttributeCompoundSchemaMutation() {
-      if (sortableAttributeCompoundSchemaMutationBuilder_ == null) {
-        sortableAttributeCompoundSchemaMutation_ = null;
+      if (this.sortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        this.sortableAttributeCompoundSchemaMutation_ = null;
         onChanged();
       } else {
-        sortableAttributeCompoundSchemaMutation_ = null;
-        sortableAttributeCompoundSchemaMutationBuilder_ = null;
+        this.sortableAttributeCompoundSchemaMutation_ = null;
+        this.sortableAttributeCompoundSchemaMutationBuilder_ = null;
       }
 
       return this;
@@ -760,7 +760,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.Builder getSortableAttributeCompoundSchemaMutationBuilder() {
-      
+
       onChanged();
       return getSortableAttributeCompoundSchemaMutationFieldBuilder().getBuilder();
     }
@@ -772,11 +772,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutationOrBuilder getSortableAttributeCompoundSchemaMutationOrBuilder() {
-      if (sortableAttributeCompoundSchemaMutationBuilder_ != null) {
-        return sortableAttributeCompoundSchemaMutationBuilder_.getMessageOrBuilder();
+      if (this.sortableAttributeCompoundSchemaMutationBuilder_ != null) {
+        return this.sortableAttributeCompoundSchemaMutationBuilder_.getMessageOrBuilder();
       } else {
-        return sortableAttributeCompoundSchemaMutation_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.getDefaultInstance() : sortableAttributeCompoundSchemaMutation_;
+        return this.sortableAttributeCompoundSchemaMutation_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.getDefaultInstance() : this.sortableAttributeCompoundSchemaMutation_;
       }
     }
     /**
@@ -787,17 +787,17 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutationOrBuilder>
         getSortableAttributeCompoundSchemaMutationFieldBuilder() {
-      if (sortableAttributeCompoundSchemaMutationBuilder_ == null) {
-        sortableAttributeCompoundSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.sortableAttributeCompoundSchemaMutationBuilder_ == null) {
+        this.sortableAttributeCompoundSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutationOrBuilder>(
                 getSortableAttributeCompoundSchemaMutation(),
                 getParentForChildren(),
                 isClean());
-        sortableAttributeCompoundSchemaMutation_ = null;
+        this.sortableAttributeCompoundSchemaMutation_ = null;
       }
-      return sortableAttributeCompoundSchemaMutationBuilder_;
+      return this.sortableAttributeCompoundSchemaMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

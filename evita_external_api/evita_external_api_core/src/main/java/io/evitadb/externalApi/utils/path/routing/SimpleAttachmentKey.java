@@ -29,15 +29,15 @@ class SimpleAttachmentKey<T> extends AttachmentKey<T> {
 	}
 
 	public T cast(final Object value) {
-		return valueClass.cast(value);
+		return this.valueClass.cast(value);
 	}
 
 	@Override
 	public String toString() {
-		if (valueClass != null) {
+		if (this.valueClass != null) {
 			StringBuilder sb = new StringBuilder(getClass().getName());
 			sb.append("<");
-			sb.append(valueClass.getName());
+			sb.append(this.valueClass.getName());
 			sb.append(">");
 			return sb.toString();
 		}

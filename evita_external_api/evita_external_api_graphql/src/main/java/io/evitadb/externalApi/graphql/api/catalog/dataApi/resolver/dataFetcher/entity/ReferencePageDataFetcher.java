@@ -56,11 +56,11 @@ public class ReferencePageDataFetcher implements DataFetcher<PaginatedList<Refer
         final EntityDecorator entity = environment.getSource();
         Assert.isPremiseValid(entity != null, "Entity must not be null");
         Assert.isPremiseValid(
-            referenceSchema.getCardinality() == Cardinality.ZERO_OR_MORE || referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE,
+	        this.referenceSchema.getCardinality() == Cardinality.ZERO_OR_MORE || this.referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE,
             () -> new GraphQLQueryResolvingInternalError(
-                "Reference `" + referenceSchema.getName() + "` doesn't have cardinality of more references but more references were requested."
+                "Reference `" + this.referenceSchema.getName() + "` doesn't have cardinality of more references but more references were requested."
             )
         );
-        return entity.getReferenceChunk(referenceSchema.getName());
+        return entity.getReferenceChunk(this.referenceSchema.getName());
     }
 }

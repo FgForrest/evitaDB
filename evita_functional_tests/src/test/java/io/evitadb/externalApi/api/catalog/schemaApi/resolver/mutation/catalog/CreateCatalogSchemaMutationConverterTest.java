@@ -49,13 +49,13 @@ public class CreateCatalogSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new CreateCatalogSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new CreateCatalogSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolverInputToLocalMutation() {
 		final CreateCatalogSchemaMutation expectedMutation = new CreateCatalogSchemaMutation("testCatalog");
-		final CreateCatalogSchemaMutation convertedMutation = converter.convertFromInput(
+		final CreateCatalogSchemaMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(CreateCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 				.build()
@@ -65,15 +65,15 @@ public class CreateCatalogSchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
 	void shouldSerializeLocalMutationToOutput() {
 		final CreateCatalogSchemaMutation inputMutation = new CreateCatalogSchemaMutation("testCatalog");
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

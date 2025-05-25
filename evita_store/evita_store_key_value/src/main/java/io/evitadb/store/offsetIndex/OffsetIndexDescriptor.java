@@ -131,7 +131,7 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		this.writeKryo = kryoFactory.apply(versionedInputs);
 		// create read only instances
 		this.readKryoFactory = updatedVersion -> kryoFactory.apply(
-			new VersionedKryoKeyInputs(readOnlyKeyCompressor, updatedVersion)
+			new VersionedKryoKeyInputs(this.readOnlyKeyCompressor, updatedVersion)
 		);
 		this.activeRecordShare = activeRecordShare;
 		this.fileSize = fileSize;
@@ -151,7 +151,7 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		this.readOnlyKeyCompressor = new ReadOnlyKeyCompressor(this.writeKeyCompressor.getKeys());
 		this.writeKryo = fileOffsetIndexDescriptor.writeKryo;
 		// reset read only instances according to current state of write instances
-		this.readKryoFactory = updatedVersion -> kryoFactory.apply(
+		this.readKryoFactory = updatedVersion -> this.kryoFactory.apply(
 			new VersionedKryoKeyInputs(
 				this.readOnlyKeyCompressor,
 				updatedVersion

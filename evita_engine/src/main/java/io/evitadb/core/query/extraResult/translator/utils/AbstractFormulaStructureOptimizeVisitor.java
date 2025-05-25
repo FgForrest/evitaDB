@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -88,32 +88,32 @@ public abstract class AbstractFormulaStructureOptimizeVisitor implements Formula
 
 	@Override
 	public void visit(@Nonnull Formula formula) {
-		if (matchingPredicate.test(formula)) {
+		if (this.matchingPredicate.test(formula)) {
 			// we found the formula - add formula parent stack to set of optimized formulas
-			optimizationSet.addAll(parentStack);
+			this.optimizationSet.addAll(this.parentStack);
 		}
 
 		final Formula[] updatedChildren;
-		parentStack.push(formula);
-		levelStack.push(new CompositeObjectArray<>(Formula.class));
+		this.parentStack.push(formula);
+		this.levelStack.push(new CompositeObjectArray<>(Formula.class));
 
 		try {
 			for (Formula innerFormula : formula.getInnerFormulas()) {
 				innerFormula.accept(this);
 			}
 		} finally {
-			parentStack.pop();
-			updatedChildren = levelStack.pop().toArray();
+			this.parentStack.pop();
+			updatedChildren = this.levelStack.pop().toArray();
 		}
 
 		// we found formula to optimize for - duplicate current container with separate sub container
 		// for all other formulas except the one we optimize for
-		if (optimizationSet.contains(formula) && !(formula instanceof NotFormula) && updatedChildren.length > 2) {
+		if (this.optimizationSet.contains(formula) && !(formula instanceof NotFormula) && updatedChildren.length > 2) {
 
 			final CompositeObjectArray<Formula> newDivertedFormulas = new CompositeObjectArray<>(Formula.class);
 			final CompositeObjectArray<Formula> matchingFormulas = new CompositeObjectArray<>(Formula.class);
 			for (Formula innerFormula : updatedChildren) {
-				if (!(matchingPredicate.test(innerFormula)) && !optimizationSet.contains(innerFormula)) {
+				if (!(this.matchingPredicate.test(innerFormula)) && !this.optimizationSet.contains(innerFormula)) {
 					newDivertedFormulas.add(innerFormula);
 				} else {
 					matchingFormulas.add(innerFormula);
@@ -166,16 +166,16 @@ public abstract class AbstractFormulaStructureOptimizeVisitor implements Formula
 
 	private void storeFormula(Formula formula) {
 		// store updated formula
-		if (levelStack.isEmpty()) {
+		if (this.levelStack.isEmpty()) {
 			this.result = formula;
 		} else {
-			levelStack.peek().add(formula);
+			this.levelStack.peek().add(formula);
 		}
 	}
 
 	private void replaceFormula(Formula formula) {
 		// store updated formula
-		if (levelStack.isEmpty()) {
+		if (this.levelStack.isEmpty()) {
 			this.result = formula;
 		} else {
 			this.levelStack.peek().add(formula);

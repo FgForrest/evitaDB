@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ class ModifyAttributeSchemaTypeMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyAttributeSchemaTypeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyAttributeSchemaTypeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -60,7 +60,7 @@ class ModifyAttributeSchemaTypeMutationConverterTest {
 			3
 		);
 
-		final ModifyAttributeSchemaTypeMutation convertedMutation1 = converter.convertFromInput(
+		final ModifyAttributeSchemaTypeMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(ModifyAttributeSchemaTypeMutationDescriptor.TYPE.name(), Integer.class)
@@ -69,7 +69,7 @@ class ModifyAttributeSchemaTypeMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final ModifyAttributeSchemaTypeMutation convertedMutation2 = converter.convertFromInput(
+		final ModifyAttributeSchemaTypeMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(ModifyAttributeSchemaTypeMutationDescriptor.TYPE.name(), "Integer")
@@ -83,7 +83,7 @@ class ModifyAttributeSchemaTypeMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ModifyAttributeSchemaTypeMutationDescriptor.TYPE.name(), Integer.class)
 					.e(ModifyAttributeSchemaTypeMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 3)
@@ -92,7 +92,7 @@ class ModifyAttributeSchemaTypeMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.e(ModifyAttributeSchemaTypeMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 3)
@@ -101,14 +101,14 @@ class ModifyAttributeSchemaTypeMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.e(ModifyAttributeSchemaTypeMutationDescriptor.TYPE.name(), Integer.class)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

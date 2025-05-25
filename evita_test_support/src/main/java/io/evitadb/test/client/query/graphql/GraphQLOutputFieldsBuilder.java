@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,28 +66,28 @@ public class GraphQLOutputFieldsBuilder {
 	public GraphQLOutputFieldsBuilder addPrimitiveField(@Nonnull String fieldName,
 	                                                    @Nonnull ArgumentSupplier... arguments) {
 		if (arguments.length == 0) {
-			lines.add(getCurrentIndentation() + fieldName);
+			this.lines.add(getCurrentIndentation() + fieldName);
 		} else if (arguments.length == 1) {
-			final Argument argument = arguments[0].apply(offset + level + 1, false);
+			final Argument argument = arguments[0].apply(this.offset + this.level + 1, false);
 			final String serializedArgument = argument.toString();
 			if (serializedArgument.contains("\n")) {
-				lines.add(getCurrentIndentation() + fieldName + "(");
-				level++;
-				lines.add(serializedArgument);
-				level--;
-				lines.add(getCurrentIndentation() + ") {");
+				this.lines.add(getCurrentIndentation() + fieldName + "(");
+				this.level++;
+				this.lines.add(serializedArgument);
+				this.level--;
+				this.lines.add(getCurrentIndentation() + ") {");
 			} else {
-				lines.add(getCurrentIndentation() + fieldName + "(" + serializedArgument + ") {");
+				this.lines.add(getCurrentIndentation() + fieldName + "(" + serializedArgument + ") {");
 			}
 		} else {
-			lines.add(getCurrentIndentation() + fieldName + "(");
-			level++;
+			this.lines.add(getCurrentIndentation() + fieldName + "(");
+			this.level++;
 			for (ArgumentSupplier argumentSupplier : arguments) {
-				final Argument argument = argumentSupplier.apply(offset + level, true);
-				lines.add(argument.toString());
+				final Argument argument = argumentSupplier.apply(this.offset + this.level, true);
+				this.lines.add(argument.toString());
 			}
-			level--;
-			lines.add(getCurrentIndentation() + ")");
+			this.level--;
+			this.lines.add(getCurrentIndentation() + ")");
 		}
 
 		return this;
@@ -121,50 +121,50 @@ public class GraphQLOutputFieldsBuilder {
 	                                                 @Nonnull Consumer<GraphQLOutputFieldsBuilder> objectFieldsBuilder,
 	                                                 @Nonnull ArgumentSupplier... arguments) {
 		if (arguments.length == 0) {
-			lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + " {");
+			this.lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + " {");
 		} else if (arguments.length == 1) {
-			final Argument argument = arguments[0].apply(offset + level + 1, false);
+			final Argument argument = arguments[0].apply(this.offset + this.level + 1, false);
 			final String serializedArgument = argument.toString();
 			if (serializedArgument.contains("\n")) {
-				lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + "(");
-				level++;
-				lines.add(serializedArgument);
-				level--;
-				lines.add(getCurrentIndentation() + ") {");
+				this.lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + "(");
+				this.level++;
+				this.lines.add(serializedArgument);
+				this.level--;
+				this.lines.add(getCurrentIndentation() + ") {");
 			} else {
-				lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + "(" + serializedArgument + ") {");
+				this.lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + "(" + serializedArgument + ") {");
 			}
 		} else {
-			lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + "(");
-			level++;
+			this.lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + "(");
+			this.level++;
 			for (ArgumentSupplier argumentSupplier : arguments) {
-				final Argument argument = argumentSupplier.apply(offset + level, true);
-				lines.add(argument.toString());
+				final Argument argument = argumentSupplier.apply(this.offset + this.level, true);
+				this.lines.add(argument.toString());
 			}
-			level--;
-			lines.add(getCurrentIndentation() + ") {");
+			this.level--;
+			this.lines.add(getCurrentIndentation() + ") {");
 		}
 
-		level++;
+		this.level++;
 		objectFieldsBuilder.accept(this);
-		level--;
+		this.level--;
 
-		lines.add(getCurrentIndentation() + "}");
+		this.lines.add(getCurrentIndentation() + "}");
 
 		return this;
 	}
 
 	public String build() {
 		Assert.isPremiseValid(
-			level == 1,
+			this.level == 1,
 			"Premature build, level is not back at 1."
 		);
-		return String.join("\n", lines);
+		return String.join("\n", this.lines);
 	}
 
 	@Nonnull
 	private String getCurrentIndentation() {
-		return INDENTATION.repeat(offset + level);
+		return INDENTATION.repeat(this.offset + this.level);
 	}
 
 	@FunctionalInterface
@@ -177,25 +177,25 @@ public class GraphQLOutputFieldsBuilder {
 		@Override
 		public String toString() {
 			final String serializedValue;
-			if (value instanceof JsonNode jsonNode) {
+			if (this.value instanceof JsonNode jsonNode) {
 				serializedValue = INPUT_JSON_PRINTER.print(jsonNode);
-			} else if (value.getClass().isEnum()) {
-				serializedValue = value.toString();
+			} else if (this.value.getClass().isEnum()) {
+				serializedValue = this.value.toString();
 			} else {
-				serializedValue = INPUT_JSON_PRINTER.print(OBJECT_JSON_SERIALIZER.serializeObject(value));
+				serializedValue = INPUT_JSON_PRINTER.print(OBJECT_JSON_SERIALIZER.serializeObject(this.value));
 			}
-			return offsetArgument(argumentDescriptor.name() + ": " + serializedValue);
+			return offsetArgument(this.argumentDescriptor.name() + ": " + serializedValue);
 		}
 
 		@Nonnull
 		private String offsetArgument(@Nonnull String argument) {
-			if (argument.contains("\n") && offset > 0) {
+			if (argument.contains("\n") && this.offset > 0) {
 				return argument.lines()
-					.map(line -> INDENTATION.repeat(offset) + line)
+					.map(line -> INDENTATION.repeat(this.offset) + line)
 					.collect(Collectors.joining("\n"));
 			}
-			if (multipleArguments) {
-				return INDENTATION.repeat(offset) + argument;
+			if (this.multipleArguments) {
+				return INDENTATION.repeat(this.offset) + argument;
 			}
 			return argument;
 		}

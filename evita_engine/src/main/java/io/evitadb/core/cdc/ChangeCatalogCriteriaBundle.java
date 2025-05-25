@@ -92,11 +92,11 @@ public record ChangeCatalogCriteriaBundle(
 	public boolean equals(Object o) {
 		if (!(o instanceof ChangeCatalogCriteriaBundle that)) return false;
 
-		return Arrays.equals(criteria, that.criteria);
+		return Arrays.equals(this.criteria, that.criteria);
 	}
 
 	@Override
 	public int hashCode() {
-		return Arrays.hashCode(criteria);
+		return Arrays.hashCode(this.criteria);
 	}
 }

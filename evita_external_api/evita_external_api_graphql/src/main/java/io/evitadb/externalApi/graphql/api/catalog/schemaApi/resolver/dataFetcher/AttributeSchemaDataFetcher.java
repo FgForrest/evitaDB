@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ public class AttributeSchemaDataFetcher implements DataFetcher<AttributeSchemaCo
 	public AttributeSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final AttributeSchemaProvider<AttributeSchemaContract> attributeSchemaProvider = environment.getSource();
 		return attributeSchemaProvider
-			.getAttribute(name)
-			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find attribute schema for name `" + name + "`."));
+			.getAttribute(this.name)
+			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find attribute schema for name `" + this.name + "`."));
 	}
 }

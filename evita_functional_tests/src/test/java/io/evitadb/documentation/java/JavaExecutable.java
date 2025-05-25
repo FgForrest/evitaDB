@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -158,7 +158,7 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 
 	@Override
 	public void execute() throws Throwable {
-		final JavaTestContext javaTestContext = testContextAccessor.get();
+		final JavaTestContext javaTestContext = this.testContextAccessor.get();
 
 		// the code block must be successfully compiled and executed without an error
 		// to mark it as ok
@@ -174,12 +174,12 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 	 */
 	@Nonnull
 	public List<String> getSnippets() {
-		if (parsedSnippets == null) {
-			parsedSnippets = composeCodeBlockWithRequiredBlocks(
-				testContextAccessor.get().getJShell(), sourceContent, getRootDirectory(), requiredResources, codeSnippetIndex
+		if (this.parsedSnippets == null) {
+			this.parsedSnippets = composeCodeBlockWithRequiredBlocks(
+				this.testContextAccessor.get().getJShell(), this.sourceContent, getRootDirectory(), this.requiredResources, this.codeSnippetIndex
 			);
 		}
-		return parsedSnippets;
+		return this.parsedSnippets;
 	}
 
 }

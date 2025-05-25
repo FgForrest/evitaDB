@@ -53,14 +53,14 @@ class RemoveAttributeMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter =  new RemoveAttributeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new RemoveAttributeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final RemoveAttributeMutation expectedMutation = new RemoveAttributeMutation(ATTRIBUTE_CODE, Locale.ENGLISH);
 
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 				.e(RemoveAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
@@ -68,7 +68,7 @@ class RemoveAttributeMutationConverterTest {
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
 				.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 				.e(RemoveAttributeMutationDescriptor.LOCALE.name(), "en")
@@ -79,7 +79,7 @@ class RemoveAttributeMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 				.build()
@@ -92,8 +92,8 @@ class RemoveAttributeMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -101,7 +101,7 @@ class RemoveAttributeMutationConverterTest {
 		final RemoveAttributeMutation inputMutation = new RemoveAttributeMutation(ATTRIBUTE_CODE, Locale.ENGLISH);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

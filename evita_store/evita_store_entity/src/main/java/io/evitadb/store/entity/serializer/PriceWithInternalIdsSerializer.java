@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ public class PriceWithInternalIdsSerializer extends Serializer<PriceWithInternal
 		output.writeBoolean(price.indexed());
 		output.writeInt(price.getInternalPriceId());
 		output.writeInt(price.priceId());
-		output.writeVarInt(keyCompressor.getId(new CompressiblePriceKey(price.priceKey())), true);
+		output.writeVarInt(this.keyCompressor.getId(new CompressiblePriceKey(price.priceKey())), true);
 		final Integer innerRecordId = price.innerRecordId();
 		if (innerRecordId == null) {
 			output.writeBoolean(false);
@@ -79,7 +79,7 @@ public class PriceWithInternalIdsSerializer extends Serializer<PriceWithInternal
 		final boolean indexed = input.readBoolean();
 		final int internalPriceId = input.readInt();
 		final int priceId = input.readInt();
-		final CompressiblePriceKey priceKey = keyCompressor.getKeyForId(input.readVarInt(true));
+		final CompressiblePriceKey priceKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		final boolean innerIdExists = input.readBoolean();
 		final Integer innerRecordId;
 		if (innerIdExists) {

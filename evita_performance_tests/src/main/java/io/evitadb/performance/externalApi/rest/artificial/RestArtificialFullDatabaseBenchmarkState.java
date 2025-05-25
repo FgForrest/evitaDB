@@ -64,16 +64,16 @@ public class RestArtificialFullDatabaseBenchmarkState extends RestArtificialBenc
 	@Setup(Level.Trial)
 	public void setUp() {
 		final ReadyReadEvita readyReadEvita = generateReadTestDataset(
-			dataGenerator,
+			this.dataGenerator,
 			PRODUCT_COUNT,
 			this::shouldStartFromScratch,
 			this::isCatalogAvailable,
 			this::createEvitaInstanceFromExistingData,
 			this::createEmptyEvitaInstance,
 			getCatalogName(),
-			generatedEntities,
+			this.generatedEntities,
 			SEED,
-			randomEntityPicker,
+			this.randomEntityPicker,
 			this::processEntity,
 			this::processCreatedEntityReference,
 			this::createEntity,
@@ -83,14 +83,14 @@ public class RestArtificialFullDatabaseBenchmarkState extends RestArtificialBenc
 		this.productSchema = readyReadEvita.productSchema();
 
 		// start rest server
-		server = new ExternalApiServer(
+		this.server = new ExternalApiServer(
 			this.evita,
 			ApiOptions.builder()
 				.enable(RestProvider.CODE, new RestOptions())
 				.build(),
 			Collections.singleton(new RestProviderRegistrar())
 		);
-		server.start();
+		this.server.start();
 	}
 
 	/**

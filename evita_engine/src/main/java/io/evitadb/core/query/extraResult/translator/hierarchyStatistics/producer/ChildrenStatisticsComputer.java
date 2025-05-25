@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -74,25 +74,25 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		final Bitmap hierarchyNodes = context.rootHierarchyNodesSupplier().get();
+		final Bitmap hierarchyNodes = this.context.rootHierarchyNodesSupplier().get();
 		final ChildrenStatisticsHierarchyVisitor childrenVisitor = new ChildrenStatisticsHierarchyVisitor(
 			executionContext,
-			context.removeEmptyResults(),
+			this.context.removeEmptyResults(),
 			0,
 			hierarchyNodes::contains,
 			scopePredicate,
 			filterPredicate,
-			value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
-			entityFetcher,
-			statisticsType
+			value -> this.context.directlyQueriedEntitiesFormulaProducer().apply(value, this.statisticsBase),
+			this.entityFetcher,
+			this.statisticsType
 		);
-		if (context.hierarchyFilter() instanceof HierarchyWithinRoot) {
+		if (this.context.hierarchyFilter() instanceof HierarchyWithinRoot) {
 			// if there is within hierarchy root query we start at root nodes
-			context.entityIndex().traverseHierarchy(
+			this.context.entityIndex().traverseHierarchy(
 				childrenVisitor,
 				filterPredicate
 			);
-		} else if (context.hierarchyFilter() instanceof HierarchyWithin) {
+		} else if (this.context.hierarchyFilter() instanceof HierarchyWithin) {
 			Assert.isTrue(
 				hierarchyNodes.size() == 1,
 				"In order to generate children hierarchy statistics the HierarchyWithin filter must select exactly " +
@@ -101,7 +101,7 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 			final int parentNodeId = hierarchyNodes.getFirst();
 
 			// if root node is set, use different traversal method
-			context.entityIndex().traverseHierarchyFromNode(
+			this.context.entityIndex().traverseHierarchyFromNode(
 				childrenVisitor,
 				parentNodeId,
 				false,
@@ -109,7 +109,7 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 			);
 		} else {
 			// if there is not within hierarchy constraint query we start at root nodes and use no exclusions
-			context.entityIndex().traverseHierarchy(
+			this.context.entityIndex().traverseHierarchy(
 				childrenVisitor,
 				filterPredicate
 			);

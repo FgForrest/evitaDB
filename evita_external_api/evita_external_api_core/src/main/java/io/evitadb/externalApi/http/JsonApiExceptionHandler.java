@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ public abstract class JsonApiExceptionHandler extends ExternalApiExceptionHandle
 	private String serializeError(@Nonnull EvitaError evitaError) {
 		final ErrorDto errorDto = new ErrorDto(evitaError.getErrorCode(), evitaError.getPublicMessage());
 		try {
-			return objectMapper.writeValueAsString(errorDto);
+			return this.objectMapper.writeValueAsString(errorDto);
 		} catch (JsonProcessingException e) {
 			log.error("Could not serialize ErrorDto: {}", e.getMessage());
 			return "";

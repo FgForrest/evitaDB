@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -79,14 +79,14 @@ class TransactionalStoragePartPersistenceServiceTest {
 		when(registry.idFor(EntityBodyStoragePart.class)).thenReturn((byte) 1);
 		doAnswer(invocation -> EntityBodyStoragePart.class).when(registry).typeFor((byte) 1);
 
-		service = new TransactionalStoragePartPersistenceService(
+		this.service = new TransactionalStoragePartPersistenceService(
 			0L,
 			UUID.randomUUID(),
 			"test",
-			delegateService,
+			this.delegateService,
 			storageOptions,
 			transactionOptions,
-			offHeapMemoryManager,
+			this.offHeapMemoryManager,
 			kryoKeyInputs -> VersionedKryoFactory.createKryo(
 				kryoKeyInputs.version(),
 				SchemaKryoConfigurer.INSTANCE
@@ -102,16 +102,16 @@ class TransactionalStoragePartPersistenceServiceTest {
 
 	@AfterEach
 	void tearDown() {
-		offHeapMemoryManager.close();
+		this.offHeapMemoryManager.close();
 	}
 
 	@Test
 	public void shouldGetStoragePartFromDelegateWhenNotRemoved() {
 		StoragePart storagePart = new EntityBodyStoragePart(1);
-		when(delegateService.getStoragePart(anyLong(), anyLong(), any())).thenReturn(storagePart);
-		when(delegateService.containsStoragePart(anyLong(), anyLong(), any())).thenReturn(true);
+		when(this.delegateService.getStoragePart(anyLong(), anyLong(), any())).thenReturn(storagePart);
+		when(this.delegateService.containsStoragePart(anyLong(), anyLong(), any())).thenReturn(true);
 
-		StoragePart result = service.getStoragePart(1L, 1L, StoragePart.class);
+		StoragePart result = this.service.getStoragePart(1L, 1L, StoragePart.class);
 
 		assertEquals(storagePart, result);
 	}
@@ -119,12 +119,12 @@ class TransactionalStoragePartPersistenceServiceTest {
 	@Test
 	public void shouldReturnNullWhenStoragePartRemoved() {
 		StoragePart storagePart = new EntityBodyStoragePart(1);
-		when(delegateService.getStoragePart(anyLong(), anyLong(), any())).thenReturn(storagePart);
-		when(delegateService.containsStoragePart(anyLong(), anyLong(), any())).thenReturn(true);
+		when(this.delegateService.getStoragePart(anyLong(), anyLong(), any())).thenReturn(storagePart);
+		when(this.delegateService.containsStoragePart(anyLong(), anyLong(), any())).thenReturn(true);
 
-		service.removeStoragePart(1L, 1L, EntityBodyStoragePart.class);
+		this.service.removeStoragePart(1L, 1L, EntityBodyStoragePart.class);
 
-		StoragePart result = service.getStoragePart(1L, 1L, EntityBodyStoragePart.class);
+		StoragePart result = this.service.getStoragePart(1L, 1L, EntityBodyStoragePart.class);
 
 		assertNull(result);
 	}
@@ -133,38 +133,38 @@ class TransactionalStoragePartPersistenceServiceTest {
 	public void shouldPutStoragePartIntoOffsetIndex() {
 		StoragePart storagePart = new EntityBodyStoragePart(1);
 
-		service.putStoragePart(1L, storagePart);
+		this.service.putStoragePart(1L, storagePart);
 
-		assertTrue(service.containsStoragePart(1L, 1L, EntityBodyStoragePart.class));
+		assertTrue(this.service.containsStoragePart(1L, 1L, EntityBodyStoragePart.class));
 	}
 
 	@Test
 	public void shouldRemoveStoragePartFromOffsetIndex() {
 		StoragePart storagePart = new EntityBodyStoragePart(1);
 
-		service.putStoragePart(1L, storagePart);
+		this.service.putStoragePart(1L, storagePart);
 
-		service.removeStoragePart(1L, 1L, EntityBodyStoragePart.class);
+		this.service.removeStoragePart(1L, 1L, EntityBodyStoragePart.class);
 
-		assertFalse(service.containsStoragePart(1L, 1L, EntityBodyStoragePart.class));
+		assertFalse(this.service.containsStoragePart(1L, 1L, EntityBodyStoragePart.class));
 	}
 
 	@Test
 	public void shouldRemoveStoragePartFromOffsetIndexAndDelegate() {
 		StoragePart storagePart = new EntityBodyStoragePart(1);
-		when(delegateService.getStoragePart(anyLong(), anyLong(), any())).thenReturn(storagePart);
-		when(delegateService.containsStoragePart(anyLong(), anyLong(), any())).thenReturn(true);
+		when(this.delegateService.getStoragePart(anyLong(), anyLong(), any())).thenReturn(storagePart);
+		when(this.delegateService.containsStoragePart(anyLong(), anyLong(), any())).thenReturn(true);
 
-		service.putStoragePart(1L, storagePart);
+		this.service.putStoragePart(1L, storagePart);
 
-		service.removeStoragePart(1L, 1L, EntityBodyStoragePart.class);
+		this.service.removeStoragePart(1L, 1L, EntityBodyStoragePart.class);
 
-		assertFalse(service.containsStoragePart(1L, 1L, EntityBodyStoragePart.class));
+		assertFalse(this.service.containsStoragePart(1L, 1L, EntityBodyStoragePart.class));
 	}
 
 	@Test
 	public void shouldReturnFalseWhenStoragePartDoesNotExistInOffsetIndex() {
-		assertFalse(service.containsStoragePart(1L, 1L, EntityBodyStoragePart.class));
+		assertFalse(this.service.containsStoragePart(1L, 1L, EntityBodyStoragePart.class));
 	}
 
 }

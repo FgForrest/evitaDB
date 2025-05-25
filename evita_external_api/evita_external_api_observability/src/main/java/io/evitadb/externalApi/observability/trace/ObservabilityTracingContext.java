@@ -408,9 +408,9 @@ public class ObservabilityTracingContext implements TracingContext {
 	) {
 		boolean clear = false;
 		try {
-			final Boolean originalValue = parentContextAvailable.get();
+			final Boolean originalValue = this.parentContextAvailable.get();
 			if (!Boolean.TRUE.equals(originalValue)) {
-				parentContextAvailable.set(true);
+				this.parentContextAvailable.set(true);
 				clear = true;
 			}
 			return executeWithinBlockInternal(
@@ -421,7 +421,7 @@ public class ObservabilityTracingContext implements TracingContext {
 			);
 		} finally {
 			if (clear) {
-				parentContextAvailable.set(false);
+				this.parentContextAvailable.set(false);
 			}
 		}
 	}
@@ -453,9 +453,9 @@ public class ObservabilityTracingContext implements TracingContext {
 
 		boolean clear = false;
 		try {
-			final Boolean originalValue = parentContextAvailable.get();
+			final Boolean originalValue = this.parentContextAvailable.get();
 			if (!Boolean.TRUE.equals(originalValue)) {
-				parentContextAvailable.set(true);
+				this.parentContextAvailable.set(true);
 				clear = true;
 			}
 			try (Scope ignored = ((ObservabilityTracingContextReference) contextReference).getContext().makeCurrent()) {
@@ -468,7 +468,7 @@ public class ObservabilityTracingContext implements TracingContext {
 			}
 		} finally {
 			if (clear) {
-				parentContextAvailable.set(false);
+				this.parentContextAvailable.set(false);
 			}
 		}
 	}
@@ -492,7 +492,7 @@ public class ObservabilityTracingContext implements TracingContext {
 		@Nullable SpanAttribute[] attributes,
 		@Nullable Supplier<SpanAttribute[]> attributeSupplier
 	) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled() || !Boolean.TRUE.equals(parentContextAvailable.get())) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled() || !Boolean.TRUE.equals(this.parentContextAvailable.get())) {
 			return lambda.get();
 		}
 
@@ -554,9 +554,9 @@ public class ObservabilityTracingContext implements TracingContext {
 		@Nullable Supplier<SpanAttribute[]> attributeSupplier
 	) {
 		boolean clear = false;
-		final Boolean originalValue = parentContextAvailable.get();
+		final Boolean originalValue = this.parentContextAvailable.get();
 		if (!Boolean.TRUE.equals(originalValue)) {
-			parentContextAvailable.set(true);
+			this.parentContextAvailable.set(true);
 			clear = true;
 		}
 
@@ -567,7 +567,7 @@ public class ObservabilityTracingContext implements TracingContext {
 			attributeSupplier,
 			() -> {
 				if (finalClear) {
-					parentContextAvailable.set(false);
+					this.parentContextAvailable.set(false);
 				}
 			}
 		);
@@ -597,9 +597,9 @@ public class ObservabilityTracingContext implements TracingContext {
 		}
 
 		boolean clear = false;
-		final Boolean originalValue = parentContextAvailable.get();
+		final Boolean originalValue = this.parentContextAvailable.get();
 		if (!Boolean.TRUE.equals(originalValue)) {
-			parentContextAvailable.set(true);
+			this.parentContextAvailable.set(true);
 			clear = true;
 		}
 
@@ -612,7 +612,7 @@ public class ObservabilityTracingContext implements TracingContext {
 			() -> {
 				parentScope.close();
 				if (finalClear) {
-					parentContextAvailable.set(false);
+					this.parentContextAvailable.set(false);
 				}
 			}
 		);
@@ -634,7 +634,7 @@ public class ObservabilityTracingContext implements TracingContext {
 	                                                             @Nullable SpanAttribute[] attributes,
 	                                                             @Nullable Supplier<SpanAttribute[]> attributeSupplier,
 	                                                             @Nullable Runnable closeCallback) {
-		if (!OpenTelemetryTracerSetup.isTracingEnabled() || !Boolean.TRUE.equals(parentContextAvailable.get())) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled() || !Boolean.TRUE.equals(this.parentContextAvailable.get())) {
 			return new DefaultTracingBlockReference();
 		}
 

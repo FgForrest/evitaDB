@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -94,7 +94,7 @@ class SellingPriceAvailableBitmapFilterTest {
 
 	@BeforeEach
 	void setUp() {
-		entities = Stream.of(
+		this.entities = Stream.of(
 				new InitialEntityBuilder(Entities.PRODUCT, 1)
 					.setPrice(1, PRICE_LIST_REFERENCE, CZK, new BigDecimal("80"), new BigDecimal("21"), new BigDecimal("101"), false)
 					.setPrice(2, PRICE_LIST_BASIC, CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
@@ -141,7 +141,7 @@ class SellingPriceAvailableBitmapFilterTest {
 						filter.getEntityRequire()
 					)
 				),
-				entities
+				this.entities
 			)
 		);
 
@@ -169,7 +169,7 @@ class SellingPriceAvailableBitmapFilterTest {
 						filter.getEntityRequire()
 					)
 				),
-				entities
+				this.entities
 			)
 		);
 
@@ -203,7 +203,7 @@ class SellingPriceAvailableBitmapFilterTest {
 						filter.getEntityRequire()
 					)
 				),
-				entities
+				this.entities
 			)
 		);
 
@@ -237,7 +237,7 @@ class SellingPriceAvailableBitmapFilterTest {
 						filter.getEntityRequire()
 					)
 				),
-				entities
+				this.entities
 			)
 		);
 
@@ -266,7 +266,7 @@ class SellingPriceAvailableBitmapFilterTest {
 						filter.getEntityRequire()
 					)
 				),
-				entities
+				this.entities
 			)
 		);
 
@@ -295,7 +295,7 @@ class SellingPriceAvailableBitmapFilterTest {
 						filter.getEntityRequire()
 					)
 				),
-				entities
+				this.entities
 			)
 		);
 

@@ -73,7 +73,7 @@ public class DisallowEvolutionModeInCatalogSchemaMutation implements LocalCatalo
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
-		if (catalogSchema.getCatalogEvolutionMode().stream().noneMatch(evolutionModes::contains)) {
+		if (catalogSchema.getCatalogEvolutionMode().stream().noneMatch(this.evolutionModes::contains)) {
 			// no need to change the schema
 			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
@@ -102,6 +102,6 @@ public class DisallowEvolutionModeInCatalogSchemaMutation implements LocalCatalo
 
 	@Override
 	public String toString() {
-		return "Disallow: evolutionModes=" + evolutionModes;
+		return "Disallow: evolutionModes=" + this.evolutionModes;
 	}
 }

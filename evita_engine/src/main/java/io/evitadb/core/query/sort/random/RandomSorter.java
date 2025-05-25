@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,8 +68,8 @@ public class RandomSorter implements Sorter {
 		if (length < 0) {
 			throw new IndexOutOfBoundsException("Index: " + recomputedStartIndex + ", Size: " + filteredRecordIds.length);
 		}
-		final Random random = seed == null ?
-			sortingContext.queryContext().getRandom() : new Random(seed);
+		final Random random = this.seed == null ?
+			sortingContext.queryContext().getRandom() : new Random(this.seed);
 		for (int i = 0; i < length; i++) {
 			final int tmp = filteredRecordIds[recomputedStartIndex + i];
 			final int swapPosition = random.nextInt(filteredRecordIds.length);

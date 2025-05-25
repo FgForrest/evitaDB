@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ class AllowEvolutionModeInEntitySchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new AllowEvolutionModeInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new AllowEvolutionModeInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -60,7 +60,7 @@ class AllowEvolutionModeInEntitySchemaMutationConverterTest {
 			EvolutionMode.ADDING_LOCALES
 		);
 
-		final AllowEvolutionModeInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
+		final AllowEvolutionModeInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AllowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of(
 					EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION,
@@ -70,7 +70,7 @@ class AllowEvolutionModeInEntitySchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final AllowEvolutionModeInEntitySchemaMutation convertedMutation2 = converter.convertFromInput(
+		final AllowEvolutionModeInEntitySchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(AllowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of(
 					"ADAPT_PRIMARY_KEY_GENERATION", "ADDING_LOCALES"
@@ -83,7 +83,7 @@ class AllowEvolutionModeInEntitySchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final AllowEvolutionModeInEntitySchemaMutation expectedMutation = new AllowEvolutionModeInEntitySchemaMutation();
 
-		final AllowEvolutionModeInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
+		final AllowEvolutionModeInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AllowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of())
 				.build()
@@ -93,7 +93,7 @@ class AllowEvolutionModeInEntitySchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

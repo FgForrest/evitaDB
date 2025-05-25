@@ -102,27 +102,27 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
-		evita = new Evita(
+		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
-		evita.defineCatalog(TEST_CATALOG);
+		this.evita.defineCatalog(TEST_CATALOG);
 	}
 
 	@AfterEach
 	void tearDown() {
-		evita.close();
+		this.evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
 	}
 
 	@Test
 	void shouldProvideNoCaptureInWarmUpStage() {
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			createSchema(session);
 			createDataInSchema(session);
 		}
 
-		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
 			assertTrue(
 				session.getMutationsHistory(
 						ChangeCatalogCaptureRequest.builder()
@@ -138,7 +138,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	void shouldCaptureSchemaMutationsInAliveStage() {
 		goLiveAndCreateMutationSet();
 
-		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
 				ChangeCatalogCaptureRequest.builder()
 					.criteria(
@@ -167,7 +167,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	void shouldCaptureDataMutationsInAliveStage() {
 		goLiveAndCreateMutationSet();
 
-		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
 				ChangeCatalogCaptureRequest.builder()
 					.criteria(
@@ -196,7 +196,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	void shouldCaptureDataAndInfrastructureMutationsInAliveStage() {
 		goLiveAndCreateMutationSet();
 
-		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
 				ChangeCatalogCaptureRequest.builder()
 					.criteria(
@@ -231,7 +231,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	void shouldCombineBothDataAndSchemaMutations() {
 		goLiveAndCreateMutationSet();
 
-		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
 				ChangeCatalogCaptureRequest.builder()
 					.content(ChangeCaptureContent.BODY)
@@ -257,7 +257,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	void shouldFocusOnReplicableMutations() {
 		goLiveAndCreateMutationSet();
 
-		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
 				ChangeCatalogCaptureRequest.builder()
 					.criteria(
@@ -304,7 +304,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	void shouldFocusOnLocalMutationsOfExactAttribute() {
 		goLiveAndCreateMutationSet();
 
-		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
 				ChangeCatalogCaptureRequest.builder()
 					.criteria(
@@ -334,7 +334,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 		goLiveAndCreateMutationSet();
 		setPricesToTheProduct();
 
-		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
 				ChangeCatalogCaptureRequest.builder()
 					.criteria(
@@ -365,7 +365,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 		goLiveAndCreateMutationSet();
 		setPricesToTheProduct();
 
-		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
 				ChangeCatalogCaptureRequest.builder()
 					.criteria(
@@ -395,7 +395,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	void shouldFocusOnSchemaChangesOfSingleEntityType() {
 		goLiveAndCreateMutationSet();
 
-		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistory(
 				ChangeCatalogCaptureRequest.builder()
 					.criteria(
@@ -424,7 +424,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	void shouldCorrectlyHandleEntitySchemaRenaming() {
 		goLiveAndCreateMutationSet();
 
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			assertTrue(session.renameCollection(Entities.BRAND, "brand_renamed"));
 			session.defineEntitySchema("brand_renamed")
 				.withAttribute(ATTRIBUTE_URL, String.class, AttributeSchemaEditor::nullable)
@@ -437,7 +437,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 				.upsertVia(session);
 		}
 
-		try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
 			final List<ChangeCatalogCapture> brandDataReverseCaptures = session.getMutationsHistory(
 				ChangeCatalogCaptureRequest.builder()
 					.criteria(
@@ -529,18 +529,18 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	}
 
 	private void goLiveAndCreateMutationSet() {
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.goLiveAndClose();
 		}
 
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			createSchema(session);
 			createDataInSchema(session);
 		}
 	}
 
 	private void setPricesToTheProduct() {
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
 				.orElseThrow()
 				.openForWrite()

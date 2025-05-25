@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -105,7 +105,7 @@ public class HierarchyOfConverter extends RequireConverter {
 			// referenced hierarchy
 			if (hierarchyOfReference != null) {
 				for (String referenceName : hierarchyOfReference.getReferenceNames()) {
-					final String referencedEntityType = catalogSchema.getEntitySchemaOrThrowException(entityType)
+					final String referencedEntityType = this.catalogSchema.getEntitySchemaOrThrowException(entityType)
 						.getReference(referenceName)
 						.get()
 						.getReferencedEntityType();
@@ -282,9 +282,9 @@ public class HierarchyOfConverter extends RequireConverter {
 				"Custom statistics and entityFetch for siblings inside parents is not supported in GraphQL"
 			);
 
-			final ObjectNode siblingsArgument = jsonNodeFactory.objectNode();
+			final ObjectNode siblingsArgument = this.jsonNodeFactory.objectNode();
 			siblings.getStopAt()
-				.flatMap(stopAt -> requireConstraintToJsonConverter.convert(hierarchyDataLocator, stopAt))
+				.flatMap(stopAt -> this.requireConstraintToJsonConverter.convert(hierarchyDataLocator, stopAt))
 				.ifPresent(constraint -> siblingsArgument.putIfAbsent(HierarchyRequireHeaderDescriptor.STOP_AT.name(), constraint.value()));
 
 			arguments.add(
@@ -373,7 +373,7 @@ public class HierarchyOfConverter extends RequireConverter {
 		levelInfoBuilder
 			.addPrimitiveField(LevelInfoDescriptor.LEVEL)
 			.addObjectField(LevelInfoDescriptor.ENTITY, entityBuilder ->
-				entityFetchConverter.convert(entityBuilder, entityType, locale, entityFetch))
+				this.entityFetchConverter.convert(entityBuilder, entityType, locale, entityFetch))
 			.addPrimitiveField(LevelInfoDescriptor.REQUESTED);
 
 		if (statistics != null) {

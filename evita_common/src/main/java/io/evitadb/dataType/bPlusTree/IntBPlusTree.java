@@ -1638,7 +1638,7 @@ public class IntBPlusTree<V> implements ConsistencySensitiveDataStructure {
 		@Nonnull
 		public <N extends BPlusTreeNode<N>> N currentNode() {
 			//noinspection unchecked
-			return (N) this.siblings[index];
+			return (N) this.siblings[this.index];
 		}
 	}
 

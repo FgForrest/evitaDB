@@ -90,7 +90,7 @@ public abstract class BaseConstraint<T extends Constraint<T>> implements Constra
 	@Nonnull
 	@Override
 	public String getName() {
-		return name + (this instanceof ConstraintWithSuffix cws ?
+		return this.name + (this instanceof ConstraintWithSuffix cws ?
 			cws.getSuffixIfApplied().map(StringUtils::capitalize).orElse("") : "");
 	}
 
@@ -100,7 +100,7 @@ public abstract class BaseConstraint<T extends Constraint<T>> implements Constra
 	@Nonnull
 	@Override
 	public Serializable[] getArguments() {
-		return arguments;
+		return this.arguments;
 	}
 
 	/**

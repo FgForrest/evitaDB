@@ -39,9 +39,9 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcDataSite() {
-    entityType_ = "";
-    classifierTypes_ = java.util.Collections.emptyList();
-    operations_ = java.util.Collections.emptyList();
+    this.entityType_ = "";
+    this.classifierTypes_ = java.util.Collections.emptyList();
+    this.operations_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -78,18 +78,18 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            entityType_ = s;
+            this.entityType_ = s;
             break;
           }
           case 18: {
             com.google.protobuf.Int32Value.Builder subBuilder = null;
-            if (entityPrimaryKey_ != null) {
-              subBuilder = entityPrimaryKey_.toBuilder();
+            if (this.entityPrimaryKey_ != null) {
+              subBuilder = this.entityPrimaryKey_.toBuilder();
             }
-            entityPrimaryKey_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            this.entityPrimaryKey_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(entityPrimaryKey_);
-              entityPrimaryKey_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.entityPrimaryKey_);
+              this.entityPrimaryKey_ = subBuilder.buildPartial();
             }
 
             break;
@@ -97,10 +97,10 @@ private static final long serialVersionUID = 0L;
           case 24: {
             int rawValue = input.readEnum();
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              classifierTypes_ = new java.util.ArrayList<java.lang.Integer>();
+              this.classifierTypes_ = new java.util.ArrayList<java.lang.Integer>();
               mutable_bitField0_ |= 0x00000001;
             }
-            classifierTypes_.add(rawValue);
+            this.classifierTypes_.add(rawValue);
             break;
           }
           case 26: {
@@ -109,10 +109,10 @@ private static final long serialVersionUID = 0L;
             while(input.getBytesUntilLimit() > 0) {
               int rawValue = input.readEnum();
               if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-                classifierTypes_ = new java.util.ArrayList<java.lang.Integer>();
+                this.classifierTypes_ = new java.util.ArrayList<java.lang.Integer>();
                 mutable_bitField0_ |= 0x00000001;
               }
-              classifierTypes_.add(rawValue);
+              this.classifierTypes_.add(rawValue);
             }
             input.popLimit(oldLimit);
             break;
@@ -120,10 +120,10 @@ private static final long serialVersionUID = 0L;
           case 32: {
             int rawValue = input.readEnum();
             if (!((mutable_bitField0_ & 0x00000002) != 0)) {
-              operations_ = new java.util.ArrayList<java.lang.Integer>();
+              this.operations_ = new java.util.ArrayList<java.lang.Integer>();
               mutable_bitField0_ |= 0x00000002;
             }
-            operations_.add(rawValue);
+            this.operations_.add(rawValue);
             break;
           }
           case 34: {
@@ -132,10 +132,10 @@ private static final long serialVersionUID = 0L;
             while(input.getBytesUntilLimit() > 0) {
               int rawValue = input.readEnum();
               if (!((mutable_bitField0_ & 0x00000002) != 0)) {
-                operations_ = new java.util.ArrayList<java.lang.Integer>();
+                this.operations_ = new java.util.ArrayList<java.lang.Integer>();
                 mutable_bitField0_ |= 0x00000002;
               }
-              operations_.add(rawValue);
+              this.operations_.add(rawValue);
             }
             input.popLimit(oldLimit);
             break;
@@ -156,10 +156,10 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        classifierTypes_ = java.util.Collections.unmodifiableList(classifierTypes_);
+        this.classifierTypes_ = java.util.Collections.unmodifiableList(this.classifierTypes_);
       }
       if (((mutable_bitField0_ & 0x00000002) != 0)) {
-        operations_ = java.util.Collections.unmodifiableList(operations_);
+        this.operations_ = java.util.Collections.unmodifiableList(this.operations_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -186,14 +186,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getEntityType() {
-    java.lang.Object ref = entityType_;
+    java.lang.Object ref = this.entityType_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      entityType_ = s;
+      this.entityType_ = s;
       return s;
     }
   }
@@ -204,12 +204,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getEntityTypeBytes() {
-    java.lang.Object ref = entityType_;
+    java.lang.Object ref = this.entityType_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      entityType_ = b;
+      this.entityType_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -224,7 +224,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasEntityPrimaryKey() {
-    return entityPrimaryKey_ != null;
+    return this.entityPrimaryKey_ != null;
   }
   /**
    * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
@@ -232,7 +232,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.Int32Value getEntityPrimaryKey() {
-    return entityPrimaryKey_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : entityPrimaryKey_;
+    return this.entityPrimaryKey_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : this.entityPrimaryKey_;
   }
   /**
    * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
@@ -261,7 +261,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcClassifierType> getClassifierTypesList() {
     return new com.google.protobuf.Internal.ListAdapter<
-        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcClassifierType>(classifierTypes_, classifierTypes_converter_);
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcClassifierType>(this.classifierTypes_, classifierTypes_converter_);
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierTypes = 3;</code>
@@ -269,7 +269,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getClassifierTypesCount() {
-    return classifierTypes_.size();
+    return this.classifierTypes_.size();
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierTypes = 3;</code>
@@ -278,7 +278,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcClassifierType getClassifierTypes(int index) {
-    return classifierTypes_converter_.convert(classifierTypes_.get(index));
+    return classifierTypes_converter_.convert(this.classifierTypes_.get(index));
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierTypes = 3;</code>
@@ -287,7 +287,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<java.lang.Integer>
   getClassifierTypesValueList() {
-    return classifierTypes_;
+    return this.classifierTypes_;
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierTypes = 3;</code>
@@ -296,7 +296,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getClassifierTypesValue(int index) {
-    return classifierTypes_.get(index);
+    return this.classifierTypes_.get(index);
   }
   private int classifierTypesMemoizedSerializedSize;
 
@@ -319,7 +319,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcOperation> getOperationsList() {
     return new com.google.protobuf.Internal.ListAdapter<
-        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcOperation>(operations_, operations_converter_);
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcOperation>(this.operations_, operations_converter_);
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 4;</code>
@@ -327,7 +327,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getOperationsCount() {
-    return operations_.size();
+    return this.operations_.size();
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 4;</code>
@@ -336,7 +336,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcOperation getOperations(int index) {
-    return operations_converter_.convert(operations_.get(index));
+    return operations_converter_.convert(this.operations_.get(index));
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 4;</code>
@@ -345,7 +345,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<java.lang.Integer>
   getOperationsValueList() {
-    return operations_;
+    return this.operations_;
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 4;</code>
@@ -354,18 +354,18 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getOperationsValue(int index) {
-    return operations_.get(index);
+    return this.operations_.get(index);
   }
   private int operationsMemoizedSerializedSize;
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
@@ -373,68 +373,68 @@ private static final long serialVersionUID = 0L;
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
     getSerializedSize();
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, entityType_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.entityType_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.entityType_);
     }
-    if (entityPrimaryKey_ != null) {
+    if (this.entityPrimaryKey_ != null) {
       output.writeMessage(2, getEntityPrimaryKey());
     }
     if (getClassifierTypesList().size() > 0) {
       output.writeUInt32NoTag(26);
-      output.writeUInt32NoTag(classifierTypesMemoizedSerializedSize);
+      output.writeUInt32NoTag(this.classifierTypesMemoizedSerializedSize);
     }
-    for (int i = 0; i < classifierTypes_.size(); i++) {
-      output.writeEnumNoTag(classifierTypes_.get(i));
+    for (int i = 0; i < this.classifierTypes_.size(); i++) {
+      output.writeEnumNoTag(this.classifierTypes_.get(i));
     }
     if (getOperationsList().size() > 0) {
       output.writeUInt32NoTag(34);
-      output.writeUInt32NoTag(operationsMemoizedSerializedSize);
+      output.writeUInt32NoTag(this.operationsMemoizedSerializedSize);
     }
-    for (int i = 0; i < operations_.size(); i++) {
-      output.writeEnumNoTag(operations_.get(i));
+    for (int i = 0; i < this.operations_.size(); i++) {
+      output.writeEnumNoTag(this.operations_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, entityType_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.entityType_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.entityType_);
     }
-    if (entityPrimaryKey_ != null) {
+    if (this.entityPrimaryKey_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getEntityPrimaryKey());
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < classifierTypes_.size(); i++) {
+      for (int i = 0; i < this.classifierTypes_.size(); i++) {
         dataSize += com.google.protobuf.CodedOutputStream
-          .computeEnumSizeNoTag(classifierTypes_.get(i));
+          .computeEnumSizeNoTag(this.classifierTypes_.get(i));
       }
       size += dataSize;
       if (!getClassifierTypesList().isEmpty()) {  size += 1;
         size += com.google.protobuf.CodedOutputStream
           .computeUInt32SizeNoTag(dataSize);
-      }classifierTypesMemoizedSerializedSize = dataSize;
+      }this.classifierTypesMemoizedSerializedSize = dataSize;
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < operations_.size(); i++) {
+      for (int i = 0; i < this.operations_.size(); i++) {
         dataSize += com.google.protobuf.CodedOutputStream
-          .computeEnumSizeNoTag(operations_.get(i));
+          .computeEnumSizeNoTag(this.operations_.get(i));
       }
       size += dataSize;
       if (!getOperationsList().isEmpty()) {  size += 1;
         size += com.google.protobuf.CodedOutputStream
           .computeUInt32SizeNoTag(dataSize);
-      }operationsMemoizedSerializedSize = dataSize;
+      }this.operationsMemoizedSerializedSize = dataSize;
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -455,16 +455,16 @@ private static final long serialVersionUID = 0L;
       if (!getEntityPrimaryKey()
           .equals(other.getEntityPrimaryKey())) return false;
     }
-    if (!classifierTypes_.equals(other.classifierTypes_)) return false;
-    if (!operations_.equals(other.operations_)) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.classifierTypes_.equals(other.classifierTypes_)) return false;
+    if (!this.operations_.equals(other.operations_)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -476,14 +476,14 @@ private static final long serialVersionUID = 0L;
     }
     if (getClassifierTypesCount() > 0) {
       hash = (37 * hash) + CLASSIFIERTYPES_FIELD_NUMBER;
-      hash = (53 * hash) + classifierTypes_.hashCode();
+      hash = (53 * hash) + this.classifierTypes_.hashCode();
     }
     if (getOperationsCount() > 0) {
       hash = (37 * hash) + OPERATIONS_FIELD_NUMBER;
-      hash = (53 * hash) + operations_.hashCode();
+      hash = (53 * hash) + this.operations_.hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -615,18 +615,18 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      entityType_ = "";
+      this.entityType_ = "";
 
-      if (entityPrimaryKeyBuilder_ == null) {
-        entityPrimaryKey_ = null;
+      if (this.entityPrimaryKeyBuilder_ == null) {
+        this.entityPrimaryKey_ = null;
       } else {
-        entityPrimaryKey_ = null;
-        entityPrimaryKeyBuilder_ = null;
+        this.entityPrimaryKey_ = null;
+        this.entityPrimaryKeyBuilder_ = null;
       }
-      classifierTypes_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
-      operations_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000002);
+      this.classifierTypes_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      this.operations_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000002);
       return this;
     }
 
@@ -653,23 +653,23 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcDataSite buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcDataSite result = new io.evitadb.externalApi.grpc.generated.GrpcDataSite(this);
-      int from_bitField0_ = bitField0_;
-      result.entityType_ = entityType_;
-      if (entityPrimaryKeyBuilder_ == null) {
-        result.entityPrimaryKey_ = entityPrimaryKey_;
+      int from_bitField0_ = this.bitField0_;
+      result.entityType_ = this.entityType_;
+      if (this.entityPrimaryKeyBuilder_ == null) {
+        result.entityPrimaryKey_ = this.entityPrimaryKey_;
       } else {
-        result.entityPrimaryKey_ = entityPrimaryKeyBuilder_.build();
+        result.entityPrimaryKey_ = this.entityPrimaryKeyBuilder_.build();
       }
-      if (((bitField0_ & 0x00000001) != 0)) {
-        classifierTypes_ = java.util.Collections.unmodifiableList(classifierTypes_);
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (((this.bitField0_ & 0x00000001) != 0)) {
+        this.classifierTypes_ = java.util.Collections.unmodifiableList(this.classifierTypes_);
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       }
-      result.classifierTypes_ = classifierTypes_;
-      if (((bitField0_ & 0x00000002) != 0)) {
-        operations_ = java.util.Collections.unmodifiableList(operations_);
-        bitField0_ = (bitField0_ & ~0x00000002);
+      result.classifierTypes_ = this.classifierTypes_;
+      if (((this.bitField0_ & 0x00000002) != 0)) {
+        this.operations_ = java.util.Collections.unmodifiableList(this.operations_);
+        this.bitField0_ = (this.bitField0_ & ~0x00000002);
       }
-      result.operations_ = operations_;
+      result.operations_ = this.operations_;
       onBuilt();
       return result;
     }
@@ -719,29 +719,29 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcDataSite other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcDataSite.getDefaultInstance()) return this;
       if (!other.getEntityType().isEmpty()) {
-        entityType_ = other.entityType_;
+        this.entityType_ = other.entityType_;
         onChanged();
       }
       if (other.hasEntityPrimaryKey()) {
         mergeEntityPrimaryKey(other.getEntityPrimaryKey());
       }
       if (!other.classifierTypes_.isEmpty()) {
-        if (classifierTypes_.isEmpty()) {
-          classifierTypes_ = other.classifierTypes_;
-          bitField0_ = (bitField0_ & ~0x00000001);
+        if (this.classifierTypes_.isEmpty()) {
+          this.classifierTypes_ = other.classifierTypes_;
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         } else {
           ensureClassifierTypesIsMutable();
-          classifierTypes_.addAll(other.classifierTypes_);
+          this.classifierTypes_.addAll(other.classifierTypes_);
         }
         onChanged();
       }
       if (!other.operations_.isEmpty()) {
-        if (operations_.isEmpty()) {
-          operations_ = other.operations_;
-          bitField0_ = (bitField0_ & ~0x00000002);
+        if (this.operations_.isEmpty()) {
+          this.operations_ = other.operations_;
+          this.bitField0_ = (this.bitField0_ & ~0x00000002);
         } else {
           ensureOperationsIsMutable();
-          operations_.addAll(other.operations_);
+          this.operations_.addAll(other.operations_);
         }
         onChanged();
       }
@@ -781,12 +781,12 @@ private static final long serialVersionUID = 0L;
      * @return The entityType.
      */
     public java.lang.String getEntityType() {
-      java.lang.Object ref = entityType_;
+      java.lang.Object ref = this.entityType_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        entityType_ = s;
+        this.entityType_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -798,12 +798,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getEntityTypeBytes() {
-      java.lang.Object ref = entityType_;
+      java.lang.Object ref = this.entityType_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        entityType_ = b;
+        this.entityType_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -820,7 +820,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      entityType_ = value;
+      this.entityType_ = value;
       onChanged();
       return this;
     }
@@ -830,7 +830,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearEntityType() {
 
-      entityType_ = getDefaultInstance().getEntityType();
+      this.entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
     }
@@ -846,7 +846,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      entityType_ = value;
+      this.entityType_ = value;
       onChanged();
       return this;
     }
@@ -859,31 +859,31 @@ private static final long serialVersionUID = 0L;
      * @return Whether the entityPrimaryKey field is set.
      */
     public boolean hasEntityPrimaryKey() {
-      return entityPrimaryKeyBuilder_ != null || entityPrimaryKey_ != null;
+      return this.entityPrimaryKeyBuilder_ != null || this.entityPrimaryKey_ != null;
     }
     /**
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      * @return The entityPrimaryKey.
      */
     public com.google.protobuf.Int32Value getEntityPrimaryKey() {
-      if (entityPrimaryKeyBuilder_ == null) {
-        return entityPrimaryKey_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : entityPrimaryKey_;
+      if (this.entityPrimaryKeyBuilder_ == null) {
+        return this.entityPrimaryKey_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : this.entityPrimaryKey_;
       } else {
-        return entityPrimaryKeyBuilder_.getMessage();
+        return this.entityPrimaryKeyBuilder_.getMessage();
       }
     }
     /**
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      */
     public Builder setEntityPrimaryKey(com.google.protobuf.Int32Value value) {
-      if (entityPrimaryKeyBuilder_ == null) {
+      if (this.entityPrimaryKeyBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        entityPrimaryKey_ = value;
+        this.entityPrimaryKey_ = value;
         onChanged();
       } else {
-        entityPrimaryKeyBuilder_.setMessage(value);
+        this.entityPrimaryKeyBuilder_.setMessage(value);
       }
 
       return this;
@@ -893,11 +893,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setEntityPrimaryKey(
         com.google.protobuf.Int32Value.Builder builderForValue) {
-      if (entityPrimaryKeyBuilder_ == null) {
-        entityPrimaryKey_ = builderForValue.build();
+      if (this.entityPrimaryKeyBuilder_ == null) {
+        this.entityPrimaryKey_ = builderForValue.build();
         onChanged();
       } else {
-        entityPrimaryKeyBuilder_.setMessage(builderForValue.build());
+        this.entityPrimaryKeyBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -906,16 +906,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      */
     public Builder mergeEntityPrimaryKey(com.google.protobuf.Int32Value value) {
-      if (entityPrimaryKeyBuilder_ == null) {
-        if (entityPrimaryKey_ != null) {
-          entityPrimaryKey_ =
-            com.google.protobuf.Int32Value.newBuilder(entityPrimaryKey_).mergeFrom(value).buildPartial();
+      if (this.entityPrimaryKeyBuilder_ == null) {
+        if (this.entityPrimaryKey_ != null) {
+          this.entityPrimaryKey_ =
+            com.google.protobuf.Int32Value.newBuilder(this.entityPrimaryKey_).mergeFrom(value).buildPartial();
         } else {
-          entityPrimaryKey_ = value;
+          this.entityPrimaryKey_ = value;
         }
         onChanged();
       } else {
-        entityPrimaryKeyBuilder_.mergeFrom(value);
+        this.entityPrimaryKeyBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -924,12 +924,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      */
     public Builder clearEntityPrimaryKey() {
-      if (entityPrimaryKeyBuilder_ == null) {
-        entityPrimaryKey_ = null;
+      if (this.entityPrimaryKeyBuilder_ == null) {
+        this.entityPrimaryKey_ = null;
         onChanged();
       } else {
-        entityPrimaryKey_ = null;
-        entityPrimaryKeyBuilder_ = null;
+        this.entityPrimaryKey_ = null;
+        this.entityPrimaryKeyBuilder_ = null;
       }
 
       return this;
@@ -946,11 +946,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getEntityPrimaryKeyOrBuilder() {
-      if (entityPrimaryKeyBuilder_ != null) {
-        return entityPrimaryKeyBuilder_.getMessageOrBuilder();
+      if (this.entityPrimaryKeyBuilder_ != null) {
+        return this.entityPrimaryKeyBuilder_.getMessageOrBuilder();
       } else {
-        return entityPrimaryKey_ == null ?
-            com.google.protobuf.Int32Value.getDefaultInstance() : entityPrimaryKey_;
+        return this.entityPrimaryKey_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : this.entityPrimaryKey_;
       }
     }
     /**
@@ -959,23 +959,23 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getEntityPrimaryKeyFieldBuilder() {
-      if (entityPrimaryKeyBuilder_ == null) {
-        entityPrimaryKeyBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.entityPrimaryKeyBuilder_ == null) {
+        this.entityPrimaryKeyBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
                 getEntityPrimaryKey(),
                 getParentForChildren(),
                 isClean());
-        entityPrimaryKey_ = null;
+        this.entityPrimaryKey_ = null;
       }
-      return entityPrimaryKeyBuilder_;
+      return this.entityPrimaryKeyBuilder_;
     }
 
     private java.util.List<java.lang.Integer> classifierTypes_ =
       java.util.Collections.emptyList();
     private void ensureClassifierTypesIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        classifierTypes_ = new java.util.ArrayList<java.lang.Integer>(classifierTypes_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.classifierTypes_ = new java.util.ArrayList<java.lang.Integer>(this.classifierTypes_);
+        this.bitField0_ |= 0x00000001;
       }
     }
     /**
@@ -984,14 +984,14 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcClassifierType> getClassifierTypesList() {
       return new com.google.protobuf.Internal.ListAdapter<
-          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcClassifierType>(classifierTypes_, classifierTypes_converter_);
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcClassifierType>(this.classifierTypes_, classifierTypes_converter_);
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierTypes = 3;</code>
      * @return The count of classifierTypes.
      */
     public int getClassifierTypesCount() {
-      return classifierTypes_.size();
+      return this.classifierTypes_.size();
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierTypes = 3;</code>
@@ -999,7 +999,7 @@ private static final long serialVersionUID = 0L;
      * @return The classifierTypes at the given index.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcClassifierType getClassifierTypes(int index) {
-      return classifierTypes_converter_.convert(classifierTypes_.get(index));
+      return classifierTypes_converter_.convert(this.classifierTypes_.get(index));
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierTypes = 3;</code>
@@ -1013,7 +1013,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureClassifierTypesIsMutable();
-      classifierTypes_.set(index, value.getNumber());
+      this.classifierTypes_.set(index, value.getNumber());
       onChanged();
       return this;
     }
@@ -1027,7 +1027,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureClassifierTypesIsMutable();
-      classifierTypes_.add(value.getNumber());
+      this.classifierTypes_.add(value.getNumber());
       onChanged();
       return this;
     }
@@ -1040,7 +1040,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcClassifierType> values) {
       ensureClassifierTypesIsMutable();
       for (io.evitadb.externalApi.grpc.generated.GrpcClassifierType value : values) {
-        classifierTypes_.add(value.getNumber());
+        this.classifierTypes_.add(value.getNumber());
       }
       onChanged();
       return this;
@@ -1050,8 +1050,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearClassifierTypes() {
-      classifierTypes_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.classifierTypes_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
@@ -1061,7 +1061,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<java.lang.Integer>
     getClassifierTypesValueList() {
-      return java.util.Collections.unmodifiableList(classifierTypes_);
+      return java.util.Collections.unmodifiableList(this.classifierTypes_);
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierTypes = 3;</code>
@@ -1069,7 +1069,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire of classifierTypes at the given index.
      */
     public int getClassifierTypesValue(int index) {
-      return classifierTypes_.get(index);
+      return this.classifierTypes_.get(index);
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierTypes = 3;</code>
@@ -1080,7 +1080,7 @@ private static final long serialVersionUID = 0L;
     public Builder setClassifierTypesValue(
         int index, int value) {
       ensureClassifierTypesIsMutable();
-      classifierTypes_.set(index, value);
+      this.classifierTypes_.set(index, value);
       onChanged();
       return this;
     }
@@ -1091,7 +1091,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addClassifierTypesValue(int value) {
       ensureClassifierTypesIsMutable();
-      classifierTypes_.add(value);
+      this.classifierTypes_.add(value);
       onChanged();
       return this;
     }
@@ -1104,7 +1104,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<java.lang.Integer> values) {
       ensureClassifierTypesIsMutable();
       for (int value : values) {
-        classifierTypes_.add(value);
+        this.classifierTypes_.add(value);
       }
       onChanged();
       return this;
@@ -1113,9 +1113,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<java.lang.Integer> operations_ =
       java.util.Collections.emptyList();
     private void ensureOperationsIsMutable() {
-      if (!((bitField0_ & 0x00000002) != 0)) {
-        operations_ = new java.util.ArrayList<java.lang.Integer>(operations_);
-        bitField0_ |= 0x00000002;
+      if (!((this.bitField0_ & 0x00000002) != 0)) {
+        this.operations_ = new java.util.ArrayList<java.lang.Integer>(this.operations_);
+        this.bitField0_ |= 0x00000002;
       }
     }
     /**
@@ -1124,14 +1124,14 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcOperation> getOperationsList() {
       return new com.google.protobuf.Internal.ListAdapter<
-          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcOperation>(operations_, operations_converter_);
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcOperation>(this.operations_, operations_converter_);
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 4;</code>
      * @return The count of operations.
      */
     public int getOperationsCount() {
-      return operations_.size();
+      return this.operations_.size();
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 4;</code>
@@ -1139,7 +1139,7 @@ private static final long serialVersionUID = 0L;
      * @return The operations at the given index.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOperation getOperations(int index) {
-      return operations_converter_.convert(operations_.get(index));
+      return operations_converter_.convert(this.operations_.get(index));
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 4;</code>
@@ -1153,7 +1153,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureOperationsIsMutable();
-      operations_.set(index, value.getNumber());
+      this.operations_.set(index, value.getNumber());
       onChanged();
       return this;
     }
@@ -1167,7 +1167,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureOperationsIsMutable();
-      operations_.add(value.getNumber());
+      this.operations_.add(value.getNumber());
       onChanged();
       return this;
     }
@@ -1180,7 +1180,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcOperation> values) {
       ensureOperationsIsMutable();
       for (io.evitadb.externalApi.grpc.generated.GrpcOperation value : values) {
-        operations_.add(value.getNumber());
+        this.operations_.add(value.getNumber());
       }
       onChanged();
       return this;
@@ -1190,8 +1190,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearOperations() {
-      operations_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000002);
+      this.operations_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000002);
       onChanged();
       return this;
     }
@@ -1201,7 +1201,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<java.lang.Integer>
     getOperationsValueList() {
-      return java.util.Collections.unmodifiableList(operations_);
+      return java.util.Collections.unmodifiableList(this.operations_);
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 4;</code>
@@ -1209,7 +1209,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire of operations at the given index.
      */
     public int getOperationsValue(int index) {
-      return operations_.get(index);
+      return this.operations_.get(index);
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOperation operations = 4;</code>
@@ -1220,7 +1220,7 @@ private static final long serialVersionUID = 0L;
     public Builder setOperationsValue(
         int index, int value) {
       ensureOperationsIsMutable();
-      operations_.set(index, value);
+      this.operations_.set(index, value);
       onChanged();
       return this;
     }
@@ -1231,7 +1231,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addOperationsValue(int value) {
       ensureOperationsIsMutable();
-      operations_.add(value);
+      this.operations_.add(value);
       onChanged();
       return this;
     }
@@ -1244,7 +1244,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<java.lang.Integer> values) {
       ensureOperationsIsMutable();
       for (int value : values) {
-        operations_.add(value);
+        this.operations_.add(value);
       }
       onChanged();
       return this;

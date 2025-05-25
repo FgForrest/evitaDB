@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcAllowLocaleInEntitySchemaMutation() {
-    locales_ = java.util.Collections.emptyList();
+    this.locales_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -79,10 +79,10 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              locales_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcLocale>();
+              this.locales_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcLocale>();
               mutable_bitField0_ |= 0x00000001;
             }
-            locales_.add(
+            this.locales_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcLocale.parser(), extensionRegistry));
             break;
           }
@@ -102,7 +102,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        locales_ = java.util.Collections.unmodifiableList(locales_);
+        this.locales_ = java.util.Collections.unmodifiableList(this.locales_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> getLocalesList() {
-    return locales_;
+    return this.locales_;
   }
   /**
    * <pre>
@@ -142,9 +142,9 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
       getLocalesOrBuilderList() {
-    return locales_;
+    return this.locales_;
   }
   /**
    * <pre>
@@ -155,7 +155,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getLocalesCount() {
-    return locales_.size();
+    return this.locales_.size();
   }
   /**
    * <pre>
@@ -166,7 +166,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLocale getLocales(int index) {
-    return locales_.get(index);
+    return this.locales_.get(index);
   }
   /**
    * <pre>
@@ -178,41 +178,41 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getLocalesOrBuilder(
       int index) {
-    return locales_.get(index);
+    return this.locales_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    for (int i = 0; i < locales_.size(); i++) {
-      output.writeMessage(1, locales_.get(i));
+    for (int i = 0; i < this.locales_.size(); i++) {
+      output.writeMessage(1, this.locales_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    for (int i = 0; i < locales_.size(); i++) {
+    for (int i = 0; i < this.locales_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(1, locales_.get(i));
+        .computeMessageSize(1, this.locales_.get(i));
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -228,14 +228,14 @@ private static final long serialVersionUID = 0L;
 
     if (!getLocalesList()
         .equals(other.getLocalesList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -243,8 +243,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + LOCALES_FIELD_NUMBER;
       hash = (53 * hash) + getLocalesList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -381,11 +381,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (localesBuilder_ == null) {
-        locales_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.localesBuilder_ == null) {
+        this.locales_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       } else {
-        localesBuilder_.clear();
+        this.localesBuilder_.clear();
       }
       return this;
     }
@@ -413,15 +413,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation result = new io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation(this);
-      int from_bitField0_ = bitField0_;
-      if (localesBuilder_ == null) {
-        if (((bitField0_ & 0x00000001) != 0)) {
-          locales_ = java.util.Collections.unmodifiableList(locales_);
-          bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      if (this.localesBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000001) != 0)) {
+          this.locales_ = java.util.Collections.unmodifiableList(this.locales_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         }
-        result.locales_ = locales_;
+        result.locales_ = this.locales_;
       } else {
-        result.locales_ = localesBuilder_.build();
+        result.locales_ = this.localesBuilder_.build();
       }
       onBuilt();
       return result;
@@ -471,29 +471,29 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcAllowLocaleInEntitySchemaMutation.getDefaultInstance()) return this;
-      if (localesBuilder_ == null) {
+      if (this.localesBuilder_ == null) {
         if (!other.locales_.isEmpty()) {
-          if (locales_.isEmpty()) {
-            locales_ = other.locales_;
-            bitField0_ = (bitField0_ & ~0x00000001);
+          if (this.locales_.isEmpty()) {
+            this.locales_ = other.locales_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
           } else {
             ensureLocalesIsMutable();
-            locales_.addAll(other.locales_);
+            this.locales_.addAll(other.locales_);
           }
           onChanged();
         }
       } else {
         if (!other.locales_.isEmpty()) {
-          if (localesBuilder_.isEmpty()) {
-            localesBuilder_.dispose();
-            localesBuilder_ = null;
-            locales_ = other.locales_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-            localesBuilder_ = 
+          if (this.localesBuilder_.isEmpty()) {
+            this.localesBuilder_.dispose();
+            this.localesBuilder_ = null;
+            this.locales_ = other.locales_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+            this.localesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getLocalesFieldBuilder() : null;
           } else {
-            localesBuilder_.addAllMessages(other.locales_);
+            this.localesBuilder_.addAllMessages(other.locales_);
           }
         }
       }
@@ -530,9 +530,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> locales_ =
       java.util.Collections.emptyList();
     private void ensureLocalesIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        locales_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcLocale>(locales_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.locales_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcLocale>(this.locales_);
+        this.bitField0_ |= 0x00000001;
        }
     }
 
@@ -547,10 +547,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> getLocalesList() {
-      if (localesBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(locales_);
+      if (this.localesBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.locales_);
       } else {
-        return localesBuilder_.getMessageList();
+        return this.localesBuilder_.getMessageList();
       }
     }
     /**
@@ -561,10 +561,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public int getLocalesCount() {
-      if (localesBuilder_ == null) {
-        return locales_.size();
+      if (this.localesBuilder_ == null) {
+        return this.locales_.size();
       } else {
-        return localesBuilder_.getCount();
+        return this.localesBuilder_.getCount();
       }
     }
     /**
@@ -575,10 +575,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale getLocales(int index) {
-      if (localesBuilder_ == null) {
-        return locales_.get(index);
+      if (this.localesBuilder_ == null) {
+        return this.locales_.get(index);
       } else {
-        return localesBuilder_.getMessage(index);
+        return this.localesBuilder_.getMessage(index);
       }
     }
     /**
@@ -590,15 +590,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setLocales(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
-      if (localesBuilder_ == null) {
+      if (this.localesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureLocalesIsMutable();
-        locales_.set(index, value);
+        this.locales_.set(index, value);
         onChanged();
       } else {
-        localesBuilder_.setMessage(index, value);
+        this.localesBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -611,12 +611,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setLocales(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder builderForValue) {
-      if (localesBuilder_ == null) {
+      if (this.localesBuilder_ == null) {
         ensureLocalesIsMutable();
-        locales_.set(index, builderForValue.build());
+        this.locales_.set(index, builderForValue.build());
         onChanged();
       } else {
-        localesBuilder_.setMessage(index, builderForValue.build());
+        this.localesBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -628,15 +628,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public Builder addLocales(io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
-      if (localesBuilder_ == null) {
+      if (this.localesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureLocalesIsMutable();
-        locales_.add(value);
+        this.locales_.add(value);
         onChanged();
       } else {
-        localesBuilder_.addMessage(value);
+        this.localesBuilder_.addMessage(value);
       }
       return this;
     }
@@ -649,15 +649,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addLocales(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
-      if (localesBuilder_ == null) {
+      if (this.localesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureLocalesIsMutable();
-        locales_.add(index, value);
+        this.locales_.add(index, value);
         onChanged();
       } else {
-        localesBuilder_.addMessage(index, value);
+        this.localesBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -670,12 +670,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addLocales(
         io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder builderForValue) {
-      if (localesBuilder_ == null) {
+      if (this.localesBuilder_ == null) {
         ensureLocalesIsMutable();
-        locales_.add(builderForValue.build());
+        this.locales_.add(builderForValue.build());
         onChanged();
       } else {
-        localesBuilder_.addMessage(builderForValue.build());
+        this.localesBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -688,12 +688,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addLocales(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder builderForValue) {
-      if (localesBuilder_ == null) {
+      if (this.localesBuilder_ == null) {
         ensureLocalesIsMutable();
-        locales_.add(index, builderForValue.build());
+        this.locales_.add(index, builderForValue.build());
         onChanged();
       } else {
-        localesBuilder_.addMessage(index, builderForValue.build());
+        this.localesBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -706,13 +706,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllLocales(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcLocale> values) {
-      if (localesBuilder_ == null) {
+      if (this.localesBuilder_ == null) {
         ensureLocalesIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, locales_);
+            values, this.locales_);
         onChanged();
       } else {
-        localesBuilder_.addAllMessages(values);
+        this.localesBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -724,12 +724,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public Builder clearLocales() {
-      if (localesBuilder_ == null) {
-        locales_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.localesBuilder_ == null) {
+        this.locales_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        localesBuilder_.clear();
+        this.localesBuilder_.clear();
       }
       return this;
     }
@@ -741,12 +741,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
     public Builder removeLocales(int index) {
-      if (localesBuilder_ == null) {
+      if (this.localesBuilder_ == null) {
         ensureLocalesIsMutable();
-        locales_.remove(index);
+        this.locales_.remove(index);
         onChanged();
       } else {
-        localesBuilder_.remove(index);
+        this.localesBuilder_.remove(index);
       }
       return this;
     }
@@ -770,9 +770,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getLocalesOrBuilder(
         int index) {
-      if (localesBuilder_ == null) {
-        return locales_.get(index);  } else {
-        return localesBuilder_.getMessageOrBuilder(index);
+      if (this.localesBuilder_ == null) {
+        return this.locales_.get(index);  } else {
+        return this.localesBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -782,12 +782,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
          getLocalesOrBuilderList() {
-      if (localesBuilder_ != null) {
-        return localesBuilder_.getMessageOrBuilderList();
+      if (this.localesBuilder_ != null) {
+        return this.localesBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(locales_);
+        return java.util.Collections.unmodifiableList(this.locales_);
       }
     }
     /**
@@ -820,23 +820,23 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder>
          getLocalesBuilderList() {
       return getLocalesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
         getLocalesFieldBuilder() {
-      if (localesBuilder_ == null) {
-        localesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.localesBuilder_ == null) {
+        this.localesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>(
-                locales_,
-                ((bitField0_ & 0x00000001) != 0),
+                this.locales_,
+                ((this.bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        locales_ = null;
+        this.locales_ = null;
       }
-      return localesBuilder_;
+      return this.localesBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

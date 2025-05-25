@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,9 +43,9 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcQueryListResponse() {
-    entityReferences_ = java.util.Collections.emptyList();
-    sealedEntities_ = java.util.Collections.emptyList();
-    binaryEntities_ = java.util.Collections.emptyList();
+    this.entityReferences_ = java.util.Collections.emptyList();
+    this.sealedEntities_ = java.util.Collections.emptyList();
+    this.binaryEntities_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -81,28 +81,28 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              entityReferences_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcEntityReference>();
+              this.entityReferences_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcEntityReference>();
               mutable_bitField0_ |= 0x00000001;
             }
-            entityReferences_.add(
+            this.entityReferences_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEntityReference.parser(), extensionRegistry));
             break;
           }
           case 18: {
             if (!((mutable_bitField0_ & 0x00000002) != 0)) {
-              sealedEntities_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity>();
+              this.sealedEntities_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity>();
               mutable_bitField0_ |= 0x00000002;
             }
-            sealedEntities_.add(
+            this.sealedEntities_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.parser(), extensionRegistry));
             break;
           }
           case 26: {
             if (!((mutable_bitField0_ & 0x00000004) != 0)) {
-              binaryEntities_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity>();
+              this.binaryEntities_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity>();
               mutable_bitField0_ |= 0x00000004;
             }
-            binaryEntities_.add(
+            this.binaryEntities_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.parser(), extensionRegistry));
             break;
           }
@@ -122,13 +122,13 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        entityReferences_ = java.util.Collections.unmodifiableList(entityReferences_);
+        this.entityReferences_ = java.util.Collections.unmodifiableList(this.entityReferences_);
       }
       if (((mutable_bitField0_ & 0x00000002) != 0)) {
-        sealedEntities_ = java.util.Collections.unmodifiableList(sealedEntities_);
+        this.sealedEntities_ = java.util.Collections.unmodifiableList(this.sealedEntities_);
       }
       if (((mutable_bitField0_ & 0x00000004) != 0)) {
-        binaryEntities_ = java.util.Collections.unmodifiableList(binaryEntities_);
+        this.binaryEntities_ = java.util.Collections.unmodifiableList(this.binaryEntities_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -154,29 +154,29 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference> getEntityReferencesList() {
-    return entityReferences_;
+    return this.entityReferences_;
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
       getEntityReferencesOrBuilderList() {
-    return entityReferences_;
+    return this.entityReferences_;
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
   @java.lang.Override
   public int getEntityReferencesCount() {
-    return entityReferences_.size();
+    return this.entityReferences_.size();
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityReference getEntityReferences(int index) {
-    return entityReferences_.get(index);
+    return this.entityReferences_.get(index);
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -184,7 +184,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getEntityReferencesOrBuilder(
       int index) {
-    return entityReferences_.get(index);
+    return this.entityReferences_.get(index);
   }
 
   public static final int SEALEDENTITIES_FIELD_NUMBER = 2;
@@ -194,29 +194,29 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> getSealedEntitiesList() {
-    return sealedEntities_;
+    return this.sealedEntities_;
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
       getSealedEntitiesOrBuilderList() {
-    return sealedEntities_;
+    return this.sealedEntities_;
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
   @java.lang.Override
   public int getSealedEntitiesCount() {
-    return sealedEntities_.size();
+    return this.sealedEntities_.size();
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getSealedEntities(int index) {
-    return sealedEntities_.get(index);
+    return this.sealedEntities_.get(index);
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -224,7 +224,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getSealedEntitiesOrBuilder(
       int index) {
-    return sealedEntities_.get(index);
+    return this.sealedEntities_.get(index);
   }
 
   public static final int BINARYENTITIES_FIELD_NUMBER = 3;
@@ -234,29 +234,29 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> getBinaryEntitiesList() {
-    return binaryEntities_;
+    return this.binaryEntities_;
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder>
       getBinaryEntitiesOrBuilderList() {
-    return binaryEntities_;
+    return this.binaryEntities_;
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
   @java.lang.Override
   public int getBinaryEntitiesCount() {
-    return binaryEntities_.size();
+    return this.binaryEntities_.size();
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity getBinaryEntities(int index) {
-    return binaryEntities_.get(index);
+    return this.binaryEntities_.get(index);
   }
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -264,55 +264,55 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder getBinaryEntitiesOrBuilder(
       int index) {
-    return binaryEntities_.get(index);
+    return this.binaryEntities_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    for (int i = 0; i < entityReferences_.size(); i++) {
-      output.writeMessage(1, entityReferences_.get(i));
+    for (int i = 0; i < this.entityReferences_.size(); i++) {
+      output.writeMessage(1, this.entityReferences_.get(i));
     }
-    for (int i = 0; i < sealedEntities_.size(); i++) {
-      output.writeMessage(2, sealedEntities_.get(i));
+    for (int i = 0; i < this.sealedEntities_.size(); i++) {
+      output.writeMessage(2, this.sealedEntities_.get(i));
     }
-    for (int i = 0; i < binaryEntities_.size(); i++) {
-      output.writeMessage(3, binaryEntities_.get(i));
+    for (int i = 0; i < this.binaryEntities_.size(); i++) {
+      output.writeMessage(3, this.binaryEntities_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    for (int i = 0; i < entityReferences_.size(); i++) {
+    for (int i = 0; i < this.entityReferences_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(1, entityReferences_.get(i));
+        .computeMessageSize(1, this.entityReferences_.get(i));
     }
-    for (int i = 0; i < sealedEntities_.size(); i++) {
+    for (int i = 0; i < this.sealedEntities_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(2, sealedEntities_.get(i));
+        .computeMessageSize(2, this.sealedEntities_.get(i));
     }
-    for (int i = 0; i < binaryEntities_.size(); i++) {
+    for (int i = 0; i < this.binaryEntities_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(3, binaryEntities_.get(i));
+        .computeMessageSize(3, this.binaryEntities_.get(i));
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -332,14 +332,14 @@ private static final long serialVersionUID = 0L;
         .equals(other.getSealedEntitiesList())) return false;
     if (!getBinaryEntitiesList()
         .equals(other.getBinaryEntitiesList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -355,8 +355,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + BINARYENTITIES_FIELD_NUMBER;
       hash = (53 * hash) + getBinaryEntitiesList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -495,23 +495,23 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (entityReferencesBuilder_ == null) {
-        entityReferences_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.entityReferencesBuilder_ == null) {
+        this.entityReferences_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       } else {
-        entityReferencesBuilder_.clear();
+        this.entityReferencesBuilder_.clear();
       }
-      if (sealedEntitiesBuilder_ == null) {
-        sealedEntities_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000002);
+      if (this.sealedEntitiesBuilder_ == null) {
+        this.sealedEntities_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000002);
       } else {
-        sealedEntitiesBuilder_.clear();
+        this.sealedEntitiesBuilder_.clear();
       }
-      if (binaryEntitiesBuilder_ == null) {
-        binaryEntities_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000004);
+      if (this.binaryEntitiesBuilder_ == null) {
+        this.binaryEntities_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000004);
       } else {
-        binaryEntitiesBuilder_.clear();
+        this.binaryEntitiesBuilder_.clear();
       }
       return this;
     }
@@ -539,33 +539,33 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse result = new io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse(this);
-      int from_bitField0_ = bitField0_;
-      if (entityReferencesBuilder_ == null) {
-        if (((bitField0_ & 0x00000001) != 0)) {
-          entityReferences_ = java.util.Collections.unmodifiableList(entityReferences_);
-          bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      if (this.entityReferencesBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000001) != 0)) {
+          this.entityReferences_ = java.util.Collections.unmodifiableList(this.entityReferences_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         }
-        result.entityReferences_ = entityReferences_;
+        result.entityReferences_ = this.entityReferences_;
       } else {
-        result.entityReferences_ = entityReferencesBuilder_.build();
+        result.entityReferences_ = this.entityReferencesBuilder_.build();
       }
-      if (sealedEntitiesBuilder_ == null) {
-        if (((bitField0_ & 0x00000002) != 0)) {
-          sealedEntities_ = java.util.Collections.unmodifiableList(sealedEntities_);
-          bitField0_ = (bitField0_ & ~0x00000002);
+      if (this.sealedEntitiesBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000002) != 0)) {
+          this.sealedEntities_ = java.util.Collections.unmodifiableList(this.sealedEntities_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000002);
         }
-        result.sealedEntities_ = sealedEntities_;
+        result.sealedEntities_ = this.sealedEntities_;
       } else {
-        result.sealedEntities_ = sealedEntitiesBuilder_.build();
+        result.sealedEntities_ = this.sealedEntitiesBuilder_.build();
       }
-      if (binaryEntitiesBuilder_ == null) {
-        if (((bitField0_ & 0x00000004) != 0)) {
-          binaryEntities_ = java.util.Collections.unmodifiableList(binaryEntities_);
-          bitField0_ = (bitField0_ & ~0x00000004);
+      if (this.binaryEntitiesBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000004) != 0)) {
+          this.binaryEntities_ = java.util.Collections.unmodifiableList(this.binaryEntities_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000004);
         }
-        result.binaryEntities_ = binaryEntities_;
+        result.binaryEntities_ = this.binaryEntities_;
       } else {
-        result.binaryEntities_ = binaryEntitiesBuilder_.build();
+        result.binaryEntities_ = this.binaryEntitiesBuilder_.build();
       }
       onBuilt();
       return result;
@@ -615,81 +615,81 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse.getDefaultInstance()) return this;
-      if (entityReferencesBuilder_ == null) {
+      if (this.entityReferencesBuilder_ == null) {
         if (!other.entityReferences_.isEmpty()) {
-          if (entityReferences_.isEmpty()) {
-            entityReferences_ = other.entityReferences_;
-            bitField0_ = (bitField0_ & ~0x00000001);
+          if (this.entityReferences_.isEmpty()) {
+            this.entityReferences_ = other.entityReferences_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
           } else {
             ensureEntityReferencesIsMutable();
-            entityReferences_.addAll(other.entityReferences_);
+            this.entityReferences_.addAll(other.entityReferences_);
           }
           onChanged();
         }
       } else {
         if (!other.entityReferences_.isEmpty()) {
-          if (entityReferencesBuilder_.isEmpty()) {
-            entityReferencesBuilder_.dispose();
-            entityReferencesBuilder_ = null;
-            entityReferences_ = other.entityReferences_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-            entityReferencesBuilder_ = 
+          if (this.entityReferencesBuilder_.isEmpty()) {
+            this.entityReferencesBuilder_.dispose();
+            this.entityReferencesBuilder_ = null;
+            this.entityReferences_ = other.entityReferences_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+            this.entityReferencesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getEntityReferencesFieldBuilder() : null;
           } else {
-            entityReferencesBuilder_.addAllMessages(other.entityReferences_);
+            this.entityReferencesBuilder_.addAllMessages(other.entityReferences_);
           }
         }
       }
-      if (sealedEntitiesBuilder_ == null) {
+      if (this.sealedEntitiesBuilder_ == null) {
         if (!other.sealedEntities_.isEmpty()) {
-          if (sealedEntities_.isEmpty()) {
-            sealedEntities_ = other.sealedEntities_;
-            bitField0_ = (bitField0_ & ~0x00000002);
+          if (this.sealedEntities_.isEmpty()) {
+            this.sealedEntities_ = other.sealedEntities_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000002);
           } else {
             ensureSealedEntitiesIsMutable();
-            sealedEntities_.addAll(other.sealedEntities_);
+            this.sealedEntities_.addAll(other.sealedEntities_);
           }
           onChanged();
         }
       } else {
         if (!other.sealedEntities_.isEmpty()) {
-          if (sealedEntitiesBuilder_.isEmpty()) {
-            sealedEntitiesBuilder_.dispose();
-            sealedEntitiesBuilder_ = null;
-            sealedEntities_ = other.sealedEntities_;
-            bitField0_ = (bitField0_ & ~0x00000002);
-            sealedEntitiesBuilder_ = 
+          if (this.sealedEntitiesBuilder_.isEmpty()) {
+            this.sealedEntitiesBuilder_.dispose();
+            this.sealedEntitiesBuilder_ = null;
+            this.sealedEntities_ = other.sealedEntities_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000002);
+            this.sealedEntitiesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getSealedEntitiesFieldBuilder() : null;
           } else {
-            sealedEntitiesBuilder_.addAllMessages(other.sealedEntities_);
+            this.sealedEntitiesBuilder_.addAllMessages(other.sealedEntities_);
           }
         }
       }
-      if (binaryEntitiesBuilder_ == null) {
+      if (this.binaryEntitiesBuilder_ == null) {
         if (!other.binaryEntities_.isEmpty()) {
-          if (binaryEntities_.isEmpty()) {
-            binaryEntities_ = other.binaryEntities_;
-            bitField0_ = (bitField0_ & ~0x00000004);
+          if (this.binaryEntities_.isEmpty()) {
+            this.binaryEntities_ = other.binaryEntities_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000004);
           } else {
             ensureBinaryEntitiesIsMutable();
-            binaryEntities_.addAll(other.binaryEntities_);
+            this.binaryEntities_.addAll(other.binaryEntities_);
           }
           onChanged();
         }
       } else {
         if (!other.binaryEntities_.isEmpty()) {
-          if (binaryEntitiesBuilder_.isEmpty()) {
-            binaryEntitiesBuilder_.dispose();
-            binaryEntitiesBuilder_ = null;
-            binaryEntities_ = other.binaryEntities_;
-            bitField0_ = (bitField0_ & ~0x00000004);
-            binaryEntitiesBuilder_ = 
+          if (this.binaryEntitiesBuilder_.isEmpty()) {
+            this.binaryEntitiesBuilder_.dispose();
+            this.binaryEntitiesBuilder_ = null;
+            this.binaryEntities_ = other.binaryEntities_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000004);
+            this.binaryEntitiesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getBinaryEntitiesFieldBuilder() : null;
           } else {
-            binaryEntitiesBuilder_.addAllMessages(other.binaryEntities_);
+            this.binaryEntitiesBuilder_.addAllMessages(other.binaryEntities_);
           }
         }
       }
@@ -726,9 +726,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference> entityReferences_ =
       java.util.Collections.emptyList();
     private void ensureEntityReferencesIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        entityReferences_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcEntityReference>(entityReferences_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.entityReferences_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcEntityReference>(this.entityReferences_);
+        this.bitField0_ |= 0x00000001;
        }
     }
 
@@ -739,30 +739,30 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference> getEntityReferencesList() {
-      if (entityReferencesBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(entityReferences_);
+      if (this.entityReferencesBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.entityReferences_);
       } else {
-        return entityReferencesBuilder_.getMessageList();
+        return this.entityReferencesBuilder_.getMessageList();
       }
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public int getEntityReferencesCount() {
-      if (entityReferencesBuilder_ == null) {
-        return entityReferences_.size();
+      if (this.entityReferencesBuilder_ == null) {
+        return this.entityReferences_.size();
       } else {
-        return entityReferencesBuilder_.getCount();
+        return this.entityReferencesBuilder_.getCount();
       }
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference getEntityReferences(int index) {
-      if (entityReferencesBuilder_ == null) {
-        return entityReferences_.get(index);
+      if (this.entityReferencesBuilder_ == null) {
+        return this.entityReferences_.get(index);
       } else {
-        return entityReferencesBuilder_.getMessage(index);
+        return this.entityReferencesBuilder_.getMessage(index);
       }
     }
     /**
@@ -770,15 +770,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setEntityReferences(
         int index, io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
-      if (entityReferencesBuilder_ == null) {
+      if (this.entityReferencesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureEntityReferencesIsMutable();
-        entityReferences_.set(index, value);
+        this.entityReferences_.set(index, value);
         onChanged();
       } else {
-        entityReferencesBuilder_.setMessage(index, value);
+        this.entityReferencesBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -787,12 +787,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setEntityReferences(
         int index, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder builderForValue) {
-      if (entityReferencesBuilder_ == null) {
+      if (this.entityReferencesBuilder_ == null) {
         ensureEntityReferencesIsMutable();
-        entityReferences_.set(index, builderForValue.build());
+        this.entityReferences_.set(index, builderForValue.build());
         onChanged();
       } else {
-        entityReferencesBuilder_.setMessage(index, builderForValue.build());
+        this.entityReferencesBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -800,15 +800,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public Builder addEntityReferences(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
-      if (entityReferencesBuilder_ == null) {
+      if (this.entityReferencesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureEntityReferencesIsMutable();
-        entityReferences_.add(value);
+        this.entityReferences_.add(value);
         onChanged();
       } else {
-        entityReferencesBuilder_.addMessage(value);
+        this.entityReferencesBuilder_.addMessage(value);
       }
       return this;
     }
@@ -817,15 +817,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addEntityReferences(
         int index, io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
-      if (entityReferencesBuilder_ == null) {
+      if (this.entityReferencesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureEntityReferencesIsMutable();
-        entityReferences_.add(index, value);
+        this.entityReferences_.add(index, value);
         onChanged();
       } else {
-        entityReferencesBuilder_.addMessage(index, value);
+        this.entityReferencesBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -834,12 +834,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addEntityReferences(
         io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder builderForValue) {
-      if (entityReferencesBuilder_ == null) {
+      if (this.entityReferencesBuilder_ == null) {
         ensureEntityReferencesIsMutable();
-        entityReferences_.add(builderForValue.build());
+        this.entityReferences_.add(builderForValue.build());
         onChanged();
       } else {
-        entityReferencesBuilder_.addMessage(builderForValue.build());
+        this.entityReferencesBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -848,12 +848,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addEntityReferences(
         int index, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder builderForValue) {
-      if (entityReferencesBuilder_ == null) {
+      if (this.entityReferencesBuilder_ == null) {
         ensureEntityReferencesIsMutable();
-        entityReferences_.add(index, builderForValue.build());
+        this.entityReferences_.add(index, builderForValue.build());
         onChanged();
       } else {
-        entityReferencesBuilder_.addMessage(index, builderForValue.build());
+        this.entityReferencesBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -862,13 +862,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllEntityReferences(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityReference> values) {
-      if (entityReferencesBuilder_ == null) {
+      if (this.entityReferencesBuilder_ == null) {
         ensureEntityReferencesIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, entityReferences_);
+            values, this.entityReferences_);
         onChanged();
       } else {
-        entityReferencesBuilder_.addAllMessages(values);
+        this.entityReferencesBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -876,12 +876,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public Builder clearEntityReferences() {
-      if (entityReferencesBuilder_ == null) {
-        entityReferences_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.entityReferencesBuilder_ == null) {
+        this.entityReferences_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        entityReferencesBuilder_.clear();
+        this.entityReferencesBuilder_.clear();
       }
       return this;
     }
@@ -889,12 +889,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
     public Builder removeEntityReferences(int index) {
-      if (entityReferencesBuilder_ == null) {
+      if (this.entityReferencesBuilder_ == null) {
         ensureEntityReferencesIsMutable();
-        entityReferences_.remove(index);
+        this.entityReferences_.remove(index);
         onChanged();
       } else {
-        entityReferencesBuilder_.remove(index);
+        this.entityReferencesBuilder_.remove(index);
       }
       return this;
     }
@@ -910,20 +910,20 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getEntityReferencesOrBuilder(
         int index) {
-      if (entityReferencesBuilder_ == null) {
-        return entityReferences_.get(index);  } else {
-        return entityReferencesBuilder_.getMessageOrBuilder(index);
+      if (this.entityReferencesBuilder_ == null) {
+        return this.entityReferences_.get(index);  } else {
+        return this.entityReferencesBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
          getEntityReferencesOrBuilderList() {
-      if (entityReferencesBuilder_ != null) {
-        return entityReferencesBuilder_.getMessageOrBuilderList();
+      if (this.entityReferencesBuilder_ != null) {
+        return this.entityReferencesBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(entityReferences_);
+        return java.util.Collections.unmodifiableList(this.entityReferences_);
       }
     }
     /**
@@ -944,31 +944,31 @@ private static final long serialVersionUID = 0L;
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder>
          getEntityReferencesBuilderList() {
       return getEntityReferencesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
         getEntityReferencesFieldBuilder() {
-      if (entityReferencesBuilder_ == null) {
-        entityReferencesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.entityReferencesBuilder_ == null) {
+        this.entityReferencesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>(
-                entityReferences_,
-                ((bitField0_ & 0x00000001) != 0),
+                this.entityReferences_,
+                ((this.bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        entityReferences_ = null;
+        this.entityReferences_ = null;
       }
-      return entityReferencesBuilder_;
+      return this.entityReferencesBuilder_;
     }
 
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> sealedEntities_ =
       java.util.Collections.emptyList();
     private void ensureSealedEntitiesIsMutable() {
-      if (!((bitField0_ & 0x00000002) != 0)) {
-        sealedEntities_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity>(sealedEntities_);
-        bitField0_ |= 0x00000002;
+      if (!((this.bitField0_ & 0x00000002) != 0)) {
+        this.sealedEntities_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity>(this.sealedEntities_);
+        this.bitField0_ |= 0x00000002;
        }
     }
 
@@ -979,30 +979,30 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> getSealedEntitiesList() {
-      if (sealedEntitiesBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(sealedEntities_);
+      if (this.sealedEntitiesBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.sealedEntities_);
       } else {
-        return sealedEntitiesBuilder_.getMessageList();
+        return this.sealedEntitiesBuilder_.getMessageList();
       }
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public int getSealedEntitiesCount() {
-      if (sealedEntitiesBuilder_ == null) {
-        return sealedEntities_.size();
+      if (this.sealedEntitiesBuilder_ == null) {
+        return this.sealedEntities_.size();
       } else {
-        return sealedEntitiesBuilder_.getCount();
+        return this.sealedEntitiesBuilder_.getCount();
       }
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getSealedEntities(int index) {
-      if (sealedEntitiesBuilder_ == null) {
-        return sealedEntities_.get(index);
+      if (this.sealedEntitiesBuilder_ == null) {
+        return this.sealedEntities_.get(index);
       } else {
-        return sealedEntitiesBuilder_.getMessage(index);
+        return this.sealedEntitiesBuilder_.getMessage(index);
       }
     }
     /**
@@ -1010,15 +1010,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setSealedEntities(
         int index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
-      if (sealedEntitiesBuilder_ == null) {
+      if (this.sealedEntitiesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureSealedEntitiesIsMutable();
-        sealedEntities_.set(index, value);
+        this.sealedEntities_.set(index, value);
         onChanged();
       } else {
-        sealedEntitiesBuilder_.setMessage(index, value);
+        this.sealedEntitiesBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -1027,12 +1027,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setSealedEntities(
         int index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
-      if (sealedEntitiesBuilder_ == null) {
+      if (this.sealedEntitiesBuilder_ == null) {
         ensureSealedEntitiesIsMutable();
-        sealedEntities_.set(index, builderForValue.build());
+        this.sealedEntities_.set(index, builderForValue.build());
         onChanged();
       } else {
-        sealedEntitiesBuilder_.setMessage(index, builderForValue.build());
+        this.sealedEntitiesBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1040,15 +1040,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public Builder addSealedEntities(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
-      if (sealedEntitiesBuilder_ == null) {
+      if (this.sealedEntitiesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureSealedEntitiesIsMutable();
-        sealedEntities_.add(value);
+        this.sealedEntities_.add(value);
         onChanged();
       } else {
-        sealedEntitiesBuilder_.addMessage(value);
+        this.sealedEntitiesBuilder_.addMessage(value);
       }
       return this;
     }
@@ -1057,15 +1057,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addSealedEntities(
         int index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
-      if (sealedEntitiesBuilder_ == null) {
+      if (this.sealedEntitiesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureSealedEntitiesIsMutable();
-        sealedEntities_.add(index, value);
+        this.sealedEntities_.add(index, value);
         onChanged();
       } else {
-        sealedEntitiesBuilder_.addMessage(index, value);
+        this.sealedEntitiesBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -1074,12 +1074,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addSealedEntities(
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
-      if (sealedEntitiesBuilder_ == null) {
+      if (this.sealedEntitiesBuilder_ == null) {
         ensureSealedEntitiesIsMutable();
-        sealedEntities_.add(builderForValue.build());
+        this.sealedEntities_.add(builderForValue.build());
         onChanged();
       } else {
-        sealedEntitiesBuilder_.addMessage(builderForValue.build());
+        this.sealedEntitiesBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -1088,12 +1088,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addSealedEntities(
         int index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
-      if (sealedEntitiesBuilder_ == null) {
+      if (this.sealedEntitiesBuilder_ == null) {
         ensureSealedEntitiesIsMutable();
-        sealedEntities_.add(index, builderForValue.build());
+        this.sealedEntities_.add(index, builderForValue.build());
         onChanged();
       } else {
-        sealedEntitiesBuilder_.addMessage(index, builderForValue.build());
+        this.sealedEntitiesBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1102,13 +1102,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllSealedEntities(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> values) {
-      if (sealedEntitiesBuilder_ == null) {
+      if (this.sealedEntitiesBuilder_ == null) {
         ensureSealedEntitiesIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, sealedEntities_);
+            values, this.sealedEntities_);
         onChanged();
       } else {
-        sealedEntitiesBuilder_.addAllMessages(values);
+        this.sealedEntitiesBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -1116,12 +1116,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public Builder clearSealedEntities() {
-      if (sealedEntitiesBuilder_ == null) {
-        sealedEntities_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000002);
+      if (this.sealedEntitiesBuilder_ == null) {
+        this.sealedEntities_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000002);
         onChanged();
       } else {
-        sealedEntitiesBuilder_.clear();
+        this.sealedEntitiesBuilder_.clear();
       }
       return this;
     }
@@ -1129,12 +1129,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
     public Builder removeSealedEntities(int index) {
-      if (sealedEntitiesBuilder_ == null) {
+      if (this.sealedEntitiesBuilder_ == null) {
         ensureSealedEntitiesIsMutable();
-        sealedEntities_.remove(index);
+        this.sealedEntities_.remove(index);
         onChanged();
       } else {
-        sealedEntitiesBuilder_.remove(index);
+        this.sealedEntitiesBuilder_.remove(index);
       }
       return this;
     }
@@ -1150,20 +1150,20 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getSealedEntitiesOrBuilder(
         int index) {
-      if (sealedEntitiesBuilder_ == null) {
-        return sealedEntities_.get(index);  } else {
-        return sealedEntitiesBuilder_.getMessageOrBuilder(index);
+      if (this.sealedEntitiesBuilder_ == null) {
+        return this.sealedEntities_.get(index);  } else {
+        return this.sealedEntitiesBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
          getSealedEntitiesOrBuilderList() {
-      if (sealedEntitiesBuilder_ != null) {
-        return sealedEntitiesBuilder_.getMessageOrBuilderList();
+      if (this.sealedEntitiesBuilder_ != null) {
+        return this.sealedEntitiesBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(sealedEntities_);
+        return java.util.Collections.unmodifiableList(this.sealedEntities_);
       }
     }
     /**
@@ -1184,31 +1184,31 @@ private static final long serialVersionUID = 0L;
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder>
          getSealedEntitiesBuilderList() {
       return getSealedEntitiesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getSealedEntitiesFieldBuilder() {
-      if (sealedEntitiesBuilder_ == null) {
-        sealedEntitiesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.sealedEntitiesBuilder_ == null) {
+        this.sealedEntitiesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>(
-                sealedEntities_,
-                ((bitField0_ & 0x00000002) != 0),
+                this.sealedEntities_,
+                ((this.bitField0_ & 0x00000002) != 0),
                 getParentForChildren(),
                 isClean());
-        sealedEntities_ = null;
+        this.sealedEntities_ = null;
       }
-      return sealedEntitiesBuilder_;
+      return this.sealedEntitiesBuilder_;
     }
 
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> binaryEntities_ =
       java.util.Collections.emptyList();
     private void ensureBinaryEntitiesIsMutable() {
-      if (!((bitField0_ & 0x00000004) != 0)) {
-        binaryEntities_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity>(binaryEntities_);
-        bitField0_ |= 0x00000004;
+      if (!((this.bitField0_ & 0x00000004) != 0)) {
+        this.binaryEntities_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity>(this.binaryEntities_);
+        this.bitField0_ |= 0x00000004;
        }
     }
 
@@ -1219,30 +1219,30 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> getBinaryEntitiesList() {
-      if (binaryEntitiesBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(binaryEntities_);
+      if (this.binaryEntitiesBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.binaryEntities_);
       } else {
-        return binaryEntitiesBuilder_.getMessageList();
+        return this.binaryEntitiesBuilder_.getMessageList();
       }
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public int getBinaryEntitiesCount() {
-      if (binaryEntitiesBuilder_ == null) {
-        return binaryEntities_.size();
+      if (this.binaryEntitiesBuilder_ == null) {
+        return this.binaryEntities_.size();
       } else {
-        return binaryEntitiesBuilder_.getCount();
+        return this.binaryEntitiesBuilder_.getCount();
       }
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity getBinaryEntities(int index) {
-      if (binaryEntitiesBuilder_ == null) {
-        return binaryEntities_.get(index);
+      if (this.binaryEntitiesBuilder_ == null) {
+        return this.binaryEntities_.get(index);
       } else {
-        return binaryEntitiesBuilder_.getMessage(index);
+        return this.binaryEntitiesBuilder_.getMessage(index);
       }
     }
     /**
@@ -1250,15 +1250,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setBinaryEntities(
         int index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity value) {
-      if (binaryEntitiesBuilder_ == null) {
+      if (this.binaryEntitiesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureBinaryEntitiesIsMutable();
-        binaryEntities_.set(index, value);
+        this.binaryEntities_.set(index, value);
         onChanged();
       } else {
-        binaryEntitiesBuilder_.setMessage(index, value);
+        this.binaryEntitiesBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -1267,12 +1267,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setBinaryEntities(
         int index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder builderForValue) {
-      if (binaryEntitiesBuilder_ == null) {
+      if (this.binaryEntitiesBuilder_ == null) {
         ensureBinaryEntitiesIsMutable();
-        binaryEntities_.set(index, builderForValue.build());
+        this.binaryEntities_.set(index, builderForValue.build());
         onChanged();
       } else {
-        binaryEntitiesBuilder_.setMessage(index, builderForValue.build());
+        this.binaryEntitiesBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1280,15 +1280,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public Builder addBinaryEntities(io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity value) {
-      if (binaryEntitiesBuilder_ == null) {
+      if (this.binaryEntitiesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureBinaryEntitiesIsMutable();
-        binaryEntities_.add(value);
+        this.binaryEntities_.add(value);
         onChanged();
       } else {
-        binaryEntitiesBuilder_.addMessage(value);
+        this.binaryEntitiesBuilder_.addMessage(value);
       }
       return this;
     }
@@ -1297,15 +1297,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addBinaryEntities(
         int index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity value) {
-      if (binaryEntitiesBuilder_ == null) {
+      if (this.binaryEntitiesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureBinaryEntitiesIsMutable();
-        binaryEntities_.add(index, value);
+        this.binaryEntities_.add(index, value);
         onChanged();
       } else {
-        binaryEntitiesBuilder_.addMessage(index, value);
+        this.binaryEntitiesBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -1314,12 +1314,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addBinaryEntities(
         io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder builderForValue) {
-      if (binaryEntitiesBuilder_ == null) {
+      if (this.binaryEntitiesBuilder_ == null) {
         ensureBinaryEntitiesIsMutable();
-        binaryEntities_.add(builderForValue.build());
+        this.binaryEntities_.add(builderForValue.build());
         onChanged();
       } else {
-        binaryEntitiesBuilder_.addMessage(builderForValue.build());
+        this.binaryEntitiesBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -1328,12 +1328,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addBinaryEntities(
         int index, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder builderForValue) {
-      if (binaryEntitiesBuilder_ == null) {
+      if (this.binaryEntitiesBuilder_ == null) {
         ensureBinaryEntitiesIsMutable();
-        binaryEntities_.add(index, builderForValue.build());
+        this.binaryEntities_.add(index, builderForValue.build());
         onChanged();
       } else {
-        binaryEntitiesBuilder_.addMessage(index, builderForValue.build());
+        this.binaryEntitiesBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1342,13 +1342,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllBinaryEntities(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> values) {
-      if (binaryEntitiesBuilder_ == null) {
+      if (this.binaryEntitiesBuilder_ == null) {
         ensureBinaryEntitiesIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, binaryEntities_);
+            values, this.binaryEntities_);
         onChanged();
       } else {
-        binaryEntitiesBuilder_.addAllMessages(values);
+        this.binaryEntitiesBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -1356,12 +1356,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public Builder clearBinaryEntities() {
-      if (binaryEntitiesBuilder_ == null) {
-        binaryEntities_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000004);
+      if (this.binaryEntitiesBuilder_ == null) {
+        this.binaryEntities_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000004);
         onChanged();
       } else {
-        binaryEntitiesBuilder_.clear();
+        this.binaryEntitiesBuilder_.clear();
       }
       return this;
     }
@@ -1369,12 +1369,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
     public Builder removeBinaryEntities(int index) {
-      if (binaryEntitiesBuilder_ == null) {
+      if (this.binaryEntitiesBuilder_ == null) {
         ensureBinaryEntitiesIsMutable();
-        binaryEntities_.remove(index);
+        this.binaryEntities_.remove(index);
         onChanged();
       } else {
-        binaryEntitiesBuilder_.remove(index);
+        this.binaryEntitiesBuilder_.remove(index);
       }
       return this;
     }
@@ -1390,20 +1390,20 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder getBinaryEntitiesOrBuilder(
         int index) {
-      if (binaryEntitiesBuilder_ == null) {
-        return binaryEntities_.get(index);  } else {
-        return binaryEntitiesBuilder_.getMessageOrBuilder(index);
+      if (this.binaryEntitiesBuilder_ == null) {
+        return this.binaryEntities_.get(index);  } else {
+        return this.binaryEntitiesBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder>
          getBinaryEntitiesOrBuilderList() {
-      if (binaryEntitiesBuilder_ != null) {
-        return binaryEntitiesBuilder_.getMessageOrBuilderList();
+      if (this.binaryEntitiesBuilder_ != null) {
+        return this.binaryEntitiesBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(binaryEntities_);
+        return java.util.Collections.unmodifiableList(this.binaryEntities_);
       }
     }
     /**
@@ -1424,23 +1424,23 @@ private static final long serialVersionUID = 0L;
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder>
          getBinaryEntitiesBuilderList() {
       return getBinaryEntitiesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder>
         getBinaryEntitiesFieldBuilder() {
-      if (binaryEntitiesBuilder_ == null) {
-        binaryEntitiesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.binaryEntitiesBuilder_ == null) {
+        this.binaryEntitiesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcBinaryEntityOrBuilder>(
-                binaryEntities_,
-                ((bitField0_ & 0x00000004) != 0),
+                this.binaryEntities_,
+                ((this.bitField0_ & 0x00000004) != 0),
                 getParentForChildren(),
                 isClean());
-        binaryEntities_ = null;
+        this.binaryEntities_ = null;
       }
-      return binaryEntitiesBuilder_;
+      return this.binaryEntitiesBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

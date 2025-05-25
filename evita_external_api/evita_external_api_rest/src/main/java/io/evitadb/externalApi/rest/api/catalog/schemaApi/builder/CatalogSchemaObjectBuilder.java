@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,18 +68,18 @@ public class CatalogSchemaObjectBuilder {
 
 	public void buildCommonTypes() {
 		// catalog schema mutations
-		buildingContext.registerType(ModifyEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		// global attribute schema mutations
-		buildingContext.registerType(CreateGlobalAttributeSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(CreateGlobalAttributeSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		// other mutation objects should be already created by EntitySchemaSchemaBuilder
-		buildingContext.registerType(LocalCatalogSchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(UpdateCatalogSchemaRequestDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(LocalCatalogSchemaMutationAggregateDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(UpdateCatalogSchemaRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
 	}
 
 	/**
@@ -91,34 +91,34 @@ public class CatalogSchemaObjectBuilder {
 	public OpenApiTypeReference build() {
 		// build specific catalog schema object
 		final OpenApiObject.Builder catalogSchemaObjectBuilder = CatalogSchemaDescriptor.THIS
-			.to(objectBuilderTransformer);
+			.to(this.objectBuilderTransformer);
 
 		catalogSchemaObjectBuilder.property(buildGlobalAttributeSchemasProperty());
 		catalogSchemaObjectBuilder.property(buildEntitySchemasProperty());
 
-		return buildingContext.registerType(catalogSchemaObjectBuilder.build());
+		return this.buildingContext.registerType(catalogSchemaObjectBuilder.build());
 	}
 
 	@Nonnull
 	private OpenApiProperty buildGlobalAttributeSchemasProperty() {
 		return EntitySchemaDescriptor.ATTRIBUTES
-			.to(propertyBuilderTransformer)
+			.to(this.propertyBuilderTransformer)
 			.type(nonNull(buildGlobalAttributeSchemasObject()))
 			.build();
 	}
 
 	@Nonnull
 	private OpenApiTypeReference buildGlobalAttributeSchemasObject() {
-		final CatalogSchemaContract catalogSchema = buildingContext.getSchema();
+		final CatalogSchemaContract catalogSchema = this.buildingContext.getSchema();
 
 		final OpenApiObject.Builder globalAttributeSchemasObjectBuilder = GlobalAttributeSchemasDescriptor.THIS
-			.to(objectBuilderTransformer)
+			.to(this.objectBuilderTransformer)
 			.name(GlobalAttributeSchemasDescriptor.THIS.name());
 
 		catalogSchema.getAttributes().values().forEach(attributeSchema ->
 			globalAttributeSchemasObjectBuilder.property(buildGlobalAttributeSchemaProperty(attributeSchema)));
 
-		return buildingContext.registerType(globalAttributeSchemasObjectBuilder.build());
+		return this.buildingContext.registerType(globalAttributeSchemasObjectBuilder.build());
 	}
 
 	@Nonnull
@@ -134,7 +134,7 @@ public class CatalogSchemaObjectBuilder {
 	@Nonnull
 	private OpenApiProperty buildEntitySchemasProperty() {
 		return CatalogSchemaDescriptor.ENTITY_SCHEMAS
-			.to(propertyBuilderTransformer)
+			.to(this.propertyBuilderTransformer)
 			.type(nonNull(buildEntitySchemasObject()))
 			.build();
 	}
@@ -142,12 +142,12 @@ public class CatalogSchemaObjectBuilder {
 	@Nonnull
 	private OpenApiTypeReference buildEntitySchemasObject() {
 		final OpenApiObject.Builder entitySchemasBuilder = EntitySchemasDescriptor.THIS
-			.to(objectBuilderTransformer);
+			.to(this.objectBuilderTransformer);
 
-		buildingContext.getEntitySchemas().forEach(entitySchema ->
+		this.buildingContext.getEntitySchemas().forEach(entitySchema ->
 			entitySchemasBuilder.property(buildEntitySchemaProperty(entitySchema)));
 
-		return buildingContext.registerType(entitySchemasBuilder.build());
+		return this.buildingContext.registerType(entitySchemasBuilder.build());
 	}
 
 	@Nonnull

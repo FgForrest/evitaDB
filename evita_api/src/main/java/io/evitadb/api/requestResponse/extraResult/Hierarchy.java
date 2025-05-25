@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -144,7 +144,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 	 */
 	@Nonnull
 	public Map<String, List<LevelInfo>> getSelfHierarchy() {
-		return ofNullable(selfStatistics).orElse(Collections.emptyMap());
+		return ofNullable(this.selfStatistics).orElse(Collections.emptyMap());
 	}
 
 	/**
@@ -154,7 +154,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 	 */
 	@Nonnull
 	public List<LevelInfo> getSelfHierarchy(@Nonnull String outputName) {
-		return ofNullable(selfStatistics)
+		return ofNullable(this.selfStatistics)
 			.map(it -> it.get(outputName))
 			.orElse(Collections.emptyList());
 	}
@@ -166,7 +166,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 	 */
 	@Nonnull
 	public List<LevelInfo> getReferenceHierarchy(@Nonnull String referenceName, @Nonnull String outputName) {
-		return ofNullable(referenceHierarchies.get(referenceName))
+		return ofNullable(this.referenceHierarchies.get(referenceName))
 			.map(it -> it.get(outputName))
 			.orElse(Collections.emptyList());
 	}
@@ -176,7 +176,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 	 */
 	@Nonnull
 	public Map<String, List<LevelInfo>> getReferenceHierarchy(@Nonnull String referenceName) {
-		return ofNullable(referenceHierarchies.get(referenceName)).orElse(Collections.emptyMap());
+		return ofNullable(this.referenceHierarchies.get(referenceName)).orElse(Collections.emptyMap());
 	}
 
 	/**
@@ -184,12 +184,12 @@ public class Hierarchy implements EvitaResponseExtraResult {
 	 */
 	@Nonnull
 	public Map<String, Map<String, List<LevelInfo>>> getReferenceHierarchies() {
-		return referenceHierarchies;
+		return this.referenceHierarchies;
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(selfStatistics, referenceHierarchies);
+		return Objects.hash(this.selfStatistics, this.referenceHierarchies);
 	}
 
 	@Override
@@ -198,14 +198,14 @@ public class Hierarchy implements EvitaResponseExtraResult {
 		if (o == null || getClass() != o.getClass()) return false;
 		final Hierarchy that = (Hierarchy) o;
 
-		if (selfStatistics == null && that.selfStatistics != null && !that.selfStatistics.isEmpty()) {
+		if (this.selfStatistics == null && that.selfStatistics != null && !that.selfStatistics.isEmpty()) {
 			return false;
-		} else if (selfStatistics != null && !selfStatistics.isEmpty() && that.selfStatistics == null) {
+		} else if (this.selfStatistics != null && !this.selfStatistics.isEmpty() && that.selfStatistics == null) {
 			return false;
 		}
 
-		if (selfStatistics != null) {
-			for (Entry<String, List<LevelInfo>> entry : selfStatistics.entrySet()) {
+		if (this.selfStatistics != null) {
+			for (Entry<String, List<LevelInfo>> entry : this.selfStatistics.entrySet()) {
 				final List<LevelInfo> stats = entry.getValue();
 				final List<LevelInfo> otherStats = that.selfStatistics.get(entry.getKey());
 
@@ -219,7 +219,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 			}
 		}
 
-		for (Entry<String, Map<String, List<LevelInfo>>> statisticsEntry : referenceHierarchies.entrySet()) {
+		for (Entry<String, Map<String, List<LevelInfo>>> statisticsEntry : this.referenceHierarchies.entrySet()) {
 			final Map<String, List<LevelInfo>> stats = statisticsEntry.getValue();
 			final Map<String, List<LevelInfo>> otherStats = that.referenceHierarchies.get(statisticsEntry.getKey());
 
@@ -250,8 +250,8 @@ public class Hierarchy implements EvitaResponseExtraResult {
 	public String toString() {
 		final StringBuilder treeBuilder = new StringBuilder();
 
-		if (selfStatistics != null) {
-			for (Map.Entry<String, List<LevelInfo>> statsByOutputName : selfStatistics.entrySet()) {
+		if (this.selfStatistics != null) {
+			for (Map.Entry<String, List<LevelInfo>> statsByOutputName : this.selfStatistics.entrySet()) {
 				treeBuilder.append(statsByOutputName.getKey()).append(System.lineSeparator());
 
 				for (LevelInfo levelInfo : statsByOutputName.getValue()) {
@@ -260,7 +260,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 			}
 		}
 
-		for (Entry<String, Map<String, List<LevelInfo>>> statisticsEntry : referenceHierarchies.entrySet()) {
+		for (Entry<String, Map<String, List<LevelInfo>>> statisticsEntry : this.referenceHierarchies.entrySet()) {
 			treeBuilder.append(statisticsEntry.getKey()).append(System.lineSeparator());
 			for (Map.Entry<String, List<LevelInfo>> statisticsByType : statisticsEntry.getValue().entrySet()) {
 				treeBuilder.append("    ").append(statisticsByType.getKey()).append(System.lineSeparator());
@@ -330,16 +330,16 @@ public class Hierarchy implements EvitaResponseExtraResult {
 		public Stream<LevelInfo> collectAll(@Nonnull Predicate<LevelInfo> predicate) {
 			return Stream.concat(
 				Stream.of(this).filter(predicate),
-				children.stream().flatMap(it -> it.collectAll(predicate))
+				this.children.stream().flatMap(it -> it.collectAll(predicate))
 			);
 		}
 
 		@Override
 		public String toString() {
-			if (queriedEntityCount == null && childrenCount == null) {
-				return entity + (requested ? " (requested)" : "");
+			if (this.queriedEntityCount == null && this.childrenCount == null) {
+				return this.entity + (this.requested ? " (requested)" : "");
 			} else {
-				return "[" + queriedEntityCount + ":" + childrenCount + "] " + entity + (requested ? " (requested)" : "");
+				return "[" + this.queriedEntityCount + ":" + this.childrenCount + "] " + this.entity + (this.requested ? " (requested)" : "");
 			}
 		}
 

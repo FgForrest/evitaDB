@@ -313,12 +313,12 @@ public class FastConcurrentDirectDeque<E>
 
 		restartFromHead:
 		for (;;)
-			for (Node<E> h = head, p = h, q;;) {
+			for (Node<E> h = this.head, p = h, q;;) {
 				if ((q = p.prev) != null &&
 					(q = (p = q).prev) != null)
 					// Check for head updates every other hop.
 					// If p == q, we are sure to follow head instead.
-					p = (h != (h = head)) ? h : q;
+					p = (h != (h = this.head)) ? h : q;
 				else if (p.next == p) // PREV_TERMINATOR
 					continue restartFromHead;
 				else {
@@ -345,12 +345,12 @@ public class FastConcurrentDirectDeque<E>
 
 		restartFromTail:
 		for (;;)
-			for (Node<E> t = tail, p = t, q;;) {
+			for (Node<E> t = this.tail, p = t, q;;) {
 				if ((q = p.next) != null &&
 					(q = (p = q).next) != null)
 					// Check for tail updates every other hop.
 					// If p == q, we are sure to follow tail instead.
-					p = (t != (t = tail)) ? t : q;
+					p = (t != (t = this.tail)) ? t : q;
 				else if (p.prev == p) // NEXT_TERMINATOR
 					continue restartFromTail;
 				else {
@@ -563,7 +563,7 @@ public class FastConcurrentDirectDeque<E>
 		// trying to cas it to the first node until it does.
 		Node<E> h, p, q;
 		restartFromHead:
-		while ((h = head).item == null && (p = h.prev) != null) {
+		while ((h = this.head).item == null && (p = h.prev) != null) {
 			for (;;) {
 				if ((q = p.prev) == null ||
 					(q = (p = q).prev) == null) {
@@ -574,7 +574,7 @@ public class FastConcurrentDirectDeque<E>
 					else
 						continue restartFromHead;
 				}
-				else if (h != head)
+				else if (h != this.head)
 					continue restartFromHead;
 				else
 					p = q;
@@ -593,7 +593,7 @@ public class FastConcurrentDirectDeque<E>
 		// trying to cas it to the last node until it does.
 		Node<E> t, p, q;
 		restartFromTail:
-		while ((t = tail).item == null && (p = t.next) != null) {
+		while ((t = this.tail).item == null && (p = t.next) != null) {
 			for (;;) {
 				if ((q = p.next) == null ||
 					(q = (p = q).next) == null) {
@@ -604,7 +604,7 @@ public class FastConcurrentDirectDeque<E>
 					else
 						continue restartFromTail;
 				}
-				else if (t != tail)
+				else if (t != this.tail)
 					continue restartFromTail;
 				else
 					p = q;
@@ -705,12 +705,12 @@ public class FastConcurrentDirectDeque<E>
 	Node<E> first() {
 		restartFromHead:
 		for (;;)
-			for (Node<E> h = head, p = h, q;;) {
+			for (Node<E> h = this.head, p = h, q;;) {
 				if ((q = p.prev) != null &&
 					(q = (p = q).prev) != null)
 					// Check for head updates every other hop.
 					// If p == q, we are sure to follow head instead.
-					p = (h != (h = head)) ? h : q;
+					p = (h != (h = this.head)) ? h : q;
 				else if (p == h
 					// It is possible that p is PREV_TERMINATOR,
 					// but if so, the CAS is guaranteed to fail.
@@ -730,12 +730,12 @@ public class FastConcurrentDirectDeque<E>
 	Node<E> last() {
 		restartFromTail:
 		for (;;)
-			for (Node<E> t = tail, p = t, q;;) {
+			for (Node<E> t = this.tail, p = t, q;;) {
 				if ((q = p.next) != null &&
 					(q = (p = q).next) != null)
 					// Check for tail updates every other hop.
 					// If p == q, we are sure to follow tail instead.
-					p = (t != (t = tail)) ? t : q;
+					p = (t != (t = this.tail)) ? t : q;
 				else if (p == t
 					// It is possible that p is NEXT_TERMINATOR,
 					// but if so, the CAS is guaranteed to fail.
@@ -765,7 +765,7 @@ public class FastConcurrentDirectDeque<E>
 	 * Constructs an empty deque.
 	 */
 	public FastConcurrentDirectDeque() {
-		head = tail = new Node<>();
+		this.head = this.tail = new Node<>();
 	}
 
 	/**
@@ -808,8 +808,8 @@ public class FastConcurrentDirectDeque<E>
 				t = newNode;
 			}
 		}
-		head = h;
-		tail = t;
+		this.head = h;
+		this.tail = t;
 	}
 
 	/**
@@ -1174,12 +1174,12 @@ public class FastConcurrentDirectDeque<E>
 		// Atomically append the chain at the tail of this collection
 		restartFromTail:
 		for (;;)
-			for (Node<E> t = tail, p = t, q;;) {
+			for (Node<E> t = this.tail, p = t, q;;) {
 				if ((q = p.next) != null &&
 					(q = (p = q).next) != null)
 					// Check for tail updates every other hop.
 					// If p == q, we are sure to follow tail instead.
-					p = (t != (t = tail)) ? t : q;
+					p = (t != (t = this.tail)) ? t : q;
 				else if (p.prev == p) // NEXT_TERMINATOR
 					continue restartFromTail;
 				else {
@@ -1191,7 +1191,7 @@ public class FastConcurrentDirectDeque<E>
 						if (!TAIL.weakCompareAndSet(this, t, last)) {
 							// Try a little harder to update tail,
 							// since we may be adding many elements.
-							t = tail;
+							t = this.tail;
 							if (last.next == null)
 								TAIL.weakCompareAndSet(this, t, last);
 						}
@@ -1414,42 +1414,42 @@ public class FastConcurrentDirectDeque<E>
 		 * if no such.
 		 */
 		private void advance() {
-			lastRet = nextNode;
+			this.lastRet = this.nextNode;
 
-			Node<E> p = (nextNode == null) ? startNode() : nextNode(nextNode);
+			Node<E> p = (this.nextNode == null) ? startNode() : nextNode(this.nextNode);
 			for (;; p = nextNode(p)) {
 				if (p == null) {
 					// might be at active end or TERMINATOR node; both are OK
-					nextNode = null;
-					nextItem = null;
+					this.nextNode = null;
+					this.nextItem = null;
 					break;
 				}
 				final E item;
 				if ((item = p.item) != null) {
-					nextNode = p;
-					nextItem = item;
+					this.nextNode = p;
+					this.nextItem = item;
 					break;
 				}
 			}
 		}
 
 		public boolean hasNext() {
-			return nextItem != null;
+			return this.nextItem != null;
 		}
 
 		public E next() {
-			E item = nextItem;
+			E item = this.nextItem;
 			if (item == null) throw new NoSuchElementException();
 			advance();
 			return item;
 		}
 
 		public void remove() {
-			Node<E> l = lastRet;
+			Node<E> l = this.lastRet;
 			if (l == null) throw new IllegalStateException();
 			l.item = null;
 			unlink(l);
-			lastRet = null;
+			this.lastRet = null;
 		}
 	}
 
@@ -1494,7 +1494,7 @@ public class FastConcurrentDirectDeque<E>
 			Node<E> p, q;
 			if ((p = current()) == null || (q = p.next) == null)
 				return null;
-			int i = 0, n = batch = Math.min(batch + 1, MAX_BATCH);
+			int i = 0, n = this.batch = Math.min(this.batch + 1, MAX_BATCH);
 			Object[] a = null;
 			do {
 				final E e;
@@ -1517,8 +1517,8 @@ public class FastConcurrentDirectDeque<E>
 			Objects.requireNonNull(action);
 			Node<E> p;
 			if ((p = current()) != null) {
-				current = null;
-				exhausted = true;
+				this.current = null;
+				this.exhausted = true;
 				do {
 					final E e;
 					if ((e = p.item) != null)
@@ -1549,13 +1549,13 @@ public class FastConcurrentDirectDeque<E>
 		}
 
 		private void setCurrent(Node<E> p) {
-			if ((current = p) == null)
-				exhausted = true;
+			if ((this.current = p) == null)
+				this.exhausted = true;
 		}
 
 		private Node<E> current() {
 			Node<E> p;
-			if ((p = current) == null && !exhausted)
+			if ((p = this.current) == null && !this.exhausted)
 				setCurrent(p = first());
 			return p;
 		}

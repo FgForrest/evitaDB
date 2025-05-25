@@ -63,16 +63,16 @@ public class GraphQLArtificialFullDatabaseBenchmarkState extends GraphQLArtifici
 	@Setup(Level.Trial)
 	public void setUp() {
 		final ReadyReadEvita readyReadEvita = generateReadTestDataset(
-			dataGenerator,
+			this.dataGenerator,
 			PRODUCT_COUNT,
 			this::shouldStartFromScratch,
 			this::isCatalogAvailable,
 			this::createEvitaInstanceFromExistingData,
 			this::createEmptyEvitaInstance,
 			getCatalogName(),
-			generatedEntities,
+			this.generatedEntities,
 			SEED,
-			randomEntityPicker,
+			this.randomEntityPicker,
 			this::processEntity,
 			this::processCreatedEntityReference,
 			this::createEntity,
@@ -82,14 +82,14 @@ public class GraphQLArtificialFullDatabaseBenchmarkState extends GraphQLArtifici
 		this.productSchema = readyReadEvita.productSchema();
 
 		// start graphql server
-		server = new ExternalApiServer(
+		this.server = new ExternalApiServer(
 			this.evita,
 			ApiOptions.builder()
 				.enable(GraphQLProvider.CODE, new GraphQLOptions())
 				.build(),
 			Collections.singleton(new GraphQLProviderRegistrar())
 		);
-		server.start();
+		this.server.start();
 	}
 
 	/**

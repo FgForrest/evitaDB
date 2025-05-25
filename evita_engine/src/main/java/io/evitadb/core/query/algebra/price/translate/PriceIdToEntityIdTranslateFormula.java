@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -110,7 +110,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PriceIdToEntityIdTranslateFormula(
-			computationCallback, filteredPriceRecords, innerFormulas[0]
+			this.computationCallback, this.filteredPriceRecords, innerFormulas[0]
 		);
 	}
 
@@ -162,7 +162,7 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PriceIdToEntityIdTranslateFormula(
-			selfOperator, filteredPriceRecords, innerFormulas[0]
+			selfOperator, this.filteredPriceRecords, innerFormulas[0]
 		);
 	}
 

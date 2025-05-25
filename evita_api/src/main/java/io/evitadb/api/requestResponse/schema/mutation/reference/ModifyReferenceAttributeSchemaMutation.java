@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -76,9 +76,9 @@ public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyRefere
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ModifyReferenceAttributeSchemaMutation theExistingMutation && name.equals(theExistingMutation.getName())
-				&& attributeSchemaMutation.getName().equals(theExistingMutation.getAttributeSchemaMutation().getName())) {
-			if (attributeSchemaMutation instanceof CombinableLocalEntitySchemaMutation combinableAttributeCombinationMutation) {
+		if (existingMutation instanceof ModifyReferenceAttributeSchemaMutation theExistingMutation && this.name.equals(theExistingMutation.getName())
+				&& this.attributeSchemaMutation.getName().equals(theExistingMutation.getAttributeSchemaMutation().getName())) {
+			if (this.attributeSchemaMutation instanceof CombinableLocalEntitySchemaMutation combinableAttributeCombinationMutation) {
 				final MutationCombinationResult<LocalEntitySchemaMutation> result = combinableAttributeCombinationMutation.combineWith(
 					currentCatalogSchema, currentEntitySchema, (LocalEntitySchemaMutation) theExistingMutation.getAttributeSchemaMutation()
 				);
@@ -91,7 +91,7 @@ public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyRefere
 					} else if (result.origin() == combinableAttributeCombinationMutation) {
 						origin = theExistingMutation;
 					} else {
-						origin = new ModifyReferenceAttributeSchemaMutation(name, (ReferenceAttributeSchemaMutation) result.origin());
+						origin = new ModifyReferenceAttributeSchemaMutation(this.name, (ReferenceAttributeSchemaMutation) result.origin());
 					}
 					final LocalEntitySchemaMutation[] current;
 					if (ArrayUtils.isEmpty(result.current())) {
@@ -102,7 +102,7 @@ public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyRefere
 								if (it == ((ModifyReferenceAttributeSchemaMutation) existingMutation).getAttributeSchemaMutation()) {
 									return existingMutation;
 								} else {
-									return new ModifyReferenceAttributeSchemaMutation(name, (ReferenceAttributeSchemaMutation) it);
+									return new ModifyReferenceAttributeSchemaMutation(this.name, (ReferenceAttributeSchemaMutation) it);
 								}
 							})
 							.toArray(LocalEntitySchemaMutation[]::new);
@@ -120,7 +120,7 @@ public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyRefere
 	@Nullable
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
-		return attributeSchemaMutation.mutate(
+		return this.attributeSchemaMutation.mutate(
 			entitySchema, referenceSchema,
 			referenceSchema instanceof ReflectedReferenceSchemaContract rrsc && !rrsc.isReflectedReferenceAvailable() ?
 				ConsistencyChecks.SKIP : consistencyChecks
@@ -131,11 +131,11 @@ public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyRefere
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
+		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {
 			// ups, the reference schema is missing
 			throw new InvalidSchemaMutationException(
-				"The reference `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
@@ -147,7 +147,7 @@ public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyRefere
 
 	@Override
 	public String toString() {
-		return "Modify entity reference `" + name + "` schema, " +
-			StringUtils.uncapitalize(attributeSchemaMutation.toString());
+		return "Modify entity reference `" + this.name + "` schema, " +
+			StringUtils.uncapitalize(this.attributeSchemaMutation.toString());
 	}
 }

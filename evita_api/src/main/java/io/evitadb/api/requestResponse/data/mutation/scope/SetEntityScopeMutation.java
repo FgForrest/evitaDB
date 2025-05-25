@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 	@Nonnull
 	@Override
 	public Scope mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable Scope existingValue) {
-		return scope;
+		return this.scope;
 	}
 
 	@Override
@@ -66,7 +66,7 @@ public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 
 	@Override
 	public Scope getComparableKey() {
-		return scope;
+		return this.scope;
 	}
 
 	@Nonnull
@@ -83,7 +83,7 @@ public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 
 	@Override
 	public String toString() {
-		return "Marking entity as `" + scope + "`";
+		return "Marking entity as `" + this.scope + "`";
 	}
 
 }

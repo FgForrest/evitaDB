@@ -76,7 +76,7 @@ public class GetUnknownEntityHandler extends EntityHandler<CatalogRestHandlingCo
 
 				final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
 					buildHead(executionContext),
-					FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntity(parametersFromRequest, restHandlingContext.getCatalogSchema()),
+					FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntity(parametersFromRequest, this.restHandlingContext.getCatalogSchema()),
 					RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
 				));
 

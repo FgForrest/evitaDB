@@ -330,20 +330,20 @@ public record StorageOptions(
 		@Nonnull
 		public StorageOptions build() {
 			return new StorageOptions(
-				storageDirectory,
-				exportDirectory,
-				lockTimeoutSeconds,
-				waitOnCloseSeconds,
-				outputBufferSize,
-				maxOpenedReadHandles,
-				syncWrites,
-				compression,
-				computeCRC32C,
-				minimalActiveRecordShare,
-				fileSizeCompactionThresholdBytes,
-				timeTravelEnabled,
-				exportDirectorySizeLimitBytes,
-				exportFileHistoryExpirationSeconds
+				this.storageDirectory,
+				this.exportDirectory,
+				this.lockTimeoutSeconds,
+				this.waitOnCloseSeconds,
+				this.outputBufferSize,
+				this.maxOpenedReadHandles,
+				this.syncWrites,
+				this.compression,
+				this.computeCRC32C,
+				this.minimalActiveRecordShare,
+				this.fileSizeCompactionThresholdBytes,
+				this.timeTravelEnabled,
+				this.exportDirectorySizeLimitBytes,
+				this.exportFileHistoryExpirationSeconds
 			);
 		}
 

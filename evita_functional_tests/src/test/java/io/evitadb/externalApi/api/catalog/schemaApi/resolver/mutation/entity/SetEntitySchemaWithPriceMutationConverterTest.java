@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new SetEntitySchemaWithPriceMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new SetEntitySchemaWithPriceMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -61,7 +61,7 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 			2
 		);
 
-		final SetEntitySchemaWithPriceMutation convertedMutation1 = converter.convertFromInput(
+		final SetEntitySchemaWithPriceMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE.name(), true)
 				.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
@@ -71,7 +71,7 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final SetEntitySchemaWithPriceMutation convertedMutation2 = converter.convertFromInput(
+		final SetEntitySchemaWithPriceMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE.name(), "true")
 				.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
@@ -86,7 +86,7 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_PRICE_PLACES.name(), 2)
 					.build()
@@ -94,13 +94,13 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE.name(), true)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

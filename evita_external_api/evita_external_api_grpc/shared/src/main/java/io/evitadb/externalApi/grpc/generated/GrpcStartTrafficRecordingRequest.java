@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,49 +77,49 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            samplingRate_ = input.readInt32();
+            this.samplingRate_ = input.readInt32();
             break;
           }
           case 16: {
 
-            exportFile_ = input.readBool();
+            this.exportFile_ = input.readBool();
             break;
           }
           case 26: {
             com.google.protobuf.Int64Value.Builder subBuilder = null;
-            if (maxDurationInMilliseconds_ != null) {
-              subBuilder = maxDurationInMilliseconds_.toBuilder();
+            if (this.maxDurationInMilliseconds_ != null) {
+              subBuilder = this.maxDurationInMilliseconds_.toBuilder();
             }
-            maxDurationInMilliseconds_ = input.readMessage(com.google.protobuf.Int64Value.parser(), extensionRegistry);
+            this.maxDurationInMilliseconds_ = input.readMessage(com.google.protobuf.Int64Value.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(maxDurationInMilliseconds_);
-              maxDurationInMilliseconds_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.maxDurationInMilliseconds_);
+              this.maxDurationInMilliseconds_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 34: {
             com.google.protobuf.Int64Value.Builder subBuilder = null;
-            if (maxFileSizeInBytes_ != null) {
-              subBuilder = maxFileSizeInBytes_.toBuilder();
+            if (this.maxFileSizeInBytes_ != null) {
+              subBuilder = this.maxFileSizeInBytes_.toBuilder();
             }
-            maxFileSizeInBytes_ = input.readMessage(com.google.protobuf.Int64Value.parser(), extensionRegistry);
+            this.maxFileSizeInBytes_ = input.readMessage(com.google.protobuf.Int64Value.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(maxFileSizeInBytes_);
-              maxFileSizeInBytes_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.maxFileSizeInBytes_);
+              this.maxFileSizeInBytes_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 42: {
             com.google.protobuf.Int64Value.Builder subBuilder = null;
-            if (chunkFileSizeInBytes_ != null) {
-              subBuilder = chunkFileSizeInBytes_.toBuilder();
+            if (this.chunkFileSizeInBytes_ != null) {
+              subBuilder = this.chunkFileSizeInBytes_.toBuilder();
             }
-            chunkFileSizeInBytes_ = input.readMessage(com.google.protobuf.Int64Value.parser(), extensionRegistry);
+            this.chunkFileSizeInBytes_ = input.readMessage(com.google.protobuf.Int64Value.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(chunkFileSizeInBytes_);
-              chunkFileSizeInBytes_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(this.chunkFileSizeInBytes_);
+              this.chunkFileSizeInBytes_ = subBuilder.buildPartial();
             }
 
             break;
@@ -168,7 +168,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getSamplingRate() {
-    return samplingRate_;
+    return this.samplingRate_;
   }
 
   public static final int EXPORTFILE_FIELD_NUMBER = 2;
@@ -184,7 +184,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean getExportFile() {
-    return exportFile_;
+    return this.exportFile_;
   }
 
   public static final int MAXDURATIONINMILLISECONDS_FIELD_NUMBER = 3;
@@ -199,7 +199,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasMaxDurationInMilliseconds() {
-    return maxDurationInMilliseconds_ != null;
+    return this.maxDurationInMilliseconds_ != null;
   }
   /**
    * <pre>
@@ -211,7 +211,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.Int64Value getMaxDurationInMilliseconds() {
-    return maxDurationInMilliseconds_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : maxDurationInMilliseconds_;
+    return this.maxDurationInMilliseconds_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : this.maxDurationInMilliseconds_;
   }
   /**
    * <pre>
@@ -237,7 +237,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasMaxFileSizeInBytes() {
-    return maxFileSizeInBytes_ != null;
+    return this.maxFileSizeInBytes_ != null;
   }
   /**
    * <pre>
@@ -249,7 +249,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.Int64Value getMaxFileSizeInBytes() {
-    return maxFileSizeInBytes_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : maxFileSizeInBytes_;
+    return this.maxFileSizeInBytes_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : this.maxFileSizeInBytes_;
   }
   /**
    * <pre>
@@ -275,7 +275,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasChunkFileSizeInBytes() {
-    return chunkFileSizeInBytes_ != null;
+    return this.chunkFileSizeInBytes_ != null;
   }
   /**
    * <pre>
@@ -287,7 +287,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.Int64Value getChunkFileSizeInBytes() {
-    return chunkFileSizeInBytes_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : chunkFileSizeInBytes_;
+    return this.chunkFileSizeInBytes_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : this.chunkFileSizeInBytes_;
   }
   /**
    * <pre>
@@ -304,63 +304,63 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (samplingRate_ != 0) {
-      output.writeInt32(1, samplingRate_);
+    if (this.samplingRate_ != 0) {
+      output.writeInt32(1, this.samplingRate_);
     }
-    if (exportFile_ != false) {
-      output.writeBool(2, exportFile_);
+    if (this.exportFile_ != false) {
+      output.writeBool(2, this.exportFile_);
     }
-    if (maxDurationInMilliseconds_ != null) {
+    if (this.maxDurationInMilliseconds_ != null) {
       output.writeMessage(3, getMaxDurationInMilliseconds());
     }
-    if (maxFileSizeInBytes_ != null) {
+    if (this.maxFileSizeInBytes_ != null) {
       output.writeMessage(4, getMaxFileSizeInBytes());
     }
-    if (chunkFileSizeInBytes_ != null) {
+    if (this.chunkFileSizeInBytes_ != null) {
       output.writeMessage(5, getChunkFileSizeInBytes());
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (samplingRate_ != 0) {
+    if (this.samplingRate_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, samplingRate_);
+        .computeInt32Size(1, this.samplingRate_);
     }
-    if (exportFile_ != false) {
+    if (this.exportFile_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(2, exportFile_);
+        .computeBoolSize(2, this.exportFile_);
     }
-    if (maxDurationInMilliseconds_ != null) {
+    if (this.maxDurationInMilliseconds_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getMaxDurationInMilliseconds());
     }
-    if (maxFileSizeInBytes_ != null) {
+    if (this.maxFileSizeInBytes_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(4, getMaxFileSizeInBytes());
     }
-    if (chunkFileSizeInBytes_ != null) {
+    if (this.chunkFileSizeInBytes_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(5, getChunkFileSizeInBytes());
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -393,14 +393,14 @@ private static final long serialVersionUID = 0L;
       if (!getChunkFileSizeInBytes()
           .equals(other.getChunkFileSizeInBytes())) return false;
     }
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -421,8 +421,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CHUNKFILESIZEINBYTES_FIELD_NUMBER;
       hash = (53 * hash) + getChunkFileSizeInBytes().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -558,27 +558,27 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      samplingRate_ = 0;
+      this.samplingRate_ = 0;
 
-      exportFile_ = false;
+      this.exportFile_ = false;
 
-      if (maxDurationInMillisecondsBuilder_ == null) {
-        maxDurationInMilliseconds_ = null;
+      if (this.maxDurationInMillisecondsBuilder_ == null) {
+        this.maxDurationInMilliseconds_ = null;
       } else {
-        maxDurationInMilliseconds_ = null;
-        maxDurationInMillisecondsBuilder_ = null;
+        this.maxDurationInMilliseconds_ = null;
+        this.maxDurationInMillisecondsBuilder_ = null;
       }
-      if (maxFileSizeInBytesBuilder_ == null) {
-        maxFileSizeInBytes_ = null;
+      if (this.maxFileSizeInBytesBuilder_ == null) {
+        this.maxFileSizeInBytes_ = null;
       } else {
-        maxFileSizeInBytes_ = null;
-        maxFileSizeInBytesBuilder_ = null;
+        this.maxFileSizeInBytes_ = null;
+        this.maxFileSizeInBytesBuilder_ = null;
       }
-      if (chunkFileSizeInBytesBuilder_ == null) {
-        chunkFileSizeInBytes_ = null;
+      if (this.chunkFileSizeInBytesBuilder_ == null) {
+        this.chunkFileSizeInBytes_ = null;
       } else {
-        chunkFileSizeInBytes_ = null;
-        chunkFileSizeInBytesBuilder_ = null;
+        this.chunkFileSizeInBytes_ = null;
+        this.chunkFileSizeInBytesBuilder_ = null;
       }
       return this;
     }
@@ -606,22 +606,22 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest result = new io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest(this);
-      result.samplingRate_ = samplingRate_;
-      result.exportFile_ = exportFile_;
-      if (maxDurationInMillisecondsBuilder_ == null) {
-        result.maxDurationInMilliseconds_ = maxDurationInMilliseconds_;
+      result.samplingRate_ = this.samplingRate_;
+      result.exportFile_ = this.exportFile_;
+      if (this.maxDurationInMillisecondsBuilder_ == null) {
+        result.maxDurationInMilliseconds_ = this.maxDurationInMilliseconds_;
       } else {
-        result.maxDurationInMilliseconds_ = maxDurationInMillisecondsBuilder_.build();
+        result.maxDurationInMilliseconds_ = this.maxDurationInMillisecondsBuilder_.build();
       }
-      if (maxFileSizeInBytesBuilder_ == null) {
-        result.maxFileSizeInBytes_ = maxFileSizeInBytes_;
+      if (this.maxFileSizeInBytesBuilder_ == null) {
+        result.maxFileSizeInBytes_ = this.maxFileSizeInBytes_;
       } else {
-        result.maxFileSizeInBytes_ = maxFileSizeInBytesBuilder_.build();
+        result.maxFileSizeInBytes_ = this.maxFileSizeInBytesBuilder_.build();
       }
-      if (chunkFileSizeInBytesBuilder_ == null) {
-        result.chunkFileSizeInBytes_ = chunkFileSizeInBytes_;
+      if (this.chunkFileSizeInBytesBuilder_ == null) {
+        result.chunkFileSizeInBytes_ = this.chunkFileSizeInBytes_;
       } else {
-        result.chunkFileSizeInBytes_ = chunkFileSizeInBytesBuilder_.build();
+        result.chunkFileSizeInBytes_ = this.chunkFileSizeInBytesBuilder_.build();
       }
       onBuilt();
       return result;
@@ -726,7 +726,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getSamplingRate() {
-      return samplingRate_;
+      return this.samplingRate_;
     }
     /**
      * <pre>
@@ -738,8 +738,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setSamplingRate(int value) {
-      
-      samplingRate_ = value;
+
+      this.samplingRate_ = value;
       onChanged();
       return this;
     }
@@ -752,8 +752,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSamplingRate() {
-      
-      samplingRate_ = 0;
+
+      this.samplingRate_ = 0;
       onChanged();
       return this;
     }
@@ -770,7 +770,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean getExportFile() {
-      return exportFile_;
+      return this.exportFile_;
     }
     /**
      * <pre>
@@ -783,8 +783,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setExportFile(boolean value) {
-      
-      exportFile_ = value;
+
+      this.exportFile_ = value;
       onChanged();
       return this;
     }
@@ -798,8 +798,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearExportFile() {
-      
-      exportFile_ = false;
+
+      this.exportFile_ = false;
       onChanged();
       return this;
     }
@@ -816,7 +816,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the maxDurationInMilliseconds field is set.
      */
     public boolean hasMaxDurationInMilliseconds() {
-      return maxDurationInMillisecondsBuilder_ != null || maxDurationInMilliseconds_ != null;
+      return this.maxDurationInMillisecondsBuilder_ != null || this.maxDurationInMilliseconds_ != null;
     }
     /**
      * <pre>
@@ -827,10 +827,10 @@ private static final long serialVersionUID = 0L;
      * @return The maxDurationInMilliseconds.
      */
     public com.google.protobuf.Int64Value getMaxDurationInMilliseconds() {
-      if (maxDurationInMillisecondsBuilder_ == null) {
-        return maxDurationInMilliseconds_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : maxDurationInMilliseconds_;
+      if (this.maxDurationInMillisecondsBuilder_ == null) {
+        return this.maxDurationInMilliseconds_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : this.maxDurationInMilliseconds_;
       } else {
-        return maxDurationInMillisecondsBuilder_.getMessage();
+        return this.maxDurationInMillisecondsBuilder_.getMessage();
       }
     }
     /**
@@ -841,14 +841,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     public Builder setMaxDurationInMilliseconds(com.google.protobuf.Int64Value value) {
-      if (maxDurationInMillisecondsBuilder_ == null) {
+      if (this.maxDurationInMillisecondsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        maxDurationInMilliseconds_ = value;
+        this.maxDurationInMilliseconds_ = value;
         onChanged();
       } else {
-        maxDurationInMillisecondsBuilder_.setMessage(value);
+        this.maxDurationInMillisecondsBuilder_.setMessage(value);
       }
 
       return this;
@@ -862,11 +862,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setMaxDurationInMilliseconds(
         com.google.protobuf.Int64Value.Builder builderForValue) {
-      if (maxDurationInMillisecondsBuilder_ == null) {
-        maxDurationInMilliseconds_ = builderForValue.build();
+      if (this.maxDurationInMillisecondsBuilder_ == null) {
+        this.maxDurationInMilliseconds_ = builderForValue.build();
         onChanged();
       } else {
-        maxDurationInMillisecondsBuilder_.setMessage(builderForValue.build());
+        this.maxDurationInMillisecondsBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -879,16 +879,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     public Builder mergeMaxDurationInMilliseconds(com.google.protobuf.Int64Value value) {
-      if (maxDurationInMillisecondsBuilder_ == null) {
-        if (maxDurationInMilliseconds_ != null) {
-          maxDurationInMilliseconds_ =
-            com.google.protobuf.Int64Value.newBuilder(maxDurationInMilliseconds_).mergeFrom(value).buildPartial();
+      if (this.maxDurationInMillisecondsBuilder_ == null) {
+        if (this.maxDurationInMilliseconds_ != null) {
+          this.maxDurationInMilliseconds_ =
+            com.google.protobuf.Int64Value.newBuilder(this.maxDurationInMilliseconds_).mergeFrom(value).buildPartial();
         } else {
-          maxDurationInMilliseconds_ = value;
+          this.maxDurationInMilliseconds_ = value;
         }
         onChanged();
       } else {
-        maxDurationInMillisecondsBuilder_.mergeFrom(value);
+        this.maxDurationInMillisecondsBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -901,12 +901,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     public Builder clearMaxDurationInMilliseconds() {
-      if (maxDurationInMillisecondsBuilder_ == null) {
-        maxDurationInMilliseconds_ = null;
+      if (this.maxDurationInMillisecondsBuilder_ == null) {
+        this.maxDurationInMilliseconds_ = null;
         onChanged();
       } else {
-        maxDurationInMilliseconds_ = null;
-        maxDurationInMillisecondsBuilder_ = null;
+        this.maxDurationInMilliseconds_ = null;
+        this.maxDurationInMillisecondsBuilder_ = null;
       }
 
       return this;
@@ -919,7 +919,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     public com.google.protobuf.Int64Value.Builder getMaxDurationInMillisecondsBuilder() {
-      
+
       onChanged();
       return getMaxDurationInMillisecondsFieldBuilder().getBuilder();
     }
@@ -931,11 +931,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     public com.google.protobuf.Int64ValueOrBuilder getMaxDurationInMillisecondsOrBuilder() {
-      if (maxDurationInMillisecondsBuilder_ != null) {
-        return maxDurationInMillisecondsBuilder_.getMessageOrBuilder();
+      if (this.maxDurationInMillisecondsBuilder_ != null) {
+        return this.maxDurationInMillisecondsBuilder_.getMessageOrBuilder();
       } else {
-        return maxDurationInMilliseconds_ == null ?
-            com.google.protobuf.Int64Value.getDefaultInstance() : maxDurationInMilliseconds_;
+        return this.maxDurationInMilliseconds_ == null ?
+            com.google.protobuf.Int64Value.getDefaultInstance() : this.maxDurationInMilliseconds_;
       }
     }
     /**
@@ -946,17 +946,17 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
         getMaxDurationInMillisecondsFieldBuilder() {
-      if (maxDurationInMillisecondsBuilder_ == null) {
-        maxDurationInMillisecondsBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.maxDurationInMillisecondsBuilder_ == null) {
+        this.maxDurationInMillisecondsBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>(
                 getMaxDurationInMilliseconds(),
                 getParentForChildren(),
                 isClean());
-        maxDurationInMilliseconds_ = null;
+        this.maxDurationInMilliseconds_ = null;
       }
-      return maxDurationInMillisecondsBuilder_;
+      return this.maxDurationInMillisecondsBuilder_;
     }
 
     private com.google.protobuf.Int64Value maxFileSizeInBytes_;
@@ -971,7 +971,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the maxFileSizeInBytes field is set.
      */
     public boolean hasMaxFileSizeInBytes() {
-      return maxFileSizeInBytesBuilder_ != null || maxFileSizeInBytes_ != null;
+      return this.maxFileSizeInBytesBuilder_ != null || this.maxFileSizeInBytes_ != null;
     }
     /**
      * <pre>
@@ -982,10 +982,10 @@ private static final long serialVersionUID = 0L;
      * @return The maxFileSizeInBytes.
      */
     public com.google.protobuf.Int64Value getMaxFileSizeInBytes() {
-      if (maxFileSizeInBytesBuilder_ == null) {
-        return maxFileSizeInBytes_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : maxFileSizeInBytes_;
+      if (this.maxFileSizeInBytesBuilder_ == null) {
+        return this.maxFileSizeInBytes_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : this.maxFileSizeInBytes_;
       } else {
-        return maxFileSizeInBytesBuilder_.getMessage();
+        return this.maxFileSizeInBytesBuilder_.getMessage();
       }
     }
     /**
@@ -996,14 +996,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     public Builder setMaxFileSizeInBytes(com.google.protobuf.Int64Value value) {
-      if (maxFileSizeInBytesBuilder_ == null) {
+      if (this.maxFileSizeInBytesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        maxFileSizeInBytes_ = value;
+        this.maxFileSizeInBytes_ = value;
         onChanged();
       } else {
-        maxFileSizeInBytesBuilder_.setMessage(value);
+        this.maxFileSizeInBytesBuilder_.setMessage(value);
       }
 
       return this;
@@ -1017,11 +1017,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setMaxFileSizeInBytes(
         com.google.protobuf.Int64Value.Builder builderForValue) {
-      if (maxFileSizeInBytesBuilder_ == null) {
-        maxFileSizeInBytes_ = builderForValue.build();
+      if (this.maxFileSizeInBytesBuilder_ == null) {
+        this.maxFileSizeInBytes_ = builderForValue.build();
         onChanged();
       } else {
-        maxFileSizeInBytesBuilder_.setMessage(builderForValue.build());
+        this.maxFileSizeInBytesBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1034,16 +1034,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     public Builder mergeMaxFileSizeInBytes(com.google.protobuf.Int64Value value) {
-      if (maxFileSizeInBytesBuilder_ == null) {
-        if (maxFileSizeInBytes_ != null) {
-          maxFileSizeInBytes_ =
-            com.google.protobuf.Int64Value.newBuilder(maxFileSizeInBytes_).mergeFrom(value).buildPartial();
+      if (this.maxFileSizeInBytesBuilder_ == null) {
+        if (this.maxFileSizeInBytes_ != null) {
+          this.maxFileSizeInBytes_ =
+            com.google.protobuf.Int64Value.newBuilder(this.maxFileSizeInBytes_).mergeFrom(value).buildPartial();
         } else {
-          maxFileSizeInBytes_ = value;
+          this.maxFileSizeInBytes_ = value;
         }
         onChanged();
       } else {
-        maxFileSizeInBytesBuilder_.mergeFrom(value);
+        this.maxFileSizeInBytesBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1056,12 +1056,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     public Builder clearMaxFileSizeInBytes() {
-      if (maxFileSizeInBytesBuilder_ == null) {
-        maxFileSizeInBytes_ = null;
+      if (this.maxFileSizeInBytesBuilder_ == null) {
+        this.maxFileSizeInBytes_ = null;
         onChanged();
       } else {
-        maxFileSizeInBytes_ = null;
-        maxFileSizeInBytesBuilder_ = null;
+        this.maxFileSizeInBytes_ = null;
+        this.maxFileSizeInBytesBuilder_ = null;
       }
 
       return this;
@@ -1074,7 +1074,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     public com.google.protobuf.Int64Value.Builder getMaxFileSizeInBytesBuilder() {
-      
+
       onChanged();
       return getMaxFileSizeInBytesFieldBuilder().getBuilder();
     }
@@ -1086,11 +1086,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     public com.google.protobuf.Int64ValueOrBuilder getMaxFileSizeInBytesOrBuilder() {
-      if (maxFileSizeInBytesBuilder_ != null) {
-        return maxFileSizeInBytesBuilder_.getMessageOrBuilder();
+      if (this.maxFileSizeInBytesBuilder_ != null) {
+        return this.maxFileSizeInBytesBuilder_.getMessageOrBuilder();
       } else {
-        return maxFileSizeInBytes_ == null ?
-            com.google.protobuf.Int64Value.getDefaultInstance() : maxFileSizeInBytes_;
+        return this.maxFileSizeInBytes_ == null ?
+            com.google.protobuf.Int64Value.getDefaultInstance() : this.maxFileSizeInBytes_;
       }
     }
     /**
@@ -1101,17 +1101,17 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
         getMaxFileSizeInBytesFieldBuilder() {
-      if (maxFileSizeInBytesBuilder_ == null) {
-        maxFileSizeInBytesBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.maxFileSizeInBytesBuilder_ == null) {
+        this.maxFileSizeInBytesBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>(
                 getMaxFileSizeInBytes(),
                 getParentForChildren(),
                 isClean());
-        maxFileSizeInBytes_ = null;
+        this.maxFileSizeInBytes_ = null;
       }
-      return maxFileSizeInBytesBuilder_;
+      return this.maxFileSizeInBytesBuilder_;
     }
 
     private com.google.protobuf.Int64Value chunkFileSizeInBytes_;
@@ -1126,7 +1126,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the chunkFileSizeInBytes field is set.
      */
     public boolean hasChunkFileSizeInBytes() {
-      return chunkFileSizeInBytesBuilder_ != null || chunkFileSizeInBytes_ != null;
+      return this.chunkFileSizeInBytesBuilder_ != null || this.chunkFileSizeInBytes_ != null;
     }
     /**
      * <pre>
@@ -1137,10 +1137,10 @@ private static final long serialVersionUID = 0L;
      * @return The chunkFileSizeInBytes.
      */
     public com.google.protobuf.Int64Value getChunkFileSizeInBytes() {
-      if (chunkFileSizeInBytesBuilder_ == null) {
-        return chunkFileSizeInBytes_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : chunkFileSizeInBytes_;
+      if (this.chunkFileSizeInBytesBuilder_ == null) {
+        return this.chunkFileSizeInBytes_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : this.chunkFileSizeInBytes_;
       } else {
-        return chunkFileSizeInBytesBuilder_.getMessage();
+        return this.chunkFileSizeInBytesBuilder_.getMessage();
       }
     }
     /**
@@ -1151,14 +1151,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
     public Builder setChunkFileSizeInBytes(com.google.protobuf.Int64Value value) {
-      if (chunkFileSizeInBytesBuilder_ == null) {
+      if (this.chunkFileSizeInBytesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        chunkFileSizeInBytes_ = value;
+        this.chunkFileSizeInBytes_ = value;
         onChanged();
       } else {
-        chunkFileSizeInBytesBuilder_.setMessage(value);
+        this.chunkFileSizeInBytesBuilder_.setMessage(value);
       }
 
       return this;
@@ -1172,11 +1172,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setChunkFileSizeInBytes(
         com.google.protobuf.Int64Value.Builder builderForValue) {
-      if (chunkFileSizeInBytesBuilder_ == null) {
-        chunkFileSizeInBytes_ = builderForValue.build();
+      if (this.chunkFileSizeInBytesBuilder_ == null) {
+        this.chunkFileSizeInBytes_ = builderForValue.build();
         onChanged();
       } else {
-        chunkFileSizeInBytesBuilder_.setMessage(builderForValue.build());
+        this.chunkFileSizeInBytesBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1189,16 +1189,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
     public Builder mergeChunkFileSizeInBytes(com.google.protobuf.Int64Value value) {
-      if (chunkFileSizeInBytesBuilder_ == null) {
-        if (chunkFileSizeInBytes_ != null) {
-          chunkFileSizeInBytes_ =
-            com.google.protobuf.Int64Value.newBuilder(chunkFileSizeInBytes_).mergeFrom(value).buildPartial();
+      if (this.chunkFileSizeInBytesBuilder_ == null) {
+        if (this.chunkFileSizeInBytes_ != null) {
+          this.chunkFileSizeInBytes_ =
+            com.google.protobuf.Int64Value.newBuilder(this.chunkFileSizeInBytes_).mergeFrom(value).buildPartial();
         } else {
-          chunkFileSizeInBytes_ = value;
+          this.chunkFileSizeInBytes_ = value;
         }
         onChanged();
       } else {
-        chunkFileSizeInBytesBuilder_.mergeFrom(value);
+        this.chunkFileSizeInBytesBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1211,12 +1211,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
     public Builder clearChunkFileSizeInBytes() {
-      if (chunkFileSizeInBytesBuilder_ == null) {
-        chunkFileSizeInBytes_ = null;
+      if (this.chunkFileSizeInBytesBuilder_ == null) {
+        this.chunkFileSizeInBytes_ = null;
         onChanged();
       } else {
-        chunkFileSizeInBytes_ = null;
-        chunkFileSizeInBytesBuilder_ = null;
+        this.chunkFileSizeInBytes_ = null;
+        this.chunkFileSizeInBytesBuilder_ = null;
       }
 
       return this;
@@ -1229,7 +1229,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
     public com.google.protobuf.Int64Value.Builder getChunkFileSizeInBytesBuilder() {
-      
+
       onChanged();
       return getChunkFileSizeInBytesFieldBuilder().getBuilder();
     }
@@ -1241,11 +1241,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
     public com.google.protobuf.Int64ValueOrBuilder getChunkFileSizeInBytesOrBuilder() {
-      if (chunkFileSizeInBytesBuilder_ != null) {
-        return chunkFileSizeInBytesBuilder_.getMessageOrBuilder();
+      if (this.chunkFileSizeInBytesBuilder_ != null) {
+        return this.chunkFileSizeInBytesBuilder_.getMessageOrBuilder();
       } else {
-        return chunkFileSizeInBytes_ == null ?
-            com.google.protobuf.Int64Value.getDefaultInstance() : chunkFileSizeInBytes_;
+        return this.chunkFileSizeInBytes_ == null ?
+            com.google.protobuf.Int64Value.getDefaultInstance() : this.chunkFileSizeInBytes_;
       }
     }
     /**
@@ -1256,17 +1256,17 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
         getChunkFileSizeInBytesFieldBuilder() {
-      if (chunkFileSizeInBytesBuilder_ == null) {
-        chunkFileSizeInBytesBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (this.chunkFileSizeInBytesBuilder_ == null) {
+        this.chunkFileSizeInBytesBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>(
                 getChunkFileSizeInBytes(),
                 getParentForChildren(),
                 isClean());
-        chunkFileSizeInBytes_ = null;
+        this.chunkFileSizeInBytes_ = null;
       }
-      return chunkFileSizeInBytesBuilder_;
+      return this.chunkFileSizeInBytesBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

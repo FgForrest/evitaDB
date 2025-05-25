@@ -101,7 +101,7 @@ public class CertificateService {
 			.distinct()
 			.collect(Collectors.toList());
 		this.certificatesLoader = new CertificatesLoader(apiOptions, allowedClientCertificatePaths, getCertificateFactory(), certificatePath);
-		this.loadedCertificates.set(certificatesLoader.reinitialize());
+		this.loadedCertificates.set(this.certificatesLoader.reinitialize());
 		if (shouldStartCertificateChangedWatcher) {
 			serviceExecutor.scheduleAtFixedRate(this::reloadCertificatesIfAnyModified, 0, 1, TimeUnit.MINUTES);
 		}

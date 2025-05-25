@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ public abstract class EndpointExecutionContext implements AutoCloseable {
 	 */
 	@Nonnull
 	public HttpRequest httpRequest() {
-		return httpRequest;
+		return this.httpRequest;
 	}
 
 	/**
@@ -84,21 +84,21 @@ public abstract class EndpointExecutionContext implements AutoCloseable {
 	 * Adds exception from execution. Can be used e.g. by callbacks to log it.
 	 */
 	public void addException(@Nonnull Exception e) {
-		exceptions.add(e);
+		this.exceptions.add(e);
 	}
 
 	/**
 	 * Returns all exceptions thrown during exception
 	 */
 	public List<Exception> exceptions() {
-		return Collections.unmodifiableList(exceptions);
+		return Collections.unmodifiableList(this.exceptions);
 	}
 
 	/**
 	 * Adds callback that will be called when context gets closed.
 	 */
 	public void addCloseCallback(@Nonnull Consumer<EndpointExecutionContext> callback) {
-		closeCallbacks.add(callback);
+		this.closeCallbacks.add(callback);
 	}
 
 	/**
@@ -111,7 +111,7 @@ public abstract class EndpointExecutionContext implements AutoCloseable {
 
 	@Override
 	public void close() {
-		closeCallbacks.forEach(it -> it.accept(this));
+		this.closeCallbacks.forEach(it -> it.accept(this));
 	}
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,14 +48,14 @@ public record WalFileReference(
 	@Nonnull
 	public Path toFilePath(@Nonnull Path catalogFolder) {
 		return catalogFolder.resolve(
-			CatalogPersistenceService.getWalFileName(catalogName, fileIndex)
+			CatalogPersistenceService.getWalFileName(this.catalogName, this.fileIndex)
 		);
 	}
 
 	@Override
 	@Nonnull
 	public WalFileReference incrementAndGet() {
-		return new WalFileReference(catalogName, fileIndex + 1, null);
+		return new WalFileReference(this.catalogName, this.fileIndex + 1, null);
 	}
 
 }

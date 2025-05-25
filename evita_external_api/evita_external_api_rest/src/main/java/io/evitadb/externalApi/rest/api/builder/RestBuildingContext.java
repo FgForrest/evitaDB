@@ -134,38 +134,38 @@ public abstract class RestBuildingContext {
 	 * Registers new custom enum if there is not enum with same name.
 	 */
 	public void registerCustomEnumIfAbsent(@Nonnull OpenApiEnum customEnum) {
-		if (registeredCustomEnums.containsKey(customEnum.getName())) {
+		if (this.registeredCustomEnums.containsKey(customEnum.getName())) {
 			return;
 		}
-		registeredCustomEnums.put(customEnum.getName(), customEnum.getEnumTemplate());
+		this.registeredCustomEnums.put(customEnum.getName(), customEnum.getEnumTemplate());
 		registerType(customEnum);
 	}
 
 	@Nonnull
 	public OpenApiTypeReference registerType(@Nonnull OpenApiComplexType type) {
 		Assert.isPremiseValid(
-			!registeredTypes.containsKey(type.getName()),
+			!this.registeredTypes.containsKey(type.getName()),
 			() -> new OpenApiBuildingError("Object with name `" + type.getName() + "` is already registered.")
 		);
-		registeredTypes.put(type.getName(), type);
+		this.registeredTypes.put(type.getName(), type);
 
 		return OpenApiTypeReference.typeRefTo(type);
 	}
 
 	@Nonnull
 	public Optional<OpenApiTypeReference> getRegisteredType(@Nonnull String name) {
-		return Optional.ofNullable(registeredTypes.get(name))
+		return Optional.ofNullable(this.registeredTypes.get(name))
 			.map(OpenApiTypeReference::typeRefTo);
 	}
 
 	public void registerEndpoint(@Nonnull OpenApiEndpoint<?> endpoint) {
 		Assert.isPremiseValid(
-			!registeredEndpoints.containsKey(endpoint.getPath()) ||
-				!registeredEndpoints.get(endpoint.getPath()).containsKey(endpoint.getMethod()),
+			!this.registeredEndpoints.containsKey(endpoint.getPath()) ||
+				!this.registeredEndpoints.get(endpoint.getPath()).containsKey(endpoint.getMethod()),
 			() -> new OpenApiBuildingError("There is already registered `" + endpoint.getMethod() + "` endpoint at `" + endpoint.getPath() + "`.")
 		);
 
-		registeredEndpoints.computeIfAbsent(
+		this.registeredEndpoints.computeIfAbsent(
 				endpoint.getPath(),
 				path -> createHashMap(HttpMethod.values().length)
 			)
@@ -195,11 +195,11 @@ public abstract class RestBuildingContext {
 		openApi.info(info);
 
 		final Components components = new Components();
-		registeredTypes.forEach((name, object) -> components.addSchemas(name, object.toSchema()));
+		this.registeredTypes.forEach((name, object) -> components.addSchemas(name, object.toSchema()));
 		openApi.setComponents(components);
 
 		final Paths paths = new Paths();
-		registeredEndpoints.forEach((path, endpoints) -> {
+		this.registeredEndpoints.forEach((path, endpoints) -> {
 			final PathItem pathItem = new PathItem();
 			endpoints.forEach((method, endpoint) -> pathItem.operation(method, endpoint.toOperation()));
 			paths.addPathItem("/" + path.toString(), pathItem);
@@ -212,7 +212,7 @@ public abstract class RestBuildingContext {
 
 	@Nonnull
 	private Map<String, Class<? extends Enum<?>>> buildEnumMapping() {
-		final Map<String, Class<? extends Enum<?>>> enumMapping = registeredCustomEnums.entrySet()
+		final Map<String, Class<? extends Enum<?>>> enumMapping = this.registeredCustomEnums.entrySet()
 			.stream()
 			.filter(it -> it.getValue() != null) // we want mappings only for enums that have Java enum associated with it
 			.collect(Collectors.toMap(

@@ -90,7 +90,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
      * Process every request with tracing context, so we can classify it in evitaDB.
      */
     private HttpResponse instrumentRequest(@Nonnull ServiceRequestContext serviceRequestContext, @Nonnull HttpRequest httpRequest) {
-        return restHandlingContext.getTracingContext().executeWithinBlock(
+        return this.restHandlingContext.getTracingContext().executeWithinBlock(
             "REST",
             httpRequest,
             () -> super.serve(serviceRequestContext, httpRequest)
@@ -101,9 +101,9 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
     @Override
     protected RestEndpointExecutionContext createExecutionContext(@Nonnull HttpRequest httpRequest) {
         final RestInstanceType instanceType;
-        if (restHandlingContext instanceof SystemRestHandlingContext) {
+        if (this.restHandlingContext instanceof SystemRestHandlingContext) {
             instanceType = RestInstanceType.SYSTEM;
-        } else if (restHandlingContext instanceof CatalogRestHandlingContext) {
+        } else if (this.restHandlingContext instanceof CatalogRestHandlingContext) {
             instanceType = RestInstanceType.CATALOG;
         } else {
             // note: this is a bit of a hack to support lab rest API without rewriting it entirely. We will get rid of it
@@ -142,12 +142,12 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
      */
     @Nullable
     protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExecutionContext exchange) {
-        if (!(restHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext)) {
+        if (!(this.restHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext)) {
             // we don't have any catalog to create session on
             return Optional.empty();
         }
 
-        final Evita evita = restHandlingContext.getEvita();
+        final Evita evita = this.restHandlingContext.getEvita();
         final String catalogName = catalogRestHandlingContext.getCatalogSchema().getName();
         if (modifiesData()) {
             return Optional.of(evita.createReadWriteSession(catalogName));
@@ -186,7 +186,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
 
     @Nonnull
     protected Map<String, Object> getParametersFromRequest(@Nonnull RestEndpointExecutionContext context) {
-        final Operation operation = restHandlingContext.getEndpointOperation();
+        final Operation operation = this.restHandlingContext.getEndpointOperation();
         //create builder representation of query params
         final Map<String, Deque<String>> queryParams = context.httpRequest().headers().stream()
             .filter(header -> header.getKey().startsWith(INTERNAL_HEADER_PREFIX))
@@ -232,7 +232,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
                                                      @Nonnull Parameter parameter) {
         final Deque<String> queryParam = queryParams.get(parameter.getName());
         if (queryParam != null && !queryParam.isEmpty()) {
-            return Optional.ofNullable(dataDeserializer.deserializeValue(
+            return Optional.ofNullable(this.dataDeserializer.deserializeValue(
                 getParameterSchema(parameter),
                 queryParam.toArray(String[]::new)
             ));
@@ -246,7 +246,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
     @Nonnull
     @SuppressWarnings("rawtypes")
     protected Schema getParameterSchema(@Nonnull Parameter parameter) {
-        return SchemaUtils.getTargetSchemaFromRefOrOneOf(parameter.getSchema(), restHandlingContext.getOpenApi());
+        return SchemaUtils.getTargetSchemaFromRefOrOneOf(parameter.getSchema(), this.restHandlingContext.getOpenApi());
     }
 
 }

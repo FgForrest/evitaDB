@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -139,7 +139,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	@Override
 	public int get(int index) {
 		try {
-			return roaringBitmap.select(index);
+			return this.roaringBitmap.select(index);
 		} catch (IllegalArgumentException ex) {
 			throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + size());
 		}
@@ -153,8 +153,8 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 			if (result.length == 0) {
 				return result;
 			}
-			result[0] = roaringBitmap.select(start);
-			final PeekableIntIterator it = roaringBitmap.getIntIterator();
+			result[0] = this.roaringBitmap.select(start);
+			final PeekableIntIterator it = this.roaringBitmap.getIntIterator();
 			it.advanceIfNeeded(result[0]);
 			it.next();
 			for (int i = 1; i < length; i++) {
@@ -173,7 +173,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	@Override
 	public int getFirst() {
 		try {
-			return roaringBitmap.first();
+			return this.roaringBitmap.first();
 		} catch (NoSuchElementException ex) {
 			throw new IndexOutOfBoundsException("IntegerBitmap is empty!");
 		}
@@ -182,7 +182,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	@Override
 	public int getLast() {
 		try {
-			return roaringBitmap.last();
+			return this.roaringBitmap.last();
 		} catch (NoSuchElementException ex) {
 			throw new IndexOutOfBoundsException("IntegerBitmap is empty!");
 		}
@@ -190,31 +190,31 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 
 	@Override
 	public int[] getArray() {
-		return roaringBitmap.toArray();
+		return this.roaringBitmap.toArray();
 	}
 
 	@Nonnull
 	@Override
 	public OfInt iterator() {
-		return roaringBitmap.stream().iterator();
+		return this.roaringBitmap.stream().iterator();
 	}
 
 	@Override
 	public boolean isEmpty() {
-		return roaringBitmap.isEmpty();
+		return this.roaringBitmap.isEmpty();
 	}
 
 	@Override
 	public int size() {
 		if (this.memoizedCardinality == -1) {
-			this.memoizedCardinality = roaringBitmap.getCardinality();
+			this.memoizedCardinality = this.roaringBitmap.getCardinality();
 		}
 		return this.memoizedCardinality;
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(roaringBitmap);
+		return Objects.hash(this.roaringBitmap);
 	}
 
 	@Override
@@ -222,12 +222,12 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		BaseBitmap that = (BaseBitmap) o;
-		return roaringBitmap.equals(that.roaringBitmap);
+		return this.roaringBitmap.equals(that.roaringBitmap);
 	}
 
 	@Override
 	public String toString() {
 		// we need to unify the output with ArrayBitmap and other implementations
-		return "[" + roaringBitmap.stream().mapToObj(Integer::toString).collect(Collectors.joining(", ")) + "]";
+		return "[" + this.roaringBitmap.stream().mapToObj(Integer::toString).collect(Collectors.joining(", ")) + "]";
 	}
 }

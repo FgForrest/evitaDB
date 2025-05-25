@@ -87,22 +87,22 @@ public class DisallowEvolutionModeInEntitySchemaMutation implements CombinableLo
 				new DisallowEvolutionModeInEntitySchemaMutation(
 					Stream.concat(
 							disallowEvolutionModeInEntitySchema.getEvolutionModes().stream(),
-							evolutionModes.stream()
+							this.evolutionModes.stream()
 						)
 						.collect(Collectors.toSet())
 				)
 			);
 		} else if (existingMutation instanceof AllowEvolutionModeInEntitySchemaMutation allowEvolutionModeInEntitySchema) {
 			final EvolutionMode[] modesToAdd = Arrays.stream(allowEvolutionModeInEntitySchema.getEvolutionModes())
-				.filter(added -> !evolutionModes.contains(added))
+				.filter(added -> !this.evolutionModes.contains(added))
 				.toArray(EvolutionMode[]::new);
-			final Set<EvolutionMode> modesToRemove = evolutionModes.stream()
+			final Set<EvolutionMode> modesToRemove = this.evolutionModes.stream()
 				.filter(it -> currentEntitySchema.getEvolutionMode().contains(it))
 				.collect(Collectors.toSet());
 
 			return new MutationCombinationResult<>(
 				modesToAdd.length == 0 ? null : (modesToAdd.length == ((AllowEvolutionModeInEntitySchemaMutation) existingMutation).getEvolutionModes().length ? existingMutation : new AllowEvolutionModeInEntitySchemaMutation(modesToAdd)),
-				modesToRemove.size() == evolutionModes.size() ? this : (modesToRemove.isEmpty() ? null : new DisallowEvolutionModeInEntitySchemaMutation(modesToRemove))
+				modesToRemove.size() == this.evolutionModes.size() ? this : (modesToRemove.isEmpty() ? null : new DisallowEvolutionModeInEntitySchemaMutation(modesToRemove))
 			);
 		} else {
 			return null;
@@ -113,7 +113,7 @@ public class DisallowEvolutionModeInEntitySchemaMutation implements CombinableLo
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (entitySchema.getEvolutionMode().stream().noneMatch(evolutionModes::contains)) {
+		if (entitySchema.getEvolutionMode().stream().noneMatch(this.evolutionModes::contains)) {
 			// no need to change the schema
 			return entitySchema;
 		} else {
@@ -151,6 +151,6 @@ public class DisallowEvolutionModeInEntitySchemaMutation implements CombinableLo
 
 	@Override
 	public String toString() {
-		return "Disallow: evolutionModes=" + evolutionModes;
+		return "Disallow: evolutionModes=" + this.evolutionModes;
 	}
 }

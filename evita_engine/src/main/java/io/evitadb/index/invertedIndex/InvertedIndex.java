@@ -545,12 +545,12 @@ public class InvertedIndex implements
 					(b1, b2) -> comparator.compare(b1.getValue(), b2.getValue())
 				);
 				if (boundsHandling == BoundsHandling.EXCLUSIVE) {
-					normalizedStartIndex = startIndex >= 0 ? startIndex + 1 : -1 * (startIndex) - 1;
+					this.normalizedStartIndex = startIndex >= 0 ? startIndex + 1 : -1 * (startIndex) - 1;
 				} else {
-					normalizedStartIndex = startIndex >= 0 ? startIndex : -1 * (startIndex) - 1;
+					this.normalizedStartIndex = startIndex >= 0 ? startIndex : -1 * (startIndex) - 1;
 				}
 			} else {
-				normalizedStartIndex = 0;
+				this.normalizedStartIndex = 0;
 			}
 
 			if (lessThanEq != null) {
@@ -561,12 +561,12 @@ public class InvertedIndex implements
 					(b1, b2) -> comparator.compare(b1.getValue(), b2.getValue())
 				);
 				if (boundsHandling == BoundsHandling.EXCLUSIVE) {
-					normalizedEndIndex = endIndex >= 0 ? endIndex : (-1 * (endIndex) - 1);
+					this.normalizedEndIndex = endIndex >= 0 ? endIndex : (-1 * (endIndex) - 1);
 				} else {
-					normalizedEndIndex = endIndex >= 0 ? endIndex + 1 : (-1 * (endIndex) - 1);
+					this.normalizedEndIndex = endIndex >= 0 ? endIndex + 1 : (-1 * (endIndex) - 1);
 				}
 			} else {
-				normalizedEndIndex = points.length;
+				this.normalizedEndIndex = points.length;
 			}
 		}
 

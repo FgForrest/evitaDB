@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -106,7 +106,7 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	@Nonnull
 	@Override
 	public EntityFetch getEntityRequire() {
-		return new EntityFetch(requirements);
+		return new EntityFetch(this.requirements);
 	}
 
 	@Nonnull
@@ -130,14 +130,14 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 					final EntitySchemaContract entitySchema = entity.getSchema();
 					if (!Objects.equals(entityType, entitySchema.getName())) {
 						entityType = entitySchema.getName();
-						final AttributeSchemaContract attributeSchema = attributeSchemaAccessor.apply(
-							entitySchema, attributeName, requiredAttributeTraits
+						final AttributeSchemaContract attributeSchema = this.attributeSchemaAccessor.apply(
+							entitySchema, this.attributeName, this.requiredAttributeTraits
 						);
-						filter = filterFactory.apply(attributeSchema);
+						filter = this.filterFactory.apply(attributeSchema);
 					}
 					// and filter by predicate
 					if (filter != null) {
-						final Stream<Optional<AttributeValue>> valueStream = attributeValueAccessor.apply(entity, attributeName);
+						final Stream<Optional<AttributeValue>> valueStream = this.attributeValueAccessor.apply(entity, this.attributeName);
 						if (valueStream != null && filter.test(valueStream)) {
 							result.add(context.translateEntity(entity));
 						}

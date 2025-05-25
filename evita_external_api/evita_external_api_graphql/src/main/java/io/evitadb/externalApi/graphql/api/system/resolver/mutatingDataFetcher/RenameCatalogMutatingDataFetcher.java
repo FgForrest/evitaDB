@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ public class RenameCatalogMutatingDataFetcher implements DataFetcher<CatalogCont
         final String catalogName = environment.getArgument(RenameCatalogMutationHeaderDescriptor.NAME.name());
         final String newCatalogName = environment.getArgument(RenameCatalogMutationHeaderDescriptor.NEW_NAME.name());
 
-        evita.renameCatalog(catalogName, newCatalogName);
-        return evita.getCatalogInstanceOrThrowException(newCatalogName);
+	    this.evita.renameCatalog(catalogName, newCatalogName);
+        return this.evita.getCatalogInstanceOrThrowException(newCatalogName);
     }
 }

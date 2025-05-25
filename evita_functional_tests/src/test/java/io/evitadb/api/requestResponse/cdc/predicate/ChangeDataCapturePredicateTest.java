@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -123,7 +123,7 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 		};
 
 		final Random rnd = new Random(1);
-		final ModificationFunction modificationFunction = dataGenerator.createModificationFunction(
+		final ModificationFunction modificationFunction = this.dataGenerator.createModificationFunction(
 			randomEntityPicker, rnd
 		);
 
@@ -237,8 +237,8 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 		/* we need somehow to initialize mutation count eagerly?! */
 		final Mutation[] reversedMutations = new Mutation[this.mutations.size()];
 		int reverseIndex = this.mutations.size() - 1;
-		for (int i = 0; i < mutations.size(); i++) {
-			final Mutation mutation = mutations.get(i);
+		for (int i = 0; i < this.mutations.size(); i++) {
+			final Mutation mutation = this.mutations.get(i);
 			assertInstanceOf(TransactionMutation.class, mutation, "Mutation should be of type TransactionMutation");
 			final TransactionMutation transactionMutation = (TransactionMutation) mutation;
 			for (int j = i + 1; j <= i + transactionMutation.getMutationCount(); j++) {

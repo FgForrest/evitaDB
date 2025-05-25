@@ -114,9 +114,9 @@ class PrefetchedRecordsSorterTest {
 		doAnswer(invocation -> SharedBufferPool.INSTANCE.obtain()).when(executionContext).borrowBuffer();
 		doNothing().when(executionContext).returnBuffer(any());
 
-		entitySorter = new PrefetchedRecordsSorterWithContext(
+		this.entitySorter = new PrefetchedRecordsSorterWithContext(
 			new PrefetchedRecordsSorter(
-				TEST_COMPARATOR_FIRST
+				this.TEST_COMPARATOR_FIRST
 			),
 			planningContext
 		);
@@ -124,11 +124,11 @@ class PrefetchedRecordsSorterTest {
 
 	@Test
 	void shouldReturnFullResultInExpectedOrderOnSmallData() {
-		final QueryExecutionContext executionContext = entitySorter.context().createExecutionContext();
+		final QueryExecutionContext executionContext = this.entitySorter.context().createExecutionContext();
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3},
 			asResult(
-				theArray -> entitySorter.sorter().sortAndSlice(
+				theArray -> this.entitySorter.sorter().sortAndSlice(
 					new SortingContext(
 						executionContext, makeBitmap(1, 2, 3, 4),
 						0, 100, 0, 0
@@ -141,7 +141,7 @@ class PrefetchedRecordsSorterTest {
 		assertArrayEquals(
 			new int[]{1, 3},
 			asResult(
-				theArray -> entitySorter.sorter().sortAndSlice(
+				theArray -> this.entitySorter.sorter().sortAndSlice(
 					new SortingContext(
 						executionContext,
 						makeBitmap(1, 2, 3, 4, 5, 6, 7, 8, 9),
@@ -155,7 +155,7 @@ class PrefetchedRecordsSorterTest {
 		assertArrayEquals(
 			new int[]{7, 8, 9},
 			asResult(
-				theArray -> entitySorter.sorter().sortAndSlice(
+				theArray -> this.entitySorter.sorter().sortAndSlice(
 					new SortingContext(
 						executionContext,
 						makeBitmap(7, 8, 9),
@@ -171,10 +171,10 @@ class PrefetchedRecordsSorterTest {
 	@Test
 	void shouldReturnSortedResultEvenForMissingData() {
 		final int[] actual = new NestedContextSorter(
-			entitySorter.context().createExecutionContext(),
+			this.entitySorter.context().createExecutionContext(),
 			() -> "whatever",
 			List.of(
-				entitySorter.sorter()
+				this.entitySorter.sorter()
 			)
 		).sortAndSlice(makeBitmap(0, 1, 2, 3, 4, 12, 13));
 
@@ -187,12 +187,12 @@ class PrefetchedRecordsSorterTest {
 	@Test
 	void shouldReturnSortedResultEvenForMissingDataWithAdditionalSorter() {
 		final int[] actual = new NestedContextSorter(
-			entitySorter.context().createExecutionContext(),
+			this.entitySorter.context().createExecutionContext(),
 			() -> "whatever",
 			List.of(
-				entitySorter.sorter(),
+				this.entitySorter.sorter(),
 				new PrefetchedRecordsSorter(
-					TEST_COMPARATOR_SECOND
+					this.TEST_COMPARATOR_SECOND
 				)
 			)
 		).sortAndSlice(makeBitmap(0, 1, 2, 3, 4, 12, 13));

@@ -221,7 +221,7 @@ public class InputStreamTrafficRecordReader implements TrafficRecordingReader, C
 								(theInput, recordLength) -> CurrentSessionRecordContext.fetch(
 									sessionSequenceId,
 									sessionRecordsCount,
-									() -> (TrafficRecording) trafficRecorderKryo.readClassAndObject(this.input)
+									() -> (TrafficRecording) this.trafficRecorderKryo.readClassAndObject(this.input)
 								)
 							);
 							lastLocationRead.set(startPosition + tr.fileLocation().recordLength());

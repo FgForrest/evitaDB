@@ -64,11 +64,11 @@ public class TransactionLocations {
 	 * @return the number of transaction locations, or -1 if the lock could not be acquired
 	 */
 	public int size() {
-		if (lock.tryLock()) {
+		if (this.lock.tryLock()) {
 			try {
 				return this.locations == null ? 1 : this.locations.getSize();
 			} finally {
-				lock.unlock();
+				this.lock.unlock();
 			}
 		} else {
 			return -1;
@@ -84,13 +84,13 @@ public class TransactionLocations {
 	public boolean cut() {
 		Assert.isPremiseValid(this.locations != null, "The locations are already cut!");
 		try {
-			if (lock.tryLock(100, MILLISECONDS)) {
+			if (this.lock.tryLock(100, MILLISECONDS)) {
 				try {
 					this.lastLocation = this.locations.getLast();
 					this.locations = null;
 					return true;
 				} finally {
-					lock.unlock();
+					this.lock.unlock();
 				}
 			}
 		} catch (InterruptedException ignored) {
@@ -111,7 +111,7 @@ public class TransactionLocations {
 		if (this.locations == null) {
 			this.locations = new CompositeObjectArray<>(TransactionLocation.class);
 		}
-		if (lock.tryLock()) {
+		if (this.lock.tryLock()) {
 			try {
 				final boolean canBeAppended = ofNullable(this.locations.getLast())
 					.map(it -> it.catalogVersion() + 1 == transactionMutation.getCatalogVersion())
@@ -127,7 +127,7 @@ public class TransactionLocations {
 					);
 				}
 			} finally {
-				lock.unlock();
+				this.lock.unlock();
 			}
 		}
 	}
@@ -142,7 +142,7 @@ public class TransactionLocations {
 		notifyAboutUsage();
 		final CompositeObjectArray<TransactionLocation> locs = this.locations;
 		if (locs != null) {
-			if (lock.tryLock()) {
+			if (this.lock.tryLock()) {
 				try {
 					final int index = locs.indexOf(
 						catalogVersion,
@@ -152,7 +152,7 @@ public class TransactionLocations {
 						Objects.requireNonNull(locs.get(index)).startPosition() :
 						0L;
 				} finally {
-					lock.unlock();
+					this.lock.unlock();
 				}
 			}
 		} else {

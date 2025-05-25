@@ -51,7 +51,7 @@ class DisallowEvolutionModeInCatalogSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new DisallowEvolutionModeInCatalogSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new DisallowEvolutionModeInCatalogSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -60,7 +60,7 @@ class DisallowEvolutionModeInCatalogSchemaMutationConverterTest {
 			CatalogEvolutionMode.ADDING_ENTITY_TYPES
 		);
 
-		final DisallowEvolutionModeInCatalogSchemaMutation convertedMutation1 = converter.convertFromInput(
+		final DisallowEvolutionModeInCatalogSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of(
 					CatalogEvolutionMode.ADDING_ENTITY_TYPES
@@ -69,7 +69,7 @@ class DisallowEvolutionModeInCatalogSchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final DisallowEvolutionModeInCatalogSchemaMutation convertedMutation2 = converter.convertFromInput(
+		final DisallowEvolutionModeInCatalogSchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of(
 					"ADDING_ENTITY_TYPES"
@@ -82,7 +82,7 @@ class DisallowEvolutionModeInCatalogSchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final DisallowEvolutionModeInCatalogSchemaMutation expectedMutation = new DisallowEvolutionModeInCatalogSchemaMutation();
 
-		final DisallowEvolutionModeInCatalogSchemaMutation convertedMutation1 = converter.convertFromInput(
+		final DisallowEvolutionModeInCatalogSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of())
 				.build()
@@ -92,8 +92,8 @@ class DisallowEvolutionModeInCatalogSchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -103,7 +103,7 @@ class DisallowEvolutionModeInCatalogSchemaMutationConverterTest {
 		);
 
 		//noinspection unchecked
-		final Map<String, Object> serializedMutation = (Map<String, Object>) converter.convertToOutput(inputMutation);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

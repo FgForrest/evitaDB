@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcDeleteEntitiesResponse() {
-    deletedEntityBodies_ = java.util.Collections.emptyList();
+    this.deletedEntityBodies_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -79,15 +79,15 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            deletedEntities_ = input.readInt32();
+            this.deletedEntities_ = input.readInt32();
             break;
           }
           case 18: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              deletedEntityBodies_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity>();
+              this.deletedEntityBodies_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity>();
               mutable_bitField0_ |= 0x00000001;
             }
-            deletedEntityBodies_.add(
+            this.deletedEntityBodies_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.parser(), extensionRegistry));
             break;
           }
@@ -107,7 +107,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        deletedEntityBodies_ = java.util.Collections.unmodifiableList(deletedEntityBodies_);
+        this.deletedEntityBodies_ = java.util.Collections.unmodifiableList(this.deletedEntityBodies_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -138,7 +138,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getDeletedEntities() {
-    return deletedEntities_;
+    return this.deletedEntities_;
   }
 
   public static final int DELETEDENTITYBODIES_FIELD_NUMBER = 2;
@@ -152,7 +152,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> getDeletedEntityBodiesList() {
-    return deletedEntityBodies_;
+    return this.deletedEntityBodies_;
   }
   /**
    * <pre>
@@ -162,9 +162,9 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
       getDeletedEntityBodiesOrBuilderList() {
-    return deletedEntityBodies_;
+    return this.deletedEntityBodies_;
   }
   /**
    * <pre>
@@ -175,7 +175,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getDeletedEntityBodiesCount() {
-    return deletedEntityBodies_.size();
+    return this.deletedEntityBodies_.size();
   }
   /**
    * <pre>
@@ -186,7 +186,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getDeletedEntityBodies(int index) {
-    return deletedEntityBodies_.get(index);
+    return this.deletedEntityBodies_.get(index);
   }
   /**
    * <pre>
@@ -198,48 +198,48 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getDeletedEntityBodiesOrBuilder(
       int index) {
-    return deletedEntityBodies_.get(index);
+    return this.deletedEntityBodies_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (deletedEntities_ != 0) {
-      output.writeInt32(1, deletedEntities_);
+    if (this.deletedEntities_ != 0) {
+      output.writeInt32(1, this.deletedEntities_);
     }
-    for (int i = 0; i < deletedEntityBodies_.size(); i++) {
-      output.writeMessage(2, deletedEntityBodies_.get(i));
+    for (int i = 0; i < this.deletedEntityBodies_.size(); i++) {
+      output.writeMessage(2, this.deletedEntityBodies_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (deletedEntities_ != 0) {
+    if (this.deletedEntities_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, deletedEntities_);
+        .computeInt32Size(1, this.deletedEntities_);
     }
-    for (int i = 0; i < deletedEntityBodies_.size(); i++) {
+    for (int i = 0; i < this.deletedEntityBodies_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(2, deletedEntityBodies_.get(i));
+        .computeMessageSize(2, this.deletedEntityBodies_.get(i));
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -257,14 +257,14 @@ private static final long serialVersionUID = 0L;
         != other.getDeletedEntities()) return false;
     if (!getDeletedEntityBodiesList()
         .equals(other.getDeletedEntityBodiesList())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -274,8 +274,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + DELETEDENTITYBODIES_FIELD_NUMBER;
       hash = (53 * hash) + getDeletedEntityBodiesList().hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -412,13 +412,13 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      deletedEntities_ = 0;
+      this.deletedEntities_ = 0;
 
-      if (deletedEntityBodiesBuilder_ == null) {
-        deletedEntityBodies_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.deletedEntityBodiesBuilder_ == null) {
+        this.deletedEntityBodies_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       } else {
-        deletedEntityBodiesBuilder_.clear();
+        this.deletedEntityBodiesBuilder_.clear();
       }
       return this;
     }
@@ -446,16 +446,16 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse result = new io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse(this);
-      int from_bitField0_ = bitField0_;
-      result.deletedEntities_ = deletedEntities_;
-      if (deletedEntityBodiesBuilder_ == null) {
-        if (((bitField0_ & 0x00000001) != 0)) {
-          deletedEntityBodies_ = java.util.Collections.unmodifiableList(deletedEntityBodies_);
-          bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      result.deletedEntities_ = this.deletedEntities_;
+      if (this.deletedEntityBodiesBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000001) != 0)) {
+          this.deletedEntityBodies_ = java.util.Collections.unmodifiableList(this.deletedEntityBodies_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         }
-        result.deletedEntityBodies_ = deletedEntityBodies_;
+        result.deletedEntityBodies_ = this.deletedEntityBodies_;
       } else {
-        result.deletedEntityBodies_ = deletedEntityBodiesBuilder_.build();
+        result.deletedEntityBodies_ = this.deletedEntityBodiesBuilder_.build();
       }
       onBuilt();
       return result;
@@ -508,29 +508,29 @@ private static final long serialVersionUID = 0L;
       if (other.getDeletedEntities() != 0) {
         setDeletedEntities(other.getDeletedEntities());
       }
-      if (deletedEntityBodiesBuilder_ == null) {
+      if (this.deletedEntityBodiesBuilder_ == null) {
         if (!other.deletedEntityBodies_.isEmpty()) {
-          if (deletedEntityBodies_.isEmpty()) {
-            deletedEntityBodies_ = other.deletedEntityBodies_;
-            bitField0_ = (bitField0_ & ~0x00000001);
+          if (this.deletedEntityBodies_.isEmpty()) {
+            this.deletedEntityBodies_ = other.deletedEntityBodies_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
           } else {
             ensureDeletedEntityBodiesIsMutable();
-            deletedEntityBodies_.addAll(other.deletedEntityBodies_);
+            this.deletedEntityBodies_.addAll(other.deletedEntityBodies_);
           }
           onChanged();
         }
       } else {
         if (!other.deletedEntityBodies_.isEmpty()) {
-          if (deletedEntityBodiesBuilder_.isEmpty()) {
-            deletedEntityBodiesBuilder_.dispose();
-            deletedEntityBodiesBuilder_ = null;
-            deletedEntityBodies_ = other.deletedEntityBodies_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-            deletedEntityBodiesBuilder_ = 
+          if (this.deletedEntityBodiesBuilder_.isEmpty()) {
+            this.deletedEntityBodiesBuilder_.dispose();
+            this.deletedEntityBodiesBuilder_ = null;
+            this.deletedEntityBodies_ = other.deletedEntityBodies_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+            this.deletedEntityBodiesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getDeletedEntityBodiesFieldBuilder() : null;
           } else {
-            deletedEntityBodiesBuilder_.addAllMessages(other.deletedEntityBodies_);
+            this.deletedEntityBodiesBuilder_.addAllMessages(other.deletedEntityBodies_);
           }
         }
       }
@@ -575,7 +575,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getDeletedEntities() {
-      return deletedEntities_;
+      return this.deletedEntities_;
     }
     /**
      * <pre>
@@ -587,8 +587,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setDeletedEntities(int value) {
-      
-      deletedEntities_ = value;
+
+      this.deletedEntities_ = value;
       onChanged();
       return this;
     }
@@ -601,8 +601,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearDeletedEntities() {
-      
-      deletedEntities_ = 0;
+
+      this.deletedEntities_ = 0;
       onChanged();
       return this;
     }
@@ -610,9 +610,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> deletedEntityBodies_ =
       java.util.Collections.emptyList();
     private void ensureDeletedEntityBodiesIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        deletedEntityBodies_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity>(deletedEntityBodies_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.deletedEntityBodies_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity>(this.deletedEntityBodies_);
+        this.bitField0_ |= 0x00000001;
        }
     }
 
@@ -627,10 +627,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> getDeletedEntityBodiesList() {
-      if (deletedEntityBodiesBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(deletedEntityBodies_);
+      if (this.deletedEntityBodiesBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.deletedEntityBodies_);
       } else {
-        return deletedEntityBodiesBuilder_.getMessageList();
+        return this.deletedEntityBodiesBuilder_.getMessageList();
       }
     }
     /**
@@ -641,10 +641,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public int getDeletedEntityBodiesCount() {
-      if (deletedEntityBodiesBuilder_ == null) {
-        return deletedEntityBodies_.size();
+      if (this.deletedEntityBodiesBuilder_ == null) {
+        return this.deletedEntityBodies_.size();
       } else {
-        return deletedEntityBodiesBuilder_.getCount();
+        return this.deletedEntityBodiesBuilder_.getCount();
       }
     }
     /**
@@ -655,10 +655,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getDeletedEntityBodies(int index) {
-      if (deletedEntityBodiesBuilder_ == null) {
-        return deletedEntityBodies_.get(index);
+      if (this.deletedEntityBodiesBuilder_ == null) {
+        return this.deletedEntityBodies_.get(index);
       } else {
-        return deletedEntityBodiesBuilder_.getMessage(index);
+        return this.deletedEntityBodiesBuilder_.getMessage(index);
       }
     }
     /**
@@ -670,15 +670,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setDeletedEntityBodies(
         int index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
-      if (deletedEntityBodiesBuilder_ == null) {
+      if (this.deletedEntityBodiesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureDeletedEntityBodiesIsMutable();
-        deletedEntityBodies_.set(index, value);
+        this.deletedEntityBodies_.set(index, value);
         onChanged();
       } else {
-        deletedEntityBodiesBuilder_.setMessage(index, value);
+        this.deletedEntityBodiesBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -691,12 +691,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setDeletedEntityBodies(
         int index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
-      if (deletedEntityBodiesBuilder_ == null) {
+      if (this.deletedEntityBodiesBuilder_ == null) {
         ensureDeletedEntityBodiesIsMutable();
-        deletedEntityBodies_.set(index, builderForValue.build());
+        this.deletedEntityBodies_.set(index, builderForValue.build());
         onChanged();
       } else {
-        deletedEntityBodiesBuilder_.setMessage(index, builderForValue.build());
+        this.deletedEntityBodiesBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -708,15 +708,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public Builder addDeletedEntityBodies(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
-      if (deletedEntityBodiesBuilder_ == null) {
+      if (this.deletedEntityBodiesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureDeletedEntityBodiesIsMutable();
-        deletedEntityBodies_.add(value);
+        this.deletedEntityBodies_.add(value);
         onChanged();
       } else {
-        deletedEntityBodiesBuilder_.addMessage(value);
+        this.deletedEntityBodiesBuilder_.addMessage(value);
       }
       return this;
     }
@@ -729,15 +729,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addDeletedEntityBodies(
         int index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
-      if (deletedEntityBodiesBuilder_ == null) {
+      if (this.deletedEntityBodiesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureDeletedEntityBodiesIsMutable();
-        deletedEntityBodies_.add(index, value);
+        this.deletedEntityBodies_.add(index, value);
         onChanged();
       } else {
-        deletedEntityBodiesBuilder_.addMessage(index, value);
+        this.deletedEntityBodiesBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -750,12 +750,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addDeletedEntityBodies(
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
-      if (deletedEntityBodiesBuilder_ == null) {
+      if (this.deletedEntityBodiesBuilder_ == null) {
         ensureDeletedEntityBodiesIsMutable();
-        deletedEntityBodies_.add(builderForValue.build());
+        this.deletedEntityBodies_.add(builderForValue.build());
         onChanged();
       } else {
-        deletedEntityBodiesBuilder_.addMessage(builderForValue.build());
+        this.deletedEntityBodiesBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -768,12 +768,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addDeletedEntityBodies(
         int index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
-      if (deletedEntityBodiesBuilder_ == null) {
+      if (this.deletedEntityBodiesBuilder_ == null) {
         ensureDeletedEntityBodiesIsMutable();
-        deletedEntityBodies_.add(index, builderForValue.build());
+        this.deletedEntityBodies_.add(index, builderForValue.build());
         onChanged();
       } else {
-        deletedEntityBodiesBuilder_.addMessage(index, builderForValue.build());
+        this.deletedEntityBodiesBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -786,13 +786,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllDeletedEntityBodies(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> values) {
-      if (deletedEntityBodiesBuilder_ == null) {
+      if (this.deletedEntityBodiesBuilder_ == null) {
         ensureDeletedEntityBodiesIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, deletedEntityBodies_);
+            values, this.deletedEntityBodies_);
         onChanged();
       } else {
-        deletedEntityBodiesBuilder_.addAllMessages(values);
+        this.deletedEntityBodiesBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -804,12 +804,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public Builder clearDeletedEntityBodies() {
-      if (deletedEntityBodiesBuilder_ == null) {
-        deletedEntityBodies_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.deletedEntityBodiesBuilder_ == null) {
+        this.deletedEntityBodies_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        deletedEntityBodiesBuilder_.clear();
+        this.deletedEntityBodiesBuilder_.clear();
       }
       return this;
     }
@@ -821,12 +821,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
     public Builder removeDeletedEntityBodies(int index) {
-      if (deletedEntityBodiesBuilder_ == null) {
+      if (this.deletedEntityBodiesBuilder_ == null) {
         ensureDeletedEntityBodiesIsMutable();
-        deletedEntityBodies_.remove(index);
+        this.deletedEntityBodies_.remove(index);
         onChanged();
       } else {
-        deletedEntityBodiesBuilder_.remove(index);
+        this.deletedEntityBodiesBuilder_.remove(index);
       }
       return this;
     }
@@ -850,9 +850,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getDeletedEntityBodiesOrBuilder(
         int index) {
-      if (deletedEntityBodiesBuilder_ == null) {
-        return deletedEntityBodies_.get(index);  } else {
-        return deletedEntityBodiesBuilder_.getMessageOrBuilder(index);
+      if (this.deletedEntityBodiesBuilder_ == null) {
+        return this.deletedEntityBodies_.get(index);  } else {
+        return this.deletedEntityBodiesBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -862,12 +862,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
          getDeletedEntityBodiesOrBuilderList() {
-      if (deletedEntityBodiesBuilder_ != null) {
-        return deletedEntityBodiesBuilder_.getMessageOrBuilderList();
+      if (this.deletedEntityBodiesBuilder_ != null) {
+        return this.deletedEntityBodiesBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(deletedEntityBodies_);
+        return java.util.Collections.unmodifiableList(this.deletedEntityBodies_);
       }
     }
     /**
@@ -900,23 +900,23 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder>
          getDeletedEntityBodiesBuilderList() {
       return getDeletedEntityBodiesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getDeletedEntityBodiesFieldBuilder() {
-      if (deletedEntityBodiesBuilder_ == null) {
-        deletedEntityBodiesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.deletedEntityBodiesBuilder_ == null) {
+        this.deletedEntityBodiesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>(
-                deletedEntityBodies_,
-                ((bitField0_ & 0x00000001) != 0),
+                this.deletedEntityBodies_,
+                ((this.bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        deletedEntityBodies_ = null;
+        this.deletedEntityBodies_ = null;
       }
-      return deletedEntityBodiesBuilder_;
+      return this.deletedEntityBodiesBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

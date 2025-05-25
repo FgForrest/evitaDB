@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 
 	@Override
 	public BooleanChanges createLayer() {
-		return new BooleanChanges(value);
+		return new BooleanChanges(this.value);
 	}
 
 	/**
@@ -73,7 +73,7 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	public void setToTrue() {
 		final BooleanChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
-			value = true;
+			this.value = true;
 		} else {
 			layer.setToTrue();
 		}
@@ -85,7 +85,7 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	public void setToFalse() {
 		final BooleanChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
-			value = false;
+			this.value = false;
 		} else {
 			layer.setToFalse();
 		}
@@ -97,7 +97,7 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	public boolean isTrue() {
 		final BooleanChanges layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return value;
+			return this.value;
 		} else {
 			return layer.isTrue();
 		}
@@ -109,7 +109,7 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	public void reset() {
 		final BooleanChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
-			value = false;
+			this.value = false;
 		} else {
 			layer.setToFalse();
 		}
@@ -122,7 +122,7 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	@Nonnull
 	@Override
 	public Boolean createCopyWithMergedTransactionalMemory(@Nullable BooleanChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		return layer == null ? value : layer.isTrue();
+		return layer == null ? this.value : layer.isTrue();
 	}
 
 	@Override

@@ -1400,8 +1400,8 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			//noinspection unchecked
 			this.children = new BPlusTreeNode[originChildren.length];
 			// Copy the keys and children from the origin arrays
-			System.arraycopy(originKeys, keyStart, keys, 0, keyEnd - keyStart);
-			System.arraycopy(originChildren, childrenStart, children, 0, childrenEnd - childrenStart);
+			System.arraycopy(originKeys, keyStart, this.keys, 0, keyEnd - keyStart);
+			System.arraycopy(originChildren, childrenStart, this.children, 0, childrenEnd - childrenStart);
 			this.peek = childrenEnd - childrenStart - 1;
 			this.transactionalLayer = transactionalLayer;
 		}
@@ -2881,7 +2881,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 		@Nonnull
 		public <N extends BPlusTreeNode<M, N>> N currentNode() {
 			//noinspection unchecked
-			return (N) this.siblings[index];
+			return (N) this.siblings[this.index];
 		}
 	}
 

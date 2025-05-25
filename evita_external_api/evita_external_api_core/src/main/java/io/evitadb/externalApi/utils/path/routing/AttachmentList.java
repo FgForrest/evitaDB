@@ -35,122 +35,122 @@ public final class AttachmentList<T> implements List<T>, RandomAccess {
 	private final List<T> delegate;
 
 	public AttachmentList(final int initialCapacity, final Class<T> valueClass) {
-		delegate = Collections.checkedList(new ArrayList<T>(initialCapacity), valueClass);
+		this.delegate = Collections.checkedList(new ArrayList<T>(initialCapacity), valueClass);
 		this.valueClass = valueClass;
 	}
 
 	public AttachmentList(final Class<T> valueClass) {
-		delegate = Collections.checkedList(new ArrayList<T>(), valueClass);
+		this.delegate = Collections.checkedList(new ArrayList<T>(), valueClass);
 		this.valueClass = valueClass;
 	}
 
 	public AttachmentList(final Collection<? extends T> c, final Class<T> valueClass) {
-		delegate = Collections.checkedList(new ArrayList<T>(c.size()), valueClass);
-		delegate.addAll(c);
+		this.delegate = Collections.checkedList(new ArrayList<T>(c.size()), valueClass);
+		this.delegate.addAll(c);
 		this.valueClass = valueClass;
 	}
 
 	public Class<T> getValueClass() {
-		return valueClass;
+		return this.valueClass;
 	}
 
 	public int size() {
-		return delegate.size();
+		return this.delegate.size();
 	}
 
 	public boolean isEmpty() {
-		return delegate.isEmpty();
+		return this.delegate.isEmpty();
 	}
 
 	public boolean contains(final Object o) {
-		return delegate.contains(o);
+		return this.delegate.contains(o);
 	}
 
 	public Iterator<T> iterator() {
-		return delegate.iterator();
+		return this.delegate.iterator();
 	}
 
 	public Object[] toArray() {
-		return delegate.toArray();
+		return this.delegate.toArray();
 	}
 
 	public <T> T[] toArray(final T[] a) {
-		return delegate.toArray(a);
+		return this.delegate.toArray(a);
 	}
 
 	public boolean add(final T t) {
-		return delegate.add(t);
+		return this.delegate.add(t);
 	}
 
 	public boolean remove(final Object o) {
-		return delegate.remove(o);
+		return this.delegate.remove(o);
 	}
 
 	public boolean containsAll(final Collection<?> c) {
-		return delegate.containsAll(c);
+		return this.delegate.containsAll(c);
 	}
 
 	public boolean addAll(final Collection<? extends T> c) {
-		return delegate.addAll(c);
+		return this.delegate.addAll(c);
 	}
 
 	public boolean addAll(final int index, final Collection<? extends T> c) {
-		return delegate.addAll(index, c);
+		return this.delegate.addAll(index, c);
 	}
 
 	public boolean removeAll(final Collection<?> c) {
-		return delegate.removeAll(c);
+		return this.delegate.removeAll(c);
 	}
 
 	public boolean retainAll(final Collection<?> c) {
-		return delegate.retainAll(c);
+		return this.delegate.retainAll(c);
 	}
 
 	public void clear() {
-		delegate.clear();
+		this.delegate.clear();
 	}
 
 	public boolean equals(final Object o) {
-		return delegate.equals(o);
+		return this.delegate.equals(o);
 	}
 
 	public int hashCode() {
-		return delegate.hashCode();
+		return this.delegate.hashCode();
 	}
 
 	public T get(final int index) {
-		return delegate.get(index);
+		return this.delegate.get(index);
 	}
 
 	public T set(final int index, final T element) {
-		return delegate.set(index, element);
+		return this.delegate.set(index, element);
 	}
 
 	public void add(final int index, final T element) {
-		delegate.add(index, element);
+		this.delegate.add(index, element);
 	}
 
 	public T remove(final int index) {
-		return delegate.remove(index);
+		return this.delegate.remove(index);
 	}
 
 	public int indexOf(final Object o) {
-		return delegate.indexOf(o);
+		return this.delegate.indexOf(o);
 	}
 
 	public int lastIndexOf(final Object o) {
-		return delegate.lastIndexOf(o);
+		return this.delegate.lastIndexOf(o);
 	}
 
 	public ListIterator<T> listIterator() {
-		return delegate.listIterator();
+		return this.delegate.listIterator();
 	}
 
 	public ListIterator<T> listIterator(final int index) {
-		return delegate.listIterator(index);
+		return this.delegate.listIterator(index);
 	}
 
 	public List<T> subList(final int fromIndex, final int toIndex) {
-		return delegate.subList(fromIndex, toIndex);
+		return this.delegate.subList(fromIndex, toIndex);
 	}
 }

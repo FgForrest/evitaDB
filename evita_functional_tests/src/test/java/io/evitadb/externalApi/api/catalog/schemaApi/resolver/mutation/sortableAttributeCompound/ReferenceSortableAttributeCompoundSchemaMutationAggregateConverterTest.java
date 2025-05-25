@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ class ReferenceSortableAttributeCompoundSchemaMutationAggregateConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -64,7 +64,7 @@ class ReferenceSortableAttributeCompoundSchemaMutationAggregateConverterTest {
 			new ModifySortableAttributeCompoundSchemaNameMutation("code", "betterCode")
 		);
 
-		final List<ReferenceSortableAttributeCompoundSchemaMutation> convertedMutations = converter.convertFromInput(
+		final List<ReferenceSortableAttributeCompoundSchemaMutation> convertedMutations = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSortableAttributeCompoundSchemaMutationAggregateDescriptor.MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION.name(), map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
@@ -81,13 +81,13 @@ class ReferenceSortableAttributeCompoundSchemaMutationAggregateConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final List<ReferenceSortableAttributeCompoundSchemaMutation> convertedMutations = converter.convertFromInput(Map.of());
+		final List<ReferenceSortableAttributeCompoundSchemaMutation> convertedMutations = this.converter.convertFromInput(Map.of());
 		assertEquals(List.of(), convertedMutations);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -107,7 +107,7 @@ class ReferenceSortableAttributeCompoundSchemaMutationAggregateConverterTest {
 				.build()
 		);
 
-		final Object convertedMutations = converter.convertToOutput(
+		final Object convertedMutations = this.converter.convertToOutput(
 			List.of(
 				new ModifySortableAttributeCompoundSchemaDescriptionMutation("code", "desc"),
 				new ModifySortableAttributeCompoundSchemaNameMutation("code", "betterCode")

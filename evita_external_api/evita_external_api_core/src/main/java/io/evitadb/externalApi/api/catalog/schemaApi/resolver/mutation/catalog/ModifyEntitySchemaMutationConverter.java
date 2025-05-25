@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ public class ModifyEntitySchemaMutationConverter extends LocalCatalogSchemaMutat
 			})
 			.get();
 		final LocalEntitySchemaMutation[] entitySchemaMutations = inputEntitySchemaMutations.stream()
-			.flatMap(m -> entitySchemaMutationAggregateResolver.convertFromInput(m).stream())
+			.flatMap(m -> this.entitySchemaMutationAggregateResolver.convertFromInput(m).stream())
 			.toArray(LocalEntitySchemaMutation[]::new);
 
 		return new ModifyEntitySchemaMutation(
@@ -87,7 +87,7 @@ public class ModifyEntitySchemaMutationConverter extends LocalCatalogSchemaMutat
 	protected void convertToOutput(@Nonnull ModifyEntitySchemaMutation mutation, @Nonnull Output output) {
 		output.setProperty(
 			ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS,
-			entitySchemaMutationAggregateResolver.convertToOutput(mutation.getSchemaMutations())
+			this.entitySchemaMutationAggregateResolver.convertToOutput(mutation.getSchemaMutations())
 		);
 		super.convertToOutput(mutation, output);
 	}

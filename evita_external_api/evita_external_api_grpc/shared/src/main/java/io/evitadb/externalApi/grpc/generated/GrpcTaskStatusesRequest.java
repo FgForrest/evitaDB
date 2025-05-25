@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,8 +43,8 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcTaskStatusesRequest() {
-    taskType_ = java.util.Collections.emptyList();
-    simplifiedState_ = java.util.Collections.emptyList();
+    this.taskType_ = java.util.Collections.emptyList();
+    this.simplifiedState_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -80,30 +80,30 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            pageNumber_ = input.readInt32();
+            this.pageNumber_ = input.readInt32();
             break;
           }
           case 16: {
 
-            pageSize_ = input.readInt32();
+            this.pageSize_ = input.readInt32();
             break;
           }
           case 26: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              taskType_ = new java.util.ArrayList<com.google.protobuf.StringValue>();
+              this.taskType_ = new java.util.ArrayList<com.google.protobuf.StringValue>();
               mutable_bitField0_ |= 0x00000001;
             }
-            taskType_.add(
+            this.taskType_.add(
                 input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry));
             break;
           }
           case 32: {
             int rawValue = input.readEnum();
             if (!((mutable_bitField0_ & 0x00000002) != 0)) {
-              simplifiedState_ = new java.util.ArrayList<java.lang.Integer>();
+              this.simplifiedState_ = new java.util.ArrayList<java.lang.Integer>();
               mutable_bitField0_ |= 0x00000002;
             }
-            simplifiedState_.add(rawValue);
+            this.simplifiedState_.add(rawValue);
             break;
           }
           case 34: {
@@ -112,10 +112,10 @@ private static final long serialVersionUID = 0L;
             while(input.getBytesUntilLimit() > 0) {
               int rawValue = input.readEnum();
               if (!((mutable_bitField0_ & 0x00000002) != 0)) {
-                simplifiedState_ = new java.util.ArrayList<java.lang.Integer>();
+                this.simplifiedState_ = new java.util.ArrayList<java.lang.Integer>();
                 mutable_bitField0_ |= 0x00000002;
               }
-              simplifiedState_.add(rawValue);
+              this.simplifiedState_.add(rawValue);
             }
             input.popLimit(oldLimit);
             break;
@@ -136,10 +136,10 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        taskType_ = java.util.Collections.unmodifiableList(taskType_);
+        this.taskType_ = java.util.Collections.unmodifiableList(this.taskType_);
       }
       if (((mutable_bitField0_ & 0x00000002) != 0)) {
-        simplifiedState_ = java.util.Collections.unmodifiableList(simplifiedState_);
+        this.simplifiedState_ = java.util.Collections.unmodifiableList(this.simplifiedState_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -170,7 +170,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getPageNumber() {
-    return pageNumber_;
+    return this.pageNumber_;
   }
 
   public static final int PAGESIZE_FIELD_NUMBER = 2;
@@ -185,7 +185,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getPageSize() {
-    return pageSize_;
+    return this.pageSize_;
   }
 
   public static final int TASKTYPE_FIELD_NUMBER = 3;
@@ -200,7 +200,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<com.google.protobuf.StringValue> getTaskTypeList() {
-    return taskType_;
+    return this.taskType_;
   }
   /**
    * <pre>
@@ -211,9 +211,9 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends com.google.protobuf.StringValueOrBuilder> 
+  public java.util.List<? extends com.google.protobuf.StringValueOrBuilder>
       getTaskTypeOrBuilderList() {
-    return taskType_;
+    return this.taskType_;
   }
   /**
    * <pre>
@@ -225,7 +225,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getTaskTypeCount() {
-    return taskType_.size();
+    return this.taskType_.size();
   }
   /**
    * <pre>
@@ -237,7 +237,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.StringValue getTaskType(int index) {
-    return taskType_.get(index);
+    return this.taskType_.get(index);
   }
   /**
    * <pre>
@@ -250,7 +250,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.StringValueOrBuilder getTaskTypeOrBuilder(
       int index) {
-    return taskType_.get(index);
+    return this.taskType_.get(index);
   }
 
   public static final int SIMPLIFIEDSTATE_FIELD_NUMBER = 4;
@@ -277,7 +277,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState> getSimplifiedStateList() {
     return new com.google.protobuf.Internal.ListAdapter<
-        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState>(simplifiedState_, simplifiedState_converter_);
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState>(this.simplifiedState_, simplifiedState_converter_);
   }
   /**
    * <pre>
@@ -290,7 +290,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getSimplifiedStateCount() {
-    return simplifiedState_.size();
+    return this.simplifiedState_.size();
   }
   /**
    * <pre>
@@ -304,7 +304,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState getSimplifiedState(int index) {
-    return simplifiedState_converter_.convert(simplifiedState_.get(index));
+    return simplifiedState_converter_.convert(this.simplifiedState_.get(index));
   }
   /**
    * <pre>
@@ -318,7 +318,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<java.lang.Integer>
   getSimplifiedStateValueList() {
-    return simplifiedState_;
+    return this.simplifiedState_;
   }
   /**
    * <pre>
@@ -332,18 +332,18 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getSimplifiedStateValue(int index) {
-    return simplifiedState_.get(index);
+    return this.simplifiedState_.get(index);
   }
   private int simplifiedStateMemoizedSerializedSize;
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
@@ -351,57 +351,57 @@ private static final long serialVersionUID = 0L;
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
     getSerializedSize();
-    if (pageNumber_ != 0) {
-      output.writeInt32(1, pageNumber_);
+    if (this.pageNumber_ != 0) {
+      output.writeInt32(1, this.pageNumber_);
     }
-    if (pageSize_ != 0) {
-      output.writeInt32(2, pageSize_);
+    if (this.pageSize_ != 0) {
+      output.writeInt32(2, this.pageSize_);
     }
-    for (int i = 0; i < taskType_.size(); i++) {
-      output.writeMessage(3, taskType_.get(i));
+    for (int i = 0; i < this.taskType_.size(); i++) {
+      output.writeMessage(3, this.taskType_.get(i));
     }
     if (getSimplifiedStateList().size() > 0) {
       output.writeUInt32NoTag(34);
-      output.writeUInt32NoTag(simplifiedStateMemoizedSerializedSize);
+      output.writeUInt32NoTag(this.simplifiedStateMemoizedSerializedSize);
     }
-    for (int i = 0; i < simplifiedState_.size(); i++) {
-      output.writeEnumNoTag(simplifiedState_.get(i));
+    for (int i = 0; i < this.simplifiedState_.size(); i++) {
+      output.writeEnumNoTag(this.simplifiedState_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (pageNumber_ != 0) {
+    if (this.pageNumber_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, pageNumber_);
+        .computeInt32Size(1, this.pageNumber_);
     }
-    if (pageSize_ != 0) {
+    if (this.pageSize_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, pageSize_);
+        .computeInt32Size(2, this.pageSize_);
     }
-    for (int i = 0; i < taskType_.size(); i++) {
+    for (int i = 0; i < this.taskType_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(3, taskType_.get(i));
+        .computeMessageSize(3, this.taskType_.get(i));
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < simplifiedState_.size(); i++) {
+      for (int i = 0; i < this.simplifiedState_.size(); i++) {
         dataSize += com.google.protobuf.CodedOutputStream
-          .computeEnumSizeNoTag(simplifiedState_.get(i));
+          .computeEnumSizeNoTag(this.simplifiedState_.get(i));
       }
       size += dataSize;
       if (!getSimplifiedStateList().isEmpty()) {  size += 1;
         size += com.google.protobuf.CodedOutputStream
           .computeUInt32SizeNoTag(dataSize);
-      }simplifiedStateMemoizedSerializedSize = dataSize;
+      }this.simplifiedStateMemoizedSerializedSize = dataSize;
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -421,15 +421,15 @@ private static final long serialVersionUID = 0L;
         != other.getPageSize()) return false;
     if (!getTaskTypeList()
         .equals(other.getTaskTypeList())) return false;
-    if (!simplifiedState_.equals(other.simplifiedState_)) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.simplifiedState_.equals(other.simplifiedState_)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -443,10 +443,10 @@ private static final long serialVersionUID = 0L;
     }
     if (getSimplifiedStateCount() > 0) {
       hash = (37 * hash) + SIMPLIFIEDSTATE_FIELD_NUMBER;
-      hash = (53 * hash) + simplifiedState_.hashCode();
+      hash = (53 * hash) + this.simplifiedState_.hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -583,18 +583,18 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      pageNumber_ = 0;
+      this.pageNumber_ = 0;
 
-      pageSize_ = 0;
+      this.pageSize_ = 0;
 
-      if (taskTypeBuilder_ == null) {
-        taskType_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.taskTypeBuilder_ == null) {
+        this.taskType_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       } else {
-        taskTypeBuilder_.clear();
+        this.taskTypeBuilder_.clear();
       }
-      simplifiedState_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000002);
+      this.simplifiedState_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000002);
       return this;
     }
 
@@ -621,23 +621,23 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest result = new io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest(this);
-      int from_bitField0_ = bitField0_;
-      result.pageNumber_ = pageNumber_;
-      result.pageSize_ = pageSize_;
-      if (taskTypeBuilder_ == null) {
-        if (((bitField0_ & 0x00000001) != 0)) {
-          taskType_ = java.util.Collections.unmodifiableList(taskType_);
-          bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      result.pageNumber_ = this.pageNumber_;
+      result.pageSize_ = this.pageSize_;
+      if (this.taskTypeBuilder_ == null) {
+        if (((this.bitField0_ & 0x00000001) != 0)) {
+          this.taskType_ = java.util.Collections.unmodifiableList(this.taskType_);
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         }
-        result.taskType_ = taskType_;
+        result.taskType_ = this.taskType_;
       } else {
-        result.taskType_ = taskTypeBuilder_.build();
+        result.taskType_ = this.taskTypeBuilder_.build();
       }
-      if (((bitField0_ & 0x00000002) != 0)) {
-        simplifiedState_ = java.util.Collections.unmodifiableList(simplifiedState_);
-        bitField0_ = (bitField0_ & ~0x00000002);
+      if (((this.bitField0_ & 0x00000002) != 0)) {
+        this.simplifiedState_ = java.util.Collections.unmodifiableList(this.simplifiedState_);
+        this.bitField0_ = (this.bitField0_ & ~0x00000002);
       }
-      result.simplifiedState_ = simplifiedState_;
+      result.simplifiedState_ = this.simplifiedState_;
       onBuilt();
       return result;
     }
@@ -692,39 +692,39 @@ private static final long serialVersionUID = 0L;
       if (other.getPageSize() != 0) {
         setPageSize(other.getPageSize());
       }
-      if (taskTypeBuilder_ == null) {
+      if (this.taskTypeBuilder_ == null) {
         if (!other.taskType_.isEmpty()) {
-          if (taskType_.isEmpty()) {
-            taskType_ = other.taskType_;
-            bitField0_ = (bitField0_ & ~0x00000001);
+          if (this.taskType_.isEmpty()) {
+            this.taskType_ = other.taskType_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
           } else {
             ensureTaskTypeIsMutable();
-            taskType_.addAll(other.taskType_);
+            this.taskType_.addAll(other.taskType_);
           }
           onChanged();
         }
       } else {
         if (!other.taskType_.isEmpty()) {
-          if (taskTypeBuilder_.isEmpty()) {
-            taskTypeBuilder_.dispose();
-            taskTypeBuilder_ = null;
-            taskType_ = other.taskType_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-            taskTypeBuilder_ = 
+          if (this.taskTypeBuilder_.isEmpty()) {
+            this.taskTypeBuilder_.dispose();
+            this.taskTypeBuilder_ = null;
+            this.taskType_ = other.taskType_;
+            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+            this.taskTypeBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getTaskTypeFieldBuilder() : null;
           } else {
-            taskTypeBuilder_.addAllMessages(other.taskType_);
+            this.taskTypeBuilder_.addAllMessages(other.taskType_);
           }
         }
       }
       if (!other.simplifiedState_.isEmpty()) {
-        if (simplifiedState_.isEmpty()) {
-          simplifiedState_ = other.simplifiedState_;
-          bitField0_ = (bitField0_ & ~0x00000002);
+        if (this.simplifiedState_.isEmpty()) {
+          this.simplifiedState_ = other.simplifiedState_;
+          this.bitField0_ = (this.bitField0_ & ~0x00000002);
         } else {
           ensureSimplifiedStateIsMutable();
-          simplifiedState_.addAll(other.simplifiedState_);
+          this.simplifiedState_.addAll(other.simplifiedState_);
         }
         onChanged();
       }
@@ -769,7 +769,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getPageNumber() {
-      return pageNumber_;
+      return this.pageNumber_;
     }
     /**
      * <pre>
@@ -781,8 +781,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPageNumber(int value) {
-      
-      pageNumber_ = value;
+
+      this.pageNumber_ = value;
       onChanged();
       return this;
     }
@@ -795,8 +795,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPageNumber() {
-      
-      pageNumber_ = 0;
+
+      this.pageNumber_ = 0;
       onChanged();
       return this;
     }
@@ -812,7 +812,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getPageSize() {
-      return pageSize_;
+      return this.pageSize_;
     }
     /**
      * <pre>
@@ -824,8 +824,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPageSize(int value) {
-      
-      pageSize_ = value;
+
+      this.pageSize_ = value;
       onChanged();
       return this;
     }
@@ -838,8 +838,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPageSize() {
-      
-      pageSize_ = 0;
+
+      this.pageSize_ = 0;
       onChanged();
       return this;
     }
@@ -847,9 +847,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<com.google.protobuf.StringValue> taskType_ =
       java.util.Collections.emptyList();
     private void ensureTaskTypeIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        taskType_ = new java.util.ArrayList<com.google.protobuf.StringValue>(taskType_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.taskType_ = new java.util.ArrayList<com.google.protobuf.StringValue>(this.taskType_);
+        this.bitField0_ |= 0x00000001;
        }
     }
 
@@ -865,10 +865,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
     public java.util.List<com.google.protobuf.StringValue> getTaskTypeList() {
-      if (taskTypeBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(taskType_);
+      if (this.taskTypeBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(this.taskType_);
       } else {
-        return taskTypeBuilder_.getMessageList();
+        return this.taskTypeBuilder_.getMessageList();
       }
     }
     /**
@@ -880,10 +880,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
     public int getTaskTypeCount() {
-      if (taskTypeBuilder_ == null) {
-        return taskType_.size();
+      if (this.taskTypeBuilder_ == null) {
+        return this.taskType_.size();
       } else {
-        return taskTypeBuilder_.getCount();
+        return this.taskTypeBuilder_.getCount();
       }
     }
     /**
@@ -895,10 +895,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
     public com.google.protobuf.StringValue getTaskType(int index) {
-      if (taskTypeBuilder_ == null) {
-        return taskType_.get(index);
+      if (this.taskTypeBuilder_ == null) {
+        return this.taskType_.get(index);
       } else {
-        return taskTypeBuilder_.getMessage(index);
+        return this.taskTypeBuilder_.getMessage(index);
       }
     }
     /**
@@ -911,15 +911,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTaskType(
         int index, com.google.protobuf.StringValue value) {
-      if (taskTypeBuilder_ == null) {
+      if (this.taskTypeBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureTaskTypeIsMutable();
-        taskType_.set(index, value);
+        this.taskType_.set(index, value);
         onChanged();
       } else {
-        taskTypeBuilder_.setMessage(index, value);
+        this.taskTypeBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -933,12 +933,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTaskType(
         int index, com.google.protobuf.StringValue.Builder builderForValue) {
-      if (taskTypeBuilder_ == null) {
+      if (this.taskTypeBuilder_ == null) {
         ensureTaskTypeIsMutable();
-        taskType_.set(index, builderForValue.build());
+        this.taskType_.set(index, builderForValue.build());
         onChanged();
       } else {
-        taskTypeBuilder_.setMessage(index, builderForValue.build());
+        this.taskTypeBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -951,15 +951,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
     public Builder addTaskType(com.google.protobuf.StringValue value) {
-      if (taskTypeBuilder_ == null) {
+      if (this.taskTypeBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureTaskTypeIsMutable();
-        taskType_.add(value);
+        this.taskType_.add(value);
         onChanged();
       } else {
-        taskTypeBuilder_.addMessage(value);
+        this.taskTypeBuilder_.addMessage(value);
       }
       return this;
     }
@@ -973,15 +973,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addTaskType(
         int index, com.google.protobuf.StringValue value) {
-      if (taskTypeBuilder_ == null) {
+      if (this.taskTypeBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureTaskTypeIsMutable();
-        taskType_.add(index, value);
+        this.taskType_.add(index, value);
         onChanged();
       } else {
-        taskTypeBuilder_.addMessage(index, value);
+        this.taskTypeBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -995,12 +995,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addTaskType(
         com.google.protobuf.StringValue.Builder builderForValue) {
-      if (taskTypeBuilder_ == null) {
+      if (this.taskTypeBuilder_ == null) {
         ensureTaskTypeIsMutable();
-        taskType_.add(builderForValue.build());
+        this.taskType_.add(builderForValue.build());
         onChanged();
       } else {
-        taskTypeBuilder_.addMessage(builderForValue.build());
+        this.taskTypeBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -1014,12 +1014,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addTaskType(
         int index, com.google.protobuf.StringValue.Builder builderForValue) {
-      if (taskTypeBuilder_ == null) {
+      if (this.taskTypeBuilder_ == null) {
         ensureTaskTypeIsMutable();
-        taskType_.add(index, builderForValue.build());
+        this.taskType_.add(index, builderForValue.build());
         onChanged();
       } else {
-        taskTypeBuilder_.addMessage(index, builderForValue.build());
+        this.taskTypeBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1033,13 +1033,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllTaskType(
         java.lang.Iterable<? extends com.google.protobuf.StringValue> values) {
-      if (taskTypeBuilder_ == null) {
+      if (this.taskTypeBuilder_ == null) {
         ensureTaskTypeIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, taskType_);
+            values, this.taskType_);
         onChanged();
       } else {
-        taskTypeBuilder_.addAllMessages(values);
+        this.taskTypeBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -1052,12 +1052,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
     public Builder clearTaskType() {
-      if (taskTypeBuilder_ == null) {
-        taskType_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
+      if (this.taskTypeBuilder_ == null) {
+        this.taskType_ = java.util.Collections.emptyList();
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        taskTypeBuilder_.clear();
+        this.taskTypeBuilder_.clear();
       }
       return this;
     }
@@ -1070,12 +1070,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
     public Builder removeTaskType(int index) {
-      if (taskTypeBuilder_ == null) {
+      if (this.taskTypeBuilder_ == null) {
         ensureTaskTypeIsMutable();
-        taskType_.remove(index);
+        this.taskType_.remove(index);
         onChanged();
       } else {
-        taskTypeBuilder_.remove(index);
+        this.taskTypeBuilder_.remove(index);
       }
       return this;
     }
@@ -1101,9 +1101,9 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.StringValueOrBuilder getTaskTypeOrBuilder(
         int index) {
-      if (taskTypeBuilder_ == null) {
-        return taskType_.get(index);  } else {
-        return taskTypeBuilder_.getMessageOrBuilder(index);
+      if (this.taskTypeBuilder_ == null) {
+        return this.taskType_.get(index);  } else {
+        return this.taskTypeBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -1114,12 +1114,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
-    public java.util.List<? extends com.google.protobuf.StringValueOrBuilder> 
+    public java.util.List<? extends com.google.protobuf.StringValueOrBuilder>
          getTaskTypeOrBuilderList() {
-      if (taskTypeBuilder_ != null) {
-        return taskTypeBuilder_.getMessageOrBuilderList();
+      if (this.taskTypeBuilder_ != null) {
+        return this.taskTypeBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(taskType_);
+        return java.util.Collections.unmodifiableList(this.taskType_);
       }
     }
     /**
@@ -1155,31 +1155,31 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
      */
-    public java.util.List<com.google.protobuf.StringValue.Builder> 
+    public java.util.List<com.google.protobuf.StringValue.Builder>
          getTaskTypeBuilderList() {
       return getTaskTypeFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getTaskTypeFieldBuilder() {
-      if (taskTypeBuilder_ == null) {
-        taskTypeBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (this.taskTypeBuilder_ == null) {
+        this.taskTypeBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
-                taskType_,
-                ((bitField0_ & 0x00000001) != 0),
+                this.taskType_,
+                ((this.bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        taskType_ = null;
+        this.taskType_ = null;
       }
-      return taskTypeBuilder_;
+      return this.taskTypeBuilder_;
     }
 
     private java.util.List<java.lang.Integer> simplifiedState_ =
       java.util.Collections.emptyList();
     private void ensureSimplifiedStateIsMutable() {
-      if (!((bitField0_ & 0x00000002) != 0)) {
-        simplifiedState_ = new java.util.ArrayList<java.lang.Integer>(simplifiedState_);
-        bitField0_ |= 0x00000002;
+      if (!((this.bitField0_ & 0x00000002) != 0)) {
+        this.simplifiedState_ = new java.util.ArrayList<java.lang.Integer>(this.simplifiedState_);
+        this.bitField0_ |= 0x00000002;
       }
     }
     /**
@@ -1193,7 +1193,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState> getSimplifiedStateList() {
       return new com.google.protobuf.Internal.ListAdapter<
-          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState>(simplifiedState_, simplifiedState_converter_);
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState>(this.simplifiedState_, simplifiedState_converter_);
     }
     /**
      * <pre>
@@ -1205,7 +1205,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of simplifiedState.
      */
     public int getSimplifiedStateCount() {
-      return simplifiedState_.size();
+      return this.simplifiedState_.size();
     }
     /**
      * <pre>
@@ -1218,7 +1218,7 @@ private static final long serialVersionUID = 0L;
      * @return The simplifiedState at the given index.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState getSimplifiedState(int index) {
-      return simplifiedState_converter_.convert(simplifiedState_.get(index));
+      return simplifiedState_converter_.convert(this.simplifiedState_.get(index));
     }
     /**
      * <pre>
@@ -1237,7 +1237,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureSimplifiedStateIsMutable();
-      simplifiedState_.set(index, value.getNumber());
+      this.simplifiedState_.set(index, value.getNumber());
       onChanged();
       return this;
     }
@@ -1256,7 +1256,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureSimplifiedStateIsMutable();
-      simplifiedState_.add(value.getNumber());
+      this.simplifiedState_.add(value.getNumber());
       onChanged();
       return this;
     }
@@ -1274,7 +1274,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState> values) {
       ensureSimplifiedStateIsMutable();
       for (io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState value : values) {
-        simplifiedState_.add(value.getNumber());
+        this.simplifiedState_.add(value.getNumber());
       }
       onChanged();
       return this;
@@ -1289,8 +1289,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSimplifiedState() {
-      simplifiedState_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000002);
+      this.simplifiedState_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000002);
       onChanged();
       return this;
     }
@@ -1305,7 +1305,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<java.lang.Integer>
     getSimplifiedStateValueList() {
-      return java.util.Collections.unmodifiableList(simplifiedState_);
+      return java.util.Collections.unmodifiableList(this.simplifiedState_);
     }
     /**
      * <pre>
@@ -1318,7 +1318,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire of simplifiedState at the given index.
      */
     public int getSimplifiedStateValue(int index) {
-      return simplifiedState_.get(index);
+      return this.simplifiedState_.get(index);
     }
     /**
      * <pre>
@@ -1334,7 +1334,7 @@ private static final long serialVersionUID = 0L;
     public Builder setSimplifiedStateValue(
         int index, int value) {
       ensureSimplifiedStateIsMutable();
-      simplifiedState_.set(index, value);
+      this.simplifiedState_.set(index, value);
       onChanged();
       return this;
     }
@@ -1350,7 +1350,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addSimplifiedStateValue(int value) {
       ensureSimplifiedStateIsMutable();
-      simplifiedState_.add(value);
+      this.simplifiedState_.add(value);
       onChanged();
       return this;
     }
@@ -1368,7 +1368,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<java.lang.Integer> values) {
       ensureSimplifiedStateIsMutable();
       for (int value : values) {
-        simplifiedState_.add(value);
+        this.simplifiedState_.add(value);
       }
       onChanged();
       return this;

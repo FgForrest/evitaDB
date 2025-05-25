@@ -193,7 +193,7 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 		if (sessionId == null) {
 			return Optional.empty();
 		}
-		return evita.getSessionById(UUIDUtil.uuid(sessionId))
+		return this.evita.getSessionById(UUIDUtil.uuid(sessionId))
 			.map(session -> {
 				if (!session.isActive()) {
 					return null;

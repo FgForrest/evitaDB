@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,8 +39,8 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcReplaceCollectionRequest() {
-    entityTypeToBeReplaced_ = "";
-    entityTypeToBeReplacedWith_ = "";
+    this.entityTypeToBeReplaced_ = "";
+    this.entityTypeToBeReplacedWith_ = "";
   }
 
   @java.lang.Override
@@ -76,13 +76,13 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            entityTypeToBeReplaced_ = s;
+            this.entityTypeToBeReplaced_ = s;
             break;
           }
           case 18: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            entityTypeToBeReplacedWith_ = s;
+            this.entityTypeToBeReplacedWith_ = s;
             break;
           }
           default: {
@@ -129,14 +129,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getEntityTypeToBeReplaced() {
-    java.lang.Object ref = entityTypeToBeReplaced_;
+    java.lang.Object ref = this.entityTypeToBeReplaced_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      entityTypeToBeReplaced_ = s;
+      this.entityTypeToBeReplaced_ = s;
       return s;
     }
   }
@@ -151,12 +151,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getEntityTypeToBeReplacedBytes() {
-    java.lang.Object ref = entityTypeToBeReplaced_;
+    java.lang.Object ref = this.entityTypeToBeReplaced_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      entityTypeToBeReplaced_ = b;
+      this.entityTypeToBeReplaced_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -175,14 +175,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getEntityTypeToBeReplacedWith() {
-    java.lang.Object ref = entityTypeToBeReplacedWith_;
+    java.lang.Object ref = this.entityTypeToBeReplacedWith_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      entityTypeToBeReplacedWith_ = s;
+      this.entityTypeToBeReplacedWith_ = s;
       return s;
     }
   }
@@ -197,12 +197,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getEntityTypeToBeReplacedWithBytes() {
-    java.lang.Object ref = entityTypeToBeReplacedWith_;
+    java.lang.Object ref = this.entityTypeToBeReplacedWith_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      entityTypeToBeReplacedWith_ = b;
+      this.entityTypeToBeReplacedWith_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -212,40 +212,40 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityTypeToBeReplaced_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, entityTypeToBeReplaced_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.entityTypeToBeReplaced_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.entityTypeToBeReplaced_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityTypeToBeReplacedWith_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, entityTypeToBeReplacedWith_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.entityTypeToBeReplacedWith_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, this.entityTypeToBeReplacedWith_);
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityTypeToBeReplaced_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, entityTypeToBeReplaced_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.entityTypeToBeReplaced_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.entityTypeToBeReplaced_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityTypeToBeReplacedWith_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, entityTypeToBeReplacedWith_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.entityTypeToBeReplacedWith_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, this.entityTypeToBeReplacedWith_);
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -263,14 +263,14 @@ private static final long serialVersionUID = 0L;
         .equals(other.getEntityTypeToBeReplaced())) return false;
     if (!getEntityTypeToBeReplacedWith()
         .equals(other.getEntityTypeToBeReplacedWith())) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -278,8 +278,8 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getEntityTypeToBeReplaced().hashCode();
     hash = (37 * hash) + ENTITYTYPETOBEREPLACEDWITH_FIELD_NUMBER;
     hash = (53 * hash) + getEntityTypeToBeReplacedWith().hashCode();
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -411,9 +411,9 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      entityTypeToBeReplaced_ = "";
+      this.entityTypeToBeReplaced_ = "";
 
-      entityTypeToBeReplacedWith_ = "";
+      this.entityTypeToBeReplacedWith_ = "";
 
       return this;
     }
@@ -441,8 +441,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest result = new io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest(this);
-      result.entityTypeToBeReplaced_ = entityTypeToBeReplaced_;
-      result.entityTypeToBeReplacedWith_ = entityTypeToBeReplacedWith_;
+      result.entityTypeToBeReplaced_ = this.entityTypeToBeReplaced_;
+      result.entityTypeToBeReplacedWith_ = this.entityTypeToBeReplacedWith_;
       onBuilt();
       return result;
     }
@@ -492,11 +492,11 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest.getDefaultInstance()) return this;
       if (!other.getEntityTypeToBeReplaced().isEmpty()) {
-        entityTypeToBeReplaced_ = other.entityTypeToBeReplaced_;
+        this.entityTypeToBeReplaced_ = other.entityTypeToBeReplaced_;
         onChanged();
       }
       if (!other.getEntityTypeToBeReplacedWith().isEmpty()) {
-        entityTypeToBeReplacedWith_ = other.entityTypeToBeReplacedWith_;
+        this.entityTypeToBeReplacedWith_ = other.entityTypeToBeReplacedWith_;
         onChanged();
       }
       this.mergeUnknownFields(other.unknownFields);
@@ -538,12 +538,12 @@ private static final long serialVersionUID = 0L;
      * @return The entityTypeToBeReplaced.
      */
     public java.lang.String getEntityTypeToBeReplaced() {
-      java.lang.Object ref = entityTypeToBeReplaced_;
+      java.lang.Object ref = this.entityTypeToBeReplaced_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        entityTypeToBeReplaced_ = s;
+        this.entityTypeToBeReplaced_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -559,12 +559,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getEntityTypeToBeReplacedBytes() {
-      java.lang.Object ref = entityTypeToBeReplaced_;
+      java.lang.Object ref = this.entityTypeToBeReplaced_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        entityTypeToBeReplaced_ = b;
+        this.entityTypeToBeReplaced_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -584,8 +584,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      entityTypeToBeReplaced_ = value;
+
+      this.entityTypeToBeReplaced_ = value;
       onChanged();
       return this;
     }
@@ -598,8 +598,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityTypeToBeReplaced() {
-      
-      entityTypeToBeReplaced_ = getDefaultInstance().getEntityTypeToBeReplaced();
+
+      this.entityTypeToBeReplaced_ = getDefaultInstance().getEntityTypeToBeReplaced();
       onChanged();
       return this;
     }
@@ -618,8 +618,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      entityTypeToBeReplaced_ = value;
+
+      this.entityTypeToBeReplaced_ = value;
       onChanged();
       return this;
     }
@@ -634,12 +634,12 @@ private static final long serialVersionUID = 0L;
      * @return The entityTypeToBeReplacedWith.
      */
     public java.lang.String getEntityTypeToBeReplacedWith() {
-      java.lang.Object ref = entityTypeToBeReplacedWith_;
+      java.lang.Object ref = this.entityTypeToBeReplacedWith_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        entityTypeToBeReplacedWith_ = s;
+        this.entityTypeToBeReplacedWith_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -655,12 +655,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getEntityTypeToBeReplacedWithBytes() {
-      java.lang.Object ref = entityTypeToBeReplacedWith_;
+      java.lang.Object ref = this.entityTypeToBeReplacedWith_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        entityTypeToBeReplacedWith_ = b;
+        this.entityTypeToBeReplacedWith_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -680,8 +680,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      entityTypeToBeReplacedWith_ = value;
+
+      this.entityTypeToBeReplacedWith_ = value;
       onChanged();
       return this;
     }
@@ -694,8 +694,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityTypeToBeReplacedWith() {
-      
-      entityTypeToBeReplacedWith_ = getDefaultInstance().getEntityTypeToBeReplacedWith();
+
+      this.entityTypeToBeReplacedWith_ = getDefaultInstance().getEntityTypeToBeReplacedWith();
       onChanged();
       return this;
     }
@@ -714,8 +714,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      entityTypeToBeReplacedWith_ = value;
+
+      this.entityTypeToBeReplacedWith_ = value;
       onChanged();
       return this;
     }

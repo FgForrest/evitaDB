@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -124,11 +124,11 @@ public class JavaTestContext implements TestContext {
 			.build();
 		// we copy the entire classpath of this test to the JShell instance
 		Arrays.stream(System.getProperty("java.class.path").split(":"))
-			.forEach(jShell::addToClasspath);
+			.forEach(this.jShell::addToClasspath);
 		// and now pre initialize all necessary imports
 		final List<String> snippets = Stream.concat(
 			Stream.of("var documentationProfile = \"" + profile.name() + "\";"),
-			toJavaSnippets(jShell, STATIC_IMPORT).stream()
+			toJavaSnippets(this.jShell, STATIC_IMPORT).stream()
 		).toList();
 		final InvocationResult invocationResult = executeJShellCommandsInternal(snippets);
 		if (invocationResult.exception() != null) {
@@ -224,10 +224,10 @@ public class JavaTestContext implements TestContext {
 						)
 					)
 						.snippets()
-						.forEach(it -> clearOnTearDown(jShell, it));
+						.forEach(it -> clearOnTearDown(this.jShell, it));
 				}
 				// each snippet is "dropped" by the JShell instance (undone)
-				jShell.drop(snippet);
+				this.jShell.drop(snippet);
 			}
 		}
 	}
@@ -253,7 +253,7 @@ public class JavaTestContext implements TestContext {
 
 		// iterate over snippets and execute them
 		for (String snippet : snippets) {
-			final List<SnippetEvent> events = jShell.eval(snippet);
+			final List<SnippetEvent> events = this.jShell.eval(snippet);
 			final ArrayList<Snippet> executedSnippets = new ArrayList<>(events.size());
 			// verify the output events triggered by the execution
 			for (SnippetEvent event : events) {
@@ -262,7 +262,7 @@ public class JavaTestContext implements TestContext {
 					// collect the compilation error and the problematic position and register exception
 					exceptions.add(
 						new JavaCompilationException(
-							jShell.diagnostics(event.snippet())
+							this.jShell.diagnostics(event.snippet())
 								.map(it ->
 									"\n- [" + it.getStartPosition() + "-" + it.getEndPosition() + "] " +
 										it.getMessage(Locale.ENGLISH)

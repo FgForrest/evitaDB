@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ class SetAssociatedDataSchemaLocalizedMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new SetAssociatedDataSchemaLocalizedMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new SetAssociatedDataSchemaLocalizedMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -58,7 +58,7 @@ class SetAssociatedDataSchemaLocalizedMutationConverterTest {
 			true
 		);
 
-		final SetAssociatedDataSchemaLocalizedMutation convertedMutation1 = converter.convertFromInput(
+		final SetAssociatedDataSchemaLocalizedMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(SetAssociatedDataSchemaLocalizedMutationDescriptor.NAME.name(), "labels")
 				.e(SetAssociatedDataSchemaLocalizedMutationDescriptor.LOCALIZED.name(), true)
@@ -66,7 +66,7 @@ class SetAssociatedDataSchemaLocalizedMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final SetAssociatedDataSchemaLocalizedMutation convertedMutation2 = converter.convertFromInput(
+		final SetAssociatedDataSchemaLocalizedMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(SetAssociatedDataSchemaLocalizedMutationDescriptor.NAME.name(), "labels")
 				.e(SetAssociatedDataSchemaLocalizedMutationDescriptor.LOCALIZED.name(), "true")
@@ -79,7 +79,7 @@ class SetAssociatedDataSchemaLocalizedMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(SetAssociatedDataSchemaLocalizedMutationDescriptor.NAME.name(), "labels")
 					.build()
@@ -87,13 +87,13 @@ class SetAssociatedDataSchemaLocalizedMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(SetAssociatedDataSchemaLocalizedMutationDescriptor.LOCALIZED.name(), true)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

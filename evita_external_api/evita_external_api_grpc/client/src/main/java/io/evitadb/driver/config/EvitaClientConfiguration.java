@@ -104,7 +104,7 @@ public record EvitaClientConfiguration(
 	@Deprecated
 	@Nullable
 	public Path rootCaCertificatePath() {
-		return serverCertificatePath;
+		return this.serverCertificatePath;
 	}
 
 	/**
@@ -135,9 +135,9 @@ public record EvitaClientConfiguration(
 		Builder() {
 			try {
 				final InetAddress inetAddress = InetAddress.getLocalHost();
-				clientId = "gRPC client at " + inetAddress.getHostName();
+				this.clientId = "gRPC client at " + inetAddress.getHostName();
 			} catch (UnknownHostException e) {
-				clientId = "Generic gRPC client";
+				this.clientId = "Generic gRPC client";
 			}
 		}
 
@@ -276,25 +276,25 @@ public record EvitaClientConfiguration(
 
 		public EvitaClientConfiguration build() {
 			return new EvitaClientConfiguration(
-				clientId,
-				host,
-				port,
-				systemApiPort,
-				useGeneratedCertificate,
-				trustCertificate,
-				tlsEnabled,
-				mtlsEnabled,
-				serverCertificatePath,
-				certificatePath,
-				certificateKeyPath,
-				certificateKeyPassword,
-				certificateFolderPath,
-				trustStorePassword,
-				reflectionCachingBehaviour,
-				timeout,
-				timeoutUnit,
-				openTelemetryInstance,
-				trackedTaskLimit
+				this.clientId,
+				this.host,
+				this.port,
+				this.systemApiPort,
+				this.useGeneratedCertificate,
+				this.trustCertificate,
+				this.tlsEnabled,
+				this.mtlsEnabled,
+				this.serverCertificatePath,
+				this.certificatePath,
+				this.certificateKeyPath,
+				this.certificateKeyPassword,
+				this.certificateFolderPath,
+				this.trustStorePassword,
+				this.reflectionCachingBehaviour,
+				this.timeout,
+				this.timeoutUnit,
+				this.openTelemetryInstance,
+				this.trackedTaskLimit
 			);
 		}
 

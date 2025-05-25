@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ public class ComparableCurrency implements Comparable<ComparableCurrency>, Seria
 
 	@Override
 	public int compareTo(@Nonnull ComparableCurrency o) {
-		return currency.toString().compareTo(o.currency.toString());
+		return this.currency.toString().compareTo(o.currency.toString());
 	}
 
 	@Override
@@ -54,16 +54,16 @@ public class ComparableCurrency implements Comparable<ComparableCurrency>, Seria
 		if (o == null || getClass() != o.getClass()) return false;
 
 		ComparableCurrency that = (ComparableCurrency) o;
-		return currency.equals(that.currency);
+		return this.currency.equals(that.currency);
 	}
 
 	@Override
 	public int hashCode() {
-		return currency.hashCode();
+		return this.currency.hashCode();
 	}
 
 	@Override
 	public String toString() {
-		return currency.getCurrencyCode();
+		return this.currency.getCurrencyCode();
 	}
 }

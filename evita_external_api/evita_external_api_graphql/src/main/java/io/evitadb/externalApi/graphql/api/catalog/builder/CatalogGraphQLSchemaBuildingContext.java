@@ -70,8 +70,8 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 			collections.forEach(c -> {
 				final SealedEntitySchema entitySchema = session.getEntitySchema(c)
 					.orElseThrow(() -> new GenericEvitaInternalError("Entity `" + c + "` schema unexpectedly not found!"));
-				supportedLocales.addAll(entitySchema.getLocales());
-				supportedCurrencies.addAll(entitySchema.getCurrencies());
+				this.supportedLocales.addAll(entitySchema.getLocales());
+				this.supportedCurrencies.addAll(entitySchema.getCurrencies());
 				schemas.add(entitySchema);
 			});
 			return schemas;
@@ -81,11 +81,11 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 
 	@Nonnull
 	public CatalogSchemaContract getSchema() {
-		return catalog.getSchema();
+		return this.catalog.getSchema();
 	}
 
 	public void registerEntityObject(@Nonnull String entityType, @Nonnull GraphQLObjectType entityObject) {
 		registerType(entityObject);
-		entityTypeToEntityObject.putIfAbsent(entityType, entityObject);
+		this.entityTypeToEntityObject.putIfAbsent(entityType, entityObject);
 	}
 }

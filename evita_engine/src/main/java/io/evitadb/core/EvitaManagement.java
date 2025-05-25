@@ -133,7 +133,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	 */
 	@Nonnull
 	public ExportFileService exportFileService() {
-		return exportFileService;
+		return this.exportFileService;
 	}
 
 	@Nonnull

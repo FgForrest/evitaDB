@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -65,12 +65,12 @@ public class CombinedPriceRecords implements FilteredPriceRecords {
 	@Nonnull
 	@Override
 	public PriceRecordLookup getPriceRecordsLookup() {
-		if (nonResolvedFilteredPriceRecords != null && resolvedFilteredPriceRecords == null) {
-			resolvedFilteredPriceRecords = nonResolvedFilteredPriceRecords.toResolvedFilteredPriceRecords();
+		if (this.nonResolvedFilteredPriceRecords != null && this.resolvedFilteredPriceRecords == null) {
+			this.resolvedFilteredPriceRecords = this.nonResolvedFilteredPriceRecords.toResolvedFilteredPriceRecords();
 		}
 		return new PriceRecordIterator(
-			resolvedFilteredPriceRecords.getPriceRecordsLookup(),
-			lazyEvaluatedEntityPriceRecords.getPriceRecordsLookup()
+			this.resolvedFilteredPriceRecords.getPriceRecordsLookup(),
+			this.lazyEvaluatedEntityPriceRecords.getPriceRecordsLookup()
 		);
 	}
 
@@ -86,10 +86,10 @@ public class CombinedPriceRecords implements FilteredPriceRecords {
 
 		@Override
 		public boolean forEachPriceOfEntity(int entityPk, int lastExpectedEntity, @Nonnull Consumer<PriceRecordContract> priceConsumer) {
-			if (resolvedPriceRecordsLookup.forEachPriceOfEntity(entityPk, lastExpectedEntity, priceConsumer)) {
+			if (this.resolvedPriceRecordsLookup.forEachPriceOfEntity(entityPk, lastExpectedEntity, priceConsumer)) {
 				return true;
 			} else {
-				return lazyPriceRecordsLookup.forEachPriceOfEntity(entityPk, lastExpectedEntity, priceConsumer);
+				return this.lazyPriceRecordsLookup.forEachPriceOfEntity(entityPk, lastExpectedEntity, priceConsumer);
 			}
 		}
 

@@ -56,7 +56,7 @@ public class PageTransformerWithSlicer implements ChunkTransformer {
 	@Override
 	public DataChunk<ReferenceContract> createChunk(@Nonnull List<ReferenceContract> referenceContracts) {
 		final OffsetAndLimit offsetAndLimit = this.slicer.calculateOffsetAndLimit(
-			ResultForm.PAGINATED_LIST, page.getPageNumber(), page.getPageSize(), referenceContracts.size()
+			ResultForm.PAGINATED_LIST, this.page.getPageNumber(), this.page.getPageSize(), referenceContracts.size()
 		);
 		return PageTransformer.getReferenceContractDataChunk(
 			referenceContracts,

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -62,11 +62,11 @@ public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
 			mutationEntitySchemaAccessor
-				.getEntitySchema(name)
+				.getEntitySchema(this.name)
 				.ifPresentOrElse(
-					it -> mutationEntitySchemaAccessor.removeEntitySchema(name),
+					it -> mutationEntitySchemaAccessor.removeEntitySchema(this.name),
 					() -> {
-						throw new GenericEvitaInternalError("Entity schema not found: " + name);
+						throw new GenericEvitaInternalError("Entity schema not found: " + this.name);
 					}
 				);
 		}
@@ -83,6 +83,6 @@ public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 	@Override
 	public String toString() {
 		return "Remove entity schema: " +
-			"name='" + name + '\'';
+			"name='" + this.name + '\'';
 	}
 }

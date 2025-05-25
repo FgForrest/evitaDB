@@ -48,7 +48,7 @@ public class CorsEndpoint {
 		// default headers for tracing that are allowed on every endpoint by default
 		headerOptions.allHeaders()
 			.map(AsciiString::new)
-			.forEach(allowedHeaders::add);
+			.forEach(this.allowedHeaders::add);
 	}
 
 	/**

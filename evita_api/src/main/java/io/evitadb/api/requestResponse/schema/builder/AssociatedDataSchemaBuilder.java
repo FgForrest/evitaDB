@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -89,12 +89,12 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 		);
 		this.mutations.add(
 			new CreateAssociatedDataSchemaMutation(
-				baseSchema.getName(),
-				baseSchema.getDescription(),
-				baseSchema.getDeprecationNotice(),
-				baseSchema.getType(),
-				baseSchema.isLocalized(),
-				baseSchema.isNullable()
+				this.baseSchema.getName(),
+				this.baseSchema.getDescription(),
+				this.baseSchema.getDeprecationNotice(),
+				this.baseSchema.getType(),
+				this.baseSchema.isLocalized(),
+				this.baseSchema.isNullable()
 			)
 		);
 	}
@@ -229,7 +229,7 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 				this.baseSchema : this.updatedSchema;
 
 			// apply the mutations not reflected in the schema
-			for (int i = lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
+			for (int i = this.lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
 				final EntitySchemaMutation mutation = this.mutations.get(i);
 				currentSchema = ((AssociatedDataSchemaMutation) mutation).mutate(currentSchema);
 				if (currentSchema == null) {

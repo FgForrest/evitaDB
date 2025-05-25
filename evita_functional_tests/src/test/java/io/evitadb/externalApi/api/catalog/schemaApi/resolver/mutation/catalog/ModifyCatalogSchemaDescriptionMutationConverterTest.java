@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,13 +48,13 @@ class ModifyCatalogSchemaDescriptionMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyCatalogSchemaDescriptionMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyCatalogSchemaDescriptionMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final ModifyCatalogSchemaDescriptionMutation expectedMutation = new ModifyCatalogSchemaDescriptionMutation("desc");
-		final ModifyCatalogSchemaDescriptionMutation convertedMutation = converter.convertFromInput(
+		final ModifyCatalogSchemaDescriptionMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(ModifyCatalogSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
 				.build()
@@ -65,12 +65,12 @@ class ModifyCatalogSchemaDescriptionMutationConverterTest {
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredFields() {
 		final ModifyCatalogSchemaDescriptionMutation expectedMutation = new ModifyCatalogSchemaDescriptionMutation(null);
-		final ModifyCatalogSchemaDescriptionMutation convertedMutation = converter.convertFromInput(Map.of());
+		final ModifyCatalogSchemaDescriptionMutation convertedMutation = this.converter.convertFromInput(Map.of());
 		assertEquals(expectedMutation, convertedMutation);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,8 +44,8 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcSetReferenceSchemaIndexedMutation() {
-    name_ = "";
-    indexedInScopes_ = java.util.Collections.emptyList();
+    this.name_ = "";
+    this.indexedInScopes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -82,21 +82,21 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            name_ = s;
+            this.name_ = s;
             break;
           }
           case 16: {
 
-            inherited_ = input.readBool();
+            this.inherited_ = input.readBool();
             break;
           }
           case 24: {
             int rawValue = input.readEnum();
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+              this.indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
               mutable_bitField0_ |= 0x00000001;
             }
-            indexedInScopes_.add(rawValue);
+            this.indexedInScopes_.add(rawValue);
             break;
           }
           case 26: {
@@ -105,10 +105,10 @@ private static final long serialVersionUID = 0L;
             while(input.getBytesUntilLimit() > 0) {
               int rawValue = input.readEnum();
               if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-                indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+                this.indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
                 mutable_bitField0_ |= 0x00000001;
               }
-              indexedInScopes_.add(rawValue);
+              this.indexedInScopes_.add(rawValue);
             }
             input.popLimit(oldLimit);
             break;
@@ -129,7 +129,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        indexedInScopes_ = java.util.Collections.unmodifiableList(indexedInScopes_);
+        this.indexedInScopes_ = java.util.Collections.unmodifiableList(this.indexedInScopes_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -160,14 +160,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getName() {
-    java.lang.Object ref = name_;
+    java.lang.Object ref = this.name_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      name_ = s;
+      this.name_ = s;
       return s;
     }
   }
@@ -182,12 +182,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getNameBytes() {
-    java.lang.Object ref = name_;
+    java.lang.Object ref = this.name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      name_ = b;
+      this.name_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -208,7 +208,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean getInherited() {
-    return inherited_;
+    return this.inherited_;
   }
 
   public static final int INDEXEDINSCOPES_FIELD_NUMBER = 3;
@@ -239,7 +239,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
     return new com.google.protobuf.Internal.ListAdapter<
-        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(indexedInScopes_, indexedInScopes_converter_);
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(this.indexedInScopes_, indexedInScopes_converter_);
   }
   /**
    * <pre>
@@ -256,7 +256,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getIndexedInScopesCount() {
-    return indexedInScopes_.size();
+    return this.indexedInScopes_.size();
   }
   /**
    * <pre>
@@ -274,7 +274,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index) {
-    return indexedInScopes_converter_.convert(indexedInScopes_.get(index));
+    return indexedInScopes_converter_.convert(this.indexedInScopes_.get(index));
   }
   /**
    * <pre>
@@ -292,7 +292,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<java.lang.Integer>
   getIndexedInScopesValueList() {
-    return indexedInScopes_;
+    return this.indexedInScopes_;
   }
   /**
    * <pre>
@@ -310,18 +310,18 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getIndexedInScopesValue(int index) {
-    return indexedInScopes_.get(index);
+    return this.indexedInScopes_.get(index);
   }
   private int indexedInScopesMemoizedSerializedSize;
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = memoizedIsInitialized;
+    byte isInitialized = this.memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    memoizedIsInitialized = 1;
+    this.memoizedIsInitialized = 1;
     return true;
   }
 
@@ -329,49 +329,49 @@ private static final long serialVersionUID = 0L;
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
     getSerializedSize();
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, name_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.name_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.name_);
     }
-    if (inherited_ != false) {
-      output.writeBool(2, inherited_);
+    if (this.inherited_ != false) {
+      output.writeBool(2, this.inherited_);
     }
     if (getIndexedInScopesList().size() > 0) {
       output.writeUInt32NoTag(26);
-      output.writeUInt32NoTag(indexedInScopesMemoizedSerializedSize);
+      output.writeUInt32NoTag(this.indexedInScopesMemoizedSerializedSize);
     }
-    for (int i = 0; i < indexedInScopes_.size(); i++) {
-      output.writeEnumNoTag(indexedInScopes_.get(i));
+    for (int i = 0; i < this.indexedInScopes_.size(); i++) {
+      output.writeEnumNoTag(this.indexedInScopes_.get(i));
     }
-    unknownFields.writeTo(output);
+    this.unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = memoizedSize;
+    int size = this.memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, name_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.name_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.name_);
     }
-    if (inherited_ != false) {
+    if (this.inherited_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(2, inherited_);
+        .computeBoolSize(2, this.inherited_);
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < indexedInScopes_.size(); i++) {
+      for (int i = 0; i < this.indexedInScopes_.size(); i++) {
         dataSize += com.google.protobuf.CodedOutputStream
-          .computeEnumSizeNoTag(indexedInScopes_.get(i));
+          .computeEnumSizeNoTag(this.indexedInScopes_.get(i));
       }
       size += dataSize;
       if (!getIndexedInScopesList().isEmpty()) {  size += 1;
         size += com.google.protobuf.CodedOutputStream
           .computeUInt32SizeNoTag(dataSize);
-      }indexedInScopesMemoizedSerializedSize = dataSize;
+      }this.indexedInScopesMemoizedSerializedSize = dataSize;
     }
-    size += unknownFields.getSerializedSize();
-    memoizedSize = size;
+    size += this.unknownFields.getSerializedSize();
+    this.memoizedSize = size;
     return size;
   }
 
@@ -389,15 +389,15 @@ private static final long serialVersionUID = 0L;
         .equals(other.getName())) return false;
     if (getInherited()
         != other.getInherited()) return false;
-    if (!indexedInScopes_.equals(other.indexedInScopes_)) return false;
-    if (!unknownFields.equals(other.unknownFields)) return false;
+    if (!this.indexedInScopes_.equals(other.indexedInScopes_)) return false;
+    if (!this.unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (memoizedHashCode != 0) {
-      return memoizedHashCode;
+    if (this.memoizedHashCode != 0) {
+      return this.memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -408,10 +408,10 @@ private static final long serialVersionUID = 0L;
         getInherited());
     if (getIndexedInScopesCount() > 0) {
       hash = (37 * hash) + INDEXEDINSCOPES_FIELD_NUMBER;
-      hash = (53 * hash) + indexedInScopes_.hashCode();
+      hash = (53 * hash) + this.indexedInScopes_.hashCode();
     }
-    hash = (29 * hash) + unknownFields.hashCode();
-    memoizedHashCode = hash;
+    hash = (29 * hash) + this.unknownFields.hashCode();
+    this.memoizedHashCode = hash;
     return hash;
   }
 
@@ -548,12 +548,12 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      name_ = "";
+      this.name_ = "";
 
-      inherited_ = false;
+      this.inherited_ = false;
 
-      indexedInScopes_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.indexedInScopes_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       return this;
     }
 
@@ -580,14 +580,14 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation result = new io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation(this);
-      int from_bitField0_ = bitField0_;
-      result.name_ = name_;
-      result.inherited_ = inherited_;
-      if (((bitField0_ & 0x00000001) != 0)) {
-        indexedInScopes_ = java.util.Collections.unmodifiableList(indexedInScopes_);
-        bitField0_ = (bitField0_ & ~0x00000001);
+      int from_bitField0_ = this.bitField0_;
+      result.name_ = this.name_;
+      result.inherited_ = this.inherited_;
+      if (((this.bitField0_ & 0x00000001) != 0)) {
+        this.indexedInScopes_ = java.util.Collections.unmodifiableList(this.indexedInScopes_);
+        this.bitField0_ = (this.bitField0_ & ~0x00000001);
       }
-      result.indexedInScopes_ = indexedInScopes_;
+      result.indexedInScopes_ = this.indexedInScopes_;
       onBuilt();
       return result;
     }
@@ -637,19 +637,19 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.getDefaultInstance()) return this;
       if (!other.getName().isEmpty()) {
-        name_ = other.name_;
+        this.name_ = other.name_;
         onChanged();
       }
       if (other.getInherited() != false) {
         setInherited(other.getInherited());
       }
       if (!other.indexedInScopes_.isEmpty()) {
-        if (indexedInScopes_.isEmpty()) {
-          indexedInScopes_ = other.indexedInScopes_;
-          bitField0_ = (bitField0_ & ~0x00000001);
+        if (this.indexedInScopes_.isEmpty()) {
+          this.indexedInScopes_ = other.indexedInScopes_;
+          this.bitField0_ = (this.bitField0_ & ~0x00000001);
         } else {
           ensureIndexedInScopesIsMutable();
-          indexedInScopes_.addAll(other.indexedInScopes_);
+          this.indexedInScopes_.addAll(other.indexedInScopes_);
         }
         onChanged();
       }
@@ -693,12 +693,12 @@ private static final long serialVersionUID = 0L;
      * @return The name.
      */
     public java.lang.String getName() {
-      java.lang.Object ref = name_;
+      java.lang.Object ref = this.name_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        name_ = s;
+        this.name_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -714,12 +714,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getNameBytes() {
-      java.lang.Object ref = name_;
+      java.lang.Object ref = this.name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        name_ = b;
+        this.name_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -739,8 +739,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
-      name_ = value;
+
+      this.name_ = value;
       onChanged();
       return this;
     }
@@ -753,8 +753,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-      
-      name_ = getDefaultInstance().getName();
+
+      this.name_ = getDefaultInstance().getName();
       onChanged();
       return this;
     }
@@ -773,8 +773,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
-      name_ = value;
+
+      this.name_ = value;
       onChanged();
       return this;
     }
@@ -792,7 +792,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean getInherited() {
-      return inherited_;
+      return this.inherited_;
     }
     /**
      * <pre>
@@ -806,8 +806,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setInherited(boolean value) {
-      
-      inherited_ = value;
+
+      this.inherited_ = value;
       onChanged();
       return this;
     }
@@ -822,8 +822,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearInherited() {
-      
-      inherited_ = false;
+
+      this.inherited_ = false;
       onChanged();
       return this;
     }
@@ -831,9 +831,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<java.lang.Integer> indexedInScopes_ =
       java.util.Collections.emptyList();
     private void ensureIndexedInScopesIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>(indexedInScopes_);
-        bitField0_ |= 0x00000001;
+      if (!((this.bitField0_ & 0x00000001) != 0)) {
+        this.indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>(this.indexedInScopes_);
+        this.bitField0_ |= 0x00000001;
       }
     }
     /**
@@ -851,7 +851,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
       return new com.google.protobuf.Internal.ListAdapter<
-          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(indexedInScopes_, indexedInScopes_converter_);
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(this.indexedInScopes_, indexedInScopes_converter_);
     }
     /**
      * <pre>
@@ -867,7 +867,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of indexedInScopes.
      */
     public int getIndexedInScopesCount() {
-      return indexedInScopes_.size();
+      return this.indexedInScopes_.size();
     }
     /**
      * <pre>
@@ -884,7 +884,7 @@ private static final long serialVersionUID = 0L;
      * @return The indexedInScopes at the given index.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index) {
-      return indexedInScopes_converter_.convert(indexedInScopes_.get(index));
+      return indexedInScopes_converter_.convert(this.indexedInScopes_.get(index));
     }
     /**
      * <pre>
@@ -907,7 +907,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureIndexedInScopesIsMutable();
-      indexedInScopes_.set(index, value.getNumber());
+      this.indexedInScopes_.set(index, value.getNumber());
       onChanged();
       return this;
     }
@@ -930,7 +930,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureIndexedInScopesIsMutable();
-      indexedInScopes_.add(value.getNumber());
+      this.indexedInScopes_.add(value.getNumber());
       onChanged();
       return this;
     }
@@ -952,7 +952,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityScope> values) {
       ensureIndexedInScopesIsMutable();
       for (io.evitadb.externalApi.grpc.generated.GrpcEntityScope value : values) {
-        indexedInScopes_.add(value.getNumber());
+        this.indexedInScopes_.add(value.getNumber());
       }
       onChanged();
       return this;
@@ -971,8 +971,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIndexedInScopes() {
-      indexedInScopes_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000001);
+      this.indexedInScopes_ = java.util.Collections.emptyList();
+      this.bitField0_ = (this.bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
@@ -991,7 +991,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<java.lang.Integer>
     getIndexedInScopesValueList() {
-      return java.util.Collections.unmodifiableList(indexedInScopes_);
+      return java.util.Collections.unmodifiableList(this.indexedInScopes_);
     }
     /**
      * <pre>
@@ -1008,7 +1008,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire of indexedInScopes at the given index.
      */
     public int getIndexedInScopesValue(int index) {
-      return indexedInScopes_.get(index);
+      return this.indexedInScopes_.get(index);
     }
     /**
      * <pre>
@@ -1028,7 +1028,7 @@ private static final long serialVersionUID = 0L;
     public Builder setIndexedInScopesValue(
         int index, int value) {
       ensureIndexedInScopesIsMutable();
-      indexedInScopes_.set(index, value);
+      this.indexedInScopes_.set(index, value);
       onChanged();
       return this;
     }
@@ -1048,7 +1048,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addIndexedInScopesValue(int value) {
       ensureIndexedInScopesIsMutable();
-      indexedInScopes_.add(value);
+      this.indexedInScopes_.add(value);
       onChanged();
       return this;
     }
@@ -1070,7 +1070,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<java.lang.Integer> values) {
       ensureIndexedInScopesIsMutable();
       for (int value : values) {
-        indexedInScopes_.add(value);
+        this.indexedInScopes_.add(value);
       }
       onChanged();
       return this;

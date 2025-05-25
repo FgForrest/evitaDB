@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new AllowLocaleInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new AllowLocaleInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -60,7 +60,7 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 			Locale.ENGLISH
 		);
 
-		final AllowLocaleInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
+		final AllowLocaleInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
 					Locale.FRENCH,
@@ -70,7 +70,7 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final AllowLocaleInEntitySchemaMutation convertedMutation2 = converter.convertFromInput(
+		final AllowLocaleInEntitySchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
 					"fr", "en"
@@ -83,7 +83,7 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final AllowLocaleInEntitySchemaMutation expectedMutation = new AllowLocaleInEntitySchemaMutation();
 
-		final AllowLocaleInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
+		final AllowLocaleInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of())
 				.build()
@@ -93,7 +93,7 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

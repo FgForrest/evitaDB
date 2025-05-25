@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ public abstract class SchemaJsonSerializer {
 
 	@Nonnull
 	protected ObjectNode serializeNameVariants(@Nonnull Map<NamingConvention, String> nameVariants) {
-		final ObjectNode nameVariantsNode = objectJsonSerializer.objectNode();
+		final ObjectNode nameVariantsNode = this.objectJsonSerializer.objectNode();
 		nameVariantsNode.put(NameVariantsDescriptor.CAMEL_CASE.name(), nameVariants.get(NamingConvention.CAMEL_CASE));
 		nameVariantsNode.put(NameVariantsDescriptor.PASCAL_CASE.name(), nameVariants.get(NamingConvention.PASCAL_CASE));
 		nameVariantsNode.put(NameVariantsDescriptor.SNAKE_CASE.name(), nameVariants.get(NamingConvention.SNAKE_CASE));
@@ -69,30 +69,30 @@ public abstract class SchemaJsonSerializer {
 
 	@Nonnull
 	protected JsonNode serializeFlagInScopes(@Nonnull Predicate<Scope> flagPredicate) {
-		return objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(flagPredicate).toArray(Scope[]::new));
+		return this.objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(flagPredicate).toArray(Scope[]::new));
 	}
 
 	@Nonnull
 	protected JsonNode serializeUniquenessType(@Nonnull Function<Scope, AttributeUniquenessType> uniquenessTypeAccessor) {
 		return Arrays.stream(Scope.values())
 			.map(scope -> {
-				final ObjectNode attributeUniquenessType = objectJsonSerializer.objectNode();
+				final ObjectNode attributeUniquenessType = this.objectJsonSerializer.objectNode();
 				attributeUniquenessType.put(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name());
 				attributeUniquenessType.put(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), uniquenessTypeAccessor.apply(scope).name());
 				return attributeUniquenessType;
 			})
-			.collect(objectJsonSerializer::arrayNode, ArrayNode::add, ArrayNode::addAll);
+			.collect(this.objectJsonSerializer::arrayNode, ArrayNode::add, ArrayNode::addAll);
 	}
 
 	@Nonnull
 	protected JsonNode serializeGlobalUniquenessType(@Nonnull Function<Scope, GlobalAttributeUniquenessType> uniquenessTypeAccessor) {
 		return Arrays.stream(Scope.values())
 			.map(scope -> {
-				final ObjectNode attributeUniquenessType = objectJsonSerializer.objectNode();
+				final ObjectNode attributeUniquenessType = this.objectJsonSerializer.objectNode();
 				attributeUniquenessType.put(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name());
 				attributeUniquenessType.put(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), uniquenessTypeAccessor.apply(scope).name());
 				return attributeUniquenessType;
 			})
-			.collect(objectJsonSerializer::arrayNode, ArrayNode::add, ArrayNode::addAll);
+			.collect(this.objectJsonSerializer::arrayNode, ArrayNode::add, ArrayNode::addAll);
 	}
 }

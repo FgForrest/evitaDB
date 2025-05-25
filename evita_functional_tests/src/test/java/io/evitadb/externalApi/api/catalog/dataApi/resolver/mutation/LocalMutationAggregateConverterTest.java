@@ -78,7 +78,7 @@ public class LocalMutationAggregateConverterTest {
 			.withAttribute(ATTRIBUTE_QUANTITY, Integer.class)
 			.withPrice()
 			.toInstance();
-		converter =  new LocalMutationAggregateConverter(new ObjectMapper(), entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new LocalMutationAggregateConverter(new ObjectMapper(), entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -88,7 +88,7 @@ public class LocalMutationAggregateConverterTest {
 			new RemoveAttributeMutation(ATTRIBUTE_QUANTITY, Locale.ENGLISH)
 		);
 
-		final List<LocalMutation<?, ?>> convertedMutations = converter.convertFromInput(
+		final List<LocalMutation<?, ?>> convertedMutations = this.converter.convertFromInput(
 			map()
 				.e(LocalMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.name(), map()
 					.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
@@ -106,13 +106,13 @@ public class LocalMutationAggregateConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final List<LocalMutation<?, ?>> convertedMutations = converter.convertFromInput(Map.of());
+		final List<LocalMutation<?, ?>> convertedMutations = this.converter.convertFromInput(Map.of());
 		assertEquals(List.of(), convertedMutations);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
@@ -123,7 +123,7 @@ public class LocalMutationAggregateConverterTest {
 		);
 
 		//noinspection unchecked
-		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) converter.convertToOutput(inputMutations);
+		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) this.converter.convertToOutput(inputMutations);
 		assertThat(serializedMutation)
 			.usingRecursiveComparison()
 			.isEqualTo(

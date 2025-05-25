@@ -241,13 +241,13 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 
 	@Override
 	public void visit(@Nonnull Constraint<?> constraint) {
-		if (firstConstraint) {
-			firstConstraint = false;
+		if (this.firstConstraint) {
+			this.firstConstraint = false;
 		} else {
-			result.append(newLine());
+			this.result.append(newLine());
 		}
-		indent(indent, level);
-		result.append(constraint.getName()).append(ARG_OPENING);
+		indent(this.indent, this.level);
+		this.result.append(constraint.getName()).append(ARG_OPENING);
 		if (constraint instanceof ConstraintContainer<?>) {
 			printContainer((ConstraintContainer<?>) constraint);
 		} else if (constraint instanceof ConstraintLeaf) {
@@ -260,13 +260,13 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 	 */
 
 	public String getResult() {
-		return result.toString();
+		return this.result.toString();
 	}
 
 	public StringWithParameters getResultWithExtractedParameters() {
 		return new StringWithParameters(
-			result.toString(),
-			parameters == null ? Collections.emptyList() : Collections.unmodifiableList(parameters)
+			this.result.toString(),
+			this.parameters == null ? Collections.emptyList() : Collections.unmodifiableList(this.parameters)
 		);
 	}
 
@@ -275,7 +275,7 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	private String newLine() {
-		return indent == null ? "" : "\n";
+		return this.indent == null ? "" : "\n";
 	}
 
 	/**
@@ -283,7 +283,7 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 	 */
 	private void indent(@Nullable String indent, int repeatCount) {
 		if (indent != null) {
-			result.append(indent.repeat(Math.max(0, repeatCount)));
+			this.result.append(indent.repeat(Math.max(0, repeatCount)));
 		}
 	}
 
@@ -293,7 +293,7 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 			return;
 		}
 
-		level++;
+		this.level++;
 
 		final Constraint<?>[] children = constraint.getExplicitChildren();
 		final int childrenLength = children.length;
@@ -314,13 +314,13 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 				continue;
 			}
 
-			result.append(newLine());
-			indent(indent, level);
-			if (extractParameters) {
-				result.append('?');
-				ofNullable(parameters).ifPresent(it -> it.add(argument));
+			this.result.append(newLine());
+			indent(this.indent, this.level);
+			if (this.extractParameters) {
+				this.result.append('?');
+				ofNullable(this.parameters).ifPresent(it -> it.add(argument));
 			} else {
-				result.append(BaseConstraint.convertToString(argument));
+				this.result.append(BaseConstraint.convertToString(argument));
 			}
 			if (i + 1 < childrenLength || additionalChildrenLength > 0 || childrenLength > 0) {
 				nextArgument();
@@ -355,20 +355,20 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 			}
 		}
 
-		level--;
-		result.append(newLine());
-		indent(indent, level);
-		result.append(ARG_CLOSING);
+		this.level--;
+		this.result.append(newLine());
+		indent(this.indent, this.level);
+		this.result.append(ARG_CLOSING);
 	}
 
 	@Nonnull
 	public StringBuilder nextArgument() {
-		return result.append(",");
+		return this.result.append(",");
 	}
 
 	@Nonnull
 	public StringBuilder nextConstraint() {
-		return firstConstraint ? result : result.append(",");
+		return this.firstConstraint ? this.result : this.result.append(",");
 	}
 
 	private void printLeaf(Constraint<?> constraint) {
@@ -382,17 +382,17 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 				continue;
 			}
 
-			if (extractParameters) {
-				result.append('?');
-				ofNullable(parameters).ifPresent(it -> it.add(argument));
+			if (this.extractParameters) {
+				this.result.append('?');
+				ofNullable(this.parameters).ifPresent(it -> it.add(argument));
 			} else {
-				result.append(BaseConstraint.convertToString(argument));
+				this.result.append(BaseConstraint.convertToString(argument));
 			}
 			if (i + 1 < arguments.length) {
-				result.append(", ");
+				this.result.append(", ");
 			}
 		}
-		result.append(ARG_CLOSING);
+		this.result.append(ARG_CLOSING);
 	}
 
 	/**

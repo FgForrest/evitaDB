@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,18 +59,18 @@ public class AttributeValueDataFetcher<T extends Serializable> implements DataFe
         final AttributesContract<?> attributes = environment.getSource();
         final Locale locale = ((EntityQueryContext) environment.getLocalContext()).getDesiredLocale();
 
-        if (locale == null && attributeSchema.isLocalized()) {
+        if (locale == null && this.attributeSchema.isLocalized()) {
             throw new GraphQLInvalidArgumentException(
-                "Attribute `" + attributeSchema.getName() + "` is localized, yet no locale for attributes was specified."
+                "Attribute `" + this.attributeSchema.getName() + "` is localized, yet no locale for attributes was specified."
             );
         } else if (locale == null) {
             //noinspection unchecked
-            return attributes.getAttributeValue(attributeSchema.getName())
+            return attributes.getAttributeValue(this.attributeSchema.getName())
                 .map(a -> (T) a.value())
                 .orElse(null);
         } else {
             //noinspection unchecked
-            return attributes.getAttributeValue(attributeSchema.getName(), locale)
+            return attributes.getAttributeValue(this.attributeSchema.getName(), locale)
                 .map(a -> (T) a.value())
                 .orElse(null);
         }

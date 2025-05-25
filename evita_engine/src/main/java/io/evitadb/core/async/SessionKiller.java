@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -94,7 +94,7 @@ public class SessionKiller implements Runnable {
 							session.setRollbackOnly();
 						}
 
-						evita.terminateSession(session);
+						this.evita.terminateSession(session);
 						counter.incrementAndGet();
 
 						log.info("Killed session " + session.getId() + " (" + this.allowedInactivityInSeconds + "s of inactivity).");
@@ -106,7 +106,7 @@ public class SessionKiller implements Runnable {
 				});
 
 			if (counter.get() > 0) {
-				log.debug("Killed " + counter.get() + " timed out sessions (" + allowedInactivityInSeconds + "s of inactivity).");
+				log.debug("Killed " + counter.get() + " timed out sessions (" + this.allowedInactivityInSeconds + "s of inactivity).");
 			}
 		} catch (Exception ex) {
 			log.error("Session killer terminated unexpectedly: " + ex.getMessage(), ex);

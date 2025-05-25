@@ -173,7 +173,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	 */
 	@Nullable
 	protected C resolve(@Nonnull ConstraintResolveContext resolveContext, @Nonnull String key, @Nullable Object value) {
-		final ParsedConstraintDescriptor parsedConstraintDescriptor = keyParser.resolve(resolveContext, key)
+		final ParsedConstraintDescriptor parsedConstraintDescriptor = this.keyParser.resolve(resolveContext, key)
 			.orElseThrow(() -> createQueryResolvingInternalError("Unknown constraint `" + key + "`. Check that it has correct property type and name and support for classifier."));
 		final ConstraintResolveContext innerResolveContext = resolveContext.switchToChildContext(parsedConstraintDescriptor.innerDataLocator());
 		return reconstructConstraint(innerResolveContext, parsedConstraintDescriptor, value);
@@ -527,7 +527,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 				//noinspection unchecked
 				final Set<ConstraintDescriptor> constraints = ConstraintDescriptorProvider.getConstraints((Class<Constraint<?>>) childParameterType);
 				for (ConstraintDescriptor constraint : constraints) {
-					final String expectedConstraintKey = keyBuilder.build(resolveContext, constraint, null);
+					final String expectedConstraintKey = this.keyBuilder.build(resolveContext, constraint, null);
 					final Object possibleValue = extractChildArgumentFromWrapperObject(parsedConstraintDescriptor, value, expectedConstraintKey);
 					if (possibleValue != null) {
 						argumentName = expectedConstraintKey;
@@ -757,7 +757,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 			return null;
 		}
 
-		final AtomicReference<? extends ConstraintResolver<?>> resolver = additionalResolvers.get(parameterDescriptor.constraintType());
+		final AtomicReference<? extends ConstraintResolver<?>> resolver = this.additionalResolvers.get(parameterDescriptor.constraintType());
 		Assert.isPremiseValid(
 			resolver != null,
 			() -> createQueryResolvingInternalError("Missing resolver for constraint type `" + parameterDescriptor.constraintType() + "`.")
@@ -860,7 +860,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		if (constraintDescriptor.constraintClass().equals(getDefaultRootConstraintContainerDescriptor().constraintClass())) {
 			return Optional.of(resolveContext.dataLocator());
 		}
-		return dataLocatorResolver.resolveChildParameterDataLocator(resolveContext.dataLocator(), desiredChildDomain);
+		return this.dataLocatorResolver.resolveChildParameterDataLocator(resolveContext.dataLocator(), desiredChildDomain);
 	}
 
 	@SuppressWarnings("unchecked")

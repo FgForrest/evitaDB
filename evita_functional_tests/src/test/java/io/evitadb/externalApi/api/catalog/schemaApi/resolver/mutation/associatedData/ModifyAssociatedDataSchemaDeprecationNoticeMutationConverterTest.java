@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ class ModifyAssociatedDataSchemaDeprecationNoticeMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyAssociatedDataSchemaDeprecationNoticeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyAssociatedDataSchemaDeprecationNoticeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -58,7 +58,7 @@ class ModifyAssociatedDataSchemaDeprecationNoticeMutationConverterTest {
 			"depr"
 		);
 
-		final ModifyAssociatedDataSchemaDeprecationNoticeMutation convertedMutation = converter.convertFromInput(
+		final ModifyAssociatedDataSchemaDeprecationNoticeMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.NAME.name(), "labels")
 				.e(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
@@ -73,7 +73,7 @@ class ModifyAssociatedDataSchemaDeprecationNoticeMutationConverterTest {
 			null
 		);
 
-		final ModifyAssociatedDataSchemaDeprecationNoticeMutation convertedMutation = converter.convertFromInput(
+		final ModifyAssociatedDataSchemaDeprecationNoticeMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.NAME.name(), "labels")
 				.build()
@@ -85,11 +85,11 @@ class ModifyAssociatedDataSchemaDeprecationNoticeMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convertFromInput(
+			() -> this.converter.convertFromInput(
 				map().build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 }

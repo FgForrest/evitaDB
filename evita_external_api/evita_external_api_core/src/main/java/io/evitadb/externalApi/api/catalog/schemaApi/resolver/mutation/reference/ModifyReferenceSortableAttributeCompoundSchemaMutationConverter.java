@@ -75,7 +75,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter ext
 				return (Map<String, Object>) m;
 			})
 			.get();
-		final List<ReferenceSortableAttributeCompoundSchemaMutation> sortableAttributeCompoundSchemaMutations = sortableAttributeCompoundSchemaMutationAggregateConverter.convertFromInput(inputAttributeSchemaMutation);
+		final List<ReferenceSortableAttributeCompoundSchemaMutation> sortableAttributeCompoundSchemaMutations = this.sortableAttributeCompoundSchemaMutationAggregateConverter.convertFromInput(inputAttributeSchemaMutation);
 		Assert.isTrue(
 			sortableAttributeCompoundSchemaMutations.size() == 1,
 			() -> getExceptionFactory().createInvalidArgumentException("Field `" + ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name() + "` in mutation `" + getMutationName() + "` is required and is expected to have exactly one mutation")
@@ -91,7 +91,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter ext
 	protected void convertToOutput(@Nonnull ModifyReferenceSortableAttributeCompoundSchemaMutation mutation, @Nonnull Output output) {
 		output.setProperty(
 			ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION,
-			sortableAttributeCompoundSchemaMutationAggregateConverter.convertToOutput(mutation.getSortableAttributeCompoundSchemaMutation())
+			this.sortableAttributeCompoundSchemaMutationAggregateConverter.convertToOutput(mutation.getSortableAttributeCompoundSchemaMutation())
 		);
 		super.convertToOutput(mutation, output);
 	}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 	@Override
 	public TaskStatus<Void, T> getStatus() {
 		int overallProgress = 0;
-		for (Task<?, ?> step : steps) {
+		for (Task<?, ?> step : this.steps) {
 			overallProgress |= step.getStatus().progress();
 		}
 		final int newProgress = overallProgress / this.steps.length;
@@ -128,7 +128,7 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 			try {
 				this.status.updateAndGet(TaskStatus::transitionToStarted);
 
-				for (ServerTask<?, ?> step : steps) {
+				for (ServerTask<?, ?> step : this.steps) {
 					if (step.getStatus().simplifiedState() == TaskSimplifiedState.QUEUED) {
 						this.currentStep.set(step);
 						step.execute();
@@ -158,7 +158,7 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 	public boolean cancel() {
 		if (!(this.futureResult.isDone() || this.futureResult.isCancelled())) {
 			boolean canceled = false;
-			for (Task<?, ?> step : steps) {
+			for (Task<?, ?> step : this.steps) {
 				//noinspection NonShortCircuitBooleanExpression
 				canceled |= step.cancel();
 			}
@@ -175,7 +175,7 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 	@Override
 	public void fail(@Nonnull Exception exception) {
 		if (!(this.futureResult.isDone() || this.futureResult.isCancelled())) {
-			for (ServerTask<?, ?> step : steps) {
+			for (ServerTask<?, ?> step : this.steps) {
 				step.fail(exception);
 			}
 			this.status.updateAndGet(current -> current.transitionToFailed(exception));
