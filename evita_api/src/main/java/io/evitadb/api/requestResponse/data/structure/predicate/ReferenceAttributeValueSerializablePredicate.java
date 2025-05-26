@@ -86,7 +86,7 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 	 * Returns true if the attributes in specified locale were fetched along with the entity.
 	 */
 	public boolean wasFetched(@Nonnull Locale locale) {
-		return this.locales != null && this.locales.isEmpty() || this.locales.contains(locale);
+		return this.locales != null && (this.locales.isEmpty() || this.locales.contains(locale));
 	}
 
 	/**
@@ -101,7 +101,7 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 	 */
 	public boolean wasFetched(@Nonnull String attributeName, @Nonnull Locale locale) {
 		return (this.referenceAttributes.isRequiresEntityAttributes() && (this.referenceAttributes.attributeSet().isEmpty() || this.referenceAttributes.attributeSet().contains(attributeName))) &&
-			(this.locales != null && this.locales.isEmpty() || this.locales.contains(locale));
+			(this.locales != null && (this.locales.isEmpty() || this.locales.contains(locale)));
 	}
 
 	/**
@@ -120,13 +120,14 @@ public class ReferenceAttributeValueSerializablePredicate implements Serializabl
 		if (!(this.referenceAttributes.isRequiresEntityAttributes() && (this.referenceAttributes.attributeSet().isEmpty() || this.referenceAttributes.attributeSet().contains(attributeKey.attributeName())))) {
 			throw ContextMissingException.referenceAttributeContextMissing(attributeKey.attributeName());
 		}
-		if (attributeKey.localized() && !(Objects.equals(this.locale, attributeKey.locale()) || this.locales != null && this.locales.isEmpty() || this.locales.contains(attributeKey.locale()))) {
+		final Locale theLocale = attributeKey.locale();
+		if (theLocale != null && !(Objects.equals(this.locale, theLocale) || this.locales != null && (this.locales.isEmpty() || this.locales.contains(theLocale)))) {
 			throw ContextMissingException.attributeLocalizationContextMissing(
 				attributeKey.attributeName(),
-				attributeKey.locale(),
+				theLocale,
 				Stream.concat(
 					this.locale == null ? Stream.empty() : Stream.of(this.locale),
-					this.locales.stream()
+					this.locales == null ? Stream.empty() : this.locales.stream()
 				).distinct()
 			);
 		}

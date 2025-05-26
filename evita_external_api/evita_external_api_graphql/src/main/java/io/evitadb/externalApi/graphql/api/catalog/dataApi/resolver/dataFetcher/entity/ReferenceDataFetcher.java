@@ -35,7 +35,9 @@ import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Objects;
 
 /**
  * Finds single reference in parent entity that conforms to specified name.
@@ -52,10 +54,10 @@ public class ReferenceDataFetcher implements DataFetcher<ReferenceContract> {
     @Nonnull
     private final ReferenceSchemaContract referenceSchema;
 
-    @Nonnull
+    @Nullable
     @Override
-    public ReferenceContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        final EntityDecorator entity = environment.getSource();
+    public ReferenceContract get(DataFetchingEnvironment environment) throws Exception {
+        final EntityDecorator entity = Objects.requireNonNull(environment.getSource());
         Assert.isPremiseValid(
 	        this.referenceSchema.getCardinality() == Cardinality.ZERO_OR_ONE || this.referenceSchema.getCardinality() == Cardinality.EXACTLY_ONE,
             () -> new GraphQLQueryResolvingInternalError(

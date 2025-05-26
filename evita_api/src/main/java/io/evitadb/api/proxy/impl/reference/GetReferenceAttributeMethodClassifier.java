@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -185,9 +185,14 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 	) {
 		final Attribute attributeInstance = reflectionLookup.getAnnotationInstanceForProperty(method, Attribute.class);
 		final AttributeRef attributeRefInstance = reflectionLookup.getAnnotationInstanceForProperty(method, AttributeRef.class);
-		final Function<String, AttributeSchemaContract> schemaLocator = attributeName -> referenceSchema.getAttribute(attributeName).orElseThrow(
-			() -> new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
-		);
+		final Function<String, AttributeSchemaContract> schemaLocator =
+			attributeName -> ofNullable(referenceSchema)
+				.flatMap(it -> it.getAttribute(attributeName))
+				.orElseThrow(
+					() -> referenceSchema == null ?
+						new AttributeNotFoundException(attributeName, entitySchema) :
+						new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
+				);
 		if (attributeInstance != null) {
 			return schemaLocator.apply(
 				ofNullable(attributeInstance.name())
@@ -200,7 +205,7 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 					.filter(it -> !it.isBlank())
 					.orElseGet(() -> ReflectionLookup.getPropertyNameFromMethodName(method.getName()))
 			);
-		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, Attribute.class) && ClassUtils.isAbstract(method)) {
+		} else if (referenceSchema != null && !reflectionLookup.hasAnnotationInSamePackage(method, Attribute.class) && ClassUtils.isAbstract(method)) {
 			final Optional<String> attributeName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 			return attributeName
 				.flatMap(attrName -> referenceSchema.getAttributeByName(attrName, NamingConvention.CAMEL_CASE))
@@ -225,18 +230,24 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 		final String parameterName = parameter.getName();
 		final Attribute attributeInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedClass, parameterName, Attribute.class);
 		final AttributeRef attributeRefInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedClass, parameterName, AttributeRef.class);
-		final Function<String, AttributeSchemaContract> schemaLocator = attributeName -> referenceSchema.getAttribute(attributeName).orElseThrow(
-			() -> new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
-		);
+		final Function<String, AttributeSchemaContract> schemaLocator =
+			attributeName -> ofNullable(referenceSchema)
+				.flatMap(it -> it.getAttribute(attributeName))
+				.orElseThrow(() -> referenceSchema == null ?
+					new AttributeNotFoundException(attributeName, entitySchema) :
+					new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
+				);
 		if (attributeInstance != null) {
 			return schemaLocator.apply(attributeInstance.name());
 		} else if (attributeRefInstance != null) {
 			return schemaLocator.apply(
 				attributeRefInstance.value().isBlank() ? parameterName : attributeRefInstance.value()
 			);
-		} else {
+		} else if (referenceSchema != null) {
 			return referenceSchema.getAttributeByName(parameterName, NamingConvention.CAMEL_CASE)
 				.orElse(null);
+		} else {
+			return null;
 		}
 	}
 
@@ -298,7 +309,34 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 			method.getParameterCount() == 0,
 			"Non-localized attribute `" + attributeName + "` must not have a locale parameter!"
 		);
-		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
+			extractAndWrapAttributes(attributeName, attributeExtractor, itemType, indexedDecimalPlaces, defaultValueProvider, resultWrapper, theState);
+	}
+
+	/**
+	 * Extracts attributes using the provided attribute extractor function and wraps them with the result wrapper.
+	 * If the attributes are multi-valued, they are converted into a set. If no value is found, it defaults to an empty set.
+	 *
+	 * @param attributeName        the name of the attribute to extract
+	 * @param attributeExtractor   a bi-function to extract the attribute value based on the entity reference and attribute name
+	 * @param itemType             the expected type of the extracted attribute
+	 * @param indexedDecimalPlaces the number of decimal places for indexing numeric values if applicable
+	 * @param defaultValueProvider a function to provide a default value when the attribute extraction returns null
+	 * @param resultWrapper        the wrapper to process and wrap the result
+	 * @param theState             the state containing the reference entity to extract attributes from
+	 * @return a wrapped set of extracted attribute values or an empty set if no values are found
+	 */
+	@Nullable
+	private static Object extractAndWrapAttributes(
+		@Nonnull String attributeName,
+		@Nonnull BiFunction<ReferenceContract, String, Serializable> attributeExtractor,
+		@Nonnull Class<? extends Serializable> itemType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
+		@Nonnull ResultWrapper resultWrapper,
+		@Nonnull SealedEntityReferenceProxyState theState
+	) {
+		return resultWrapper.wrap(
 			() -> ofNullable(
 				toTargetType(
 					defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), attributeName)),
@@ -386,8 +424,9 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 					defaultValueProvider.apply(reference.getAttribute(attributeName)),
 					itemType, indexedDecimalPlaces
 				)
-			).map(Object[].class::cast)
-				.map(it -> Collections.unmodifiableList(Arrays.asList(it)))
+			)
+				.map(Object[].class::cast)
+				.map(List::of)
 				.orElse(Collections.emptyList());
 	}
 
@@ -466,7 +505,7 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 					);
 				}
 			} else if (locale != null) {
-				// noinspection DataFlowIssue,unchecked
+				// noinspection unchecked
 				return toTargetType(
 					reference.getAttribute(
 						attributeName,
@@ -477,7 +516,7 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 					indexedDecimalPlaces
 				);
 			} else {
-				// noinspection DataFlowIssue,unchecked
+				// noinspection unchecked
 				return defaultValueProvider.apply(
 					toTargetType(
 						defaultValueProvider.apply(reference.getAttribute(attributeName)),
@@ -504,21 +543,7 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 		@Nonnull ResultWrapper resultWrapper
 	) {
 		return method.getParameterCount() == 0 ?
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
-				() -> ofNullable(
-					toTargetType(
-						defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), cleanAttributeName)),
-						itemType, indexedDecimalPlaces
-					)
-				)
-					.map(Object[].class::cast)
-					.map(it -> {
-						final Set<Object> result = CollectionUtils.createHashSet(it.length);
-						result.addAll(Arrays.asList(it));
-						return result;
-					})
-					.orElse(Collections.emptySet())
-			) :
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> extractAndWrapAttributes(cleanAttributeName, attributeExtractor, itemType, indexedDecimalPlaces, defaultValueProvider, resultWrapper, theState) :
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 				() -> ofNullable(
 					toTargetType(
@@ -550,15 +575,15 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 		int indexedDecimalPlaces,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider
 	) {
-		return (sealedEntity, reference) -> {
-			final Object[] resultValue = getLocalizedAttributeAsObjectArray(
-				attributeName, itemType, indexedDecimalPlaces, defaultValueProvider, sealedEntity, reference
-			);
-
-			final Set<Object> result = CollectionUtils.createHashSet(resultValue.length);
-			result.addAll(Arrays.asList(resultValue));
-			return result;
-		};
+		return (sealedEntity, reference) -> getLocalizedAttributeAsObjectArray(
+			attributeName, itemType, indexedDecimalPlaces, defaultValueProvider, sealedEntity, reference
+		).map(
+			it -> {
+				final Set<Object> result = CollectionUtils.createHashSet(it.length);
+				result.addAll(Arrays.asList(it));
+				return result;
+			}
+		).orElseGet(Collections::emptySet);
 	}
 
 	/**
@@ -612,20 +637,19 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 		int indexedDecimalPlaces,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider
 	) {
-		return (sealedEntity, reference) -> Collections.unmodifiableList(
-			Arrays.asList(
-				getLocalizedAttributeAsObjectArray(
-					attributeName, itemType, indexedDecimalPlaces, defaultValueProvider, sealedEntity, reference
-				)
+		return (sealedEntity, reference) ->
+			getLocalizedAttributeAsObjectArray(
+				attributeName, itemType, indexedDecimalPlaces, defaultValueProvider, sealedEntity, reference
 			)
-		);
+				.map(List::of)
+				.orElseGet(Collections::emptyList);
 	}
 
 	/**
 	 * Resolves the used locale(s) and retrieves reference attribute as array of objects.
 	 */
-	@Nullable
-	private static Object[] getLocalizedAttributeAsObjectArray(
+	@Nonnull
+	private static Optional<Object[]> getLocalizedAttributeAsObjectArray(
 		@Nonnull String attributeName,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
@@ -665,7 +689,7 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 				);
 			}
 		} else if (locale != null) {
-			// noinspection rawtypes,DataFlowIssue,unchecked
+			// noinspection rawtypes,unchecked
 			resultValue = (Object[]) toTargetType(
 				defaultValueProvider.apply(
 					reference.getAttribute(
@@ -678,14 +702,14 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 				indexedDecimalPlaces
 			);
 		} else {
-			// noinspection rawtypes,DataFlowIssue,unchecked
+			// noinspection rawtypes,unchecked
 			resultValue = (Object[]) toTargetType(
 				defaultValueProvider.apply(reference.getAttribute(attributeName)),
 				(Class) itemType.getComponentType(),
 				indexedDecimalPlaces
 			);
 		}
-		return resultValue;
+		return ofNullable(resultValue);
 	}
 
 	public GetReferenceAttributeMethodClassifier() {
@@ -704,10 +728,11 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 					return null;
 				}
 				// now we need to identify attribute schema that is being requested
+				final ReferenceSchemaContract referenceSchema = proxyState.getReferenceSchema();
 				final AttributeSchemaContract attributeSchema = getAttributeSchema(
 					method, proxyState.getReflectionLookup(),
 					proxyState.getEntitySchema(),
-					proxyState.getReferenceSchema()
+					referenceSchema
 				);
 				// if not found, this method is not classified by this implementation
 				if (attributeSchema == null) {
@@ -785,7 +810,9 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 					} else {
 						Assert.isTrue(
 							method.getParameterCount() == 0,
-							"Non-localized attribute `" + attributeSchema.getName() + "` of reference `" + proxyState.getReferenceSchema().getName() + "` must not have a locale parameter!"
+							"Non-localized attribute `" + attributeSchema.getName() + "`" +
+								(referenceSchema == null ? "" : " of reference `" + referenceSchema.getName() + "`") +
+								" must not have a locale parameter!"
 						);
 						if (collectionType != null && Set.class.isAssignableFrom(collectionType)) {
 							//noinspection unchecked

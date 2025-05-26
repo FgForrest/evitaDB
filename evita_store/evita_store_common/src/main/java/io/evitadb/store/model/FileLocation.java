@@ -23,6 +23,7 @@
 
 package io.evitadb.store.model;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
@@ -40,6 +41,7 @@ public record FileLocation(long startingPosition, int recordLength) implements S
 	@Serial private static final long serialVersionUID = 6408882908172452621L;
 	public static final FileLocation EMPTY = new FileLocation(0, 0);
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "location " + this.startingPosition + " [length: " + this.recordLength + "B]";

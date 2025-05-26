@@ -27,8 +27,6 @@ import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.Optional;
 
 /**
  * This class is simple DTO object holding all cache-related configuration options of the Evita.
@@ -63,7 +61,7 @@ public record CacheOptions(
 	int anteroomRecordCount,
 	long minimalComplexityThreshold,
 	int minimalUsageThreshold,
-	@Nullable Long cacheSizeInBytes
+	long cacheSizeInBytes
 ) {
 
 	public static final boolean DEFAULT_ENABLED = false;
@@ -112,17 +110,6 @@ public record CacheOptions(
 		);
 	}
 
-	public CacheOptions(@Nonnull ReflectionCachingBehaviour reflection, boolean enabled, int reevaluateEachSeconds, int anteroomRecordCount, long minimalComplexityThreshold, int minimalUsageThreshold, @Nullable Long cacheSizeInBytes) {
-		this.reflection = reflection;
-		this.enabled = enabled;
-		this.reevaluateEachSeconds = reevaluateEachSeconds;
-		this.anteroomRecordCount = anteroomRecordCount;
-		this.minimalComplexityThreshold = minimalComplexityThreshold;
-		this.minimalUsageThreshold = minimalUsageThreshold;
-		this.cacheSizeInBytes = Optional.ofNullable(cacheSizeInBytes)
-			.orElse(DEFAULT_CACHE_SIZE);
-	}
-
 	/**
 	 * Standard builder pattern implementation.
 	 */
@@ -146,8 +133,7 @@ public record CacheOptions(
 			this.anteroomRecordCount = cacheOptions.anteroomRecordCount;
 			this.minimalComplexityThreshold = cacheOptions.minimalComplexityThreshold;
 			this.minimalUsageThreshold = cacheOptions.minimalUsageThreshold;
-			this.cacheSizeInBytes = cacheOptions.cacheSizeInBytes == null ?
-				DEFAULT_CACHE_SIZE : cacheOptions.cacheSizeInBytes;
+			this.cacheSizeInBytes = cacheOptions.cacheSizeInBytes;
 		}
 
 		public Builder reflection(ReflectionCachingBehaviour reflection) {

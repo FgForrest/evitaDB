@@ -63,7 +63,7 @@ public class UpdateEntitySchemaMutatingDataFetcher implements DataFetcher<Entity
 
 	@Nonnull
 	@Override
-	public EntitySchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public EntitySchemaContract get(DataFetchingEnvironment environment) throws Exception {
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 		final Arguments arguments = Arguments.from(environment);
 

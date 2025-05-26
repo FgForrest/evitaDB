@@ -73,7 +73,7 @@ public class UpdateCatalogSchemaMutatingDataFetcher implements DataFetcher<Catal
 
 	@Nonnull
 	@Override
-	public CatalogSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public CatalogSchemaContract get(DataFetchingEnvironment environment) throws Exception {
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 		final Arguments arguments = Arguments.from(environment);
 

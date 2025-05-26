@@ -35,6 +35,8 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.Nonnull;
+
 /**
  * Generic error handler for Armeria server. Logs the error and returns 500 Internal Server Error response.
  *
@@ -46,7 +48,7 @@ class LoggingServerErrorHandler implements ServerErrorHandler {
 	public static final ServerErrorHandler INSTANCE = new LoggingServerErrorHandler();
 
 	@Override
-	public @Nullable HttpResponse onServiceException(ServiceRequestContext ctx, Throwable cause) {
+	public @Nullable HttpResponse onServiceException(@Nonnull ServiceRequestContext ctx, @Nonnull Throwable cause) {
 		if (cause instanceof RequestTimeoutException) {
 			return HttpResponse.of(HttpStatus.REQUEST_TIMEOUT, MediaType.PLAIN_TEXT, "Request timed out.");
 		} else if (cause instanceof ClosedStreamException) {

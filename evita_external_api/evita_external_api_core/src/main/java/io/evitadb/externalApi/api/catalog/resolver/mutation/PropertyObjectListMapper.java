@@ -92,7 +92,7 @@ public class PropertyObjectListMapper<T extends Serializable> implements Functio
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public T[] apply(@Nonnull Object rawPropertyValue) {
+	public T[] apply(Object rawPropertyValue) {
 		Assert.isTrue(
 			rawPropertyValue instanceof List<?>,
 			() -> this.exceptionFactory.createInvalidArgumentException("Property `" + this.propertyName + "` of mutation `" + this.mutationName + "` is expected to be an array.")

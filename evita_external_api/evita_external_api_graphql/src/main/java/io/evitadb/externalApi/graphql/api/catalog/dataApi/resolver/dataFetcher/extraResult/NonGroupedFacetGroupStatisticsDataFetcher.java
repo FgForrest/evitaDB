@@ -46,7 +46,7 @@ public class NonGroupedFacetGroupStatisticsDataFetcher implements DataFetcher<Fa
 
 	@Nullable
 	@Override
-	public FacetGroupStatistics get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public FacetGroupStatistics get(DataFetchingEnvironment environment) throws Exception {
 		final FacetSummary facetSummary = environment.getSource();
 		return facetSummary.getFacetGroupStatistics(this.referenceSchema.getName());
 	}

@@ -83,6 +83,7 @@ public record DataItemArray(
 		return Arrays.equals(this.children, that.children);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return '[' + Arrays.toString(this.children) + ']';

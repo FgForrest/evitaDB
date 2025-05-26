@@ -30,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Returns single specified name variant.
@@ -44,8 +45,8 @@ public class NameVariantDataFetcher implements DataFetcher<String> {
 
 	@Nonnull
 	@Override
-	public String get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final Map<NamingConvention, String> variants = environment.getSource();
+	public String get(DataFetchingEnvironment environment) throws Exception {
+		final Map<NamingConvention, String> variants = Objects.requireNonNull(environment.getSource());
 		return variants.get(this.variantName);
 	}
 }

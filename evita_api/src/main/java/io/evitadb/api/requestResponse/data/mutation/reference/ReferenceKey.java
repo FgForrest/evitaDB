@@ -67,6 +67,7 @@ public record ReferenceKey(@Nonnull String referenceName, int primaryKey) implem
 		}
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return this.referenceName + ": " + this.primaryKey;

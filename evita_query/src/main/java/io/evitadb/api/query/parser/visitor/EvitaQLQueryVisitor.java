@@ -56,7 +56,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
 
 
     @Override
-    public Query visitQuery(@Nonnull EvitaQLParser.QueryContext ctx) {
+    public Query visitQuery(EvitaQLParser.QueryContext ctx) {
         return parse(
             ctx,
             () -> {

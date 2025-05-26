@@ -53,6 +53,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -190,7 +191,7 @@ public class InvertedIndex implements
 		if (!internal) {
 			final ConsistencyReport consistencyReport = checkConsistency(buckets, comparator);
 			if (consistencyReport.state() != ConsistencySensitiveDataStructure.ConsistencyState.CONSISTENT) {
-				throw new MonotonicRowCorruptedException(consistencyReport.report());
+				throw new MonotonicRowCorruptedException(Objects.requireNonNull(consistencyReport.report()));
 			}
 		}
 		//noinspection unchecked

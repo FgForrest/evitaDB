@@ -45,7 +45,7 @@ public class CatalogsDataFetcher implements DataFetcher<Collection<CatalogContra
 
     @Override
     @Nonnull
-    public Collection<CatalogContract> get(@Nonnull DataFetchingEnvironment environment) {
+    public Collection<CatalogContract> get(DataFetchingEnvironment environment) {
         return this.evita.getCatalogs();
     }
 }

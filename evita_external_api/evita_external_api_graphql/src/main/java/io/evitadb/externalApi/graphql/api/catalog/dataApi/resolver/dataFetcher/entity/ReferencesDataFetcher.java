@@ -52,7 +52,7 @@ public class ReferencesDataFetcher implements DataFetcher<Collection<ReferenceCo
 
     @Nonnull
     @Override
-    public Collection<ReferenceContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public Collection<ReferenceContract> get(DataFetchingEnvironment environment) throws Exception {
         final EntityDecorator entity = environment.getSource();
         Assert.isPremiseValid(entity != null, "Entity must not be null.");
         Assert.isPremiseValid(

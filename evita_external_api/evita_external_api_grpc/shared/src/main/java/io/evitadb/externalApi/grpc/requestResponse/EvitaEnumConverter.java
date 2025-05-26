@@ -584,10 +584,9 @@ public class EvitaEnumConverter {
 	 * @return the converted {@link Cardinality}, or null if grpcCardinality is 0
 	 * @throws EvitaInternalError if the grpcCardinality is unrecognized
 	 */
-	@Nullable
+	@Nonnull
 	public static Cardinality toCardinality(@Nonnull GrpcCardinality grpcCardinality) {
 		return switch (grpcCardinality.getNumber()) {
-			case 0 -> null;
 			case 1 -> Cardinality.ZERO_OR_ONE;
 			case 2 -> Cardinality.EXACTLY_ONE;
 			case 3 -> Cardinality.ZERO_OR_MORE;

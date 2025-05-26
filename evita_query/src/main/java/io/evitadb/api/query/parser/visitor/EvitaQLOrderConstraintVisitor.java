@@ -35,7 +35,6 @@ import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -77,7 +76,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	protected final EvitaQLValueTokenVisitor scopeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(Scope.class);
 
 	@Override
-	public OrderConstraint visitOrderByConstraint(@Nonnull EvitaQLParser.OrderByConstraintContext ctx) {
+	public OrderConstraint visitOrderByConstraint(EvitaQLParser.OrderByConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -95,7 +94,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	}
 
 	@Override
-	public OrderConstraint visitOrderGroupByConstraint(@Nonnull EvitaQLParser.OrderGroupByConstraintContext ctx) {
+	public OrderConstraint visitOrderGroupByConstraint(EvitaQLParser.OrderGroupByConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -113,7 +112,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	}
 
 	@Override
-	public OrderConstraint visitAttributeNaturalConstraint(@Nonnull EvitaQLParser.AttributeNaturalConstraintContext ctx) {
+	public OrderConstraint visitAttributeNaturalConstraint(EvitaQLParser.AttributeNaturalConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -154,7 +153,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	}
 
 	@Override
-	public OrderConstraint visitPriceNaturalConstraint(@Nonnull EvitaQLParser.PriceNaturalConstraintContext ctx) {
+	public OrderConstraint visitPriceNaturalConstraint(EvitaQLParser.PriceNaturalConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -172,7 +171,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	}
 
 	@Override
-	public OrderConstraint visitPriceDiscountConstraint(@Nonnull PriceDiscountConstraintContext ctx) {
+	public OrderConstraint visitPriceDiscountConstraint(PriceDiscountConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -212,7 +211,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	}
 
 	@Override
-	public OrderConstraint visitRandomConstraint(@Nonnull EvitaQLParser.RandomConstraintContext ctx) {
+	public OrderConstraint visitRandomConstraint(EvitaQLParser.RandomConstraintContext ctx) {
 		return parse(ctx, () -> Random.INSTANCE);
 	}
 

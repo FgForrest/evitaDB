@@ -26,6 +26,7 @@ package io.evitadb.index.array;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Arrays;
 
@@ -63,7 +64,7 @@ public class IntArrayChanges implements ArrayChangesIteratorSupport {
 	 * Temporary intermediate result of the last {@link #getMergedArray()} operation. Nullified immediately with next
 	 * change.
 	 */
-	private int[] memoizedMergedArray;
+	@Nullable private int[] memoizedMergedArray;
 
 	/**
 	 * Computes closest modification operation that should occur upon the original array.
@@ -141,6 +142,7 @@ public class IntArrayChanges implements ArrayChangesIteratorSupport {
 	/**
 	 * Returns set of inserted record ids on specified position of the array.
 	 */
+	@Nullable
 	@Override
 	public int[] getInsertionOnPosition(int position) {
 		int index = Arrays.binarySearch(this.insertions, position);

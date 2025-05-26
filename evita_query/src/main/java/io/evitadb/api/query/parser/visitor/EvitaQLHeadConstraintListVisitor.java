@@ -27,7 +27,6 @@ import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
-import javax.annotation.Nonnull;
 import java.util.List;
 
 /**
@@ -42,7 +41,7 @@ public class EvitaQLHeadConstraintListVisitor extends EvitaQLBaseVisitor<List<He
 
 
     @Override
-    public List<HeadConstraint> visitHeadConstraintList(@Nonnull EvitaQLParser.HeadConstraintListContext ctx) {
+    public List<HeadConstraint> visitHeadConstraintList(EvitaQLParser.HeadConstraintListContext ctx) {
         return parse(
             ctx,
             () -> ctx.constraints

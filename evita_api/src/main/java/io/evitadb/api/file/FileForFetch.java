@@ -136,6 +136,7 @@ public record FileForFetch(
 		);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "FileForFetch{" +

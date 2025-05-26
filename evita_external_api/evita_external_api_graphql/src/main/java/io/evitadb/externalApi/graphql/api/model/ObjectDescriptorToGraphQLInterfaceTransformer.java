@@ -44,7 +44,7 @@ public class ObjectDescriptorToGraphQLInterfaceTransformer implements ObjectDesc
 	private final PropertyDescriptorTransformer<GraphQLFieldDefinition.Builder> fieldBuilderTransformer;
 
 	@Override
-	public GraphQLInterfaceType.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
+	public GraphQLInterfaceType.Builder apply(ObjectDescriptor objectDescriptor) {
 		final GraphQLInterfaceType.Builder interfaceBuilder = GraphQLInterfaceType.newInterface()
 			.name(objectDescriptor.name())
 			.description(objectDescriptor.description());

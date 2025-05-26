@@ -94,6 +94,7 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 		return toRead;
 	}
 
+	@Nonnull
 	@Override
 	public byte[] readAllBytes() {
 		switchToReadIfNecessary();
@@ -102,6 +103,7 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 		return writtenData;
 	}
 
+	@Nonnull
 	@Override
 	public byte[] readNBytes(int len) {
 		switchToReadIfNecessary();

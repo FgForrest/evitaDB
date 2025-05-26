@@ -142,6 +142,7 @@ public interface SortableAttributeCompoundSchemaContract
 			return new AttributeElement(attributeName, direction, behaviour);
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return '\'' + this.attributeName + '\'' + " " + this.direction + " " + this.behaviour;

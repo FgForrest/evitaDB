@@ -272,6 +272,7 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 				MemoryMeasuringConstants.REFERENCE_SIZE;
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return this.associatedDataName + (this.locale == null ? "" : ":" + this.locale);
@@ -373,6 +374,7 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 			return this.dropped != otherAssociatedDataValue.dropped;
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return (this.dropped ? "❌ " : "") +

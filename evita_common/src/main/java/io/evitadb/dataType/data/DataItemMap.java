@@ -125,6 +125,7 @@ public record DataItemMap(
 		return Objects.equals(this.childrenIndex, that.childrenIndex);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "{" + this.childrenIndex.entrySet().stream().map(it -> it.getKey() + ": " + it.getValue()).collect(Collectors.joining(", ")) + '}';

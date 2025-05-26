@@ -55,7 +55,7 @@ public class EndpointDescriptorToGraphQLFieldTransformer implements EndpointDesc
 	}
 
 	@Override
-	public GraphQLFieldDefinition.Builder apply(@Nonnull EndpointDescriptor endpointDescriptor) {
+	public GraphQLFieldDefinition.Builder apply(EndpointDescriptor endpointDescriptor) {
 		final String fieldName;
 		if (endpointDescriptor.hasClassifier()) {
 			Assert.isPremiseValid(

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ public class ReferenceSchemaEntityTypeNameVariantsDataFetcher implements DataFet
 
 	@Nonnull
 	@Override
-	public Map<NamingConvention, String> get(@Nonnull DataFetchingEnvironment environment) {
+	public Map<NamingConvention, String> get(DataFetchingEnvironment environment) {
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
 		final ReferenceSchemaContract referenceSchema = environment.getSource();

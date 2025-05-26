@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 
 /**
  * Fetches group entity from parent {@link ReferenceContract}.
@@ -55,10 +56,10 @@ public class ReferencedGroupDataFetcher implements DataFetcher<EntityClassifier>
 
 	@Nonnull
 	@Override
-	public EntityClassifier get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final ReferenceContract reference = environment.getSource();
+	public EntityClassifier get(DataFetchingEnvironment environment) throws Exception {
+		final ReferenceContract reference = Objects.requireNonNull(environment.getSource());
 		return reference.getGroupEntity()
-			.map(it -> (EntityClassifier) it)
+			.map(EntityClassifier.class::cast)
 			.orElse(reference.getGroup()
 				.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing group reference.")));
 	}

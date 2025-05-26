@@ -1096,6 +1096,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			return result;
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return "InternalCacheKey{" +

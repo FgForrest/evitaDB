@@ -37,7 +37,6 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.FilterInScopeConstraint
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
 
-import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Currency;
@@ -100,7 +99,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	protected final EvitaQLValueTokenVisitor scopeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(Scope.class);
 
 	@Override
-	public FilterConstraint visitFilterByConstraint(@Nonnull EvitaQLParser.FilterByConstraintContext ctx) {
+	public FilterConstraint visitFilterByConstraint(EvitaQLParser.FilterByConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new FilterBy(
@@ -113,7 +112,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitFilterGroupByConstraint(@Nonnull EvitaQLParser.FilterGroupByConstraintContext ctx) {
+	public FilterConstraint visitFilterGroupByConstraint(EvitaQLParser.FilterGroupByConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new FilterGroupBy(
@@ -126,7 +125,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAndConstraint(@Nonnull EvitaQLParser.AndConstraintContext ctx) {
+	public FilterConstraint visitAndConstraint(EvitaQLParser.AndConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -144,7 +143,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitOrConstraint(@Nonnull EvitaQLParser.OrConstraintContext ctx) {
+	public FilterConstraint visitOrConstraint(EvitaQLParser.OrConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -162,7 +161,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitNotConstraint(@Nonnull EvitaQLParser.NotConstraintContext ctx) {
+	public FilterConstraint visitNotConstraint(EvitaQLParser.NotConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new Not(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
@@ -170,7 +169,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitUserFilterConstraint(@Nonnull EvitaQLParser.UserFilterConstraintContext ctx) {
+	public FilterConstraint visitUserFilterConstraint(EvitaQLParser.UserFilterConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -188,7 +187,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeEqualsConstraint(@Nonnull EvitaQLParser.AttributeEqualsConstraintContext ctx) {
+	public FilterConstraint visitAttributeEqualsConstraint(EvitaQLParser.AttributeEqualsConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeEquals(
@@ -199,7 +198,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeGreaterThanConstraint(@Nonnull EvitaQLParser.AttributeGreaterThanConstraintContext ctx) {
+	public FilterConstraint visitAttributeGreaterThanConstraint(EvitaQLParser.AttributeGreaterThanConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeGreaterThan(
@@ -210,7 +209,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeGreaterThanEqualsConstraint(@Nonnull EvitaQLParser.AttributeGreaterThanEqualsConstraintContext ctx) {
+	public FilterConstraint visitAttributeGreaterThanEqualsConstraint(EvitaQLParser.AttributeGreaterThanEqualsConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeGreaterThanEquals(
@@ -221,7 +220,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeLessThanConstraint(@Nonnull EvitaQLParser.AttributeLessThanConstraintContext ctx) {
+	public FilterConstraint visitAttributeLessThanConstraint(EvitaQLParser.AttributeLessThanConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeLessThan(
@@ -232,7 +231,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeLessThanEqualsConstraint(@Nonnull EvitaQLParser.AttributeLessThanEqualsConstraintContext ctx) {
+	public FilterConstraint visitAttributeLessThanEqualsConstraint(EvitaQLParser.AttributeLessThanEqualsConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeLessThanEquals(
@@ -243,7 +242,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeBetweenConstraint(@Nonnull EvitaQLParser.AttributeBetweenConstraintContext ctx) {
+	public FilterConstraint visitAttributeBetweenConstraint(EvitaQLParser.AttributeBetweenConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeBetween(
@@ -259,7 +258,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeInSetConstraint(@Nonnull EvitaQLParser.AttributeInSetConstraintContext ctx) {
+	public FilterConstraint visitAttributeInSetConstraint(EvitaQLParser.AttributeInSetConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -278,7 +277,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeContainsConstraint(@Nonnull EvitaQLParser.AttributeContainsConstraintContext ctx) {
+	public FilterConstraint visitAttributeContainsConstraint(EvitaQLParser.AttributeContainsConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeContains(
@@ -289,7 +288,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeStartsWithConstraint(@Nonnull EvitaQLParser.AttributeStartsWithConstraintContext ctx) {
+	public FilterConstraint visitAttributeStartsWithConstraint(EvitaQLParser.AttributeStartsWithConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeStartsWith(
@@ -300,7 +299,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeEndsWithConstraint(@Nonnull EvitaQLParser.AttributeEndsWithConstraintContext ctx) {
+	public FilterConstraint visitAttributeEndsWithConstraint(EvitaQLParser.AttributeEndsWithConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeEndsWith(
@@ -311,7 +310,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeEqualsTrueConstraint(@Nonnull EvitaQLParser.AttributeEqualsTrueConstraintContext ctx) {
+	public FilterConstraint visitAttributeEqualsTrueConstraint(EvitaQLParser.AttributeEqualsTrueConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeEquals(
@@ -322,7 +321,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeEqualsFalseConstraint(@Nonnull EvitaQLParser.AttributeEqualsFalseConstraintContext ctx) {
+	public FilterConstraint visitAttributeEqualsFalseConstraint(EvitaQLParser.AttributeEqualsFalseConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeEquals(
@@ -333,7 +332,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeIsConstraint(@Nonnull EvitaQLParser.AttributeIsConstraintContext ctx) {
+	public FilterConstraint visitAttributeIsConstraint(EvitaQLParser.AttributeIsConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeIs(
@@ -347,7 +346,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeIsNullConstraint(@Nonnull EvitaQLParser.AttributeIsNullConstraintContext ctx) {
+	public FilterConstraint visitAttributeIsNullConstraint(EvitaQLParser.AttributeIsNullConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeIs(
@@ -358,7 +357,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeIsNotNullConstraint(@Nonnull EvitaQLParser.AttributeIsNotNullConstraintContext ctx) {
+	public FilterConstraint visitAttributeIsNotNullConstraint(EvitaQLParser.AttributeIsNotNullConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new AttributeIs(
@@ -369,7 +368,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitAttributeInRangeConstraint(@Nonnull EvitaQLParser.AttributeInRangeConstraintContext ctx) {
+	public FilterConstraint visitAttributeInRangeConstraint(EvitaQLParser.AttributeInRangeConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -401,7 +400,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitEntityPrimaryKeyInSetConstraint(@Nonnull EvitaQLParser.EntityPrimaryKeyInSetConstraintContext ctx) {
+	public FilterConstraint visitEntityPrimaryKeyInSetConstraint(EvitaQLParser.EntityPrimaryKeyInSetConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -416,7 +415,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitEntityLocaleEqualsConstraint(@Nonnull EvitaQLParser.EntityLocaleEqualsConstraintContext ctx) {
+	public FilterConstraint visitEntityLocaleEqualsConstraint(EvitaQLParser.EntityLocaleEqualsConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new EntityLocaleEquals(
@@ -428,7 +427,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitPriceInCurrencyConstraint(@Nonnull EvitaQLParser.PriceInCurrencyConstraintContext ctx) {
+	public FilterConstraint visitPriceInCurrencyConstraint(EvitaQLParser.PriceInCurrencyConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new PriceInCurrency(
@@ -440,7 +439,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitPriceInPriceListsConstraints(@Nonnull EvitaQLParser.PriceInPriceListsConstraintsContext ctx) {
+	public FilterConstraint visitPriceInPriceListsConstraints(EvitaQLParser.PriceInPriceListsConstraintsContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -455,12 +454,12 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitPriceValidInNowConstraint(@Nonnull EvitaQLParser.PriceValidInNowConstraintContext ctx) {
+	public FilterConstraint visitPriceValidInNowConstraint(EvitaQLParser.PriceValidInNowConstraintContext ctx) {
 		return parse(ctx, PriceValidIn::new);
 	}
 
 	@Override
-	public FilterConstraint visitPriceValidInConstraint(@Nonnull EvitaQLParser.PriceValidInConstraintContext ctx) {
+	public FilterConstraint visitPriceValidInConstraint(EvitaQLParser.PriceValidInConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -474,7 +473,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitPriceBetweenConstraint(@Nonnull EvitaQLParser.PriceBetweenConstraintContext ctx) {
+	public FilterConstraint visitPriceBetweenConstraint(EvitaQLParser.PriceBetweenConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new PriceBetween(
@@ -485,7 +484,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitFacetHavingConstraint(@Nonnull EvitaQLParser.FacetHavingConstraintContext ctx) {
+	public FilterConstraint visitFacetHavingConstraint(EvitaQLParser.FacetHavingConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -511,7 +510,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitFacetIncludingChildrenHavingConstraint(@Nonnull FacetIncludingChildrenHavingConstraintContext ctx) {
+	public FilterConstraint visitFacetIncludingChildrenHavingConstraint(FacetIncludingChildrenHavingConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new FacetIncludingChildren(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
@@ -519,7 +518,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitFacetIncludingChildrenExceptConstraint(@Nonnull FacetIncludingChildrenExceptConstraintContext ctx) {
+	public FilterConstraint visitFacetIncludingChildrenExceptConstraint(FacetIncludingChildrenExceptConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new FacetIncludingChildrenExcept(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
@@ -527,7 +526,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitReferenceHavingConstraint(@Nonnull EvitaQLParser.ReferenceHavingConstraintContext ctx) {
+	public FilterConstraint visitReferenceHavingConstraint(EvitaQLParser.ReferenceHavingConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -548,7 +547,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 
 
 	@Override
-	public FilterConstraint visitHierarchyWithinConstraint(@Nonnull EvitaQLParser.HierarchyWithinConstraintContext ctx) {
+	public FilterConstraint visitHierarchyWithinConstraint(EvitaQLParser.HierarchyWithinConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyWithin(
@@ -565,7 +564,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitHierarchyWithinSelfConstraint(@Nonnull EvitaQLParser.HierarchyWithinSelfConstraintContext ctx) {
+	public FilterConstraint visitHierarchyWithinSelfConstraint(EvitaQLParser.HierarchyWithinSelfConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyWithin(
@@ -579,7 +578,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitHierarchyWithinRootConstraint(@Nonnull EvitaQLParser.HierarchyWithinRootConstraintContext ctx) {
+	public FilterConstraint visitHierarchyWithinRootConstraint(EvitaQLParser.HierarchyWithinRootConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyWithinRoot(
@@ -595,7 +594,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitHierarchyWithinRootSelfConstraint(@Nonnull EvitaQLParser.HierarchyWithinRootSelfConstraintContext ctx) {
+	public FilterConstraint visitHierarchyWithinRootSelfConstraint(EvitaQLParser.HierarchyWithinRootSelfConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -613,12 +612,12 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitHierarchyDirectRelationConstraint(@Nonnull EvitaQLParser.HierarchyDirectRelationConstraintContext ctx) {
+	public FilterConstraint visitHierarchyDirectRelationConstraint(EvitaQLParser.HierarchyDirectRelationConstraintContext ctx) {
 		return parse(ctx, HierarchyDirectRelation::new);
 	}
 
 	@Override
-	public FilterConstraint visitHierarchyHavingConstraint(@Nonnull EvitaQLParser.HierarchyHavingConstraintContext ctx) {
+	public FilterConstraint visitHierarchyHavingConstraint(EvitaQLParser.HierarchyHavingConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyHaving(
@@ -631,12 +630,12 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitHierarchyExcludingRootConstraint(@Nonnull EvitaQLParser.HierarchyExcludingRootConstraintContext ctx) {
+	public FilterConstraint visitHierarchyExcludingRootConstraint(EvitaQLParser.HierarchyExcludingRootConstraintContext ctx) {
 		return parse(ctx, HierarchyExcludingRoot::new);
 	}
 
 	@Override
-	public FilterConstraint visitHierarchyExcludingConstraint(@Nonnull EvitaQLParser.HierarchyExcludingConstraintContext ctx) {
+	public FilterConstraint visitHierarchyExcludingConstraint(EvitaQLParser.HierarchyExcludingConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyExcluding(
@@ -649,7 +648,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitEntityHavingConstraint(@Nonnull EvitaQLParser.EntityHavingConstraintContext ctx) {
+	public FilterConstraint visitEntityHavingConstraint(EvitaQLParser.EntityHavingConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new EntityHaving(visitChildConstraint(ctx.args.filter, FilterConstraint.class))

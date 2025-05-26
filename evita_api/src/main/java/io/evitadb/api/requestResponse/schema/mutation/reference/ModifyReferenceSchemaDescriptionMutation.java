@@ -129,7 +129,7 @@ public class ModifyReferenceSchemaDescriptionMutation
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
-			final ReferenceSchemaContract updatedReferenceSchema = mutate(entitySchema, theSchema);
+			final ReferenceSchemaContract updatedReferenceSchema = Objects.requireNonNull(mutate(entitySchema, theSchema));
 			return replaceReferenceSchema(entitySchema, theSchema, updatedReferenceSchema);
 		}
 	}

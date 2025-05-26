@@ -230,6 +230,7 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		@Nullable Integer facetGroupId
 	) {
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return "CacheKey{" +

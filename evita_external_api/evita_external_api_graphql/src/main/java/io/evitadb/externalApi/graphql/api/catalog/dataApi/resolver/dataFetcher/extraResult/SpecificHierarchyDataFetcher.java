@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ public class SpecificHierarchyDataFetcher implements DataFetcher<List<LevelInfoD
 
 	@Nonnull
 	@Override
-	public List<LevelInfoDto> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public List<LevelInfoDto> get(DataFetchingEnvironment environment) throws Exception {
 		final Map<String, List<LevelInfo>> hierarchiesOfReference = environment.getSource();
 
 		final String outputName = HierarchyRequireOutputNameResolver.resolve(environment.getField());

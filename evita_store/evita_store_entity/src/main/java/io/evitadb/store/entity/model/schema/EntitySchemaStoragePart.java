@@ -52,6 +52,7 @@ public record EntitySchemaStoragePart(
 		return 1L;
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "EntitySchemaStoragePart{" +

@@ -46,7 +46,7 @@ public class SortableAttributeCompoundSchemaDataFetcher implements DataFetcher<S
 
 	@Nonnull
 	@Override
-	public SortableAttributeCompoundSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public SortableAttributeCompoundSchemaContract get(DataFetchingEnvironment environment) throws Exception {
 		final SortableAttributeCompoundSchemaProvider<?> provider = environment.getSource();
 		return provider
 			.getSortableAttributeCompound(this.name)

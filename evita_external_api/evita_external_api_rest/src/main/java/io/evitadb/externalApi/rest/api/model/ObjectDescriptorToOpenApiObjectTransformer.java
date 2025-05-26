@@ -44,7 +44,7 @@ public class ObjectDescriptorToOpenApiObjectTransformer implements ObjectDescrip
 	private final PropertyDescriptorTransformer<OpenApiProperty.Builder> propertyDescriptorTransformer;
 
 	@Override
-	public OpenApiObject.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
+	public OpenApiObject.Builder apply(ObjectDescriptor objectDescriptor) {
 		final OpenApiObject.Builder objectBuilder = OpenApiObject.newObject();
 
 		if (objectDescriptor.isNameStatic()) {

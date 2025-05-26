@@ -44,7 +44,7 @@ public class PropertyDescriptorToOpenApiOperationQueryParameterTransformer imple
 	private final PropertyDataTypeDescriptorTransformer<OpenApiSimpleType> propertyDataTypeDescriptorTransformer;
 
 	@Override
-	public OpenApiEndpointParameter.Builder apply(@Nonnull PropertyDescriptor propertyDescriptor) {
+	public OpenApiEndpointParameter.Builder apply(PropertyDescriptor propertyDescriptor) {
 		final OpenApiEndpointParameter.Builder parameterBuilder = OpenApiEndpointParameter.newQueryParameter()
 			.description(propertyDescriptor.description());
 

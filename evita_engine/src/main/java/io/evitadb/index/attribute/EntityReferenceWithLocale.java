@@ -84,6 +84,7 @@ public record EntityReferenceWithLocale(@Nonnull String type, int primaryKey, @N
 		return Objects.hash(this.type, this.primaryKey);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return this.type + ": " + this.primaryKey + (this.locale == null ? "" : ":" + this.locale);

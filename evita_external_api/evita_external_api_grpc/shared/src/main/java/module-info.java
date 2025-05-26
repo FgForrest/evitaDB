@@ -42,5 +42,6 @@ module evita.external.api.grpc.shared {
 	requires com.google.protobuf;
 	requires io.netty.handler;
 	requires com.linecorp.armeria;
+	requires java.smartcardio;
 
 }

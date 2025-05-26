@@ -101,6 +101,7 @@ public record CatalogVersionDescriptor(
 			.toArray(EntityCollectionChanges[]::new);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "Catalog version: " + this.version +
@@ -142,6 +143,7 @@ public record CatalogVersionDescriptor(
 			return Duration.between(this.commitTimestamp, processedTimestamp);
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return toString(null);
@@ -196,6 +198,7 @@ public record CatalogVersionDescriptor(
 			);
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return "changes in `" + this.entityName + "`: " +

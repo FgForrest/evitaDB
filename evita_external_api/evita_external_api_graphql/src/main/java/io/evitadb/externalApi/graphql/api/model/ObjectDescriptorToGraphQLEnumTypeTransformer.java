@@ -46,7 +46,7 @@ public class ObjectDescriptorToGraphQLEnumTypeTransformer implements ObjectDescr
 	@Nonnull private final Set<Map.Entry<String, ?>> enumValues;
 
 	@Override
-	public GraphQLEnumType.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
+	public GraphQLEnumType.Builder apply(ObjectDescriptor objectDescriptor) {
 		final GraphQLEnumType.Builder enumBuilder = GraphQLEnumType.newEnum();
 
 		if (objectDescriptor.isNameStatic()) {

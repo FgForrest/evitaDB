@@ -229,6 +229,7 @@ public interface ReferenceContract extends AttributesContract<AttributeSchemaCon
 				MemoryMeasuringConstants.BYTE_SIZE;
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return (this.dropped ? "❌ " : "") +

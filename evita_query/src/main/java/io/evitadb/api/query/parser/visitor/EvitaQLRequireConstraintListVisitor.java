@@ -27,7 +27,6 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
-import javax.annotation.Nonnull;
 import java.util.List;
 
 /**
@@ -41,7 +40,7 @@ public class EvitaQLRequireConstraintListVisitor extends EvitaQLBaseVisitor<List
     protected final EvitaQLRequireConstraintVisitor requireConstraintVisitor = new EvitaQLRequireConstraintVisitor();
 
     @Override
-    public List<RequireConstraint> visitRequireConstraintList(@Nonnull EvitaQLParser.RequireConstraintListContext ctx) {
+    public List<RequireConstraint> visitRequireConstraintList(EvitaQLParser.RequireConstraintListContext ctx) {
         return parse(
             ctx,
             () -> ctx.constraints

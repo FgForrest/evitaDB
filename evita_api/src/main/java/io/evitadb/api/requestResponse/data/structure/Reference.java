@@ -129,8 +129,8 @@ public class Reference implements ReferenceContract {
 	@Nonnull
 	public static ReferenceSchema createImplicitSchema(
 		@Nonnull String referenceName,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
 		@Nullable GroupEntityReference group
 	) {
 		return ReferenceSchema._internalBuild(
@@ -144,8 +144,8 @@ public class Reference implements ReferenceContract {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String referenceName,
 		int referencedEntityPrimaryKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
 		@Nullable GroupEntityReference group
 	) {
 		this.version = 1;
@@ -173,8 +173,8 @@ public class Reference implements ReferenceContract {
 		int version,
 		@Nonnull String referenceName,
 		int referencedEntityPrimaryKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
 		@Nullable GroupEntityReference group,
 		boolean dropped
 	) {
@@ -224,8 +224,8 @@ public class Reference implements ReferenceContract {
 		int version,
 		@Nonnull String referenceName,
 		int referencedEntityPrimaryKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
 		@Nullable GroupEntityReference group,
 		@Nonnull Map<AttributeKey, AttributeValue> attributes,
 		boolean dropped
@@ -255,8 +255,8 @@ public class Reference implements ReferenceContract {
 		int version,
 		@Nonnull String referenceName,
 		int referencedEntityPrimaryKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
 		@Nullable GroupEntityReference group,
 		@Nonnull Collection<AttributeValue> attributes,
 		boolean dropped

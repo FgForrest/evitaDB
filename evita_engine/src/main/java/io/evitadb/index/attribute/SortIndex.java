@@ -757,6 +757,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 			return Arrays.hashCode(this.array);
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return Arrays.toString(this.array);

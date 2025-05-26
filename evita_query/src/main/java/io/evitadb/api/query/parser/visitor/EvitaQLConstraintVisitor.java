@@ -28,8 +28,6 @@ import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
-import javax.annotation.Nonnull;
-
 /**
  * Implementation of {@link EvitaQLVisitor} which works as delegating visitor for
  * {@link Constraint} parsing. Constraints being parsed are delegated to visitor by it's type (filter, order,
@@ -51,7 +49,7 @@ public class EvitaQLConstraintVisitor extends EvitaQLBaseConstraintVisitor<Const
 
 
     @Override
-    public Constraint<?> visitConstraint(@Nonnull EvitaQLParser.ConstraintContext ctx) {
+    public Constraint<?> visitConstraint(EvitaQLParser.ConstraintContext ctx) {
         final EvitaQLParser.HeadConstraintContext headConstraintContext = ctx.headConstraint();
         if (headConstraintContext != null) {
             return headConstraintContext.accept(this.headConstraintVisitor);

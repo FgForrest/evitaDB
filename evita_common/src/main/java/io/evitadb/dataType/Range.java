@@ -123,7 +123,7 @@ public sealed interface Range<T> extends Serializable permits DateTimeRange, Num
 	 * This method is used from {@link #consolidateRange(Range[])}
 	 */
 	@Nonnull
-	Range<T> cloneWithDifferentBounds(@Nonnull T from, @Nonnull T to);
+	Range<T> cloneWithDifferentBounds(@Nullable T from, @Nullable T to);
 
 	/**
 	 * Returns true if two ranges overlap one another (using inclusive boundaries).

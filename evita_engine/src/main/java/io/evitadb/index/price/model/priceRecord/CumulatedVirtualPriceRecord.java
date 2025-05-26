@@ -100,6 +100,7 @@ public record CumulatedVirtualPriceRecord(
 		return this.entityPrimaryKey == that.entityPrimaryKey && this.price == that.price && this.priceMode == that.priceMode;
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "CumulatedVirtualPriceRecord{" +

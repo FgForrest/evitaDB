@@ -55,7 +55,7 @@ public class PropertyDescriptorToGraphQLFieldTransformer implements PropertyDesc
 	}
 
 	@Override
-	public GraphQLFieldDefinition.Builder apply(@Nonnull PropertyDescriptor propertyDescriptor) {
+	public GraphQLFieldDefinition.Builder apply(PropertyDescriptor propertyDescriptor) {
 		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLFieldDefinition.newFieldDefinition()
 			.description(propertyDescriptor.description());
 		Assert.isPremiseValid(

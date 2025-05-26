@@ -56,7 +56,7 @@ public class PropertyDataTypeDescriptorToGraphQLTypeTransformer implements Prope
 	private final GraphQLSchemaBuildingContext graphQLSchemaBuildingContext;
 
 	@Override
-	public GraphQLType apply(@Nonnull PropertyDataTypeDescriptor typeDescriptor) {
+	public GraphQLType apply(PropertyDataTypeDescriptor typeDescriptor) {
 		if (typeDescriptor instanceof PrimitivePropertyDataTypeDescriptor primitiveType) {
 			if (primitiveType.javaType().isEnum() ||
 				(primitiveType.javaType().isArray() && primitiveType.javaType().componentType().isEnum())) {

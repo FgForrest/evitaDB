@@ -73,6 +73,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 	 *
 	 * @return OpenAPI specification
 	 */
+	@Nonnull
 	public Rest build() {
 		buildCommonTypes();
 		buildEndpoints();

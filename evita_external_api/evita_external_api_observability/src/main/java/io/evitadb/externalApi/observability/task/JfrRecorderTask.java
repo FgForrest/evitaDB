@@ -228,6 +228,7 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 		@Nullable Long maxAgeInSeconds
 	) {
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return "AllowedEvents: " + Arrays.toString(this.allowedEvents) +

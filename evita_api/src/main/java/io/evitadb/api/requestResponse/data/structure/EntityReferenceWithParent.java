@@ -96,6 +96,7 @@ public record EntityReferenceWithParent(
 		return Objects.hash(this.type, this.primaryKey, this.parentEntity);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return this.type + ": " + this.primaryKey + (this.parentEntity != null ? " (↰ " + this.parentEntity.getPrimaryKey() + ")" : "");

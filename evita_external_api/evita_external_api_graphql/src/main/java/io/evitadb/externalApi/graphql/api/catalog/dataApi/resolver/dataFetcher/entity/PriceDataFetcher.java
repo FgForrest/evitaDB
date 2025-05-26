@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ public class PriceDataFetcher implements DataFetcher<DataFetcherResult<PriceCont
 
     @Nonnull
     @Override
-    public DataFetcherResult<PriceContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public DataFetcherResult<PriceContract> get(DataFetchingEnvironment environment) throws Exception {
         final String priceList = environment.getArgument(PriceFieldHeaderDescriptor.PRICE_LIST.name());
         final Currency customCurrency = environment.getArgument(PriceFieldHeaderDescriptor.CURRENCY.name());
         final EntityQueryContext context = environment.getLocalContext();

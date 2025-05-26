@@ -80,6 +80,7 @@ public record PriceEvaluationContext(
 			this.targetPriceIndexes.length * (MemoryMeasuringConstants.REFERENCE_SIZE + PriceIndexKey.MEMORY_SIZE);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return Arrays.toString(this.targetPriceIndexes) + (this.validIn == Long.MIN_VALUE ? "" : " validIn: " +

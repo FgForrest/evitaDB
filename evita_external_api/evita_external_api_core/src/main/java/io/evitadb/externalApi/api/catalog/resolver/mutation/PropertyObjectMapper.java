@@ -81,7 +81,7 @@ public class PropertyObjectMapper<T extends Serializable> implements Function<Ob
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public T apply(@Nonnull Object rawPropertyValue) {
+	public T apply(Object rawPropertyValue) {
 		Assert.isTrue(
 			rawPropertyValue instanceof Map<?, ?>,
 			() -> this.exceptionFactory.createInvalidArgumentException("Item in property `" + this.propertyName + "` of mutation `" + this.mutationName + "` is expected to be an object.")

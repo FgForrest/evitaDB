@@ -1179,6 +1179,7 @@ public class ChainIndex implements
 			this(previousState.inChainOfHeadWithPrimaryKey, previousState.predecessorPrimaryKey, newState);
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			switch (this.state) {

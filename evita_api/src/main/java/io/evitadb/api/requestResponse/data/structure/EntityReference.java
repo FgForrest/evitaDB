@@ -89,6 +89,7 @@ public record EntityReference(
 		return Objects.hash(this.type, this.primaryKey);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return this.type + ": " + this.primaryKey;

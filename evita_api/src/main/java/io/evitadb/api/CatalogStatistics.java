@@ -78,6 +78,7 @@ public record CatalogStatistics(
 		return result;
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "CatalogStatistics{" +

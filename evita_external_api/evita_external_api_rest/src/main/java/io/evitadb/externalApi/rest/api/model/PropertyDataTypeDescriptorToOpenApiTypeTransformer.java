@@ -53,7 +53,7 @@ public class PropertyDataTypeDescriptorToOpenApiTypeTransformer implements Prope
 	private final RestBuildingContext restBuildingContext;
 
 	@Override
-	public OpenApiSimpleType apply(@Nonnull PropertyDataTypeDescriptor typeDescriptor) {
+	public OpenApiSimpleType apply(PropertyDataTypeDescriptor typeDescriptor) {
 		if (typeDescriptor instanceof PrimitivePropertyDataTypeDescriptor primitiveType) {
 			if (primitiveType.javaType().isEnum() ||
 				(primitiveType.javaType().isArray() && primitiveType.javaType().componentType().isEnum())) {

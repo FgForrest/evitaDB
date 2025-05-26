@@ -112,6 +112,7 @@ public record ComplexDataObject(
 		return this.root.equals(that.root);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		final ToStringDataItemVisitor visitor = new ToStringDataItemVisitor(3);

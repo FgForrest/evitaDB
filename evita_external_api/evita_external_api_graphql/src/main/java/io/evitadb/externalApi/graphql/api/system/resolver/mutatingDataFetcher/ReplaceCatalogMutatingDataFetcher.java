@@ -45,7 +45,7 @@ public class ReplaceCatalogMutatingDataFetcher implements DataFetcher<CatalogCon
 
     @Nonnull
     @Override
-    public CatalogContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public CatalogContract get(DataFetchingEnvironment environment) throws Exception {
         final String catalogNameToBeReplaced = environment.getArgument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED.name());
         final String catalogNameToBeReplacedWith = environment.getArgument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED_WITH.name());
 

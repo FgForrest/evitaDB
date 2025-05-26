@@ -46,7 +46,7 @@ public class PropertyDescriptorToOpenApiPropertyTransformer implements PropertyD
 	private final PropertyDataTypeDescriptorTransformer<OpenApiSimpleType> propertyDataTypeDescriptorTransformer;
 
 	@Override
-	public OpenApiProperty.Builder apply(@Nonnull PropertyDescriptor propertyDescriptor) {
+	public OpenApiProperty.Builder apply(PropertyDescriptor propertyDescriptor) {
 		final OpenApiProperty.Builder propertyBuilder = OpenApiProperty.newProperty()
 			.description(propertyDescriptor.description());
 		Assert.isPremiseValid(

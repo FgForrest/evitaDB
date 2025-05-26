@@ -39,6 +39,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
@@ -64,8 +65,8 @@ public class HierarchyDataFetcher implements DataFetcher<Map<String,Map<String, 
 
 	@Nullable
 	@Override
-	public Map<String, Map<String, List<LevelInfo>>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final EvitaResponse<?> response = environment.getSource();
+	public Map<String, Map<String, List<LevelInfo>>> get(DataFetchingEnvironment environment) throws Exception {
+		final EvitaResponse<?> response = Objects.requireNonNull(environment.getSource());
 		final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
 		if (hierarchy == null) {
 			return null;

@@ -201,6 +201,7 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 		@Nonnull Serializable value
 	) {
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return String.valueOf(this.recordId) + ':' + this.value;

@@ -147,6 +147,7 @@ public record PriceWithInternalIds(
 		return Objects.hash(this.internalPriceId, this.delegate);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return this.delegate + ", internal id " + this.internalPriceId;

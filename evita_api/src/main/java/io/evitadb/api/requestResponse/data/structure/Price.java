@@ -216,6 +216,7 @@ public record Price(
 		return result;
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return (this.dropped ? "❌ " : "") +
@@ -273,6 +274,7 @@ public record Price(
 			}
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return "\uD83D\uDCB0 " + this.priceId + " in " + this.priceList + " " + this.currency + " ";

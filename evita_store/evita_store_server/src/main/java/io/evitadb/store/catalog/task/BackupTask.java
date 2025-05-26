@@ -548,6 +548,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		boolean includingWAL
 	) implements Serializable {
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return Objects.requireNonNull(

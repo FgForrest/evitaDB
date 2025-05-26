@@ -45,7 +45,7 @@ public class ReferenceSchemaDataFetcher implements DataFetcher<ReferenceSchemaCo
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public ReferenceSchemaContract get(DataFetchingEnvironment environment) throws Exception {
 		final EntitySchemaContract entitySchema = environment.getSource();
 		return entitySchema.getReference(this.name)
 			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference schema for name `" + this.name + "`."));

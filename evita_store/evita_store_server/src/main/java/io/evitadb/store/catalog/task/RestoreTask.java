@@ -216,6 +216,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 		boolean deleteAfterRestore
 	) implements Serializable, FileIdCarrier {
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return "FileName: `" + this.pathToFile + '`' +

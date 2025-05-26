@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 
 /**
  * Returns page of records as {@link StripList} if {@link io.evitadb.api.query.require.Strip} was used in query.
@@ -58,8 +59,8 @@ public class RecordStripDataFetcher implements DataFetcher<StripList<? extends E
 
 	@Nonnull
 	@Override
-	public StripList<? extends EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final EvitaResponse<? extends EntityClassifier> response = environment.getSource();
+	public StripList<? extends EntityClassifier> get(DataFetchingEnvironment environment) throws Exception {
+		final EvitaResponse<? extends EntityClassifier> response = Objects.requireNonNull(environment.getSource());
 		final DataChunk<? extends EntityClassifier> records = response.getRecordPage();
 		Assert.isPremiseValid(
 			records instanceof StripList,

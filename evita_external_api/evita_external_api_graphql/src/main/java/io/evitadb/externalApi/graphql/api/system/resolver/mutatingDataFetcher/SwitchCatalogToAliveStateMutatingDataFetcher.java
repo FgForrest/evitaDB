@@ -45,7 +45,7 @@ public class SwitchCatalogToAliveStateMutatingDataFetcher implements DataFetcher
 
     @Nonnull
     @Override
-    public Boolean get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public Boolean get(DataFetchingEnvironment environment) throws Exception {
         final String catalogName = environment.getArgument(SwitchCatalogToAliveStateMutationHeaderDescriptor.NAME.name());
         return this.evita.getCatalogInstanceOrThrowException(catalogName).goLive();
     }

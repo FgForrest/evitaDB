@@ -364,6 +364,7 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 				MemoryMeasuringConstants.REFERENCE_SIZE;
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return this.attributeName + (this.locale == null ? "" : ":" + this.locale);
@@ -482,6 +483,7 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 			return result;
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return (this.dropped ? "❌ " : "") +

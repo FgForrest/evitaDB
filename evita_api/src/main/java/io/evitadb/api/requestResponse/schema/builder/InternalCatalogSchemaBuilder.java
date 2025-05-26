@@ -100,7 +100,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	/**
 	 * Represents an updated schema for a catalog.
 	 */
-	private CatalogSchemaContract updatedSchema;
+	@Nullable private CatalogSchemaContract updatedSchema;
 	/**
 	 * This variable represents the accessor object for the updated entity schema.
 	 * It provides access to the current state of all the entity schemas altered by the mutations of this builder.

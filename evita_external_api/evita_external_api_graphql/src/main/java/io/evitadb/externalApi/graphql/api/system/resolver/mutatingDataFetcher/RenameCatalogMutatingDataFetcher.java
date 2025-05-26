@@ -45,7 +45,7 @@ public class RenameCatalogMutatingDataFetcher implements DataFetcher<CatalogCont
 
     @Nonnull
     @Override
-    public CatalogContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public CatalogContract get(DataFetchingEnvironment environment) throws Exception {
         final String catalogName = environment.getArgument(RenameCatalogMutationHeaderDescriptor.NAME.name());
         final String newCatalogName = environment.getArgument(RenameCatalogMutationHeaderDescriptor.NEW_NAME.name());
 

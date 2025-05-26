@@ -174,6 +174,7 @@ public class GraphQLOutputFieldsBuilder {
 	                       int offset,
 						   boolean multipleArguments,
 	                       @Nonnull Object value) {
+		@Nonnull
 		@Override
 		public String toString() {
 			final String serializedValue;

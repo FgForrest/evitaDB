@@ -46,7 +46,7 @@ public class EntityDtoTypeResolver implements TypeResolver {
 
 	@Nonnull
 	@Override
-	public GraphQLObjectType getType(@Nonnull TypeResolutionEnvironment env) {
+	public GraphQLObjectType getType(TypeResolutionEnvironment env) {
 		final EntityClassifier entity = env.getObject();
 		return Optional.ofNullable(this.entityTypeToEntityDtoMapping.get(entity.getType()))
 			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing entity dto for entity type `" + entity.getType() + "`."));

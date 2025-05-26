@@ -45,7 +45,7 @@ public class ObjectDescriptorToOpenApiEnumTransformer implements ObjectDescripto
 	@Nonnull private final Set<String> enumValues;
 
 	@Override
-	public OpenApiEnum.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
+	public OpenApiEnum.Builder apply(ObjectDescriptor objectDescriptor) {
 		final OpenApiEnum.Builder enumBuilder = OpenApiEnum.newEnum();
 
 		if (objectDescriptor.isNameStatic()) {

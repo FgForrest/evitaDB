@@ -123,6 +123,7 @@ public record CatalogSchemaStoragePart(CatalogSchema catalogSchema) implements S
 		return 1L;
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "CatalogSchemaStoragePart{" +

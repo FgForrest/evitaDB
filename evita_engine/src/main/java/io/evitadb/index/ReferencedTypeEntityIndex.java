@@ -460,10 +460,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 */
 	@Override
 	public void insertFilterAttribute(
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull Set<Locale> allowedLocales,
+		AttributeSchemaContract attributeSchema,
+		Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Serializable value,
+		Serializable value,
 		int recordId
 	) {
 		// first retrieve or create the cardinality index for given attribute
@@ -503,10 +503,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Override
 	public void removeFilterAttribute(
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull Set<Locale> allowedLocales,
+		AttributeSchemaContract attributeSchema,
+		Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Serializable value,
+		Serializable value,
 		int recordId
 	) {
 		// first retrieve or create the cardinality index for given attribute
@@ -550,10 +550,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Override
 	public void insertSortAttribute(
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull Set<Locale> allowedLocales,
+		AttributeSchemaContract attributeSchema,
+		Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Serializable value,
+		Serializable value,
 		int recordId
 	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
@@ -562,10 +562,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Override
 	public void removeSortAttribute(
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull Set<Locale> allowedLocales,
+		AttributeSchemaContract attributeSchema,
+		Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Serializable value,
+		Serializable value,
 		int recordId
 	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
@@ -574,10 +574,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Override
 	public void insertSortAttributeCompound(
-		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
-		@Nonnull Function<String, Class<?>> attributeTypeProvider,
+		SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		Function<String, Class<?>> attributeTypeProvider,
 		@Nullable Locale locale,
-		@Nonnull Serializable[] value,
+		Serializable[] value,
 		int recordId
 	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
@@ -586,9 +586,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Override
 	public void removeSortAttributeCompound(
-		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
-		@Nonnull Serializable[] value,
+		Serializable[] value,
 		int recordId
 	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple

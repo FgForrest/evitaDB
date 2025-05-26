@@ -37,6 +37,7 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.Objects;
 
 /**
  * Implementation of the GreaterThanOperator that evaluates whether the result of the
@@ -71,7 +72,7 @@ public class GreaterThanOperator implements ExpressionNode {
 			value2 instanceof Comparable,
 			() -> new ParserException("Greater than or equals function operand must be comparable!")
 		);
-		final Serializable convertedValue2 = EvitaDataTypes.toTargetType(value2, value1.getClass());
+		final Serializable convertedValue2 = Objects.requireNonNull(EvitaDataTypes.toTargetType(value2, value1.getClass()));
 		//noinspection rawtypes,unchecked
 		return ((Comparable) value1).compareTo(convertedValue2) > 0;
 	}

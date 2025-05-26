@@ -59,8 +59,8 @@ public class OperationTracingInstrumentation extends SimplePerformantInstrumenta
 
     @Nonnull
     @Override
-    public InstrumentationContext<ExecutionResult> beginExecuteOperation(@Nonnull InstrumentationExecuteOperationParameters parameters,
-                                                                         @Nonnull InstrumentationState state) {
+    public InstrumentationContext<ExecutionResult> beginExecuteOperation(InstrumentationExecuteOperationParameters parameters,
+                                                                         InstrumentationState state) {
         final ExecutionContext executionContext = parameters.getExecutionContext();
         final OperationDefinition.Operation operation = executionContext.getOperationDefinition().getOperation();
         final String operationName = GraphQLOperationNameResolver.resolve(executionContext.getOperationDefinition());

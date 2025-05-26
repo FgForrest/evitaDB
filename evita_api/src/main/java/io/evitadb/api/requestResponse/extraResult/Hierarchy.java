@@ -209,7 +209,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 				final List<LevelInfo> stats = entry.getValue();
 				final List<LevelInfo> otherStats = that.selfStatistics.get(entry.getKey());
 
-				if (stats.size() != ofNullable(otherStats).map(List::size).orElse(0)) {
+				if (otherStats == null || stats.size() != otherStats.size()) {
 					return false;
 				}
 
@@ -231,7 +231,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 				final List<LevelInfo> innerStats = entry.getValue();
 				final List<LevelInfo> innerOtherStats = otherStats.get(entry.getKey());
 
-				if (innerStats.size() != ofNullable(innerOtherStats).map(List::size).orElse(0)) {
+				if (innerOtherStats == null || innerStats.size() != innerOtherStats.size()) {
 					return false;
 				}
 
@@ -248,7 +248,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 
 	@Override
 	public String toString() {
-		final StringBuilder treeBuilder = new StringBuilder();
+		final StringBuilder treeBuilder = new StringBuilder(128);
 
 		if (this.selfStatistics != null) {
 			for (Map.Entry<String, List<LevelInfo>> statsByOutputName : this.selfStatistics.entrySet()) {
@@ -281,7 +281,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 	 * @param levelInfo    level info to render
 	 * @param currentLevel level on which passed level info is being placed
 	 */
-	private void appendLevelInfoTreeString(@Nonnull StringBuilder treeBuilder, @Nonnull LevelInfo levelInfo, int currentLevel) {
+	private static void appendLevelInfoTreeString(@Nonnull StringBuilder treeBuilder, @Nonnull LevelInfo levelInfo, int currentLevel) {
 		treeBuilder.append("    ".repeat(currentLevel))
 			.append(levelInfo)
 			.append(System.lineSeparator());
@@ -334,6 +334,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 			);
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			if (this.queriedEntityCount == null && this.childrenCount == null) {

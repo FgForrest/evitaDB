@@ -46,7 +46,7 @@ public class CollectionSizeDataFetcher implements DataFetcher<Integer>, ReadData
 
 	@Nonnull
 	@Override
-	public Integer get(@Nonnull DataFetchingEnvironment environment) {
+	public Integer get(DataFetchingEnvironment environment) {
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);

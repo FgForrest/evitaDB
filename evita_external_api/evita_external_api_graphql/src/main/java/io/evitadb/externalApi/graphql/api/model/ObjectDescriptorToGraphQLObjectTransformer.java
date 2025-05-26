@@ -44,7 +44,7 @@ public class ObjectDescriptorToGraphQLObjectTransformer implements ObjectDescrip
 	private final PropertyDescriptorTransformer<GraphQLFieldDefinition.Builder> fieldBuilderTransformer;
 
 	@Override
-	public GraphQLObjectType.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
+	public GraphQLObjectType.Builder apply(ObjectDescriptor objectDescriptor) {
 		final GraphQLObjectType.Builder objectBuilder = GraphQLObjectType.newObject();
 
 		if (objectDescriptor.isNameStatic()) {
