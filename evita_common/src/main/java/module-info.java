@@ -23,7 +23,5 @@ module evita.common {
 	requires com.fasterxml.jackson.databind;
 	requires zero.allocation.hashing;
 	requires okhttp3;
-	requires java.desktop;
-	requires jdk.compiler;
 
 }

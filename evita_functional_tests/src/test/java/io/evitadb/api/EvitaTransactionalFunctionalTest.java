@@ -842,7 +842,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		final Integer addedEntityPrimaryKey = addedEntity.get(1, TimeUnit.SECONDS).getPrimaryKey();
 		boolean expectedResult = false;
-		for (int i = 0; i < 10_000; i++) {
+		for (int i = 0; i < 100_000; i++) {
 			//noinspection NonShortCircuitBooleanExpression
 			expectedResult = expectedResult | evita.queryCatalog(
 				TEST_CATALOG,
@@ -1531,6 +1531,20 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 			} while (Duration.between(initialStart, LocalDateTime.now()).toMinutes() < input.intervalInMinutes());
 
+			// check there is a first record
+			final TriConsumer<EvitaContract, SealedEntity, String> catalogChecker = (theEvita, expectedEntity, catalogName) -> theEvita.queryCatalog(
+				catalogName,
+				evitaSessionContract -> {
+					final Optional<SealedEntity> entity = evitaSessionContract.getEntity(entityProduct, 1, attributeContentAll());
+					assertTrue(entity.isPresent(), "Entity should be present in the catalog!");
+					final SealedEntity realEntity = entity.get();
+					assertEquals(expectedEntity.getAttribute(attributeCode, String.class), realEntity.getAttribute(attributeCode, String.class));
+					assertEquals(expectedEntity.getAttribute(attributeName, String.class), realEntity.getAttribute(attributeName, String.class));
+					assertEquals(expectedEntity.getAttribute(attributePrice, BigDecimal.class), realEntity.getAttribute(attributePrice, BigDecimal.class));
+					assertEquals(expectedEntity.getAttribute(attributeUrl, String.class), realEntity.getAttribute(attributeUrl, String.class));
+				}
+			);
+
 			log.info("Waiting for catalog version " + expectedLastVersion + " to be processed.");
 
 			final LocalDateTime wait = LocalDateTime.now();
@@ -1542,6 +1556,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				);
 				if (currentCatalogVersion >= expectedLastVersion) {
 					log.info("Catalog version " + expectedLastVersion + " finally processed.");
+					catalogChecker.accept(evita, lastVersionEntity.get(), TEST_CATALOG);
 					break;
 				} else if (currentCatalogVersion - 500 > lastReportedCatalogVersion) {
 					lastReportedCatalogVersion = currentCatalogVersion;
@@ -1560,20 +1575,6 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 			// close the evita
 			evita.close();
-
-			// check there is a first record
-			final TriConsumer<EvitaContract, SealedEntity, String> catalogChecker = (theEvita, expectedEntity, catalogName) -> theEvita.queryCatalog(
-				catalogName,
-				evitaSessionContract -> {
-					final Optional<SealedEntity> entity = evitaSessionContract.getEntity(entityProduct, 1, attributeContentAll());
-					assertTrue(entity.isPresent(), "Entity should be present in the catalog!");
-					final SealedEntity realEntity = entity.get();
-					assertEquals(expectedEntity.getAttribute(attributeCode, String.class), realEntity.getAttribute(attributeCode, String.class));
-					assertEquals(expectedEntity.getAttribute(attributeName, String.class), realEntity.getAttribute(attributeName, String.class));
-					assertEquals(expectedEntity.getAttribute(attributePrice, BigDecimal.class), realEntity.getAttribute(attributePrice, BigDecimal.class));
-					assertEquals(expectedEntity.getAttribute(attributeUrl, String.class), realEntity.getAttribute(attributeUrl, String.class));
-				}
-			);
 
 			try (final Evita restartedEvita = new Evita(evita.getConfiguration())) {
 				assertInstanceOf(

@@ -29,7 +29,6 @@ import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.exception.ExpressionEvaluationException;
 
 import javax.annotation.Nonnull;
-import java.beans.Expression;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Objects;
