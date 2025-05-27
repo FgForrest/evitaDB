@@ -361,7 +361,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	 */
 	@Nonnull
 	private Runnable registerTask(@Nonnull Runnable runnable, long timeoutInMilliseconds) {
-		return addTaskToQueue(new ObservableRunnable(runnable, timeoutInMilliseconds));
+		return addTaskToQueue(runnable instanceof ObservableRunnable or ? or : new ObservableRunnable(runnable, timeoutInMilliseconds));
 	}
 
 	/**
@@ -374,7 +374,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	 */
 	@Nonnull
 	private <V> Callable<V> registerTask(@Nonnull Callable<V> callable, long timeoutInMilliseconds) {
-		return addTaskToQueue(new ObservableCallable<>(callable, timeoutInMilliseconds));
+		return addTaskToQueue(callable instanceof ObservableCallable<V> oc ? oc : new ObservableCallable<>(callable, timeoutInMilliseconds));
 	}
 
 	/**
@@ -495,7 +495,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	/**
 	 * Wrapper around a {@link Runnable} that implements the {@link ObservableTask} interface.
 	 */
-	private static class ObservableRunnable implements Runnable, ObservableTask {
+	static class ObservableRunnable implements Runnable, ObservableTask {
 		/**
 		 * Name / description of the task.
 		 */
@@ -529,13 +529,25 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 			}
 			this.name = name;
 			this.delegate = delegate;
-			this.timedOutAt = System.currentTimeMillis() + timeoutInMilliseconds;
+			long calculatedTimeout;
+			try {
+				calculatedTimeout = Math.addExact(System.currentTimeMillis(), timeoutInMilliseconds);
+			} catch (ArithmeticException e) {
+				calculatedTimeout = Long.MAX_VALUE;
+			}
+			this.timedOutAt = calculatedTimeout;
 		}
 
 		public ObservableRunnable(@Nonnull String name, @Nonnull Runnable delegate, long timeoutInMilliseconds) {
 			this.name = name;
 			this.delegate = delegate;
-			this.timedOutAt = System.currentTimeMillis() + timeoutInMilliseconds;
+			long calculatedTimeout;
+			try {
+				calculatedTimeout = Math.addExact(System.currentTimeMillis(), timeoutInMilliseconds);
+			} catch (ArithmeticException e) {
+				calculatedTimeout = Long.MAX_VALUE;
+			}
+			this.timedOutAt = calculatedTimeout;
 		}
 
 		@Override
@@ -583,7 +595,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	 *
 	 * @param <V> the type of the result
 	 */
-	private static class ObservableCallable<V> implements Callable<V>, ObservableTask {
+	static class ObservableCallable<V> implements Callable<V>, ObservableTask {
 		/**
 		 * Name / description of the task.
 		 */
@@ -605,7 +617,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 		 */
 		private final CompletableFuture<V> future = new CompletableFuture<>();
 
-		public ObservableCallable(@Nonnull Callable<V> delegate, long timeout) {
+		public ObservableCallable(@Nonnull Callable<V> delegate, long timeoutInMilliseconds) {
 			final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
 			// pick first name that doesn't contain Observable in the class name
 			String name = "Unknown";
@@ -617,13 +629,25 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 			}
 			this.name = name;
 			this.delegate = delegate;
-			this.timedOutAt = System.currentTimeMillis() + timeout;
+			long calculatedTimeout;
+			try {
+				calculatedTimeout = Math.addExact(System.currentTimeMillis(), timeoutInMilliseconds);
+			} catch (ArithmeticException e) {
+				calculatedTimeout = Long.MAX_VALUE;
+			}
+			this.timedOutAt = calculatedTimeout;
 		}
 
-		public ObservableCallable(@Nonnull String name, @Nonnull Callable<V> delegate, long timeout) {
+		public ObservableCallable(@Nonnull String name, @Nonnull Callable<V> delegate, long timeoutInMilliseconds) {
 			this.name = name;
 			this.delegate = delegate;
-			this.timedOutAt = System.currentTimeMillis() + timeout;
+			long calculatedTimeout;
+			try {
+				calculatedTimeout = Math.addExact(System.currentTimeMillis(), timeoutInMilliseconds);
+			} catch (ArithmeticException e) {
+				calculatedTimeout = Long.MAX_VALUE;
+			}
+			this.timedOutAt = calculatedTimeout;
 		}
 
 		@Override

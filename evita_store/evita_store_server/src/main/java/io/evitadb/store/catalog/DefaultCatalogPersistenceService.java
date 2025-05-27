@@ -3132,11 +3132,19 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nullable
 	private DataFilesBulkInfo fetchDataFilesInfo(long catalogVersion) {
 		try (final Stream<CatalogBootstrap> catalogBootstrapRecordStream = getCatalogBootstrapRecordStream(this.catalogName, this.bootstrapStorageOptions)) {
+			final AtomicReference<CatalogBootstrap> lastExaminedBootstrap = new AtomicReference<>();
 			return catalogBootstrapRecordStream
+				.peek(lastExaminedBootstrap::set)
 				.filter(it -> it.catalogVersion() == catalogVersion)
 				.map(it -> new DataFilesBulkInfo(it, fetchCatalogHeader(it)))
 				.findFirst()
-				.orElse(null);
+				.orElseGet(() -> {
+					// when particular catalog version is not found
+					final CatalogBootstrap catalogBootstrap = lastExaminedBootstrap.get();
+					// we return the first bootstrap record that is greater than the requested catalog version
+					return catalogBootstrap.catalogVersion() > catalogVersion ?
+						new DataFilesBulkInfo(catalogBootstrap, fetchCatalogHeader(catalogBootstrap)) : null;
+				});
 		}
 	}
 
