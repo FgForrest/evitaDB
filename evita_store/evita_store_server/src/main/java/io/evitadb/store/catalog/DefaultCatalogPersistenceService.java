@@ -2841,7 +2841,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	private void removeEntityCollectionPersistenceServiceAndClose(@Nonnull CollectionFileReference collectionFileReference) {
 		final DefaultEntityCollectionPersistenceService persistenceService = this.entityCollectionPersistenceServices.remove(collectionFileReference);
-		persistenceService.close();
+		if (persistenceService != null) {
+			persistenceService.close();
+		}
 	}
 
 	/**

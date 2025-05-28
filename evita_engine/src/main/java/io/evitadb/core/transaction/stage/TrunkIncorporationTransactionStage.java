@@ -25,6 +25,7 @@ package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.metric.event.transaction.NewCatalogVersionPropagatedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionIncorporatedToTrunkEvent;
@@ -84,14 +85,23 @@ public final class TrunkIncorporationTransactionStage
 			// the transaction has been already processed
 			// but we can't mark transaction as processed until it's propagated to the "live view"
 			this.transactionManager.waitUntilLiveVersionReaches(task.catalogVersion());
-			task.commitProgress().onChangesVisible().completeAsync(
-				() -> commitVersions,
+			task.commitProgress().complete(
+				CommitBehavior.WAIT_FOR_CHANGES_VISIBLE,
+				commitVersions,
 				this.transactionManager.getRequestExecutor()
 			);
-			log.info("Skipping version " + task.catalogVersion() + " as it has been already processed.");
+			log.debug("Skipping version " + task.catalogVersion() + " as it has been already processed.");
 		} else {
 			// emit queue event
 			task.transactionQueuedEvent().finish().commit();
+
+			synchronized (this) {
+				try {
+					this.wait(50);
+				} catch (InterruptedException e) {
+					throw new RuntimeException(e);
+				}
+			}
 
 			final TransactionIncorporatedToTrunkEvent event = new TransactionIncorporatedToTrunkEvent(this.transactionManager.getCatalogName());
 			this.transactionManager.processTransactions(
@@ -145,8 +155,9 @@ public final class TrunkIncorporationTransactionStage
 		try {
 			this.transactionManager.propagateCatalogSnapshot(catalog);
 			log.debug("Snapshot propagating task for catalog `" + catalogName + "` completed (" + catalog.getEntityTypes() + ")!");
-			commitProgressRecord.onChangesVisible().completeAsync(
-				() -> commitVersions,
+			commitProgressRecord.complete(
+				CommitBehavior.WAIT_FOR_CHANGES_VISIBLE,
+				commitVersions,
 				this.transactionManager.getRequestExecutor()
 			);
 		} catch (Throwable ex) {

@@ -181,8 +181,14 @@ public record TransactionOptions(
 			return this;
 		}
 
+		@Deprecated
 		@Nonnull
 		public TransactionOptions.Builder flushFrequency(long flushFrequency) {
+			return flushFrequencyInMillis(flushFrequency);
+		}
+
+		@Nonnull
+		public TransactionOptions.Builder flushFrequencyInMillis(long flushFrequency) {
 			this.flushFrequency = flushFrequency;
 			return this;
 		}

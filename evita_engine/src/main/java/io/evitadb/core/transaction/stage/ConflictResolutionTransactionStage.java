@@ -25,6 +25,7 @@ package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.core.metric.event.transaction.TransactionAcceptedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionResolution;
@@ -117,9 +118,10 @@ public final class ConflictResolutionTransactionStage
 
 		push(task, targetTask, this.publisher);
 
-		task.commitProgress().onConflictResolved()
-			.completeAsync(
-				() -> new CommitVersions(targetTask.catalogVersion(), targetTask.catalogSchemaVersion()),
+		task.commitProgress()
+			.complete(
+				CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION,
+				new CommitVersions(targetTask.catalogVersion(), targetTask.catalogSchemaVersion()),
 				this.transactionManager.getRequestExecutor()
 			);
 

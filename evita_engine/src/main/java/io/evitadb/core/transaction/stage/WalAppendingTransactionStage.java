@@ -25,6 +25,7 @@ package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.metric.event.transaction.TransactionAppendedToWalEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
@@ -139,9 +140,10 @@ public final class WalAppendingTransactionStage
 
 		// notify client at this moment that the transaction is safely written to the WAL
 		// the push to next stage might fail, but the WAL is already written
-		task.commitProgress().onWalAppended()
-			.completeAsync(
-				() -> new CommitVersions(task.catalogVersion(), task.catalogSchemaVersion()),
+		task.commitProgress()
+			.complete(
+				CommitBehavior.WAIT_FOR_WAL_PERSISTENCE,
+				new CommitVersions(task.catalogVersion(), task.catalogSchemaVersion()),
 				this.transactionManager.getRequestExecutor()
 			);
 

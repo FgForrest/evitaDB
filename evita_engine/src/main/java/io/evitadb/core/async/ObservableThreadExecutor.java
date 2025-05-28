@@ -44,6 +44,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * This class implementation of {@link ExecutorService} that allows to process asynchronous tasks in a safe and limited
  * manner. It is based on the Java ForkJoinPool and provides additional features like task timeout and task queue
@@ -136,7 +138,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	 */
 	@Nonnull
 	public ForkJoinPool getForkJoinPoolInternal() {
-		return forkJoinPool;
+		return this.forkJoinPool;
 	}
 
 	@Override
@@ -446,7 +448,15 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 						}
 					}
 					// add the remaining tasks back to the queue in an effective way
-					this.queue.addAll(this.buffer);
+					for (WeakReference<ObservableTask> task : this.buffer) {
+						try {
+							this.queue.add(task);
+						} catch (IllegalStateException e) {
+							// queue is full, cancel the task
+							ofNullable(task.get())
+								.ifPresent(ObservableTask::cancel);
+						}
+					}
 					// clear the buffer for the next iteration
 					this.buffer.clear();
 				}

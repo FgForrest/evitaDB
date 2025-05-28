@@ -95,10 +95,6 @@ public class TransactionManager {
 	 */
 	private final EvitaConfiguration configuration;
 	/**
-	 * The scheduler service used for scheduling tasks.
-	 */
-	private final Scheduler scheduler;
-	/**
 	 * The executor service used for notifying clients about transaction completion.
 	 */
 	@Getter private final ObservableExecutorService requestExecutor;
@@ -157,10 +153,6 @@ public class TransactionManager {
 	 * emergency situation when some of the tasks was not processed.
 	 */
 	private final DelayedAsyncTask walDrainingTask;
-	/**
-	 * Variable that contains last version to be drained from the WAL by scheduled task if not processed.
-	 */
-	private final AtomicLong versionToDrain = new AtomicLong();
 	/**
 	 * Lock used for conflict resolution.
 	 */
@@ -260,7 +252,6 @@ public class TransactionManager {
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
 	) {
 		this.configuration = configuration;
-		this.scheduler = scheduler;
 		this.requestExecutor = requestExecutor;
 		this.transactionalExecutor = new SystemObservableExecutorService("transactionalPipeline", transactionalExecutor);
 		this.transactionalPipeline = createTransactionalPublisher();
@@ -359,15 +350,11 @@ public class TransactionManager {
 	 * This is design decision form the authors of the {@link java.util.concurrent.Flow} API.
 	 */
 	public void retryTransactionProcessing(@Nonnull TransactionTask task, @Nonnull Throwable ex) {
-		synchronized (this.transactionalPipeline) {
-			if ((task instanceof WalAppendingTransactionTask && ex.getCause() instanceof RejectedExecutionException) ||
-				task instanceof TrunkIncorporationTransactionTask
-			) {
-				// initialize the version to drain only if it was not set yet
-				if (this.versionToDrain.compareAndSet(0L, task.catalogVersion())) {
-					this.walDrainingTask.schedule();
-				}
-			}
+		if (
+			(task instanceof WalAppendingTransactionTask && ex.getCause() instanceof RejectedExecutionException) ||
+			task instanceof TrunkIncorporationTransactionTask
+		) {
+			this.walDrainingTask.schedule();
 		}
 	}
 
@@ -644,7 +631,7 @@ public class TransactionManager {
 					// if the transaction failed we need to replay it again
 					final long readFromVersion = Math.max(lastFinalizedVersion + 1, 2);
 					if (alive) {
-						committedMutationStream = latestCatalog.getCommittedLiveMutationStream(readFromVersion, nextCatalogVersion);
+						committedMutationStream = latestCatalog.getCommittedLiveMutationStream(readFromVersion, this.lastWrittenCatalogVersion.get());
 					} else {
 						committedMutationStream = latestCatalog.getCommittedMutationStream(readFromVersion);
 					}
@@ -692,7 +679,7 @@ public class TransactionManager {
 							processed.add(transactionMutation.getCommitTimestamp());
 							nextExpectedCatalogVersion++;
 
-							log.debug("Processed transaction: {}", lastTransaction);
+							log.debug("Processed transaction: {}", lastTransactionMutation);
 						} while (
 							// there is something to process
 							mutationIterator.hasNext() &&
@@ -831,20 +818,16 @@ public class TransactionManager {
 	 * incorporated in the catalog.
 	 */
 	private long drainWal() {
-		final long theLastFinalizedCatalogVersion = getLastFinalizedCatalogVersion();
-		final long catalogVersionToDrain = this.versionToDrain.getAndSet(0L);
-		if (catalogVersionToDrain > 0L && catalogVersionToDrain > theLastFinalizedCatalogVersion) {
-			try {
-				this.processTransactions(
-					catalogVersionToDrain,
-					this.configuration.transaction().flushFrequencyInMillis(),
-					true,
-					false // we should not wait for the lock here - if its already running it will process the transactions
-				);
-			} catch (TransactionTimedOutException ex) {
-				// reschedule again
-				return 0;
-			}
+		try {
+			this.processTransactions(
+				this.lastWrittenCatalogVersion.get(),
+				this.configuration.transaction().flushFrequencyInMillis(),
+				true,
+				false // we should not wait for the lock here - if its already running it will process the transactions
+			);
+		} catch (TransactionTimedOutException ex) {
+			// reschedule again
+			return 0;
 		}
 		// pause the task
 		return -1;
