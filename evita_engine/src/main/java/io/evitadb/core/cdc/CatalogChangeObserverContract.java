@@ -35,9 +35,32 @@ import javax.annotation.Nonnull;
 import java.util.UUID;
 
 /**
- * TODO JNO - document me
+ * This interface defines a contract for observing and capturing changes to a catalog in the evitaDB system.
+ * It provides mechanisms for tracking mutations, managing catalog change data capture (CDC), and publishing
+ * these changes to registered observers.
+ *
+ * <p>The contract supports the Change Data Capture pattern, allowing clients to subscribe to and receive
+ * notifications about changes occurring in the catalog. This is particularly useful for maintaining
+ * data consistency across distributed systems, implementing event-driven architectures, and enabling
+ * real-time data synchronization.</p>
+ *
+ * Implementations of this interface are responsible for:
+ *
+ * <ul>
+ *   <li>Tracking catalog state changes in the live view</li>
+ *   <li>Processing and capturing mutations from the Write-Ahead Log (WAL)</li>
+ *   <li>Managing observer registrations and subscriptions</li>
+ *   <li>Publishing captured changes to interested subscribers</li>
+ *   <li>Handling error scenarios and recovery mechanisms</li>
+ * </ul>
+ *
+ * The interface provides a NOOP implementation that can be used when change data capture
+ * functionality is not required or not enabled in the configuration.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ * @see ChangeCapturePublisher
+ * @see ChangeCatalogCapture
+ * @see ChangeCatalogCaptureRequest
  */
 public interface CatalogChangeObserverContract {
 

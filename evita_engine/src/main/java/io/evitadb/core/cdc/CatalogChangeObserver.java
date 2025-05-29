@@ -92,7 +92,7 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 	/**
 	 * Cleaning task that removes inactive publishers from the list of unique publishers once a while.
 	 */
-	@SuppressWarnings("FieldCanBeLocal")
+	@SuppressWarnings({"FieldCanBeLocal", "unused"})
 	private final DelayedAsyncTask cleaner;
 	/**
 	 * Counter for the total number of events sent to subscribers. This is used for monitoring and performance analysis.
