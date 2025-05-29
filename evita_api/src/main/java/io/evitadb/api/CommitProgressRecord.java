@@ -76,28 +76,47 @@ public class CommitProgressRecord implements CommitProgress {
 	 * Completes the given CompletableFuture with the provided CommitVersions object, either by scheduling the completion
 	 * asynchronously in the specified executor or, in case the executor cannot accept the task, by completing it immediately.
 	 *
-	 * @param future a CompletableFuture to resolve when the completion is processed
-	 * @param commitVersions     the CommitVersions object containing catalog and schema versions to complete the future with
-	 * @param executor           the executor in which the completion should be scheduled asynchronously
+	 * @param thisStage         a CompletableFuture to resolve when the completion is processed
+	 * @param commitVersions the CommitVersions object containing catalog and schema versions to complete the future with
+	 * @param executor       the executor in which the completion should be scheduled asynchronously
 	 */
 	private static void completeStage(
-		@Nonnull CompletableFuture<CommitVersions> future,
+		@Nonnull CompletableFuture<CommitVersions> thisStage,
 		@Nonnull CommitVersions commitVersions,
 		@Nonnull Executor executor
 	) {
 		try {
-			future.completeAsync(() -> commitVersions, executor)
+			// we prefer completing the future asynchronously in the provided executor
+			// so that transactional pipeline is not blocked by the completion
+			thisStage.completeAsync(() -> commitVersions, executor)
 				.whenComplete((result, throwable) -> {
 					// if the future is cancelled, we complete it with the result anyway
 					if (throwable instanceof CancellationException) {
-						future.complete(result);
+						thisStage.complete(result);
 					}
 				});
 
 		} catch (RejectedExecutionException ignored) {
 			// if the the executor cannot accept the task, we complete the future immediately
-			future.complete(commitVersions);
+			thisStage.complete(commitVersions);
 		}
+	}
+
+	/**
+	 * Completes the given CompletableFuture with the provided CommitVersions object, either by scheduling the completion
+	 * asynchronously in the specified executor or, in case the executor cannot accept the task, by completing it immediately.
+	 *
+	 * @param previousStage  the previous CompletionStage that is expected to be completed before this one
+	 * @param thisStage         a CompletableFuture to resolve when the completion is processed
+	 */
+	private static void completeStage(
+		@Nonnull CompletionStage<CommitVersions> previousStage,
+		@Nonnull CompletableFuture<CommitVersions> thisStage
+	) {
+		// here we can just chain completion of this stage to the previous one
+		// since the first stage is done asynchronously, we can be synchronous here because it'll be executed
+		// in the same thread as the previous stage's completion
+		previousStage.whenComplete((result, throwable) -> thisStage.complete(result));
 	}
 
 	/**
@@ -246,7 +265,7 @@ public class CommitProgressRecord implements CommitProgress {
 					if (this.terminationStage == CommitBehavior.WAIT_FOR_WAL_PERSISTENCE) {
 						this.terminationSequence.accept(commitVersions, null);
 					}
-					completeStage(this.onWalAppended, commitVersions, executor);
+					completeStage(this.onConflictResolved, this.onWalAppended);
 				}
 			}
 			case WAIT_FOR_CHANGES_VISIBLE -> {
@@ -254,7 +273,7 @@ public class CommitProgressRecord implements CommitProgress {
 					if (this.terminationStage == CommitBehavior.WAIT_FOR_CHANGES_VISIBLE) {
 						this.terminationSequence.accept(commitVersions, null);
 					}
-					completeStage(this.onChangesVisible, commitVersions, executor);
+					completeStage(this.onWalAppended, this.onChangesVisible);
 				}
 			}
 			default -> throw new IllegalArgumentException("Unsupported commit behavior: " + commitBehavior);
