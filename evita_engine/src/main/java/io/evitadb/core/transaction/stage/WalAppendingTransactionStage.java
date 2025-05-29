@@ -25,6 +25,7 @@ package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.metric.event.transaction.TransactionAppendedToWalEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
@@ -41,6 +42,9 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Flow;
+import java.util.concurrent.Flow.Subscriber;
+import java.util.concurrent.SubmissionPublisher;
 import java.util.function.BiConsumer;
 
 /**
@@ -52,9 +56,22 @@ import java.util.function.BiConsumer;
 @Slf4j
 @NotThreadSafe
 public final class WalAppendingTransactionStage
-	extends AbstractTransactionStage<WalAppendingTransactionTask, TrunkIncorporationTransactionTask> {
+	extends AbstractTransactionStage<WalAppendingTransactionTask>
+	implements Flow.Processor<WalAppendingTransactionTask, TrunkIncorporationTransactionTask> {
+
+	/**
+	 * Number of catalog versions that were dropped during the last transaction processing.
+	 * This is used to notify the transaction manager about the dropped versions.
+	 */
 	private int droppedCatalogVersions;
+	/**
+	 * Delta of the catalog schema version that was dropped during the last transaction processing.
+	 */
 	private int droppedCatalogSchemaVersionDelta;
+	/**
+	 * Publisher that emits {@link TrunkIncorporationTransactionTask} events to the next stage in the pipeline.
+	 */
+	private final SubmissionPublisher<TrunkIncorporationTransactionTask> publisher;
 
 	public WalAppendingTransactionStage(
 		@Nonnull Executor executor,
@@ -62,19 +79,13 @@ public final class WalAppendingTransactionStage
 		@Nonnull TransactionManager transactionManager,
 		@Nonnull BiConsumer<TransactionTask, Throwable> onException
 	) {
-		super(executor, maxBufferCapacity, transactionManager, onException);
+		super(transactionManager, onException);
+		this.publisher = new SubmissionPublisher<>(executor, maxBufferCapacity);
 	}
 
 	@Override
-	protected void handleException(@Nonnull WalAppendingTransactionTask task, @Nonnull Throwable ex) {
-		try {
-			this.transactionManager.notifyCatalogVersionDropped(
-				this.droppedCatalogVersions,
-				this.droppedCatalogSchemaVersionDelta
-			);
-		} finally {
-			super.handleException(task, ex);
-		}
+	public void subscribe(Subscriber<? super TrunkIncorporationTransactionTask> subscriber) {
+		this.publisher.subscribe(subscriber);
 	}
 
 	@Override
@@ -127,8 +138,25 @@ public final class WalAppendingTransactionStage
 			throw ex;
 		}
 
+		// notify client at this moment that the transaction is safely written to the WAL
+		// the push to next stage might fail, but the WAL is already written
+		task.commitProgress()
+			.complete(
+				CommitBehavior.WAIT_FOR_WAL_PERSISTENCE,
+				new CommitVersions(task.catalogVersion(), task.catalogSchemaVersion()),
+				this.transactionManager.getRequestExecutor()
+			);
+
 		// now the WAL is safely written - no version is lost
 		this.droppedCatalogVersions = 0;
+
+		// emit the event
+		event.finish(
+			task.mutationCount() + 1,
+			writtenLength
+		).commit();
+
+		this.transactionManager.updateLastWrittenCatalogVersion(task.catalogVersion());
 
 		// and continue with trunk incorporation
 		push(
@@ -139,25 +167,23 @@ public final class WalAppendingTransactionStage
 				task.catalogSchemaVersion(),
 				task.transactionId(),
 				task.commitProgress()
-			)
+			),
+			this.publisher
 		);
-
-		// emit the event
-		event.finish(
-			task.mutationCount() + 1,
-			writtenLength
-		).commit();
-
-		this.transactionManager.updateLastWrittenCatalogVersion(task.catalogVersion());
 	}
 
 	@Override
-	protected void complete(@Nonnull CommitProgressRecord commitProgress, @Nonnull WalAppendingTransactionTask sourceTask, @Nonnull TrunkIncorporationTransactionTask targetTask) {
-		commitProgress.onWalAppended()
-			.completeAsync(
-				() -> new CommitVersions(targetTask.catalogVersion(), targetTask.catalogSchemaVersion()),
-				this.transactionManager.getRequestExecutor()
-			);
+	protected void handleException(@Nonnull WalAppendingTransactionTask task, @Nonnull Throwable ex) {
+		try {
+			if (this.droppedCatalogVersions > 0 || this.droppedCatalogSchemaVersionDelta > 0) {
+				this.transactionManager.notifyCatalogVersionDropped(
+					this.droppedCatalogVersions,
+					this.droppedCatalogSchemaVersionDelta
+				);
+			}
+		} finally {
+			super.handleException(task, ex);
+		}
 	}
 
 	/**

@@ -173,7 +173,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				} else {
 					return renderUnavailable();
 				}
-			});
+			}).toCompletableFuture();
 	}
 
 	/**
@@ -210,7 +210,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				} else {
 					return renderUnavailable();
 				}
-			});
+			}).toCompletableFuture();
 	}
 
 	/**
@@ -250,7 +250,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				} else {
 					return renderUnavailable();
 				}
-			});
+			}).toCompletableFuture();
 	}
 
 	@Nonnull

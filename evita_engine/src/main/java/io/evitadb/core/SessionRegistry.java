@@ -198,6 +198,8 @@ final class SessionRegistry {
 										futures.add(
 											plainSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE)
 												.toCompletableFuture()
+												// ignore exceptions, we don't care about them here
+												.exceptionally(ex -> null)
 										);
 									}
 								}
