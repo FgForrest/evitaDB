@@ -25,6 +25,7 @@ package io.evitadb.function;
 
 
 import javax.annotation.Nonnull;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -73,5 +74,17 @@ public interface Functions {
 		return t -> null;
 	}
 
-
+	/**
+	 * Returns a no-operation BiConsumer that accepts two input arguments but performs no action.
+	 * This is useful in scenarios where a BiConsumer is required by an API but no action needs to be performed,
+	 * avoiding the need to create anonymous implementations or lambda expressions for such cases.
+	 *
+	 * @param <T> the type of the first input argument
+	 * @param <U> the type of the second input argument
+	 * @return a BiConsumer that performs no operation
+	 */
+	@Nonnull
+	static <T, U> BiConsumer<T, U> noOpBiConsumer() {
+		return (t, u) -> {};
+	}
 }

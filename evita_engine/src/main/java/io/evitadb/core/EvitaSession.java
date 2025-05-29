@@ -428,7 +428,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request) {
-		return getCatalog().registerChangeCatalogCapture(request);
+		return this.catalog.registerChangeCatalogCapture(request);
 	}
 
 	@Interruptible
