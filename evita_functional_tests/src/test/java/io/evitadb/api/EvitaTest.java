@@ -2164,18 +2164,32 @@ class EvitaTest implements EvitaTestSupport {
 		final CommitProgress session2CommitProgress = session2.closeNowWithProgress();
 		session2CommitProgress.onConflictResolved().thenAccept(commitVersions -> worklog.add("Session 2 conflict resolved: " + commitVersions));
 		session2CommitProgress.onWalAppended().thenAccept(commitVersions -> worklog.add("Session 2 WAL appended: " + commitVersions));
-		session2CommitProgress.onChangesVisible().thenAccept(commitVersions -> worklog.add("Session 2 changes visible: " + commitVersions));
-		final CommitVersions versionsAssigned = session2CommitProgress.onChangesVisible().toCompletableFuture().join();
+		final CommitVersions versionsAssigned = session2CommitProgress.onChangesVisible()
+			.thenApply(commitVersions -> {
+				worklog.add("Session 2 changes visible: " + commitVersions);
+				return commitVersions;
+			})
+			.toCompletableFuture()
+			.join();
 
 		// commit first
 		final CommitProgress session1CommitProgress = session1.closeNowWithProgress();
 		session1CommitProgress.onConflictResolved().thenAccept(commitVersions -> worklog.add("Session 1 conflict resolved: " + commitVersions));
 		session1CommitProgress.onWalAppended().thenAccept(commitVersions -> worklog.add("Session 1 WAL appended: " + commitVersions));
-		session1CommitProgress.onChangesVisible().thenAccept(commitVersions -> worklog.add("Session 1 changes visible: " + commitVersions));
-		final CommitVersions versionsAssignedAfter = session1CommitProgress.onChangesVisible().toCompletableFuture().join();
+		final CommitVersions versionsAssignedAfter = session1CommitProgress.onChangesVisible()
+			.thenApply(commitVersions -> {
+				worklog.add("Session 1 changes visible: " + commitVersions);
+				return commitVersions;
+			})
+			.toCompletableFuture()
+			.join();
 
 		// check work log
-		assertEquals(6, worklog.size());
+		assertEquals(
+			6,
+			worklog.size(),
+			"Expected 6 log entries, but got: " + worklog.size() + ". Log: " + String.join(", ", worklog)
+		);
 		assertArrayEquals(
 			new String[]{
 				"Session 2 conflict resolved: " + versionsAssigned,
@@ -2185,7 +2199,8 @@ class EvitaTest implements EvitaTestSupport {
 				"Session 1 WAL appended: " + versionsAssignedAfter,
 				"Session 1 changes visible: " + versionsAssignedAfter
 			},
-			worklog.toArray()
+			worklog.toArray(),
+			"Got unexpected worklog entries: " + String.join(", ", worklog)
 		);
 
 		// versions in second session, committed first will be lesser
