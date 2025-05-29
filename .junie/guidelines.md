@@ -12,7 +12,7 @@ It is intended to ensure consistency, readability, and maintainability across th
 - in JavaDoc use MarkDown syntax for formatting - never use HTML tags
 - prefer immutable classes / records for data structures
 - prefer performance to readability in performance-critical code
-- automatically add `@Nullable` and `@NotNull` annotations to method parameters and return types
+- automatically add `javax.annotation.Nullable` and `javax.annotation.Nonnull` annotations to method parameters and return types
 - use `final` for local variables
 - use `this` for instance variables 
 - automatically add JavaDoc to all generated classes and methods
