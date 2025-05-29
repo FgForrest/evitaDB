@@ -97,6 +97,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -557,17 +558,23 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 
 	@Override
 	public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
-		final UseDataSet methodUseDataSet = ofNullable(extensionContext.getRequiredTestMethod().getAnnotation(UseDataSet.class))
-			.orElseGet(() -> getAnnotationOnSuperMethod(extensionContext, UseDataSet.class));
-		final UseDataSet parameterUseDataSet = ofNullable(parameterContext.getParameter().getAnnotation(UseDataSet.class))
-			.orElseGet(() -> getParameterAnnotationOnSuperMethod(parameterContext, extensionContext, UseDataSet.class));
-		Assert.isTrue(
-			parameterUseDataSet == null || methodUseDataSet == null,
-			"UseDataSet annotation can be specified on parameter OR method level, but not both!"
-		);
-		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(extensionContext);
-		final UseDataSet useDataSet = ofNullable(methodUseDataSet).orElse(parameterUseDataSet);
-		final DataSetInfo dataSetInfo = getInitializedDataSetInfo(useDataSet, dataSetIndex, parameterContext, extensionContext);
+		final BiFunction<ParameterContext, ExtensionContext, Optional<DataSetInfo>> dataSetInfoProvider = (pc, ec) -> {
+			final UseDataSet methodUseDataSet = ofNullable(extensionContext.getRequiredTestMethod().getAnnotation(UseDataSet.class))
+				.orElseGet(() -> getAnnotationOnSuperMethod(extensionContext, UseDataSet.class));
+			final UseDataSet parameterUseDataSet = ofNullable(parameterContext.getParameter().getAnnotation(UseDataSet.class))
+				.orElseGet(() -> getParameterAnnotationOnSuperMethod(parameterContext, extensionContext, UseDataSet.class));
+			Assert.isTrue(
+				parameterUseDataSet == null || methodUseDataSet == null,
+				"UseDataSet annotation can be specified on parameter OR method level, but not both!"
+			);
+			final UseDataSet useDataSet = ofNullable(methodUseDataSet).orElse(parameterUseDataSet);
+			if (useDataSet == null) {
+				return Optional.empty();
+			} else {
+				final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(extensionContext);
+				return Optional.of(getInitializedDataSetInfo(useDataSet, dataSetIndex, parameterContext, extensionContext));
+			}
+		};
 
 		return EvitaContract.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
 			EvitaSessionContract.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
@@ -578,7 +585,8 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			LabApiTester.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
 			EvitaClient.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
 			(String.class.isAssignableFrom(parameterContext.getParameter().getType()) && PARAMETER_CATALOG_NAME.equals(parameterContext.getParameter().getName())) ||
-			ofNullable(dataSetInfo.dataCarrier())
+			dataSetInfoProvider.apply(parameterContext, extensionContext)
+				.map(DataSetInfo::dataCarrier)
 				.map(
 					it -> ofNullable(it.getValueByName(parameterContext.getParameter().getName()))
 						.orElseGet(() -> it.getValueByType(parameterContext.getParameter().getType()))

@@ -23,7 +23,6 @@
 
 package io.evitadb.core.transaction.stage;
 
-import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.utils.Assert;
@@ -32,7 +31,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Objects;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.RejectedExecutionException;
@@ -46,13 +44,11 @@ import java.util.function.BiPredicate;
  * a different type of transaction task.
  *
  * @param <T> The type of the input transaction task.
- * @param <F> The type of the output transaction task.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public sealed abstract class AbstractTransactionStage<T extends TransactionTask, F extends TransactionTask>
-	extends SubmissionPublisher<F>
-	implements Flow.Processor<T, F>
+public sealed abstract class AbstractTransactionStage<T extends TransactionTask>
+	implements Flow.Subscriber<T>
 	permits ConflictResolutionTransactionStage, WalAppendingTransactionStage, TrunkIncorporationTransactionStage {
 
 	/**
@@ -82,12 +78,9 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	@Nonnull private final BiConsumer<TransactionTask, Throwable> onException;
 
 	protected AbstractTransactionStage(
-		@Nonnull Executor executor,
-		int maxBufferCapacity,
 		@Nonnull TransactionManager transactionManager,
 		@Nonnull BiConsumer<TransactionTask, Throwable> onException
 	) {
-		super(executor, maxBufferCapacity);
 		this.transactionManager = transactionManager;
 		this.onException = onException;
 	}
@@ -125,7 +118,7 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	 */
 	protected void handleException(@Nonnull T task, @Nonnull Throwable ex) {
 		log.error("Error while processing " + getName() + " task for catalog `" + task.catalogName() + "`!", ex);
-		completeExceptionally(task.commitProgress(), ex);
+		task.commitProgress().completeExceptionally(ex);
 		this.onException.accept(task, ex);
 	}
 
@@ -165,9 +158,10 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 	 *
 	 * @param sourceTask The source task to be pushed.
 	 * @param targetTask The target task to be created.
+	 * @param publisher The publisher to which the target task is pushed.
 	 */
-	protected void push(@Nonnull T sourceTask, @Nonnull F targetTask) {
-		this.stageHandoff = offer(
+	protected <F extends TransactionTask> void push(@Nonnull T sourceTask, @Nonnull F targetTask, @Nonnull SubmissionPublisher<F> publisher) {
+		this.stageHandoff = publisher.offer(
 			targetTask,
 			(subscriber, theTask) -> {
 				final String text = targetTask.getClass().isAnnotationPresent(NonRepeatableTask.class) ?
@@ -183,25 +177,6 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask,
 				return false;
 			}
 		);
-
-		complete(sourceTask.commitProgress(), sourceTask, targetTask);
-	}
-
-	/**
-	 * Marks particular stage of the transaction as completed.
-	 *
-	 * @param commitProgress the commit progress record for the transaction
-	 */
-	protected abstract void complete(@Nonnull CommitProgressRecord commitProgress, @Nonnull T sourceTask, @Nonnull F targetTask);
-
-	/**
-	 * Marks particular stage of the transaction as completed with exception.
-	 *
-	 * @param commitProgress the commit progress record for the transaction
-	 */
-	protected void completeExceptionally(@Nonnull CommitProgressRecord commitProgress, @Nonnull Throwable exception) {
-		// this method will complete all non-completed futures with exception
-		commitProgress.completeExceptionally(exception);
 	}
 
 }

@@ -32,6 +32,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.exception.SessionBusyException;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,6 +61,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("Evita catalog replacement under load")
 @Tag(LONG_RUNNING_TEST)
 @ExtendWith(EvitaParameterResolver.class)
+@Slf4j
 public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
 	private static final String DIR_EVITA_REPLACEMENT_TEST = "evitaReplacementTest";
 	private static final String DIR_EVITA_REPLACEMENT_TEST_EXPORT = "evitaReplacementTest_export";
@@ -101,7 +103,7 @@ public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
 			}
 		);
 
-		// create a catalog with a single entity
+		// create a catalog with a hundred entities
 		this.evita.defineCatalog(catalogWithHundredEntities)
 			.updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
@@ -128,33 +130,38 @@ public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
 			final int clientId = i;
 			new Thread(
 				() -> {
-					for (int j = 0; j < iterations; j++) {
-						try {
-							this.evita.queryCatalog(
-								catalogWithSingleEntity,
-								session -> {
-									final String brand = session.getEntity("Brand", 1, attributeContentAll(), dataInLocales(Locale.ENGLISH))
-										.orElseThrow()
-										.getAttribute("name", Locale.ENGLISH);
-									assertTrue(
-										"Lenovo".equals(brand) || "Lenovo_1".equals(brand),
-										"Client " + clientId + " expected Lenovo or Lenovo_1 but got " + brand
-									);
+					try {
+						for (int j = 0; j < iterations; j++) {
+							try {
+								this.evita.queryCatalog(
+									catalogWithSingleEntity,
+									session -> {
+										final String brand = session.getEntity("Brand", 1, attributeContentAll(), dataInLocales(Locale.ENGLISH))
+											.orElseThrow()
+											.getAttribute("name", Locale.ENGLISH);
+										assertTrue(
+											"Lenovo".equals(brand) || "Lenovo_1".equals(brand),
+											"Client " + clientId + " expected Lenovo or Lenovo_1 but got " + brand
+										);
+									}
+								);
+								queries.incrementAndGet();
+							} catch (Exception e) {
+								final List<Throwable> nestedThrowables = ExceptionUtils.findNestedThrowables(e);
+								if (nestedThrowables.stream().anyMatch(InstanceTerminatedException.class::isInstance)) {
+									terminations.incrementAndGet();
+								} else if (nestedThrowables.stream().anyMatch(SessionBusyException.class::isInstance)) {
+									terminations.incrementAndGet();
+								} else {
+									errors.incrementAndGet();
 								}
-							);
-							queries.incrementAndGet();
-						} catch (Exception e) {
-							final List<Throwable> nestedThrowables = ExceptionUtils.findNestedThrowables(e);
-							if (nestedThrowables.stream().anyMatch(InstanceTerminatedException.class::isInstance)) {
-								terminations.incrementAndGet();
-							} else if (nestedThrowables.stream().anyMatch(SessionBusyException.class::isInstance)) {
-								terminations.incrementAndGet();
-							} else {
-								errors.incrementAndGet();
 							}
 						}
+					} catch (Exception e) {
+						log.error("Client " + clientId + " encountered an error: " + e.getMessage(), e);
+					} finally {
+						latch.countDown();
 					}
-					latch.countDown();
 				}
 			).start();
 		}
@@ -168,6 +175,8 @@ public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
 			catalogWithHundredEntities,
 			catalogWithSingleEntity
 		);
+
+		log.info("Awaiting for all clients to finish...");
 
 		// and wait for all clients to finish
 		latch.await();

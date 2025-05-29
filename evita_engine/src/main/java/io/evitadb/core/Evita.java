@@ -95,6 +95,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -514,7 +517,7 @@ public final class Evita implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public <T> CompletableFuture<T> updateCatalogAsync(
+	public <T> CompletionStage<T> updateCatalogAsync(
 		@Nonnull String catalogName,
 		@Nonnull Function<EvitaSessionContract, T> updater,
 		@Nonnull CommitBehavior commitBehaviour,
@@ -535,17 +538,14 @@ public final class Evita implements EvitaContract {
 		try {
 			final T resultValue = createdSession.session().execute(updater);
 			// join the transaction future and return the result
-			final CompletableFuture<T> result = new CompletableFuture<>();
-			createdSession.commitProgress()
+			return createdSession.commitProgress()
 				.on(commitBehaviour)
-				.whenComplete((__, ex) -> {
+				.handle((__, ex) -> {
 					if (ex != null) {
-						result.completeExceptionally(ex);
-					} else {
-						result.complete(resultValue);
+						throw new CompletionException(ex);
 					}
+					return resultValue;
 				});
-			return result;
 		} catch (RuntimeException ex) {
 			createdSession.commitProgress().completeExceptionally(ex);
 			throw ex;
@@ -644,7 +644,7 @@ public final class Evita implements EvitaContract {
 	 * @param <T> type of the result
 	 */
 	@Nonnull
-	public <T> CompletableFuture<T> executeAsyncInRequestThreadPool(@Nonnull Supplier<T> supplier) {
+	public <T> CompletionStage<T> executeAsyncInRequestThreadPool(@Nonnull Supplier<T> supplier) {
 		return CompletableFuture.supplyAsync(supplier, this.requestExecutor);
 	}
 
@@ -855,9 +855,6 @@ public final class Evita implements EvitaContract {
 			// now rewrite the original catalog with renamed contents so that the observers could access it
 			final CatalogContract previousCatalog = this.catalogs.put(catalogNameToBeReplaced, replacedCatalog);
 
-			// notify callback that it's now a live snapshot
-			((Catalog) replacedCatalog).notifyCatalogPresentInLiveView();
-
 			// notify publishers about the change
 			if (previousCatalog != null) {
 				this.changeObserver.notifyPublishers(catalogNameToBeReplaced, new RemoveCatalogSchemaMutation(previousCatalog.getName()));
@@ -868,6 +865,9 @@ public final class Evita implements EvitaContract {
 			// and therefore the removal only takes place here
 			final CatalogContract removedCatalog = this.catalogs.remove(catalogNameToBeReplacedWith);
 			this.catalogSessionRegistries.remove(catalogNameToBeReplacedWith);
+
+			// notify callback that it's now a live snapshot
+			((Catalog) replacedCatalog).notifyCatalogPresentInLiveView();
 
 			if (removedCatalog instanceof Catalog theCatalog) {
 				theCatalog.emitDeleteObservabilityEvents();

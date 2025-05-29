@@ -68,6 +68,7 @@ import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
+import io.evitadb.utils.IOUtils.IOExceptionThrowingRunnable;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -86,17 +87,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -220,7 +213,7 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 	 * List of pending removals of WAL files that should be removed, but could not be removed yet because the WAL
 	 * records in them were not yet processed.
 	 */
-	private final List<PendingRemoval> pendingRemovals = new CopyOnWriteArrayList<>();
+	private final Queue<PendingRemoval> pendingRemovals = new ConcurrentLinkedDeque<>();
 	/**
 	 * Callback to be called when the WAL file is purged.
 	 */
@@ -1482,10 +1475,15 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 			long firstCatalogVersionToBeKept = -1;
 			for (PendingRemoval pendingRemoval : this.pendingRemovals) {
 				if (pendingRemoval.catalogVersion() <= catalogVersion) {
-					toRemove.add(pendingRemoval);
-					pendingRemoval.removeLambda().run();
-					if (pendingRemoval.catalogVersion() > firstCatalogVersionToBeKept) {
-						firstCatalogVersionToBeKept = pendingRemoval.catalogVersion();
+					try {
+						pendingRemoval.removeLambda().run();
+						if (pendingRemoval.catalogVersion() > firstCatalogVersionToBeKept) {
+							firstCatalogVersionToBeKept = pendingRemoval.catalogVersion();
+						}
+						toRemove.add(pendingRemoval);
+					} catch (IOException ex) {
+						// failed to remove the file, we will try again later and continue with the next one
+						log.error(ex.getMessage(), ex);
 					}
 				} else {
 					break;
@@ -1668,8 +1666,6 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 				(dir, name) -> name.endsWith(WAL_FILE_SUFFIX)
 			);
 			if (walFiles != null && walFiles.length > this.walFileCountKept) {
-				/* TODO JNO - check that all mutations are incorporated in current catalog version!!! */
-
 				// first sort the files from oldest to newest according to their index in the file name
 				Arrays.sort(
 					walFiles,
@@ -1694,11 +1690,10 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 									if (walFile.delete()) {
 										log.debug("Deleted WAL file `{}`!", walFile);
 									} else {
-										// don't throw exception - this is not so critical so that we should stop accepting new mutations
-										log.error("Failed to delete WAL file `{}`!", walFile);
+										throw new IOException("Failed to delete WAL file `" + walFile.getAbsolutePath() + "`!");
 									}
 								} catch (Exception ex) {
-									log.error("Failed to delete WAL file `{}`!", walFile, ex);
+									throw new IOException("Failed to delete WAL file `" + walFile.getAbsolutePath() + "`!", ex);
 								}
 							}
 						);
@@ -2076,7 +2071,7 @@ public class CatalogWriteAheadLog implements AutoCloseable {
 	 */
 	private record PendingRemoval(
 		long catalogVersion,
-		@Nonnull Runnable removeLambda
+		@Nonnull IOExceptionThrowingRunnable removeLambda
 	) {
 
 		@Override

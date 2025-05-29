@@ -79,7 +79,9 @@ import java.util.Currency;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -401,10 +403,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@DisplayName("Update catalog in warm-up mode with another product - asynchronously.")
 	@Test
-	void shouldUpdateCatalogWithAnotherProductAsynchronously() {
+	void shouldUpdateCatalogWithAnotherProductAsynchronously() throws ExecutionException, InterruptedException, TimeoutException {
 		shouldUpdateCatalogWithAnotherProduct();
 
-		final CompletableFuture<SealedEntity> addedEntity = this.evita.updateCatalogAsync(
+		final int addedEntityPrimaryKey = evita.updateCatalogAsync(
 			TEST_CATALOG,
 			session -> {
 				final SealedEntity upsertedEntity = session.upsertAndFetchEntity(
@@ -414,11 +416,11 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				return upsertedEntity;
 			},
 			CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION
-		);
+		).toCompletableFuture()
+			.get(1, TimeUnit.MINUTES)
+			.getPrimaryKeyOrThrowException();
 
-		assertTrue(addedEntity.isDone());
-		final Integer addedEntityPrimaryKey = addedEntity.getNow(null).getPrimaryKey();
-		this.evita.queryCatalog(
+		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				// the entity will immediately available in indexes

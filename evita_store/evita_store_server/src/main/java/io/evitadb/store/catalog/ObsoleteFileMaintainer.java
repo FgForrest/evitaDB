@@ -26,7 +26,6 @@ package io.evitadb.store.catalog;
 import io.evitadb.core.CatalogConsumersListener;
 import io.evitadb.core.async.DelayedAsyncTask;
 import io.evitadb.core.async.Scheduler;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.spi.CatalogPersistenceService.EntityTypePrimaryKeyAndFileIndex;
 import io.evitadb.store.spi.model.CatalogHeader;
@@ -312,7 +311,8 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		 */
 		private final LongConsumer maintainedFilePurgeCallback;
 		/**
-		 * The supplier of the catalog header for the specified catalog version.
+		 * The supplier of the catalog header for the specified catalog version or the first larger available
+		 * catalog version.
 		 */
 		private final LongFunction<DataFilesBulkInfo> dataFilesInfoFetcher;
 		/**
@@ -328,58 +328,56 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 				// first purge all maintained files
 				this.maintainedFilePurgeCallback.accept(firstActiveCatalogVersion);
 				// then purge all obsolete files in the folders
-				final DataFilesBulkInfo activeFiles = ofNullable(this.dataFilesInfoFetcher.apply(firstActiveCatalogVersion))
-					.orElseThrow(
-						() -> new GenericEvitaInternalError(
-							"Catalog bootstrap record and header for the catalog version `" + firstActiveCatalogVersion + "` " +
-								"are not available. Cannot purge obsolete files."
-						)
-					);
-				final int firstUsedCatalogDataFileIndex = activeFiles.bootstrapRecord().catalogFileIndex();
-				final Map<Integer, Integer> entityFileIndex = activeFiles
-					.catalogHeader()
-					.getEntityTypeFileIndexes()
-					.stream()
-					.collect(
-						Collectors.toMap(
-							CollectionFileReference::entityTypePrimaryKey,
-							CollectionFileReference::fileIndex
-						)
-					);
+				ofNullable(this.dataFilesInfoFetcher.apply(firstActiveCatalogVersion))
+					.ifPresent(
+						activeFiles -> {
+							final int firstUsedCatalogDataFileIndex = activeFiles.bootstrapRecord().catalogFileIndex();
+							final Map<Integer, Integer> entityFileIndex = activeFiles
+								.catalogHeader()
+								.getEntityTypeFileIndexes()
+								.stream()
+								.collect(
+									Collectors.toMap(
+										CollectionFileReference::entityTypePrimaryKey,
+										CollectionFileReference::fileIndex
+									)
+								);
 
-				ofNullable(
-					this.catalogStoragePath.toFile()
-						.listFiles((dir, name) -> name.endsWith(CATALOG_FILE_SUFFIX))
-				)
-					.stream()
-					.flatMap(Arrays::stream)
-					.filter(file -> getIndexFromCatalogFileName(file.getName()) < firstUsedCatalogDataFileIndex)
-					.forEach(file -> {
-						if (file.delete()) {
-							log.debug("Deleted obsolete catalog file `{}`", file.getAbsolutePath());
-						} else {
-							log.warn("Could not delete obsolete catalog file `{}`", file.getAbsolutePath());
-						}
-					});
+							ofNullable(
+								this.catalogStoragePath.toFile()
+									.listFiles((dir, name) -> name.endsWith(CATALOG_FILE_SUFFIX))
+							)
+								.stream()
+								.flatMap(Arrays::stream)
+								.filter(file -> getIndexFromCatalogFileName(file.getName()) < firstUsedCatalogDataFileIndex)
+								.forEach(file -> {
+									if (file.delete()) {
+										log.debug("Deleted obsolete catalog file `{}`", file.getAbsolutePath());
+									} else {
+										log.warn("Could not delete obsolete catalog file `{}`", file.getAbsolutePath());
+									}
+								});
 
-				ofNullable(
-					this.catalogStoragePath.toFile()
-						.listFiles((dir, name) -> name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX))
-				)
-					.stream()
-					.flatMap(Arrays::stream)
-					.filter(file -> {
-						final EntityTypePrimaryKeyAndFileIndex result = getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(file.getName());
-						final Integer firstUsedEntityFileIndex = entityFileIndex.get(result.entityTypePrimaryKey());
-						return firstUsedEntityFileIndex == null || result.fileIndex() < firstUsedEntityFileIndex;
-					})
-					.forEach(file -> {
-						if (file.delete()) {
-							log.debug("Deleted obsolete entity collection file `{}`", file.getAbsolutePath());
-						} else {
-							log.warn("Could not delete entity collection file `{}`", file.getAbsolutePath());
+							ofNullable(
+								this.catalogStoragePath.toFile()
+									.listFiles((dir, name) -> name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX))
+							)
+								.stream()
+								.flatMap(Arrays::stream)
+								.filter(file -> {
+									final EntityTypePrimaryKeyAndFileIndex result = getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(file.getName());
+									final Integer firstUsedEntityFileIndex = entityFileIndex.get(result.entityTypePrimaryKey());
+									return firstUsedEntityFileIndex == null || result.fileIndex() < firstUsedEntityFileIndex;
+								})
+								.forEach(file -> {
+									if (file.delete()) {
+										log.debug("Deleted obsolete entity collection file `{}`", file.getAbsolutePath());
+									} else {
+										log.warn("Could not delete entity collection file `{}`", file.getAbsolutePath());
+									}
+								});
 						}
-					});
+					);
 			} else {
 				// this callback was already called with this or newer catalog version
 			}

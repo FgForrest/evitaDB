@@ -25,19 +25,22 @@ package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.core.Catalog;
+import io.evitadb.core.metric.event.transaction.NewCatalogVersionPropagatedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionIncorporatedToTrunkEvent;
+import io.evitadb.core.metric.event.transaction.TransactionProcessedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
 import io.evitadb.core.transaction.TransactionManager;
+import io.evitadb.core.transaction.TransactionManager.ProcessResult;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
-import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.UUID;
-import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 
 /**
@@ -53,7 +56,7 @@ import java.util.function.BiConsumer;
 @Slf4j
 @NotThreadSafe
 public final class TrunkIncorporationTransactionStage
-	extends AbstractTransactionStage<TrunkIncorporationTransactionTask, UpdatedCatalogTransactionTask> {
+	extends AbstractTransactionStage<TrunkIncorporationTransactionTask> {
 	/**
 	 * The timeout in nanoseconds determining the maximum time the task is allowed to consume multiple transaction.
 	 * It might be exceeded if the single transaction processing takes too long, but if the single transaction is very
@@ -62,13 +65,11 @@ public final class TrunkIncorporationTransactionStage
 	private final long timeout;
 
 	public TrunkIncorporationTransactionStage(
-		@Nonnull Executor executor,
-		int maxBufferCapacity,
 		@Nonnull TransactionManager transactionManager,
 		long timeoutInMillis,
 		@Nonnull BiConsumer<TransactionTask, Throwable> onException
 	) {
-		super(executor, maxBufferCapacity, transactionManager, onException);
+		super(transactionManager, onException);
 		this.timeout = timeoutInMillis * 1_000_000;
 	}
 
@@ -79,58 +80,49 @@ public final class TrunkIncorporationTransactionStage
 
 	@Override
 	protected void handleNext(@Nonnull TrunkIncorporationTransactionTask task) {
+		final CommitVersions commitVersions = new CommitVersions(task.catalogVersion(), task.catalogSchemaVersion());
 		if (task.catalogVersion() <= this.transactionManager.getLastFinalizedCatalogVersion()) {
 			// the transaction has been already processed
 			// but we can't mark transaction as processed until it's propagated to the "live view"
 			this.transactionManager.waitUntilLiveVersionReaches(task.catalogVersion());
-			task.commitProgress().onChangesVisible().completeAsync(
-				() -> new CommitVersions(task.catalogVersion(), task.catalogSchemaVersion()),
+			task.commitProgress().complete(
+				CommitBehavior.WAIT_FOR_CHANGES_VISIBLE,
+				commitVersions,
 				this.transactionManager.getRequestExecutor()
 			);
-			log.info("Skipping version " + task.catalogVersion() + " as it has been already processed.");
+			log.debug("Skipping version " + task.catalogVersion() + " as it has been already processed.");
 		} else {
 			// emit queue event
 			task.transactionQueuedEvent().finish().commit();
+
+			synchronized (this) {
+				try {
+					this.wait(50);
+				} catch (InterruptedException e) {
+					throw new RuntimeException(e);
+				}
+			}
 
 			final TransactionIncorporatedToTrunkEvent event = new TransactionIncorporatedToTrunkEvent(this.transactionManager.getCatalogName());
 			this.transactionManager.processTransactions(
 					task.catalogVersion(),
 					this.timeout,
-					true
+					true,
+					true // we want to wait for lock so that we can complete the commit progress record
 				)
 				.ifPresentOrElse(
 					result -> {
-						// and propagate it to the live view
-						push(
-							task,
-							new UpdatedCatalogTransactionTask(
-								result.catalog(),
-								result.lastTransactionId(),
-								task.commitProgress(),
-								result.commitTimesOfProcessedTransactions()
-							)
-						);
-
 						// emit event
 						event.finish(
 							result.processedAtomicMutations(),
 							result.processedLocalMutations(),
 							result.commitTimesOfProcessedTransactions().length
 						).commit();
+
+						// propagate catalog to shared view
+						propagateCatalogToSharedView(result, task.commitProgress(), commitVersions);
 					},
 					() -> {
-						// and terminate the task
-						complete(
-							task.commitProgress(),
-							task,
-							new UpdatedCatalogTransactionTask(
-								this.transactionManager.getLastFinalizedCatalog(),
-								task.transactionId(),
-								task.commitProgress(),
-								new OffsetDateTime[0]
-							)
-						);
-
 						// emit event
 						event.finish(
 							0,
@@ -141,9 +133,46 @@ public final class TrunkIncorporationTransactionStage
 		}
 	}
 
-	@Override
-	protected void complete(@Nonnull CommitProgressRecord commitProgress, @Nonnull TrunkIncorporationTransactionTask sourceTask, @Nonnull UpdatedCatalogTransactionTask targetTask) {
-		// do nothing, this stage has no outside effects / guarantees
+	/**
+	 * Propagates the catalog snapshot to a shared view, processes results, and emits related events.
+	 * This method is responsible for handling the transaction snapshot propagation and tracking the progress
+	 * of the commit operation.
+	 *
+	 * @param result               the result of transaction processing that contains details about the catalog
+	 *                             and commit times of processed transactions
+	 * @param commitProgressRecord an object that represents the progress of the ongoing commit operation
+	 * @param commitVersions       the version details of the catalog and catalog schema after the commit operation
+	 */
+	private void propagateCatalogToSharedView(
+		@Nonnull ProcessResult result,
+		@Nonnull CommitProgressRecord commitProgressRecord,
+		@Nonnull CommitVersions commitVersions
+	) {
+		final Catalog catalog = result.catalog();
+		final String catalogName = catalog.getName();
+
+		final NewCatalogVersionPropagatedEvent event = new NewCatalogVersionPropagatedEvent(catalogName);
+		try {
+			this.transactionManager.propagateCatalogSnapshot(catalog);
+			log.debug("Snapshot propagating task for catalog `" + catalogName + "` completed (" + catalog.getEntityTypes() + ")!");
+			commitProgressRecord.complete(
+				CommitBehavior.WAIT_FOR_CHANGES_VISIBLE,
+				commitVersions,
+				this.transactionManager.getRequestExecutor()
+			);
+		} catch (Throwable ex) {
+			log.error("Error while processing snapshot propagating task for catalog `" + catalogName + "`!", ex);
+			commitProgressRecord.completeExceptionally(ex);
+		}
+
+		// emit the event
+		event.finish(result.commitTimesOfProcessedTransactions().length).commit();
+
+		// emit transaction processed events
+		final OffsetDateTime now = OffsetDateTime.now();
+		for (OffsetDateTime commitTime : result.commitTimesOfProcessedTransactions()) {
+			new TransactionProcessedEvent(catalogName, Duration.between(commitTime, now)).commit();
+		}
 	}
 
 	/**
@@ -180,50 +209,6 @@ public final class TrunkIncorporationTransactionStage
 			);
 		}
 
-	}
-
-	/**
-	 * Represents a task for new catalog version propagation to the "life view". I.e. when the newly built catalog
-	 * trunk (SNAPSHOT) is propagated to the "live view" of the evitaDB engine.
-	 */
-	public record UpdatedCatalogTransactionTask(
-		@Nonnull Catalog catalog,
-		@Nonnull UUID transactionId,
-		@Nonnull CommitProgressRecord commitProgress,
-		@Nonnull OffsetDateTime[] commitTimestamps,
-		@Nonnull TransactionQueuedEvent transactionQueuedEvent
-	) implements TransactionTask {
-
-		public UpdatedCatalogTransactionTask(
-			@Nonnull Catalog catalog,
-			@Nonnull UUID transactionId,
-			@Nonnull CommitProgressRecord commitProgress,
-			@Nonnull OffsetDateTime[] commitTimestamps
-		) {
-			this(
-				catalog,
-				transactionId,
-				commitProgress,
-				commitTimestamps,
-				new TransactionQueuedEvent(catalog.getName(), "catalog_propagation")
-			);
-		}
-
-		@Nonnull
-		@Override
-		public String catalogName() {
-			return this.catalog.getName();
-		}
-
-		@Override
-		public long catalogVersion() {
-			return this.catalog.getVersion();
-		}
-
-		@Override
-		public int catalogSchemaVersion() {
-			return this.catalog.getSchema().version();
-		}
 	}
 
 }
