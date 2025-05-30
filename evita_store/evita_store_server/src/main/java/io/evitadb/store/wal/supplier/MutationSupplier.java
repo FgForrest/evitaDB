@@ -36,6 +36,7 @@ import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.IntFunction;
 
 /**
  * This class is used to supply Mutation objects from a Write-Ahead Log (WAL) file in forward order.
@@ -49,7 +50,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 	public MutationSupplier(
 		long catalogVersion,
 		long requestedCatalogVersion,
-		@Nonnull String catalogName,
+		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageOptions storageOptions,
 		int walFileIndex,
@@ -59,7 +60,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 		@Nullable Runnable onClose
 	) {
 		super(
-			catalogVersion, catalogName, catalogStoragePath, storageOptions,
+			catalogVersion, walFileNameProvider, catalogStoragePath, storageOptions,
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
 			avoidPartiallyFilledBuffer, onClose
 		);
@@ -111,7 +112,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 						if (
 							this.avoidPartiallyFilledBuffer ?
 								// for partially filled buffer we stop reading the transaction mutation when the requested catalog version is reached
-								this.transactionMutation.getCatalogVersion() <= this.requestedCatalogVersion && currentFileLength >= requiredLength :
+								this.transactionMutation.getVersion() <= this.requestedCatalogVersion && currentFileLength >= requiredLength :
 								// otherwise we require just the entire transaction to be written
 								currentFileLength >= requiredLength
 						) {

@@ -427,7 +427,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 				// Stop processing when we reach a mutation that is not yet visible in the live view
 				.takeWhile(
 					mutation -> !(mutation instanceof TransactionMutation txMutation) ||
-						txMutation.getCatalogVersion() <= lastPublishedCatalogVersion
+						txMutation.getVersion() <= lastPublishedCatalogVersion
 				)
 				// Stop processing when the queue is full or when we encounter an error
 				.takeWhile(

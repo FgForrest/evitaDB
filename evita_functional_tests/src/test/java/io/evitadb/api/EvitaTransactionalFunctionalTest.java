@@ -48,9 +48,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
-import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
-import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor.TransactionChanges;
 import io.evitadb.api.requestResponse.system.TimeFlow;
+import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
@@ -58,6 +57,7 @@ import io.evitadb.core.EvitaSession;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.function.Functions;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.function.TriFunction;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
@@ -72,6 +72,7 @@ import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
+import io.evitadb.store.wal.requestResponse.CatalogTransactionChangesContainer.CatalogTransactionChanges;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
@@ -523,13 +524,13 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
 			0L,
 			TEST_CATALOG,
+			index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
 			catalogDirectory,
 			this.catalogKryoPool,
 			StorageOptions.builder().build(),
 			TransactionOptions.builder().build(),
 			Mockito.mock(Scheduler.class),
-			timestamp -> {
-			},
+			Functions.noOpLongConsumer(),
 			null
 		);
 
@@ -579,13 +580,13 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
 				0L,
 				TEST_CATALOG,
+				index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
 				catalogDirectory,
 				this.catalogKryoPool,
 				StorageOptions.builder().build(),
 				TransactionOptions.builder().build(),
 				Mockito.mock(Scheduler.class),
-				timestamp -> {
-				},
+				Functions.noOpLongConsumer(),
 				null
 			)
 		) {
@@ -650,7 +651,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					),
 					replaceTimeStamps(
 						catalog.getCatalogVersionDescriptors(versions)
-							.map(CatalogVersionDescriptor::toString)
+							.map(WriteAheadLogVersionDescriptor::toString)
 							.collect(Collectors.joining("\n"))
 					)
 				);
@@ -711,8 +712,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						replaceLag(
 							catalog.getCatalogVersionDescriptors(versions)
 								.flatMap(
-									it -> Arrays.stream(it.transactionChanges())
-										.sorted(Comparator.comparingLong(TransactionChanges::catalogVersion).reversed())
+									it -> Arrays.stream((CatalogTransactionChanges[])it.transactionChanges().getTransactionChanges())
+										.sorted(Comparator.comparingLong(CatalogTransactionChanges::catalogVersion).reversed())
 										.map(x -> x.toString(it.processedTimestamp()))
 								)
 								.collect(Collectors.joining("\n"))
@@ -743,7 +744,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					),
 					replaceTimeStamps(
 						catalog.getCatalogVersionDescriptors(prevVersions)
-							.map(CatalogVersionDescriptor::toString)
+							.map(WriteAheadLogVersionDescriptor::toString)
 							.collect(Collectors.joining("\n"))
 					)
 				);
@@ -769,7 +770,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					),
 					replaceTimeStamps(
 						catalog.getCatalogVersionDescriptors(prevPrevVersions)
-							.map(CatalogVersionDescriptor::toString)
+							.map(WriteAheadLogVersionDescriptor::toString)
 							.collect(Collectors.joining("\n"))
 					)
 				);

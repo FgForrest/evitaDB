@@ -29,6 +29,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.CatalogState;
 import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
@@ -106,7 +107,7 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 			final long walStartingPosition = input.readVarLong(true);
 			final int walRecordLength = input.readVarInt(true);
 			walFileReference = new WalFileReference(
-				catalogName,
+				newIndex -> CatalogPersistenceService.getWalFileName(catalogName, newIndex),
 				walFileIndex,
 				new FileLocation(walStartingPosition, walRecordLength)
 			);

@@ -44,6 +44,7 @@ import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.service.KryoFactory;
+import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
@@ -118,7 +119,9 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 
 		try (
 			final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
-				1, catalogName, catalogFilePath, catalogKryoPool,
+				1,
+				catalogName, index -> CatalogPersistenceService.getWalFileName(catalogName, index),
+				catalogFilePath, catalogKryoPool,
 				storageOptions, transactionOptions,
 				new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
 				0
@@ -196,7 +199,9 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 		final CatalogHeader catalogHeader = catalogHeaderRef.get();
 		try (
 			final CatalogWriteAheadLog wal = createWalIfAnyWalFilePresent(
-				catalogHeader.version(), catalogName, storageOptions, transactionOptions, new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
+				catalogHeader.version(), catalogName,
+				index -> CatalogPersistenceService.getWalFileName(catalogName, index),
+				storageOptions, transactionOptions, new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
 				position -> System.out.println("Trim attempted: " + position),
 				() -> firstActiveCatalogVersion -> System.out.println("Purge attempted: " + firstActiveCatalogVersion),
 				catalogFilePath, catalogKryoPool

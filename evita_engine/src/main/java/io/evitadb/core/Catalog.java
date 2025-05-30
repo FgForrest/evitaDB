@@ -72,8 +72,8 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
-import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
+import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.EntityCollection.EntityCollectionHeaderWithCollection;
@@ -878,7 +878,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				transactionMutation -> {
 					final long start = System.nanoTime();
 					final Catalog catalog = this.transactionManager.processWriteAheadLog(
-						transactionMutation.getCatalogVersion(), Long.MAX_VALUE, false
+						transactionMutation.getVersion(), Long.MAX_VALUE, false
 					);
 					this.persistenceService.purgeAllObsoleteFiles();
 					log.info("WAL of `{}` catalog was processed in {}.", this.getName(), StringUtils.formatNano(System.nanoTime() - start));
@@ -904,7 +904,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Nonnull
 	@Override
-	public Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
+	public Stream<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
 		return this.persistenceService.getCatalogVersionDescriptors(catalogVersion);
 	}
 

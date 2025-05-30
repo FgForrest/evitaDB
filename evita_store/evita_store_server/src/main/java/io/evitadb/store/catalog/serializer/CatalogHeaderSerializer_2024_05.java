@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.CatalogState;
 import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
@@ -64,7 +65,7 @@ public class CatalogHeaderSerializer_2024_05 extends AbstractPersistentStorageHe
 			final long walStartingPosition = input.readVarLong(true);
 			final int walRecordLength = input.readVarInt(true);
 			walFileReference = new WalFileReference(
-				catalogName,
+				newIndex -> CatalogPersistenceService.getWalFileName(catalogName, newIndex),
 				walFileIndex,
 				new FileLocation(walStartingPosition, walRecordLength)
 			);

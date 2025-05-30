@@ -227,13 +227,13 @@ public class TransactionManager {
 			transaction,
 			() -> {
 				try {
-					log.debug("Materializing catalog version: {}", lastTransactionMutation.getCatalogVersion());
+					log.debug("Materializing catalog version: {}", lastTransactionMutation.getVersion());
 					return transactionHandler.commitCatalogChanges(
-						lastTransactionMutation.getCatalogVersion(),
+						lastTransactionMutation.getVersion(),
 						lastTransactionMutation
 					);
 				} catch (RuntimeException ex) {
-					log.error("Error while committing transaction: " + lastTransactionMutation.getCatalogVersion() + ".", ex);
+					log.error("Error while committing transaction: " + lastTransactionMutation.getVersion() + ".", ex);
 					throw ex;
 				}
 			}
@@ -251,7 +251,7 @@ public class TransactionManager {
 	) {
 		return System.currentTimeMillis() - start < timeoutMs &&
 			// and the next transaction is fully written by previous stage
-			latestCatalog.getLastCatalogVersionInMutationStream() > lastTransaction.getCatalogVersion();
+			latestCatalog.getLastCatalogVersionInMutationStream() > lastTransaction.getVersion();
 	}
 
 	public TransactionManager(
@@ -592,9 +592,9 @@ public class TransactionManager {
 			if (this.walAppendingLock.tryLock(0, TimeUnit.MILLISECONDS)) {
 				final long theLastWrittenCatalogVersion = this.lastWrittenCatalogVersion.get();
 				Assert.isPremiseValid(
-					theLastWrittenCatalogVersion <= 0 || theLastWrittenCatalogVersion + 1 == transactionMutation.getCatalogVersion(),
+					theLastWrittenCatalogVersion <= 0 || theLastWrittenCatalogVersion + 1 == transactionMutation.getVersion(),
 					"Transaction cannot be written to the WAL out of order. " +
-						"Expected version " + (theLastWrittenCatalogVersion + 1) + ", got " + transactionMutation.getCatalogVersion() + "."
+						"Expected version " + (theLastWrittenCatalogVersion + 1) + ", got " + transactionMutation.getVersion() + "."
 				);
 				return getLivingCatalog()
 					.appendWalAndDiscard(
@@ -670,15 +670,15 @@ public class TransactionManager {
 							Mutation leadingMutation = mutationIterator.next();
 							// the first mutation of the transaction bulk must be transaction mutation
 							Assert.isPremiseValid(leadingMutation instanceof TransactionMutation, "First mutation must be transaction mutation!");
-							firstTransactionId = firstTransactionId == -1 ? ((TransactionMutation) leadingMutation).getCatalogVersion() : firstTransactionId;
+							firstTransactionId = firstTransactionId == -1 ? ((TransactionMutation) leadingMutation).getVersion() : firstTransactionId;
 
 							final TransactionMutation transactionMutation = (TransactionMutation) leadingMutation;
 							long finalNextExpectedCatalogVersion = nextExpectedCatalogVersion;
 							Assert.isPremiseValid(
-								transactionMutation.getCatalogVersion() == nextExpectedCatalogVersion,
+								transactionMutation.getVersion() == nextExpectedCatalogVersion,
 								() -> new GenericEvitaInternalError(
 									"Unexpected catalog version! " +
-										"Transaction mutation catalog version: " + transactionMutation.getCatalogVersion() + ", " +
+										"Transaction mutation catalog version: " + transactionMutation.getVersion() + ", " +
 										"last finalized catalog version: " + finalNextExpectedCatalogVersion + "."
 								)
 
@@ -708,7 +708,7 @@ public class TransactionManager {
 							mutationIterator.hasNext() &&
 								(
 									// we haven't reached expected version
-									lastTransactionMutation.getCatalogVersion() < nextCatalogVersion ||
+									lastTransactionMutation.getVersion() < nextCatalogVersion ||
 										// there is another transaction waiting and we still have a time
 										thereIsEnoughDataAndTime(timeoutMs, start, latestCatalog, lastTransactionMutation)
 								)
@@ -725,11 +725,11 @@ public class TransactionManager {
 					newCatalog = commitChangesToSharedCatalog(lastTransactionMutation, lastTransaction, transactionHandler);
 					updateLastFinalizedCatalog(
 						newCatalog,
-						lastTransactionMutation.getCatalogVersion(),
+						lastTransactionMutation.getVersion(),
 						newCatalog.getSchema().version() - this.lastCatalogSchemaVersion.get()
 					);
 
-					log.debug("Finalizing catalog: {}", lastTransactionMutation.getCatalogVersion());
+					log.debug("Finalizing catalog: {}", lastTransactionMutation.getVersion());
 
 				} catch (RuntimeException ex) {
 					// we need to forget about the data written to disk, but not yet propagated to indexes (volatile data)
@@ -923,7 +923,7 @@ public class TransactionManager {
 			transaction,
 			() -> {
 				final Catalog lastFinalizedCatalog = getLastFinalizedCatalog();
-				lastFinalizedCatalog.setVersion(transactionMutation.getCatalogVersion());
+				lastFinalizedCatalog.setVersion(transactionMutation.getVersion());
 				this.changeObserver.processMutation(transactionMutation);
 				// init mutation counter
 				int atomicMutationCount = 0;

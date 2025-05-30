@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ public class TransactionMutationSerializer extends Serializer<TransactionMutatio
 	public void write(Kryo kryo, Output output, TransactionMutation object) {
 		output.writeLong(object.getTransactionId().getMostSignificantBits());
 		output.writeLong(object.getTransactionId().getLeastSignificantBits());
-		output.writeLong(object.getCatalogVersion());
+		output.writeLong(object.getVersion());
 		output.writeInt(object.getMutationCount());
 		output.writeLong(object.getWalSizeInBytes());
 		kryo.writeObject(output, object.getCommitTimestamp());

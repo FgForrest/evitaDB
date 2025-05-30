@@ -52,9 +52,9 @@ public non-sealed class TransactionMutation implements Mutation {
 	 */
 	@Getter private final UUID transactionId;
 	/**
-	 * Represents the catalog version the transaction is based on.
+	 * Represents the version the transaction is based on.
 	 */
-	@Getter private final long catalogVersion;
+	@Getter private final long version;
 	/**
 	 * Represents the number of mutations in this particular transaction.
 	 */
@@ -70,13 +70,13 @@ public non-sealed class TransactionMutation implements Mutation {
 
 	public TransactionMutation(
 		@Nonnull UUID transactionId,
-		long catalogVersion,
+		long version,
 		int mutationCount,
 		long walSizeInBytes,
 		@Nonnull OffsetDateTime commitTimestamp
 	) {
 		this.transactionId = transactionId;
-		this.catalogVersion = catalogVersion;
+		this.version = version;
 		this.mutationCount = mutationCount;
 		this.walSizeInBytes = walSizeInBytes;
 		this.commitTimestamp = commitTimestamp;
@@ -96,7 +96,7 @@ public non-sealed class TransactionMutation implements Mutation {
 	) {
 		if (predicate.test(this)) {
 			final MutationPredicateContext context = predicate.getContext();
-			context.setVersion(this.catalogVersion, this.mutationCount);
+			context.setVersion(this.version, this.mutationCount);
 
 			return Stream.of(
 				ChangeCatalogCapture.infrastructureCapture(context, operation(), content == ChangeCaptureContent.BODY ? this : null)
@@ -108,6 +108,6 @@ public non-sealed class TransactionMutation implements Mutation {
 
 	@Override
 	public String toString() {
-		return "transaction commit `" + this.transactionId + "` (moves catalog to version `" + this.catalogVersion + "`)";
+		return "transaction commit `" + this.transactionId + "` (moves catalog to version `" + this.version + "`)";
 	}
 }

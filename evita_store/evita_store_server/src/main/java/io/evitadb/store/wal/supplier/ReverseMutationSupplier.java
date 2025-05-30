@@ -38,6 +38,7 @@ import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.IntFunction;
 
 /**
  * This class is used to supply Mutation objects from a Write-Ahead Log (WAL) file in reverse order.
@@ -48,7 +49,7 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 
 	public ReverseMutationSupplier(
 		long catalogVersion,
-		@Nonnull String catalogName,
+		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageOptions storageOptions,
 		int walFileIndex,
@@ -57,7 +58,7 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 		@Nullable Runnable onClose
 	) {
 		super(
-			catalogVersion, catalogName, catalogStoragePath, storageOptions,
+			catalogVersion, walFileNameProvider, catalogStoragePath, storageOptions,
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
 			false, onClose
 		);
@@ -156,7 +157,7 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 				return null;
 			}
 		}
-		final long previousCatalogVersion = currentTxMutation.getCatalogVersion() - 1;
+		final long previousCatalogVersion = currentTxMutation.getVersion() - 1;
 		this.filePosition = this.transactionLocationsCache.computeIfAbsent(
 			this.walFileIndex,
 			(index) -> new TransactionLocations()
@@ -176,7 +177,7 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 		while (
 			examinedTxMutation
 				.map(
-					it -> it.getCatalogVersion() < previousCatalogVersion &&
+					it -> it.getVersion() < previousCatalogVersion &&
 						this.filePosition + it.getTransactionSpan().recordLength() + CatalogWriteAheadLog.WAL_TAIL_LENGTH < walFileLength)
 				.orElse(false)
 		) {
@@ -192,7 +193,7 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 			}
 		}
 		return examinedTxMutation
-			.filter(it -> it.getCatalogVersion() == previousCatalogVersion)
+			.filter(it -> it.getVersion() == previousCatalogVersion)
 			.orElse(null);
 	}
 

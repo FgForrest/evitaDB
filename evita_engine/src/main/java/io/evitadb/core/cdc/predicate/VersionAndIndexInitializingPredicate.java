@@ -45,7 +45,7 @@ public class VersionAndIndexInitializingPredicate extends MutationPredicate {
 	@Override
 	public boolean test(Mutation mutation) {
 		if (mutation instanceof TransactionMutation transactionMutation) {
-			this.context.setVersion(transactionMutation.getCatalogVersion(), transactionMutation.getMutationCount());
+			this.context.setVersion(transactionMutation.getVersion(), transactionMutation.getMutationCount());
 		} else {
 			this.context.advance();
 		}

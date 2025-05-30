@@ -48,9 +48,9 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
-import static io.evitadb.store.spi.CatalogPersistenceService.getWalFileName;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -72,13 +72,13 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 	 */
 	protected final Kryo kryo;
 	/**
-	 * The name of the catalog.
+	 * The function that provides the name of the WAL file based on the index.
 	 */
-	protected final String catalogName;
+	protected final IntFunction<String> walFileNameProvider;
 	/**
-	 * Path to the catalog storage folder where the WAL file is stored.
+	 * Path to the storage folder where the WAL file is stored.
 	 */
-	protected final Path catalogStoragePath;
+	protected final Path storageFolder;
 	/**
 	 * The storage options from evita configuration.
 	 */
@@ -129,8 +129,8 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 
 	public AbstractMutationSupplier(
 		long catalogVersion,
-		@Nonnull String catalogName,
-		@Nonnull Path catalogStoragePath,
+		@Nonnull IntFunction<String> walFileNameProvider,
+		@Nonnull Path storageFolder,
 		@Nonnull StorageOptions storageOptions,
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
@@ -138,10 +138,10 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 		boolean avoidPartiallyFilledBuffer,
 		@Nullable Runnable onClose
 	) {
-		this.walFile = catalogStoragePath.resolve(getWalFileName(catalogName, walFileIndex)).toFile();
+		this.walFile = storageFolder.resolve(walFileNameProvider.apply(walFileIndex)).toFile();
 		this.walFileIndex = walFileIndex;
-		this.catalogName = catalogName;
-		this.catalogStoragePath = catalogStoragePath;
+		this.walFileNameProvider = walFileNameProvider;
+		this.storageFolder = storageFolder;
 		this.storageOptions = storageOptions;
 		this.transactionLocationsCache = transactionLocationsCache;
 		this.avoidPartiallyFilledBuffer = avoidPartiallyFilledBuffer;
@@ -179,7 +179,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 					final long walFileLength = this.walFile.length();
 					initialTransactionMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
 					// move cursor to the end of the lead mutation
-					while (initialTransactionMutation.map(it -> it.getCatalogVersion() < catalogVersion).orElse(false)) {
+					while (initialTransactionMutation.map(it -> it.getVersion() < catalogVersion).orElse(false)) {
 						// move cursor to the next transaction mutation
 						this.filePosition += initialTransactionMutation.get().getTransactionSpan().recordLength();
 						this.observableInput.seekWithUnknownLength(this.filePosition);
@@ -192,7 +192,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 						}
 					}
 				} while (
-					initialTransactionMutation.isPresent() &&
+					initialTransactionMutation.isEmpty() &&
 						// if we've reached EOF, check whether there is file with next WAL index
 						moveToNextWalFile(1)
 				);
@@ -241,8 +241,8 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 			this.observableInput.close();
 		}
 
-		final File nextWalFile = this.catalogStoragePath.resolve(
-			getWalFileName(this.catalogName, this.walFileIndex + delta)
+		final File nextWalFile = this.storageFolder.resolve(
+			this.walFileNameProvider.apply(this.walFileIndex + delta)
 		).toFile();
 
 		if (nextWalFile.exists()) {

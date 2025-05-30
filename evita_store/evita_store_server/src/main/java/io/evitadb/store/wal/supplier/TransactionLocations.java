@@ -114,12 +114,12 @@ public class TransactionLocations {
 		if (this.lock.tryLock()) {
 			try {
 				final boolean canBeAppended = ofNullable(this.locations.getLast())
-					.map(it -> it.catalogVersion() + 1 == transactionMutation.getCatalogVersion())
+					.map(it -> it.catalogVersion() + 1 == transactionMutation.getVersion())
 					.orElse(true);
 				if (canBeAppended) {
 					this.locations.add(
 						new TransactionLocation(
-							transactionMutation.getCatalogVersion(),
+							transactionMutation.getVersion(),
 							startPosition,
 							transactionMutation.getMutationCount(),
 							transactionMutation.getWalSizeInBytes()

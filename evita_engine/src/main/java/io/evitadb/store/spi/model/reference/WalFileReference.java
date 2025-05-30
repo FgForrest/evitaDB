@@ -24,22 +24,22 @@
 package io.evitadb.store.spi.model.reference;
 
 import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.model.CatalogVariableContentFileReference;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
+import java.util.function.IntFunction;
 
 /**
  * A class representing a reference to a WAL (Write-Ahead Log) file.
  *
- * @param catalogName    The name of the catalog.
- * @param fileIndex      The index of the WAL file incremented each time the WAL file is rotated.
- * @param fileLocation   The location of the last processed transaction of the WAL file.
+ * @param walFileNameProvider Lambda function that provides the name of the WAL file based on the file index.
+ * @param fileIndex           The index of the WAL file incremented each time the WAL file is rotated.
+ * @param fileLocation        The location of the last processed transaction of the WAL file.
  */
 public record WalFileReference(
-	@Nonnull String catalogName,
+	@Nonnull IntFunction<String> walFileNameProvider,
 	int fileIndex,
 	@Nullable FileLocation fileLocation
 ) implements CatalogVariableContentFileReference {
@@ -48,14 +48,14 @@ public record WalFileReference(
 	@Nonnull
 	public Path toFilePath(@Nonnull Path catalogFolder) {
 		return catalogFolder.resolve(
-			CatalogPersistenceService.getWalFileName(this.catalogName, this.fileIndex)
+			this.walFileNameProvider.apply(this.fileIndex)
 		);
 	}
 
 	@Override
 	@Nonnull
 	public WalFileReference incrementAndGet() {
-		return new WalFileReference(this.catalogName, this.fileIndex + 1, null);
+		return new WalFileReference(this.walFileNameProvider, this.fileIndex + 1, null);
 	}
 
 }

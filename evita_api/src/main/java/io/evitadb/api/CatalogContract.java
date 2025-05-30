@@ -43,8 +43,8 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
-import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
+import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.dataType.PaginatedList;
@@ -305,16 +305,16 @@ public interface CatalogContract {
 	PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
 
 	/**
-	 * Returns a stream of {@link CatalogVersionDescriptor} instances for the given catalog versions. Descriptors will
+	 * Returns a stream of {@link WriteAheadLogVersionDescriptor} instances for the given catalog versions. Descriptors will
 	 * be ordered the same way as the input catalog versions, but may be missing some versions if they are not known in
 	 * history. Creating a descriptor could be an expensive operation, so it's recommended to stream changes to clients
 	 * gradually as the stream provides the data.
 	 *
 	 * @param catalogVersion the catalog versions to get descriptors for
-	 * @return a stream of {@link CatalogVersionDescriptor} instances
+	 * @return a stream of {@link WriteAheadLogVersionDescriptor} instances
 	 */
 	@Nonnull
-	Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
+	Stream<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition

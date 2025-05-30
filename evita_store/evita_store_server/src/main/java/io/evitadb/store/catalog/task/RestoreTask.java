@@ -34,6 +34,7 @@ import io.evitadb.store.catalog.task.RestoreTask.RestoreSettings;
 import io.evitadb.store.catalog.task.stream.CountingInputStream;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory.FileIdCarrier;
+import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -90,7 +91,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 				catalogName, Integer.parseInt(matcher.group(1))
 			);
 		} else if (entryName.endsWith(CatalogPersistenceService.WAL_FILE_SUFFIX)) {
-			final int walIndex = CatalogPersistenceService.getIndexFromWalFileName(originalCatalogName, fileName);
+			final int walIndex = CatalogWriteAheadLog.getIndexFromWalFileName(fileName);
 			return CatalogPersistenceService.getWalFileName(catalogName, walIndex);
 		} else {
 			return fileName;

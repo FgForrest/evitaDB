@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,6 +45,11 @@ public class WalStatisticsEvent extends AbstractWalStatisticsEvent {
 
 	public WalStatisticsEvent(@Nonnull String catalogName, @Nullable OffsetDateTime oldestWalEntry) {
 		super(catalogName);
+		this.oldestWalEntryTimestampSeconds = oldestWalEntry == null ? 0 : oldestWalEntry.toEpochSecond();
+	}
+
+	public WalStatisticsEvent(@Nullable OffsetDateTime oldestWalEntry) {
+		super();
 		this.oldestWalEntryTimestampSeconds = oldestWalEntry == null ? 0 : oldestWalEntry.toEpochSecond();
 	}
 

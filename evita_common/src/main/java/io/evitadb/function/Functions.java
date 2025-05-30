@@ -28,6 +28,7 @@ import javax.annotation.Nonnull;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 /**
  * This interface provides utility methods for functional programming constructs.
@@ -86,5 +87,18 @@ public interface Functions {
 	@Nonnull
 	static <T, U> BiConsumer<T, U> noOpBiConsumer() {
 		return (t, u) -> {};
+	}
+
+	/**
+	 * Returns a no-operation LongConsumer that accepts a long value but performs no action.
+	 * This is useful in scenarios where a LongConsumer is required by an API but no action needs to be performed,
+	 * avoiding the need to create anonymous implementations or lambda expressions for such cases.
+	 *
+	 * @return a LongConsumer that performs no operation
+	 */
+	static LongConsumer noOpLongConsumer() {
+		return l -> {
+			// no operation performed
+		};
 	}
 }

@@ -27,12 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
-import io.evitadb.api.exception.InvalidMutationException;
-import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
-import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.async.DelayedAsyncTask;
@@ -42,12 +37,9 @@ import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.transaction.WalCacheSizeChangedEvent;
 import io.evitadb.core.metric.event.transaction.WalRotationEvent;
 import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
-import io.evitadb.store.wal.requestResponse.CatalogTransactionChangesContainer;
-import io.evitadb.store.wal.requestResponse.CatalogTransactionChangesContainer.CatalogTransactionChanges;
-import io.evitadb.store.wal.requestResponse.EntityCollectionChanges;
+import io.evitadb.store.wal.requestResponse.EngineTransactionChangesContainer;
+import io.evitadb.store.wal.requestResponse.EngineTransactionChangesContainer.EngineTransactionChanges;
 import io.evitadb.store.wal.supplier.MutationSupplier;
-import io.evitadb.utils.CollectionUtils;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -56,9 +48,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
@@ -78,49 +68,34 @@ import java.util.function.LongSupplier;
  */
 @Slf4j
 @NotThreadSafe
-public class CatalogWriteAheadLog extends AbstractWriteAheadLog {
-	/**
-	 * The name of the catalog.
-	 */
-	private final String catalogName;
+public class EngineWriteAheadLog extends AbstractWriteAheadLog {
 
 	/**
-	 * Creates a new instance of CatalogTransactionChanges based on the given parameters.
+	 * Creates an instance of {@link EngineTransactionChanges} to describe transaction changes based on the provided mutation details
+	 * and a description of changes.
 	 *
-	 * @param txMutation           the transaction mutation.
-	 * @param catalogSchemaChanges the number of catalog schema changes.
-	 * @param aggregations         the map of entity collection changes.
-	 * @return a new instance of CatalogTransactionChanges.
+	 * @param txMutation the mutation details of the transaction, including version, commit timestamp, mutation count, and size
+	 * @param changes    a description of the changes that occurred in the transaction
+	 * @return an instance of {@link EngineTransactionChanges} containing the details of the transaction changes
 	 */
 	@Nonnull
-	private static CatalogTransactionChanges createTransactionChanges(
+	private static EngineTransactionChanges createEngineTransactionChanges(
 		@Nonnull TransactionMutation txMutation,
-		int catalogSchemaChanges,
-		@Nonnull Map<String, EntityCollectionChangesTriple> aggregations
+		@Nonnull String changes
 	) {
-		return new CatalogTransactionChanges(
+		return new EngineTransactionChanges(
 			txMutation.getVersion(),
 			txMutation.getCommitTimestamp(),
-			catalogSchemaChanges,
 			txMutation.getMutationCount(),
 			txMutation.getWalSizeInBytes(),
-			aggregations.entrySet().stream()
-			            .map(
-				            it -> new EntityCollectionChanges(
-					            it.getKey(),
-					            it.getValue().getSchemaChanges(),
-					            it.getValue().getUpserted(),
-					            it.getValue().getRemoved()
-				            )
-			            )
-			            .sorted(Comparator.comparing(EntityCollectionChanges::entityName))
-			            .toArray(EntityCollectionChanges[]::new)
+			new String[]{
+				changes
+			}
 		);
 	}
 
-	public CatalogWriteAheadLog(
+	public EngineWriteAheadLog(
 		long catalogVersion,
-		@Nullable String catalogName,
 		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path storageFolder,
 		@Nonnull Pool<Kryo> kryoPool,
@@ -141,15 +116,13 @@ public class CatalogWriteAheadLog extends AbstractWriteAheadLog {
 			bootstrapFileTrimmer,
 			onWalPurgeCallback
 		);
-		this.catalogName = catalogName;
 	}
 
 	/**
 	 * Constructor for internal use only. It is used to create a new WAL file with the given parameters.
 	 */
-	public CatalogWriteAheadLog(
+	public EngineWriteAheadLog(
 		long catalogVersion,
-		@Nullable String catalogName,
 		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path storageFolder,
 		@Nonnull Pool<Kryo> kryoPool,
@@ -168,7 +141,6 @@ public class CatalogWriteAheadLog extends AbstractWriteAheadLog {
 			scheduler,
 			walFileIndex
 		);
-		this.catalogName = catalogName;
 	}
 
 	/**
@@ -196,59 +168,56 @@ public class CatalogWriteAheadLog extends AbstractWriteAheadLog {
 			if (txMutation == null) {
 				return null;
 			} else {
-				final List<CatalogTransactionChanges> txChanges = new ArrayList<>(Math.toIntExact(version - previousKnownVersion));
-				final Map<String, EntityCollectionChangesTriple> aggregations = CollectionUtils.createHashMap(16);
-				int catalogSchemaChanges = 0;
+				final List<EngineTransactionChanges> txChanges = new ArrayList<>(Math.toIntExact(version - previousKnownVersion));
+				final StringBuilder changes = new StringBuilder(256);
 				while (txMutation != null) {
 					final Mutation nextMutation = supplier.get();
 					if (nextMutation instanceof TransactionMutation anotherTxMutation) {
 						txChanges.add(
-							createTransactionChanges(txMutation, catalogSchemaChanges, aggregations)
+							createEngineTransactionChanges(txMutation, changes.toString())
 						);
 						if (anotherTxMutation.getVersion() == version + 1) {
 							txMutation = null;
 						} else {
 							txMutation = anotherTxMutation;
-							aggregations.clear();
-							catalogSchemaChanges = 0;
+							changes.setLength(0);
 						}
 					} else if (nextMutation == null) {
 						txChanges.add(
-							createTransactionChanges(txMutation, catalogSchemaChanges, aggregations)
+							createEngineTransactionChanges(txMutation, changes.toString())
 						);
 						txMutation = null;
 					} else {
-						if (nextMutation instanceof ModifyEntitySchemaMutation schemaMutation) {
-							aggregations
-								.computeIfAbsent(schemaMutation.getEntityType(), s -> new EntityCollectionChangesTriple())
-								.recordSchemaChange();
-						} else if (nextMutation instanceof LocalCatalogSchemaMutation) {
-							catalogSchemaChanges++;
-						} else if (nextMutation instanceof EntityUpsertMutation entityMutation) {
-							aggregations
-								.computeIfAbsent(entityMutation.getEntityType(), s -> new EntityCollectionChangesTriple())
-								.recordUpsert();
-						} else if (nextMutation instanceof EntityRemoveMutation entityMutation) {
-							aggregations
-								.computeIfAbsent(entityMutation.getEntityType(), s -> new EntityCollectionChangesTriple())
-								.recordRemoval();
-						} else {
-							throw new InvalidMutationException(
-								"Unexpected mutation type: " + nextMutation.getClass().getName(),
-								"Unexpected mutation type."
-							);
-						}
+						changes.append(nextMutation);
+
 					}
 				}
 				return new WriteAheadLogVersionDescriptor(
 					version,
 					introducedAt,
-					new CatalogTransactionChangesContainer(
-						txChanges.toArray(CatalogTransactionChanges[]::new)
+					new EngineTransactionChangesContainer(
+						txChanges.toArray(EngineTransactionChanges[]::new)
 					)
 				);
 			}
 		}
+	}
+
+	@Override
+	protected void emitWalStatisticsEvent(@Nonnull OffsetDateTime commitTimestamp) {
+		new WalStatisticsEvent(commitTimestamp).commit();
+	}
+
+	@Nonnull
+	@Override
+	protected WalRotationEvent createWalRotationEvent() {
+		return new WalRotationEvent();
+	}
+
+	@Override
+	protected void emitCacheSizeEvent(int cacheSize) {
+		// emit the event
+		new WalCacheSizeChangedEvent(cacheSize).commit();
 	}
 
 	@Override
@@ -259,7 +228,7 @@ public class CatalogWriteAheadLog extends AbstractWriteAheadLog {
 		long intervalInMillis
 	) {
 		return new DelayedAsyncTask(
-			this.catalogName, "WAL cache cutter",
+			null, "WAL cache cutter",
 			scheduler,
 			this::cutWalCache,
 			CUT_WAL_CACHE_AFTER_INACTIVITY_MS, TimeUnit.MILLISECONDS
@@ -270,71 +239,9 @@ public class CatalogWriteAheadLog extends AbstractWriteAheadLog {
 	@Override
 	protected DataFileCompactEvent createDataFileCompactEvent() {
 		return new DataFileCompactEvent(
-			this.catalogName,
 			FileType.WAL,
 			FileType.WAL.name()
 		);
-	}
-
-	@Override
-	protected void emitWalStatisticsEvent(@Nonnull OffsetDateTime commitTimestamp) {
-		new WalStatisticsEvent(this.catalogName, commitTimestamp).commit();
-	}
-
-	@Nonnull
-	@Override
-	protected WalRotationEvent createWalRotationEvent() {
-		return new WalRotationEvent(this.catalogName);
-	}
-
-	@Override
-	protected void emitCacheSizeEvent(int cacheSize) {
-		// emit the event
-		new WalCacheSizeChangedEvent(
-			this.catalogName,
-			cacheSize
-		).commit();
-	}
-
-	/**
-	 * Represents a triplet of recorded changes in an entity collection.
-	 */
-	@Getter
-	private static class EntityCollectionChangesTriple {
-		/**
-		 * The number of schema mutations.
-		 */
-		private int schemaChanges;
-		/**
-		 * The number of upserted entities.
-		 */
-		private int upserted;
-		/**
-		 * The number of removed entities.
-		 */
-		private int removed;
-
-		/**
-		 * Increments the count of upserted entities in the entity collection changes.
-		 */
-		public void recordUpsert() {
-			this.upserted++;
-		}
-
-		/**
-		 * Records the removal of an entity in the entity collection changes.
-		 */
-		public void recordRemoval() {
-			this.removed++;
-		}
-
-		/**
-		 * Increments the count of schema changes in the entity collection changes.
-		 */
-		public void recordSchemaChange() {
-			this.schemaChanges++;
-		}
-
 	}
 
 }

@@ -32,8 +32,8 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
-import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
 import io.evitadb.api.requestResponse.system.TimeFlow;
+import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
@@ -188,19 +188,6 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	@Nonnull
 	static String getWalFileName(@Nonnull String catalogName, int fileIndex) {
 		return catalogName + '_' + fileIndex + WAL_FILE_SUFFIX;
-	}
-
-	/**
-	 * Returns the index extracted from the given Write-Ahead-Log file name.
-	 *
-	 * @param catalogName the name of the catalog
-	 * @param walFileName the name of the WAL file
-	 * @return the index extracted from the WAL file name
-	 */
-	static int getIndexFromWalFileName(@Nonnull String catalogName, @Nonnull String walFileName) {
-		return Integer.parseInt(
-			walFileName.substring(catalogName.length() + 1, walFileName.length() - WAL_FILE_SUFFIX.length())
-		);
 	}
 
 	/**
@@ -479,16 +466,16 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
 
 	/**
-	 * Returns a stream of {@link CatalogVersionDescriptor} instances for the given catalog versions. Descriptors will
+	 * Returns a stream of {@link WriteAheadLogVersionDescriptor} instances for the given catalog versions. Descriptors will
 	 * be ordered the same way as the input catalog versions, but may be missing some versions if they are not known in
 	 * history. Creating a descriptor could be an expensive operation, so it's recommended to stream changes to clients
 	 * gradually as the stream provides the data.
 	 *
 	 * @param catalogVersion the catalog versions to get descriptors for
-	 * @return a stream of {@link CatalogVersionDescriptor} instances
+	 * @return a stream of {@link WriteAheadLogVersionDescriptor} instances
 	 */
 	@Nonnull
-	Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
+	Stream<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
 
 	/**
 	 * Method deletes all files in catalog folder which are not mentioned in the catalog header of currently used
