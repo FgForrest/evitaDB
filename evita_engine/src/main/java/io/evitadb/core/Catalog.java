@@ -1208,7 +1208,6 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				commitProgress
 			);
 		} catch (Exception e) {
-			this.transactionManager.invalidateTransactionalPublisher();
 			if (e.getCause() instanceof TransactionException txException) {
 				throw txException;
 			} else {

@@ -56,6 +56,7 @@ import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This test verifies that data stored in older versions of evitaDB are still readable by the current version.
@@ -88,12 +89,17 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 
 			targetDirectory.toFile().mkdirs();
 			// first download the file from https://evitadb.io/test/evita-demo-dataset_2024.5.zip to tmp folder and unzip it
+			final Path targetZipFile = targetDirectory.resolve(fileName);
 			try (final InputStream is = new URL("https://evitadb.io/download/test/" + fileName).openStream()) {
-				Files.copy(is, targetDirectory.resolve(fileName), StandardCopyOption.REPLACE_EXISTING);
+				Files.copy(is, targetZipFile, StandardCopyOption.REPLACE_EXISTING);
 			}
+
+			assertTrue(targetZipFile.toFile().exists(), "File " + fileName + " does not exist!");
+			assertTrue(targetZipFile.toFile().length() > 0, "File " + fileName + " is empty!");
+
 			// unzip the file
 			try (
-				final InputStream is = Files.newInputStream(targetDirectory.resolve(fileName));
+				final InputStream is = Files.newInputStream(targetZipFile);
 				final ZipInputStream zis = new ZipInputStream(is)
 			) {
 				ZipEntry zipEntry = zis.getNextEntry();

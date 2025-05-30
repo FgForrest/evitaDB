@@ -48,6 +48,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -444,6 +445,7 @@ public class OffsetIndexSerializationService {
 	) {
 		// this set holds all record keys that were removed
 		final Set<RecordKey> removedEntries = new HashSet<>(16_384);
+		final Map<RecordKey, FileLocation> fragmentRecords = new HashMap<>(16_384);
 		// this variable holds location of the previous mem table fragment
 		final AtomicReference<FileLocation> fileOffsetIndexFragmentLocation = new AtomicReference<>(fileLocation);
 		boolean head = true;
@@ -488,17 +490,24 @@ public class OffsetIndexSerializationService {
 								new RecordKey((byte) (recordType * -1), primaryKey)
 							);
 						} else {
-							final RecordKey recordKey = new RecordKey(recordType, primaryKey);
-							final boolean wasRemoved = removedEntries.contains(recordKey);
-							final boolean wasUpdated = offsetIndexBuilder.contains(recordKey);
-							if (!wasRemoved && !wasUpdated) {
-								offsetIndexBuilder.register(
-									recordKey,
-									new FileLocation(startingPosition, recordLength)
-								);
-							}
+							fragmentRecords.put(
+								new RecordKey(recordType, primaryKey),
+								new FileLocation(startingPosition, recordLength)
+							);
 						}
 					}
+
+					// finally, when entire fragment is read, we can propagate the data to builder
+					for (Entry<RecordKey, FileLocation> entry : fragmentRecords.entrySet()) {
+						final RecordKey recordKey = entry.getKey();
+						final boolean wasRemoved = removedEntries.contains(recordKey);
+						final boolean wasUpdated = offsetIndexBuilder.contains(recordKey);
+						if (!wasRemoved && !wasUpdated) {
+							offsetIndexBuilder.register(recordKey, entry.getValue());
+						}
+					}
+					// and clear the map for next fragment
+					fragmentRecords.clear();
 
 					return null;
 				});

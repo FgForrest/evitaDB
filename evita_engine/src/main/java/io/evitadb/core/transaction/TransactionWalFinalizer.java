@@ -172,15 +172,14 @@ public class TransactionWalFinalizer implements TransactionHandler {
 			if (cause != null) {
 				this.commitProgress.completeExceptionally(
 					new RollbackException(
-						"Transaction changes have been rolled back due to previous exception.",
+						"Transaction changes have been rolled back due to a previous exception.",
 						cause
 					)
 				);
 			} else {
-				this.commitProgress.complete(
-					new CommitVersions(
-						this.catalog.getVersion(),
-						this.catalog.getSchema().version()
+				this.commitProgress.completeExceptionally(
+					new RollbackException(
+						"Transaction changes have been rolled back on user request."
 					)
 				);
 			}

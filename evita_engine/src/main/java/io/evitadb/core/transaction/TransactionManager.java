@@ -37,13 +37,12 @@ import io.evitadb.core.Transaction;
 import io.evitadb.core.async.DelayedAsyncTask;
 import io.evitadb.core.async.ObservableExecutorService;
 import io.evitadb.core.async.Scheduler;
-import io.evitadb.core.transaction.stage.CatalogSnapshotPropagationTransactionStage;
+import io.evitadb.core.async.SystemObservableExecutorService;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
 import io.evitadb.core.transaction.stage.TransactionTask;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
-import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityRemoveMutation;
@@ -76,7 +75,6 @@ import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
-import static java.util.Optional.ofNullable;
 
 /**
  * Transaction manager is propagated through different versions / instances of the same catalog and is responsible for
@@ -97,17 +95,13 @@ public class TransactionManager {
 	 */
 	private final EvitaConfiguration configuration;
 	/**
-	 * The scheduler service used for scheduling tasks.
-	 */
-	private final Scheduler scheduler;
-	/**
 	 * The executor service used for notifying clients about transaction completion.
 	 */
 	@Getter private final ObservableExecutorService requestExecutor;
 	/**
 	 * The executor used for handling transactional tasks.
 	 */
-	private final ObservableExecutorService transactionalExecutor;
+	private final SystemObservableExecutorService transactionalExecutor;
 	/**
 	 * Lambda function that is called when a new catalog version is available.
 	 */
@@ -131,7 +125,7 @@ public class TransactionManager {
 	 * Java {@link java.util.concurrent.Flow} implementation that allows to process transactional tasks in
 	 * asynchronous reactive manner.
 	 */
-	private final AtomicReference<SubmissionPublisher<ConflictResolutionTransactionTask>> transactionalPipeline = new AtomicReference<>();
+	private final SubmissionPublisher<ConflictResolutionTransactionTask> transactionalPipeline;
 	/**
 	 * Contains the last catalog version appended successfully to the WAL (i.e. {@link #lastAssignedCatalogVersion} that
 	 * finally arrived to WAL file).
@@ -159,10 +153,6 @@ public class TransactionManager {
 	 * emergency situation when some of the tasks was not processed.
 	 */
 	private final DelayedAsyncTask walDrainingTask;
-	/**
-	 * Variable that contains last version to be drained from the WAL by scheduled task if not processed.
-	 */
-	private final AtomicLong versionToDrain = new AtomicLong();
 	/**
 	 * Lock used for conflict resolution.
 	 */
@@ -262,9 +252,9 @@ public class TransactionManager {
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
 	) {
 		this.configuration = configuration;
-		this.scheduler = scheduler;
 		this.requestExecutor = requestExecutor;
-		this.transactionalExecutor = transactionalExecutor;
+		this.transactionalExecutor = new SystemObservableExecutorService("transactionalPipeline", transactionalExecutor);
+		this.transactionalPipeline = createTransactionalPublisher();
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastFinalizedCatalog = new AtomicReference<>(catalog);
 		this.livingCatalog = new AtomicReference<>(catalog);
@@ -288,8 +278,6 @@ public class TransactionManager {
 			this::drainWal,
 			1000, TimeUnit.MILLISECONDS
 		);
-		// init the publisher
-		getTransactionalPublisher();
 	}
 
 	/**
@@ -303,7 +291,12 @@ public class TransactionManager {
 		long timeoutMs,
 		boolean alive
 	) {
-		return processTransactions(nextCatalogVersion, timeoutMs, alive)
+		return processTransactions(
+			nextCatalogVersion,
+			timeoutMs,
+			alive,
+			true // we should obtain lock here easily, since this is called only on catalog instantiation
+		)
 			.map(ProcessResult::catalog)
 			.orElseGet(this.lastFinalizedCatalog::get);
 	}
@@ -317,7 +310,7 @@ public class TransactionManager {
 		@Nonnull IsolatedWalPersistenceService walPersistenceService,
 		@Nonnull CommitProgressRecord commitProgress
 	) {
-		getTransactionalPublisher().offer(
+		this.transactionalPipeline.offer(
 			new ConflictResolutionTransactionTask(
 				getCatalogName(),
 				transactionId,
@@ -328,7 +321,6 @@ public class TransactionManager {
 				commitProgress
 			),
 			(subscriber, task) -> {
-				invalidateTransactionalPublisher();
 				commitProgress.completeExceptionally(
 					new TransactionException(
 						"Conflict resolution transaction queue is full! Transaction cannot be processed at the moment."
@@ -357,33 +349,12 @@ public class TransactionManager {
 	 * In such a situation, the submission publisher is automatically closed and needs to be recreated from scratch.
 	 * This is design decision form the authors of the {@link java.util.concurrent.Flow} API.
 	 */
-	public void invalidateTransactionalPublisher() {
-		synchronized (this.transactionalPipeline) {
-			ofNullable(this.transactionalPipeline.getAndSet(null))
-				.ifPresent(SubmissionPublisher::close);
-		}
-	}
-
-	/**
-	 * This method is called when any of the {@link SubmissionPublisher}
-	 * gets closed - for example due to the exception in the processing of the transactional task. One of the possible
-	 * issues is that the system can't keep up and throws {@link RejectedExecutionException}.
-	 *
-	 * In such a situation, the submission publisher is automatically closed and needs to be recreated from scratch.
-	 * This is design decision form the authors of the {@link java.util.concurrent.Flow} API.
-	 */
-	public void invalidateTransactionalPublisher(@Nonnull TransactionTask task, @Nonnull Throwable ex) {
-		synchronized (this.transactionalPipeline) {
-			ofNullable(this.transactionalPipeline.getAndSet(null))
-				.ifPresent(SubmissionPublisher::close);
-
-			if ((task instanceof WalAppendingTransactionTask && ex.getCause() instanceof RejectedExecutionException) ||
-				task instanceof TrunkIncorporationTransactionTask ||
-				task instanceof UpdatedCatalogTransactionTask
-			) {
-				this.versionToDrain.updateAndGet(operand -> Math.max(operand, task.catalogVersion()));
-				this.walDrainingTask.schedule();
-			}
+	public void retryTransactionProcessing(@Nonnull TransactionTask task, @Nonnull Throwable ex) {
+		if (
+			(task instanceof WalAppendingTransactionTask && ex.getCause() instanceof RejectedExecutionException) ||
+			task instanceof TrunkIncorporationTransactionTask
+		) {
+			this.walDrainingTask.schedule();
 		}
 	}
 
@@ -625,12 +596,20 @@ public class TransactionManager {
 	 * @param nextCatalogVersion The catalog version of the next transaction to be processed at minimum
 	 * @param timeoutMs          The maximum time in milliseconds to process transactions.
 	 * @param alive              Indicates whether to process live transactions or not.
+	 * @param waitForLock        Indicates whether to wait for the trunk incorporation lock.
 	 * @return The processed transaction.
 	 */
 	@Nonnull
-	public Optional<ProcessResult> processTransactions(long nextCatalogVersion, long timeoutMs, boolean alive) {
+	public Optional<ProcessResult> processTransactions(long nextCatalogVersion, long timeoutMs, boolean alive, boolean waitForLock) {
 		try {
-			if (this.trunkIncorporationLock.tryLock(0, TimeUnit.MILLISECONDS)) {
+			final boolean locked;
+			if (waitForLock) {
+				this.trunkIncorporationLock.lock();
+				locked = true;
+			} else {
+				locked = this.trunkIncorporationLock.tryLock(0, TimeUnit.MILLISECONDS);
+			}
+			if (locked) {
 				long firstTransactionId = -1;
 				TransactionMutation lastTransactionMutation;
 				Transaction lastTransaction = null;
@@ -652,7 +631,7 @@ public class TransactionManager {
 					// if the transaction failed we need to replay it again
 					final long readFromVersion = Math.max(lastFinalizedVersion + 1, 2);
 					if (alive) {
-						committedMutationStream = latestCatalog.getCommittedLiveMutationStream(readFromVersion, nextCatalogVersion);
+						committedMutationStream = latestCatalog.getCommittedLiveMutationStream(readFromVersion, this.lastWrittenCatalogVersion.get());
 					} else {
 						committedMutationStream = latestCatalog.getCommittedMutationStream(readFromVersion);
 					}
@@ -698,9 +677,9 @@ public class TransactionManager {
 							lastTransactionMutation = transactionMutation;
 
 							processed.add(transactionMutation.getCommitTimestamp());
-							nextExpectedCatalogVersion = transactionMutation.getCatalogVersion() + 1;
+							nextExpectedCatalogVersion++;
 
-							log.debug("Processed transaction: {}", lastTransaction);
+							log.debug("Processed transaction: {}", lastTransactionMutation);
 						} while (
 							// there is something to process
 							mutationIterator.hasNext() &&
@@ -755,7 +734,7 @@ public class TransactionManager {
 
 				return of(processResult);
 			} else {
-				throw new TransactionTimedOutException("Trunk incorporation lock timed out!");
+				return empty();
 			}
 		} catch (InterruptedException e) {
 			throw new GenericEvitaInternalError("Trunk incorporation lock interrupted!", e);
@@ -839,71 +818,58 @@ public class TransactionManager {
 	 * incorporated in the catalog.
 	 */
 	private long drainWal() {
-		final long theLastFinalizedCatalogVersion = getLastFinalizedCatalogVersion();
-		final long catalogVersionToDrain = this.versionToDrain.getAndSet(0L);
-		if (catalogVersionToDrain > 0L && catalogVersionToDrain > theLastFinalizedCatalogVersion) {
-			try {
-				this.processTransactions(
-					catalogVersionToDrain,
-					this.configuration.transaction().flushFrequencyInMillis(),
-					true
-				);
-			} catch (TransactionTimedOutException ex) {
-				// reschedule again
-				return 0;
-			}
+		try {
+			this.processTransactions(
+				this.lastWrittenCatalogVersion.get(),
+				this.configuration.transaction().flushFrequencyInMillis(),
+				true,
+				false // we should not wait for the lock here - if its already running it will process the transactions
+			);
+		} catch (TransactionTimedOutException ex) {
+			// reschedule again
+			return 0;
 		}
 		// pause the task
 		return -1;
 	}
 
 	/**
-	 * Method lazily creates and returns the transaction pipeline. The transaction processing consists of 4 stages:
+	 * Method creates and returns the transaction pipeline. The transaction processing consists of 3 stages:
 	 *
 	 * - conflict resolution (and catalog version sequence number assignment)
 	 * - WAL appending (writing {@link IsolatedWalPersistenceService} to the shared catalog WAL)
-	 * - trunk incorporation (applying transaction from shared WAL in order to the shared catalog view)
-	 * - catalog snapshot propagation (propagating new catalog version to the "live view" of the evitaDB engine)
+	 * - trunk incorporation (applying transaction from shared WAL in order to the shared catalog view) plus
+	 * catalog snapshot propagation (propagating new catalog version to the "live view" of the evitaDB engine)
 	 *
 	 * @return the submission publisher for conflict resolution transaction tasks
 	 */
 	@Nonnull
-	private SubmissionPublisher<ConflictResolutionTransactionTask> getTransactionalPublisher() {
-		final SubmissionPublisher<ConflictResolutionTransactionTask> thePipeline = transactionalPipeline.get();
-		if (thePipeline != null && !thePipeline.isClosed()) {
-			return thePipeline;
-		} else {
-			synchronized (this.transactionalPipeline) {
-				final int maxBufferCapacity = this.configuration.server().transactionThreadPool().queueSize();
+	private SubmissionPublisher<ConflictResolutionTransactionTask> createTransactionalPublisher() {
+		final int maxBufferCapacity = this.configuration.server().transactionThreadPool().queueSize();
 
-				final SubmissionPublisher<ConflictResolutionTransactionTask> txPublisher = new SubmissionPublisher<>(
-					this.transactionalExecutor, maxBufferCapacity
-				);
-				final ConflictResolutionTransactionStage stage1 = new ConflictResolutionTransactionStage(
-					this.transactionalExecutor, maxBufferCapacity, this,
-					this::invalidateTransactionalPublisher
-				);
-				final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(
-					this.transactionalExecutor, maxBufferCapacity, this,
-					this::invalidateTransactionalPublisher
-				);
-				final TrunkIncorporationTransactionStage stage3 = new TrunkIncorporationTransactionStage(
-					this.scheduler, maxBufferCapacity, this,
-					this.configuration.transaction().flushFrequencyInMillis(),
-					this::invalidateTransactionalPublisher
-				);
-				final CatalogSnapshotPropagationTransactionStage stage4 = new CatalogSnapshotPropagationTransactionStage(this);
-
-				txPublisher.subscribe(stage1);
-				stage1.subscribe(stage2);
-				stage2.subscribe(stage3);
-				stage3.subscribe(stage4);
-
-				this.transactionalPipeline.set(txPublisher);
-
-				return txPublisher;
+		final SubmissionPublisher<ConflictResolutionTransactionTask> txPublisher = new SubmissionPublisher<>(
+			this.transactionalExecutor, maxBufferCapacity
+		);
+		final ConflictResolutionTransactionStage stage1 = new ConflictResolutionTransactionStage(
+			this.transactionalExecutor, maxBufferCapacity, this,
+			// do nothing on error
+			(transactionTask, throwable) -> {
 			}
-		}
+		);
+		final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(
+			this.transactionalExecutor, maxBufferCapacity, this,
+			this::retryTransactionProcessing
+		);
+		final TrunkIncorporationTransactionStage stage3 = new TrunkIncorporationTransactionStage(
+			this,
+			this.configuration.transaction().flushFrequencyInMillis(),
+			this::retryTransactionProcessing
+		);
+
+		txPublisher.subscribe(stage1);
+		stage1.subscribe(stage2);
+		stage2.subscribe(stage3);
+		return txPublisher;
 	}
 
 	/**
@@ -964,7 +930,7 @@ public class TransactionManager {
 	}
 
 	/**
-	 * Result of the {@link #processTransactions(long, long, boolean)} method.
+	 * Result of the {@link #processTransactions(long, long, boolean, boolean)} method.
 	 *
 	 * @param lastTransactionId                  the ID of the last processed transaction
 	 * @param processedAtomicMutations           the number of processed atomic mutations
@@ -988,7 +954,7 @@ public class TransactionManager {
 	 * This record is immutable and encapsulates the details of a catalog's finalized
 	 * state, including the catalog version and the difference in schema versions.
 	 *
-	 * @param catalogVersion The version number of the catalog.
+	 * @param catalogVersion                 The version number of the catalog.
 	 * @param incorporatedSchemaVersionDelta The difference or delta in the schema version.
 	 */
 	record FinalizedCatalogVersion(

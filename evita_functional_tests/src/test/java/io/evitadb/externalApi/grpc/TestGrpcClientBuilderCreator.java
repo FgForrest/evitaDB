@@ -76,7 +76,7 @@ public class TestGrpcClientBuilderCreator {
 
 		ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
 			.useHttp1Pipelining(true)
-			.idleTimeoutMillis(10000, true)
+			.idleTimeoutMillis(100000, true)
 			.maxNumRequestsPerConnection(1000)
 			.maxNumEventLoopsPerEndpoint(10);
 
@@ -91,7 +91,7 @@ public class TestGrpcClientBuilderCreator {
 		return GrpcClients.builder(uriScheme + "://" + "localhost:" + grpcPort + "/")
 			.factory(clientFactoryBuilder.build())
 			.serializationFormat(GrpcSerializationFormats.PROTO)
-			.responseTimeoutMillis(10000)
+			.responseTimeoutMillis(100000)
 			.intercept(interceptor);
 	}
 

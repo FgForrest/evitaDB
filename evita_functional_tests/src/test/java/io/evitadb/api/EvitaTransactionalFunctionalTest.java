@@ -102,15 +102,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Random;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -130,13 +122,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
+import static io.evitadb.api.query.QueryConstraints.dataInLocales;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
-import static io.evitadb.test.generator.DataGenerator.CURRENCY_CZK;
-import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_BASIC;
-import static java.util.Optional.ofNullable;
+import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -297,28 +286,28 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 							assertFalse(Transaction.getTransaction().isPresent());
 							final AtomicReference<EntityReference> createdReference = new AtomicReference<>();
 							final CompletableFuture<CommitVersions> targetCatalogVersion = evita.updateCatalogAsync(
-								TEST_CATALOG,
-								session -> {
-									final long currentCatalogVersion = session.getCatalogVersion();
-									createdReference.set(session.upsertEntity(it));
+									TEST_CATALOG,
+									session -> {
+										final long currentCatalogVersion = session.getCatalogVersion();
+										createdReference.set(session.upsertEntity(it));
 
-									// verify that no entity with older transaction id is visible - i.e. SNAPSHOT isolation level
-									for (PkWithCatalogVersion existingPk : primaryKeysWithTxIds) {
-										final SealedEntity fetchedEntity = session.getEntity(existingPk.getType(), existingPk.getPrimaryKey()).orElse(null);
-										if (existingPk.catalogVersion() <= currentCatalogVersion) {
-											assertNotNull(
-												fetchedEntity,
-												"Entity with catalogVersion " + existingPk.catalogVersion() + " is missing in catalog version `" + currentCatalogVersion + "`!"
-											);
-										} else {
-											assertNull(
-												fetchedEntity,
-												"Entity with catalogVersion `" + existingPk.catalogVersion() + "` is present in catalog version `" + currentCatalogVersion + "`!"
-											);
+										// verify that no entity with older transaction id is visible - i.e. SNAPSHOT isolation level
+										for (PkWithCatalogVersion existingPk : primaryKeysWithTxIds) {
+											final SealedEntity fetchedEntity = session.getEntity(existingPk.getType(), existingPk.getPrimaryKey()).orElse(null);
+											if (existingPk.catalogVersion() <= currentCatalogVersion) {
+												assertNotNull(
+													fetchedEntity,
+													"Entity with catalogVersion " + existingPk.catalogVersion() + " is missing in catalog version `" + currentCatalogVersion + "`!"
+												);
+											} else {
+												assertNull(
+													fetchedEntity,
+													"Entity with catalogVersion `" + existingPk.catalogVersion() + "` is present in catalog version `" + currentCatalogVersion + "`!"
+												);
+											}
 										}
-									}
-								}, SessionFlags.READ_WRITE
-							)
+									}, SessionFlags.READ_WRITE
+								)
 								.onWalAppended()
 								.toCompletableFuture();
 							try {
@@ -635,8 +624,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			}
 
 			// now we can browse the history
-			final Evita thirdInstance = new Evita(cfg);
-			try {
+			try (Evita thirdInstance = new Evita(cfg)) {
 				final CatalogContract catalog = thirdInstance.getCatalogInstance(TEST_CATALOG).orElseThrow();
 
 				final long[] versions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5)
@@ -785,8 +773,6 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 							.collect(Collectors.joining("\n"))
 					)
 				);
-			} finally {
-				thirdInstance.close();
 			}
 		}
 	}
@@ -842,7 +828,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		final Integer addedEntityPrimaryKey = addedEntity.get(1, TimeUnit.SECONDS).getPrimaryKey();
 		boolean expectedResult = false;
-		for (int i = 0; i < 10_000; i++) {
+		for (int i = 0; i < 100_000; i++) {
 			//noinspection NonShortCircuitBooleanExpression
 			expectedResult = expectedResult | evita.queryCatalog(
 				TEST_CATALOG,
@@ -999,17 +985,17 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final CommitVersions nonSenseValue = new CommitVersions(Long.MIN_VALUE, Integer.MIN_VALUE);
 		final AtomicReference<SealedEntity> addedEntity = new AtomicReference<>();
 		final CompletableFuture<CommitVersions> nextCatalogVersion = evita.updateCatalogAsync(
-			TEST_CATALOG,
-			session -> {
-				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
-				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
-					.limit(1)
-					.map(session::upsertAndFetchEntity)
-					.findFirst();
-				assertTrue(upsertedEntity.isPresent());
-				addedEntity.set(upsertedEntity.get());
-			}
-		)
+				TEST_CATALOG,
+				session -> {
+					final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+					final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+						.limit(1)
+						.map(session::upsertAndFetchEntity)
+						.findFirst();
+					assertTrue(upsertedEntity.isPresent());
+					addedEntity.set(upsertedEntity.get());
+				}
+			)
 			.onConflictResolved()
 			.toCompletableFuture();
 
@@ -1184,6 +1170,124 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("Should execute multiple updates of same entity in one large transaction.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Tag(LONG_RUNNING_TEST)
+	@Test
+	void shouldExecuteMultipleUpdatesOfSameEntityInOneLargeTransaction(EvitaContract originalEvita) throws Exception {
+		final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
+		originalEvita.close();
+
+		// reinitialize evita with a larger flush frequency
+		final Faker faker = new Faker(new Random(40));
+		final Map<Long, SealedEntity> versionedEntities = new HashMap<>(16_384);
+
+		try (Evita evita = new Evita(
+			EvitaConfiguration.builder()
+				.name(originalConfiguration.name())
+				.storage(originalConfiguration.storage())
+				.transaction(
+					TransactionOptions.builder()
+						.flushFrequencyInMillis(60_000)
+						.build()
+				)
+				.server(
+					ServerOptions.builder(originalConfiguration.server())
+						.transactionThreadPool(
+							ThreadPoolOptions.transactionThreadPoolBuilder()
+								.threadPriority(Thread.MAX_PRIORITY)
+								.queueSize(16_384)
+								.build()
+						)
+						.build()
+				)
+				.cache(originalConfiguration.cache())
+				.build()
+		)
+		) {
+			final AtomicReference<SealedEntity> theEntityRef = new AtomicReference<>();
+			CommitProgress commitProgress = null;
+			AtomicReference<Consumer<CommitProgress>> commitProgressConsumer = new AtomicReference<>(null);
+			for (int i = 0; i < 1000; i++) {
+				commitProgress = evita.updateCatalogAsync(
+					TEST_CATALOG,
+					session -> {
+						final Optional<SealedEntity> existingEntity = session.getEntity(
+							Entities.PRODUCT, 1, attributeContentAll(), dataInLocales(Locale.ENGLISH)
+						);
+
+						if (existingEntity.isEmpty()) {
+							// when entity doesn't exist, we need to wait for the commit to finish
+							commitProgressConsumer.set(
+								cp -> cp.onChangesVisible()
+									.toCompletableFuture()
+									.join()
+							);
+						} else {
+							commitProgressConsumer.set(null);
+						}
+
+						final EntityBuilder entityBuilder = existingEntity
+							.map(SealedInstance::openForWrite)
+							.orElseGet(() -> session.createNewEntity(Entities.PRODUCT, 1))
+							.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, faker.internet().url())
+							.setAttribute(ATTRIBUTE_CODE, faker.code().isbn10())
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, faker.book().title())
+							.setAttribute(ATTRIBUTE_PRIORITY, faker.number().numberBetween(1L, 1000L));
+						theEntityRef.set(entityBuilder.toInstance());
+						entityBuilder.upsertVia(session);
+					}
+				);
+
+				// wait only for the WAL to be appended, not for the commit to finish
+				commitProgress
+					.onWalAppended()
+					.thenAccept(cv -> versionedEntities.put(cv.catalogVersion(), theEntityRef.get()))
+					.toCompletableFuture()
+					.join();
+
+				final Consumer<CommitProgress> cpc = commitProgressConsumer.get();
+				if (cpc != null) {
+					cpc.accept(commitProgress);
+				}
+			}
+
+			// wait for the last commit to finish
+			commitProgress.onChangesVisible()
+				.toCompletableFuture()
+				.join();
+
+			// now check the last version of the entity
+			evita.queryCatalog(
+				TEST_CATALOG,
+				evitaSessionContract -> {
+					final long catalogVersion = evitaSessionContract.getCatalogVersion();
+					final SealedEntity expectedEntity = versionedEntities.get(catalogVersion);
+					final Optional<SealedEntity> entity = evitaSessionContract.getEntity(
+						Entities.PRODUCT, 1, attributeContentAll(), dataInLocales(Locale.ENGLISH)
+					);
+					assertTrue(entity.isPresent(), "Entity should be present in the catalog!");
+					final SealedEntity realEntity = entity.get();
+					assertEquals(
+						expectedEntity.getAttribute(ATTRIBUTE_CODE, String.class),
+						realEntity.getAttribute(ATTRIBUTE_CODE, String.class),
+						"Entity code at version " + catalogVersion + " should match the expected one!"
+					);
+					assertEquals(
+						expectedEntity.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, String.class),
+						realEntity.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, String.class),
+						"Entity name at version " + catalogVersion + " should match the expected one!"
+					);
+					assertEquals(
+						expectedEntity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH, String.class),
+						realEntity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH, String.class),
+						"Entity URL at version " + catalogVersion + " should match the expected one!"
+					);
+				}
+			);
+		}
+	}
+
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Tag(LONG_RUNNING_TEST)
@@ -1193,7 +1297,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		originalEvita.close();
 
 		// reinitialize evita with a larger queue size
-		final Evita evita = new Evita(
+		try (Evita evita = new Evita(
 			EvitaConfiguration.builder()
 				.name(originalConfiguration.name())
 				.storage(originalConfiguration.storage())
@@ -1213,12 +1317,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				)
 				.cache(originalConfiguration.cache())
 				.build()
-		);
-
-		try {
+		)) {
 			automaticallyGenerateEntitiesInParallel(evita, productSchema, null);
-		} finally {
-			evita.close();
 		}
 	}
 
@@ -1257,7 +1357,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			final AtomicReference<CompletableFuture<FileForFetch>> lastBackupProcess = new AtomicReference<>();
 			final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
 				evita, productSchema, theEvita -> {
-					lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null,false));
+					lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, false));
 				}
 			);
 
@@ -1409,83 +1509,86 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		}
 	}
 
-	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Tag(LONG_RUNNING_TEST)
 	@ParameterizedTest(name = "This test verifies, that all data files are correctly rotated and compacted.")
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void shouldCorrectlyRotateAllFiles(GenerationalTestInput input) throws Exception {
 		final Path testDirectory = getTestDirectory().resolve("shouldCorrectlyRotateAllFiles");
 		final Path testDirectoryExport = getTestDirectory().resolve("shouldCorrectlyRotateAllFiles_export");
-		cleanTestSubDirectory("shouldCorrectlyRotateAllFiles");
-		cleanTestSubDirectory("shouldCorrectlyRotateAllFiles_export");
-		final Evita evita = new Evita(
-			EvitaConfiguration.builder()
-				.storage(
-					StorageOptions.builder()
-						.storageDirectory(testDirectory)
-						.exportDirectory(testDirectoryExport)
-						.minimalActiveRecordShare(0.9)
-						.fileSizeCompactionThresholdBytes(16_384)
-						.timeTravelEnabled(true)
-						.build()
-				)
-				.transaction(
-					TransactionOptions.builder()
-						.walFileSizeBytes(4_096)
-						.walFileCountKept(2)
-						.build()
-				)
-				.server(
-					ServerOptions.builder()
-						.queryTimeoutInMilliseconds(-1)
-						.transactionTimeoutInMilliseconds(-1)
-						.closeSessionsAfterSecondsOfInactivity(-1)
-						.build()
-				)
-				.build()
-		);
-
 		try {
-			final String entityProduct = "product";
-			final String attributeUrl = "url";
-			final String attributeCode = "code";
-			final String attributeName = "name";
-			final String attributePrice = "price";
-
-			final Faker faker = new Faker(new Random(input.randomSeed()));
-			evita.defineCatalog(TEST_CATALOG)
-				.updateAndFetchViaNewSession(evita)
-				.openForWrite()
-				.withAttribute(attributeUrl, String.class)
-				.withEntitySchema(entityProduct, productSchema -> productSchema
-					.withoutGeneratedPrimaryKey()
-					.withGlobalAttribute(attributeUrl)
-					.withAttribute(attributeCode, String.class, thatIs -> thatIs.unique().sortable())
-					.withAttribute(attributeName, String.class, thatIs -> thatIs.filterable().sortable())
-					.withAttribute(attributePrice, BigDecimal.class, thatIs -> thatIs.filterable().sortable()))
-				.updateViaNewSession(evita);
-			evita.updateCatalog(
-				TEST_CATALOG, session -> {
-					session.createNewEntity(entityProduct, 1)
-						.setAttribute(attributeUrl, faker.internet().url())
-						.setAttribute(attributeCode, faker.code().isbn10())
-						.setAttribute(attributeName, faker.book().title())
-						.setAttribute(attributePrice, BigDecimal.valueOf(faker.number().randomDouble(2, 1, 1000)))
-						.upsertVia(session);
-					session.goLiveAndClose();
-				}
+			final Evita evita = new Evita(
+				EvitaConfiguration.builder()
+					.storage(
+						StorageOptions.builder()
+							.storageDirectory(testDirectory)
+							.exportDirectory(testDirectoryExport)
+							.minimalActiveRecordShare(0.9)
+							.fileSizeCompactionThresholdBytes(16_384)
+							.timeTravelEnabled(true)
+							.build()
+					)
+					.transaction(
+						TransactionOptions.builder()
+							.walFileSizeBytes(4_096)
+							.walFileCountKept(2)
+							.build()
+					)
+					.server(
+						ServerOptions.builder()
+							.queryTimeoutInMilliseconds(-1)
+							.transactionTimeoutInMilliseconds(-1)
+							.closeSessionsAfterSecondsOfInactivity(-1)
+							.build()
+					)
+					.build()
 			);
 
-			final LocalDateTime initialStart = LocalDateTime.now();
-			final ConcurrentHashMap<Long, SealedEntity> versionedEntities = new ConcurrentHashMap<>();
-			final AtomicReference<SealedEntity> lastVersionEntity = new AtomicReference<>();
+			try {
+				final String entityProduct = "product";
+				final String attributeUrl = "url";
+				final String attributeCode = "code";
+				final String attributeName = "name";
+				final String attributePrice = "price";
 
-			Long expectedLastVersion = null;
-			long lastWaitCatalogVersion = 0L;
-			do {
-				try {
+				final Faker faker = new Faker(new Random(input.randomSeed()));
+				evita.defineCatalog(TEST_CATALOG)
+					.updateAndFetchViaNewSession(evita)
+					.openForWrite()
+					.withAttribute(attributeUrl, String.class)
+					.withEntitySchema(entityProduct, productSchema -> productSchema
+						.withoutGeneratedPrimaryKey()
+						.withGlobalAttribute(attributeUrl)
+						.withAttribute(attributeCode, String.class, thatIs -> thatIs.unique().sortable())
+						.withAttribute(attributeName, String.class, thatIs -> thatIs.filterable().sortable())
+						.withAttribute(attributePrice, BigDecimal.class, thatIs -> thatIs.filterable().sortable()))
+					.updateViaNewSession(evita);
+				evita.updateCatalog(
+					TEST_CATALOG, session -> {
+						session.createNewEntity(entityProduct, 1)
+							.setAttribute(attributeUrl, faker.internet().url())
+							.setAttribute(attributeCode, faker.code().isbn10())
+							.setAttribute(attributeName, faker.book().title())
+							.setAttribute(attributePrice, BigDecimal.valueOf(faker.number().randomDouble(2, 1, 1000)))
+							.upsertVia(session);
+						session.goLiveAndClose();
+					}
+				);
+
+				final LocalDateTime initialStart = LocalDateTime.now();
+				final ConcurrentHashMap<Long, SealedEntity> versionedEntities = new ConcurrentHashMap<>();
+
+				Long expectedLastVersion;
+				long lastWaitCatalogVersion = 0L;
+				final AtomicReference<OffsetDateTime> overloaded = new AtomicReference<>();
+				do {
+					while (overloaded.get() != null && overloaded.get().isAfter(OffsetDateTime.now())) {
+						synchronized (this) {
+							Thread.sleep(500);
+						}
+					}
+
 					final AtomicReference<SealedEntity> theEntityRef = new AtomicReference<>();
-					expectedLastVersion = evita.updateCatalogAsync(
+					final CommitProgress commitProgress = evita.updateCatalogAsync(
 						TEST_CATALOG,
 						session -> {
 							final EntityBuilder entityBuilder = session.getEntity(
@@ -1500,18 +1603,26 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 							theEntityRef.set(entityBuilder.toInstance());
 							entityBuilder.upsertVia(session);
 						}
-					)
+					);
+
+					// immediately retrieve the entity to be able to use it later
+					final SealedEntity theEntity = theEntityRef.get();
+					expectedLastVersion = commitProgress
 						// fast track - we don't wait for anything (to cause as much "churn" as we can)
 						.onWalAppended()
+						.thenApply(commitVersions -> {
+							versionedEntities.put(commitVersions.catalogVersion(), theEntity);
+							return commitVersions.catalogVersion();
+						})
 						.toCompletableFuture()
-						.get()
-						.catalogVersion();
+						.get();
 
-					final SealedEntity theEntity = theEntityRef.get();
-					if (theEntity != null) {
-						versionedEntities.put(expectedLastVersion, theEntity);
-						lastVersionEntity.set(theEntity);
-					}
+					commitProgress.onChangesVisible()
+						.exceptionally(ex -> {
+							log.error("Queues probably full - exception: " + ex.getMessage());
+							overloaded.set(OffsetDateTime.now().plusSeconds(10));
+							return new CommitVersions(0L, 0);
+						});
 
 					if (expectedLastVersion - 1000 > lastWaitCatalogVersion) {
 						log.info("Letting the system breathe ...");
@@ -1521,109 +1632,125 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 							Thread.sleep(10_000);
 						}
 					}
-				} catch (Exception ex) {
-					log.error("Queues probably full - exception: " + ex.getMessage());
-					// wait a while to let the system breathing
-					synchronized (this) {
-						Thread.sleep(10_000);
+
+				} while (Duration.between(initialStart, LocalDateTime.now()).toMinutes() < input.intervalInMinutes());
+
+				// check there is a first record
+				final TriConsumer<EvitaContract, Long, String> catalogChecker = (theEvita, expectedCatalogVersion, catalogName) -> theEvita.queryCatalog(
+					catalogName,
+					evitaSessionContract -> {
+						final long catalogVersion = evitaSessionContract.getCatalogVersion();
+						assertEquals(expectedCatalogVersion, catalogVersion, "Catalog version should match the expected one!");
+
+						final SealedEntity expectedEntity = versionedEntities.get(catalogVersion);
+						final Optional<SealedEntity> entity = evitaSessionContract.getEntity(entityProduct, 1, attributeContentAll());
+						assertTrue(entity.isPresent(), "Entity should be present in the catalog!");
+						final SealedEntity realEntity = entity.get();
+						assertEquals(
+							expectedEntity.getAttribute(attributeCode, String.class),
+							realEntity.getAttribute(attributeCode, String.class),
+							"Entity code at version " + catalogVersion + " should match the expected one!"
+						);
+						assertEquals(
+							expectedEntity.getAttribute(attributeName, String.class),
+							realEntity.getAttribute(attributeName, String.class),
+							"Entity name at version " + catalogVersion + " should match the expected one!"
+						);
+						assertEquals(
+							expectedEntity.getAttribute(attributePrice, BigDecimal.class),
+							realEntity.getAttribute(attributePrice, BigDecimal.class),
+							"Entity price at version " + catalogVersion + " should match the expected one!"
+						);
+						assertEquals(
+							expectedEntity.getAttribute(attributeUrl, String.class),
+							realEntity.getAttribute(attributeUrl, String.class),
+							"Entity URL at version " + catalogVersion + " should match the expected one!"
+						);
 					}
-				}
+				);
 
-			} while (Duration.between(initialStart, LocalDateTime.now()).toMinutes() < input.intervalInMinutes());
+				log.info("Waiting for catalog version " + expectedLastVersion + " to be processed.");
 
-			log.info("Waiting for catalog version " + expectedLastVersion + " to be processed.");
+				final LocalDateTime wait = LocalDateTime.now();
+				long lastReportedCatalogVersion = 0L;
+				do {
+					final Long currentCatalogVersion = evita.queryCatalog(
+						TEST_CATALOG,
+						EvitaSessionContract::getCatalogVersion
+					);
+					if (currentCatalogVersion >= expectedLastVersion) {
+						log.info("Catalog version " + expectedLastVersion + " finally processed.");
+						catalogChecker.accept(evita, expectedLastVersion, TEST_CATALOG);
+						break;
+					} else if (currentCatalogVersion - 500 > lastReportedCatalogVersion) {
+						lastReportedCatalogVersion = currentCatalogVersion;
+						log.info("Waiting for catalog version " + expectedLastVersion + " to be processed (current " + currentCatalogVersion + ").");
+					}
+					Thread.onSpinWait();
+				} while (Duration.between(wait, LocalDateTime.now()).toMinutes() < 1);
 
-			final LocalDateTime wait = LocalDateTime.now();
-			long lastReportedCatalogVersion = 0L;
-			do {
 				final Long currentCatalogVersion = evita.queryCatalog(
 					TEST_CATALOG,
 					EvitaSessionContract::getCatalogVersion
 				);
-				if (currentCatalogVersion >= expectedLastVersion) {
-					log.info("Catalog version " + expectedLastVersion + " finally processed.");
-					break;
-				} else if (currentCatalogVersion - 500 > lastReportedCatalogVersion) {
-					lastReportedCatalogVersion = currentCatalogVersion;
-					log.info("Waiting for catalog version " + expectedLastVersion + " to be processed (current " + currentCatalogVersion + ").");
-				}
-				Thread.onSpinWait();
-			} while (Duration.between(wait, LocalDateTime.now()).toMinutes() < 1);
+				log.info("Current catalog version: " + currentCatalogVersion);
 
-			final Long currentCatalogVersion = evita.queryCatalog(
-				TEST_CATALOG,
-				EvitaSessionContract::getCatalogVersion
-			);
-			log.info("Current catalog version: " + currentCatalogVersion);
+				assertTrue(expectedLastVersion > 10L, "At least 10 versions should be created!");
 
-			assertTrue(expectedLastVersion > 10L, "At least 10 versions should be created!");
-
-			// close the evita
-			evita.close();
-
-			// check there is a first record
-			final TriConsumer<EvitaContract, SealedEntity, String> catalogChecker = (theEvita, expectedEntity, catalogName) -> theEvita.queryCatalog(
-				catalogName,
-				evitaSessionContract -> {
-					final Optional<SealedEntity> entity = evitaSessionContract.getEntity(entityProduct, 1, attributeContentAll());
-					assertTrue(entity.isPresent(), "Entity should be present in the catalog!");
-					final SealedEntity realEntity = entity.get();
-					assertEquals(expectedEntity.getAttribute(attributeCode, String.class), realEntity.getAttribute(attributeCode, String.class));
-					assertEquals(expectedEntity.getAttribute(attributeName, String.class), realEntity.getAttribute(attributeName, String.class));
-					assertEquals(expectedEntity.getAttribute(attributePrice, BigDecimal.class), realEntity.getAttribute(attributePrice, BigDecimal.class));
-					assertEquals(expectedEntity.getAttribute(attributeUrl, String.class), realEntity.getAttribute(attributeUrl, String.class));
-				}
-			);
-
-			try (final Evita restartedEvita = new Evita(evita.getConfiguration())) {
-				assertInstanceOf(
-					Catalog.class, restartedEvita.getCatalogInstance(TEST_CATALOG).orElseThrow(),
-					"Catalog should be loaded from the disk!"
-				);
-
-				catalogChecker.accept(restartedEvita, lastVersionEntity.get(), TEST_CATALOG);
-
-				// read entire history
-				try (
-				final Stream<CatalogBootstrap> bootstrapStream = DefaultCatalogPersistenceService.getCatalogBootstrapRecordStream(
-					TEST_CATALOG,
-					// bootstrap records must never be compressed
-					StorageOptions.builder(restartedEvita.getConfiguration().storage())
-						.compress(false)
-						.build()
-				)
-				) {
-					bootstrapStream.forEach(
-						record -> {
-							try {
-								log.info("Bootstrap record: " + record);
-								// create backup from each point in time
-								final Path backupPath = restartedEvita.management().backupCatalog(TEST_CATALOG, null, record.catalogVersion(), false)
-									.get(2, TimeUnit.MINUTES).path(evita.getConfiguration().storage().exportDirectory());
-								// restore it to unique new catalog
-								final String restoredCatalogName = TEST_CATALOG + "_restored_" + record.catalogVersion();
-								try (final InputStream inputStream = Files.newInputStream(backupPath)) {
-									restartedEvita.management().restoreCatalog(restoredCatalogName, Files.size(backupPath), inputStream)
-										.getFutureResult().get(2, TimeUnit.MINUTES);
-								}
-								// connect to it and check existence of the first record
-								ofNullable(versionedEntities.get(record.catalogVersion())).ifPresent(
-									entity -> catalogChecker.accept(restartedEvita, entity, restoredCatalogName)
-								);
-							} catch (Exception e) {
-								throw new RuntimeException(e);
-							}
-						}
-					);
-				}
-			}
-		} catch (Exception ex) {
-			log.error("Exception thrown within test!", ex);
-			fail(ex);
-		} finally {
-			if (evita.isActive()) {
+				// close the evita
 				evita.close();
+
+				try (final Evita restartedEvita = new Evita(evita.getConfiguration())) {
+					assertInstanceOf(
+						Catalog.class, restartedEvita.getCatalogInstance(TEST_CATALOG).orElseThrow(),
+						"Catalog should be loaded from the disk!"
+					);
+
+					catalogChecker.accept(restartedEvita, expectedLastVersion, TEST_CATALOG);
+
+					// read entire history
+					try (
+						final Stream<CatalogBootstrap> bootstrapStream = DefaultCatalogPersistenceService.getCatalogBootstrapRecordStream(
+							TEST_CATALOG,
+							// bootstrap records must never be compressed
+							StorageOptions.builder(restartedEvita.getConfiguration().storage())
+								.compress(false)
+								.build()
+						)
+					) {
+						bootstrapStream.forEach(
+							record -> {
+								try {
+									log.info("Bootstrap record: " + record);
+									// create backup from each point in time
+									final Path backupPath = restartedEvita.management().backupCatalog(TEST_CATALOG, null, record.catalogVersion(), false)
+										.get(2, TimeUnit.MINUTES).path(evita.getConfiguration().storage().exportDirectory());
+									// restore it to unique new catalog
+									final String restoredCatalogName = TEST_CATALOG + "_restored_" + record.catalogVersion();
+									try (final InputStream inputStream = Files.newInputStream(backupPath)) {
+										restartedEvita.management().restoreCatalog(restoredCatalogName, Files.size(backupPath), inputStream)
+											.getFutureResult().get(2, TimeUnit.MINUTES);
+									}
+									// connect to it and check existence of the first record
+									catalogChecker.accept(restartedEvita, record.catalogVersion(), restoredCatalogName);
+								} catch (Exception e) {
+									throw new RuntimeException(e);
+								}
+							}
+						);
+					}
+				}
+			} catch (Exception ex) {
+				log.error("Exception thrown within test!", ex);
+				fail(ex);
+			} finally {
+				if (evita.isActive()) {
+					evita.close();
+				}
 			}
+		} finally {
+			cleanTestSubDirectory("shouldCorrectlyRotateAllFiles");
+			cleanTestSubDirectory("shouldCorrectlyRotateAllFiles_export");
 		}
 	}
 

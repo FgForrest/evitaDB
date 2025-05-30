@@ -317,15 +317,14 @@ public class ObservableInput<T extends InputStream> extends Input {
 						}
 						// check how much data has been read from the decompression buffer so far
 						final int currentlyReadBytes = Math.toIntExact(this.inflater.getBytesRead());
-						/* TODO JNO - tady bychom možná mohli číst a plnit buffer úplně celý, stejně se pak swapne */
-						final int leftToRead = this.expectedPayloadLength - (this.payloadReadLength + (currentlyReadBytes - this.inflaterReadBytesOnLastDecompressionBufferFill));
+						final int leftToRead = this.expectedPayloadLength - currentlyReadBytes;
 						if (leftToRead > 0) {
 							// attempt to read next chunk of data from the underlying stream into the decompression buffer
 							final int readLength = IOUtils.executeSafely(
 								KryoException::new,
 								() -> this.inputStream.read(
 									this.decompressionBuffer, 0,
-									Math.min(this.decompressionBuffer.length, leftToRead)
+									this.decompressionBuffer.length
 								)
 							);
 							if (readLength == -1) {

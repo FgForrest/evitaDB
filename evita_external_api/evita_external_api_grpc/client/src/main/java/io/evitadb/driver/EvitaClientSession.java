@@ -478,13 +478,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 							);
 							final GrpcTransactionPhase finishedPhase = grpcResponse.getFinishedPhase();
 							switch (finishedPhase) {
-								case CONFLICTS_RESOLVED -> EvitaClientSession.this.commitProgress.onConflictResolved().complete(commitVersions);
-								case WAL_PERSISTED -> EvitaClientSession.this.commitProgress.onWalAppended().complete(commitVersions);
+								case CONFLICTS_RESOLVED -> EvitaClientSession.this.commitProgress.complete(CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION, commitVersions);
+								case WAL_PERSISTED -> EvitaClientSession.this.commitProgress.complete(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, commitVersions);
 								case CHANGES_VISIBLE -> {
-									EvitaClientSession.this.commitProgress.onChangesVisible().complete(commitVersions);
 									EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
 										grpcResponse.getCatalogVersion(), grpcResponse.getCatalogSchemaVersion()
 									);
+									EvitaClientSession.this.commitProgress.complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, commitVersions);
 								}
 							}
 						}
