@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -78,6 +78,7 @@ public class FacetSummaryResolver {
 	 * Entity schemas for references of {@link #entitySchema} by field-formatted names.
 	 */
 	@Nonnull private final Map<String, EntitySchemaContract> referencedEntitySchemas;
+	@Nonnull private final Map<String, EntitySchemaContract> referencedGroupEntitySchemas;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
@@ -232,7 +233,7 @@ public class FacetSummaryResolver {
 			.flatMap(groupEntityField -> entityFetchRequireResolver.resolveGroupFetch(
 				SelectionSetAggregator.from(groupEntityField.getSelectionSet()),
 				desiredLocale,
-				referencedEntitySchemas.get(referenceName)
+				referencedGroupEntitySchemas.get(referenceName)
 			));
 	}
 }
