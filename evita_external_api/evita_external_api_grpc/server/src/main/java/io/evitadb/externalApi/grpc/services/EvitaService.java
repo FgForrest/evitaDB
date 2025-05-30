@@ -341,7 +341,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					.map(DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE::convert)
 					.toArray(TopLevelCatalogSchemaMutation[]::new);
 
-				this.evita.update(schemaMutations);
+				/* TODO JNO - UPDATE */
+				/*this.evita.update(schemaMutations);*/
 				responseObserver.onNext(Empty.getDefaultInstance());
 				responseObserver.onCompleted();
 			},

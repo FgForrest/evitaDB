@@ -58,7 +58,7 @@ import static io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle.getTargetFile;
 
 /**
  * This implementation of {@link WriteOnlyFileHandle} tries to persist data primarily to the region of off-heap memory
- * managed by {@link OffHeapMemoryManager}. If there is no free region available or the written size exceeds the size
+ * managed by {@link CatalogOffHeapMemoryManager}. If there is no free region available or the written size exceeds the size
  * of the region, the data are offloaded to the disk and write continues to the temporary file (which is slower).
  * This class is not thread-safe and contains no locking.
  *
@@ -84,10 +84,10 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 */
 	private final ObservableOutputKeeper observableOutputKeeper;
 	/**
-	 * OffHeapMemoryManager class is responsible for managing off-heap memory regions and providing
+	 * CatalogOffHeapMemoryManager class is responsible for managing off-heap memory regions and providing
 	 * free regions to acquire OutputStreams for writing data.
 	 */
-	private final OffHeapMemoryManager offHeapMemoryManager;
+	private final CatalogOffHeapMemoryManager offHeapMemoryManager;
 	/**
 	 * OutputStream that is used to write data to the off-heap memory.
 	 */
@@ -127,7 +127,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		@Nonnull Path targetFile,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager
 	) {
 		this.targetFile = targetFile;
 		this.storageOptions = storageOptions;
@@ -513,6 +513,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	/**
 	 * A factory function that creates an observable output stream for a file using the provided path and storage options.
 	 */
+	@Nonnull
 	private ObservableOutput<FileOutputStream> createObservableOutput(@Nonnull Path theFilePath) {
 		return WriteOnlyFileHandle.createObservableOutput(theFilePath, this.storageOptions);
 	}

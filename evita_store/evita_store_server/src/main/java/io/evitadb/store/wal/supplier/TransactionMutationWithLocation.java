@@ -40,7 +40,11 @@ public class TransactionMutationWithLocation extends TransactionMutation {
 	@Getter
 	private final int walFileIndex;
 
-	public TransactionMutationWithLocation(@Nonnull TransactionMutation delegate, @Nonnull FileLocation transactionSpan, int walFileIndex) {
+	public TransactionMutationWithLocation(
+		@Nonnull TransactionMutation delegate,
+		@Nonnull FileLocation transactionSpan,
+		int walFileIndex
+	) {
 		super(
 			delegate.getTransactionId(),
 			delegate.getVersion(),

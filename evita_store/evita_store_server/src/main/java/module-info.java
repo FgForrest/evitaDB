@@ -28,6 +28,7 @@ module evita.store.server {
 
 	exports io.evitadb.store.cache;
 	exports io.evitadb.store.catalog;
+	exports io.evitadb.store.engine;
 	exports io.evitadb.store.index.serializer;
 	exports io.evitadb.store.index.service;
 	exports io.evitadb.store.query;
@@ -36,6 +37,7 @@ module evita.store.server {
 	exports io.evitadb.store.traffic;
 	exports io.evitadb.store.traffic.event;
 
+	provides io.evitadb.store.spi.EnginePersistenceServiceFactory with io.evitadb.store.engine.DefaultEnginePersistenceServiceFactory;
 	provides io.evitadb.store.spi.CatalogPersistenceServiceFactory with io.evitadb.store.catalog.DefaultCatalogPersistenceServiceFactory;
 	provides io.evitadb.store.service.StoragePartRegistry with io.evitadb.store.index.service.IndexStoragePartRegistry;
 	provides io.evitadb.store.spi.TrafficRecorder with io.evitadb.store.traffic.OffHeapTrafficRecorder;

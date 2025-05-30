@@ -28,7 +28,11 @@ import io.evitadb.store.spi.model.reference.WalFileReference;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serial;
+import java.io.Serializable;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -48,10 +52,12 @@ import java.util.Optional;
 public record EngineState(
 	int storageProtocolVersion,
 	long version,
+	@Nonnull OffsetDateTime introducedAt,
 	@Nullable WalFileReference walFileReference,
 	@Nonnull String[] activeCatalogs,
 	@Nonnull String[] inactiveCatalogs
-) {
+) implements Serializable {
+	@Serial private static final long serialVersionUID = 3167647107268939398L;
 
 	/**
 	 * Returns a new builder initialized with default values.
@@ -84,6 +90,7 @@ public record EngineState(
 		return new EngineState(
 			storageProtocolVersion,
 			this.version,
+			OffsetDateTime.now(),
 			this.walFileReference,
 			this.activeCatalogs,
 			this.inactiveCatalogs
@@ -101,6 +108,7 @@ public record EngineState(
 		return new EngineState(
 			this.storageProtocolVersion,
 			version,
+			OffsetDateTime.now(),
 			this.walFileReference,
 			this.activeCatalogs,
 			this.inactiveCatalogs
@@ -118,6 +126,7 @@ public record EngineState(
 		return new EngineState(
 			this.storageProtocolVersion,
 			this.version,
+			OffsetDateTime.now(),
 			walFileReference,
 			this.activeCatalogs,
 			this.inactiveCatalogs
@@ -135,6 +144,7 @@ public record EngineState(
 		return new EngineState(
 			this.storageProtocolVersion,
 			this.version,
+			OffsetDateTime.now(),
 			this.walFileReference,
 			activeCatalogs,
 			this.inactiveCatalogs
@@ -152,10 +162,45 @@ public record EngineState(
 		return new EngineState(
 			this.storageProtocolVersion,
 			this.version,
+			OffsetDateTime.now(),
 			this.walFileReference,
 			this.activeCatalogs,
 			inactiveCatalogs
 		);
+	}
+
+	@Nonnull
+	@Override
+	public String toString() {
+		return "EngineState{" +
+			"storageProtocolVersion=" + this.storageProtocolVersion +
+			", version=" + this.version +
+			", introducedAt=" + this.introducedAt +
+			", walFileReference=" + this.walFileReference +
+			", activeCatalogs=" + Arrays.toString(this.activeCatalogs) +
+			", inactiveCatalogs=" + Arrays.toString(this.inactiveCatalogs) +
+			'}';
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof final EngineState that)) return false;
+
+		return this.version == that.version && this.storageProtocolVersion == that.storageProtocolVersion && Arrays.equals(
+			this.activeCatalogs, that.activeCatalogs) && Arrays.equals(
+			this.inactiveCatalogs, that.inactiveCatalogs) && this.introducedAt.equals(that.introducedAt) && Objects.equals(
+			this.walFileReference, that.walFileReference);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = this.storageProtocolVersion;
+		result = 31 * result + Long.hashCode(this.version);
+		result = 31 * result + this.introducedAt.hashCode();
+		result = 31 * result + Objects.hashCode(this.walFileReference);
+		result = 31 * result + Arrays.hashCode(this.activeCatalogs);
+		result = 31 * result + Arrays.hashCode(this.inactiveCatalogs);
+		return result;
 	}
 
 	/**
@@ -256,10 +301,12 @@ public record EngineState(
 			return new EngineState(
 				this.storageProtocolVersion,
 				this.version,
+				OffsetDateTime.now(),
 				this.walFileReference,
 				this.activeCatalogs,
 				this.inactiveCatalogs
 			);
 		}
 	}
+
 }

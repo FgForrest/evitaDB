@@ -23,7 +23,14 @@
 
 package io.evitadb.core;
 
-import io.evitadb.api.*;
+import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CatalogState;
+import io.evitadb.api.CommitProgress;
+import io.evitadb.api.CommitProgressRecord;
+import io.evitadb.api.EvitaContract;
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.EvitaSessionTerminationCallback;
+import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -40,9 +47,8 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
-import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
@@ -60,6 +66,7 @@ import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.cdc.SystemChangeObserver;
 import io.evitadb.core.exception.CatalogCorruptedException;
+import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.system.EvitaStatisticsEvent;
 import io.evitadb.core.metric.event.system.RequestForkJoinPoolStatisticsEvent;
@@ -67,11 +74,13 @@ import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
 import io.evitadb.core.metric.event.system.TransactionForkJoinPoolStatisticsEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.store.spi.EnginePersistenceService;
+import io.evitadb.store.spi.EnginePersistenceServiceFactory;
+import io.evitadb.store.spi.model.EngineState;
+import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
-import io.evitadb.utils.FileUtils;
-import io.evitadb.utils.FolderLock;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
@@ -84,24 +93,17 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Closeable;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -135,6 +137,11 @@ public final class Evita implements EvitaContract {
 	 */
 	private final Map<String, CatalogContract> catalogs;
 	/**
+	 * Index of latent {@link Catalog} that exists in the persistence storage, but is not loaded into memory.
+	 * These catalogs cannot be queried until they are loaded into memory.
+	 */
+	private final Set<String> inactiveCatalogs;
+	/**
 	 * Data store shared among all instances of {@link SessionRegistry} that holds information about active sessions.
 	 */
 	private final SessionRegistry.SessionRegistryDataStore sessionRegistryDataStore = SessionRegistry.createDataStore();
@@ -160,7 +167,7 @@ public final class Evita implements EvitaContract {
 	@SuppressWarnings({"FieldCanBeLocal", "unused"})
 	private final SessionKiller sessionKiller;
 	/**
-	 * Field contains the global - shared configuration for entire Evita instance.
+	 * Field contains the global - shared configuration for the entire Evita instance.
 	 */
 	@Getter private final EvitaConfiguration configuration;
 	/**
@@ -199,14 +206,23 @@ public final class Evita implements EvitaContract {
 	 **/
 	private final TracingContext tracingContext;
 	/**
+	 * Persistence service that is used to store and retrieve {@link EngineState} information from the persistence
+	 * storage.
+	 */
+	private final EnginePersistenceService enginePersistenceService;
+	/**
+	 * Reference keeps the current state of the evitaDB engine instance.
+	 */
+	private final AtomicReference<EngineState> engineState = new AtomicReference<>();
+	/**
+	 * Lock that is used to synchronize access to the engine state.
+	 */
+	private final ReentrantLock engineStateLock = new ReentrantLock();
+	/**
 	 * Flag that is se to TRUE when Evita. is ready to serve application calls.
 	 * Aim of this flag is to refuse any calls after {@link #close()} method has been called.
 	 */
 	@Getter private boolean active;
-	/**
-	 * The folder lock instance that is used for safeguarding exclusive access to the catalog storage directory.
-	 */
-	private final FolderLock folderLock;
 	/**
 	 * Flag that is initially set to {@link ServerOptions#readOnly()} from {@link EvitaConfiguration}.
 	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
@@ -232,7 +248,8 @@ public final class Evita implements EvitaContract {
 	 * @param executorService executor service to be shut down
 	 * @param waitSeconds     number of seconds to wait for the executor service to shut down
 	 */
-	private static void shutdownScheduler(@Nonnull String name, @Nonnull ExecutorService executorService, int waitSeconds) {
+	private static void shutdownScheduler(
+		@Nonnull String name, @Nonnull ExecutorService executorService, int waitSeconds) {
 		executorService.shutdown();
 		try {
 			if (!executorService.awaitTermination(waitSeconds, TimeUnit.SECONDS)) {
@@ -247,9 +264,6 @@ public final class Evita implements EvitaContract {
 
 	public Evita(@Nonnull EvitaConfiguration configuration) {
 		this.configuration = configuration;
-
-		// try to acquire lock over storage directory
-		this.folderLock = new FolderLock(configuration.storage().storageDirectory());
 
 		this.serviceExecutor = new Scheduler(
 			configuration.server().serviceThreadPool()
@@ -272,17 +286,27 @@ public final class Evita implements EvitaContract {
 			new HeapMemoryCacheSupervisor(configuration.cache(), this.serviceExecutor) : NoCacheSupervisor.INSTANCE;
 		this.reflectionLookup = new ReflectionLookup(configuration.cache().reflection());
 		this.tracingContext = TracingContextProvider.getContext();
-		final Path[] directories = FileUtils.listDirectories(configuration.storage().storageDirectory());
 		this.changeObserver = new SystemChangeObserver();
-		this.catalogs = CollectionUtils.createConcurrentHashMap(directories.length);
+
+		final ServiceLoader<EnginePersistenceServiceFactory> svcLoader = ServiceLoader.load(EnginePersistenceServiceFactory.class);
+		this.enginePersistenceService = svcLoader
+			.findFirst()
+			.map(it -> it.create(configuration.storage(), configuration.transaction(), this.serviceExecutor))
+			.orElseThrow(StorageImplementationNotFoundException::new);
+
+		final EngineState engineState = this.enginePersistenceService.getEngineState();
+		this.engineState.set(engineState);
+		this.catalogs = CollectionUtils.createConcurrentHashMap(engineState.activeCatalogs().length);
+		this.inactiveCatalogs = CollectionUtils.createHashSet(engineState.inactiveCatalogs().length);
+		Collections.addAll(this.inactiveCatalogs, engineState.inactiveCatalogs());
 		this.management = new EvitaManagement(this);
 
 		try {
 			CompletableFuture.allOf(
-				Arrays.stream(directories)
-					.map(dir -> createLoadCatalogTask(dir.toFile().getName()))
-					.map(this.serviceExecutor::submit)
-					.toArray(CompletableFuture[]::new)
+				Arrays.stream(engineState.activeCatalogs())
+				      .map(this::createLoadCatalogTask)
+				      .map(this.serviceExecutor::submit)
+				      .toArray(CompletableFuture[]::new)
 			).get();
 			this.active = true;
 		} catch (Exception ex) {
@@ -319,55 +343,8 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Emits statistics of the ThreadPool associated with the scheduler.
-	 */
-	private void emitScheduledForkJoinPoolStatistics() {
-		final ScheduledThreadPoolExecutor tp = this.serviceExecutor.getExecutorServiceInternal();
-		final long currentlyCompleted = tp.getCompletedTaskCount();
-		new ScheduledExecutorStatisticsEvent(
-			currentlyCompleted - this.schedulerCompletedTasks,
-			tp.getActiveCount(),
-			tp.getQueue().size(),
-			tp.getQueue().remainingCapacity(),
-			tp.getPoolSize(),
-			tp.getCorePoolSize(),
-			tp.getMaximumPoolSize()
-		).commit();
-		this.schedulerCompletedTasks = currentlyCompleted;
-	}
-
-	/**
-	 * Emits statistics of the ForkJoinPool associated with the request executor.
-	 */
-	private void emitRequestForkJoinPoolStatistics() {
-		final ForkJoinPool fj = ((ObservableThreadExecutor) this.requestExecutor).getForkJoinPoolInternal();
-		final long currentStealCount = fj.getStealCount();
-		new RequestForkJoinPoolStatisticsEvent(
-			currentStealCount - this.requestExecutorSteals,
-			fj.getQueuedTaskCount(),
-			fj.getActiveThreadCount(),
-			fj.getRunningThreadCount()
-		).commit();
-		this.requestExecutorSteals = currentStealCount;
-	}
-
-	/**
-	 * Emits statistics of the ForkJoinPool associated with the transactional executor.
-	 */
-	private void emitTransactionalForkJoinPoolStatistics() {
-		final ForkJoinPool fj = ((ObservableThreadExecutor) this.transactionExecutor).getForkJoinPoolInternal();
-		final long currentStealCount = fj.getStealCount();
-		new RequestForkJoinPoolStatisticsEvent(
-			currentStealCount - this.transactionalExecutorSteals,
-			fj.getQueuedTaskCount(),
-			fj.getActiveThreadCount(),
-			fj.getRunningThreadCount()
-		).commit();
-		this.transactionalExecutorSteals = currentStealCount;
-	}
-
-	/**
-	 * Method for internal use. Can switch Evita from read-write to read-only one time only.
+	 * Method for internal use. Can switch Evita from read-write to read-only. This is an irreversible operation and
+	 * can be used only once.
 	 */
 	public void setReadOnly() {
 		Assert.isTrue(!this.readOnly, "Only read-write evita can be switched to read-only instance!");
@@ -413,7 +390,7 @@ public final class Evita implements EvitaContract {
 	@Override
 	public Optional<CatalogState> getCatalogState(@Nonnull String catalogName) {
 		return Optional.ofNullable(this.catalogs.get(catalogName))
-			.map(it -> it instanceof CorruptedCatalog ? CatalogState.CORRUPTED : it.getCatalogState());
+		               .map(it -> it instanceof CorruptedCatalog ? CatalogState.CORRUPTED : it.getCatalogState());
 	}
 
 	@Override
@@ -457,36 +434,67 @@ public final class Evita implements EvitaContract {
 	}
 
 	@Override
-	public void update(@Nonnull TopLevelCatalogSchemaMutation... catalogMutations) {
+	public void update(@Nonnull EngineMutation engineMutation) {
 		assertActiveAndWritable();
-		// TOBEDONE JNO #502 - we have to have a special WAL for the evitaDB server instance as well
-		for (CatalogSchemaMutation catalogMutation : catalogMutations) {
-			if (catalogMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
-				createCatalogInternal(createCatalogSchema);
-			} else if (catalogMutation instanceof ModifyCatalogSchemaNameMutation modifyCatalogSchemaName) {
-				if (modifyCatalogSchemaName.isOverwriteTarget() && this.catalogs.containsKey(modifyCatalogSchemaName.getNewCatalogName())) {
-					replaceCatalogInternal(modifyCatalogSchemaName);
-				} else {
-					renameCatalogInternal(modifyCatalogSchemaName);
-				}
-			} else if (catalogMutation instanceof ModifyCatalogSchemaMutation modifyCatalogSchema) {
-				updateCatalog(
-					modifyCatalogSchema.getCatalogName(),
-					session -> {
-						session.updateCatalogSchema(modifyCatalogSchema.getSchemaMutations());
-					},
-					SessionFlags.READ_WRITE
+		try {
+			if (this.engineStateLock.tryLock(this.configuration.server().transactionTimeoutInMilliseconds(), TimeUnit.MILLISECONDS)) {
+				final EngineState theEngineState = this.engineState.get();
+				final WalFileReference walFileReference = this.enginePersistenceService.appendWal(
+					theEngineState.version(),
+					engineMutation
 				);
-			} else if (catalogMutation instanceof RemoveCatalogSchemaMutation removeCatalogSchema) {
-				removeCatalogInternal(removeCatalogSchema);
-			} else {
-				throw new EvitaInvalidUsageException("Unknown catalog mutation: `" + catalogMutation.getClass() + "`!");
+				try {
+					if (engineMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
+						createCatalogInternal(createCatalogSchema);
+					} else if (engineMutation instanceof ModifyCatalogSchemaNameMutation modifyCatalogSchemaName) {
+						if (modifyCatalogSchemaName.isOverwriteTarget() && this.catalogs.containsKey(modifyCatalogSchemaName.getNewCatalogName())) {
+							replaceCatalogInternal(modifyCatalogSchemaName);
+						} else {
+							renameCatalogInternal(modifyCatalogSchemaName);
+						}
+					} else if (engineMutation instanceof ModifyCatalogSchemaMutation modifyCatalogSchema) {
+						updateCatalog(
+							modifyCatalogSchema.getCatalogName(),
+							session -> {
+								session.updateCatalogSchema(modifyCatalogSchema.getSchemaMutations());
+							},
+							SessionFlags.READ_WRITE
+						);
+					} else if (engineMutation instanceof RemoveCatalogSchemaMutation removeCatalogSchema) {
+						removeCatalogInternal(removeCatalogSchema);
+					} else {
+						throw new EvitaInvalidUsageException("Unknown engine mutation: `" + engineMutation.getClass() + "`!");
+					}
+				} finally {
+					final EngineState newState = EngineState
+						.builder()
+						.version(theEngineState.version() + 1)
+						.activeCatalogs(this.catalogs.keySet()
+						                             .stream()
+						                             .filter(it -> !this.inactiveCatalogs.contains(it))
+						                             .toArray(String[]::new))
+						.inactiveCatalogs(this.inactiveCatalogs.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
+						.walFileReference(walFileReference)
+						.build();
+					this.enginePersistenceService.storeEngineState(newState);
+					this.engineState.set(newState);
+				}
+			}
+		} catch (InterruptedException e) {
+			// do nothing
+			Thread.currentThread().interrupt();
+		} finally {
+			if (this.engineStateLock.isHeldByCurrentThread()) {
+				this.engineStateLock.unlock();
 			}
 		}
 	}
 
 	@Override
-	public <T> T queryCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> queryLogic, @Nullable SessionFlags... flags) {
+	public <T> T queryCatalog(
+		@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> queryLogic,
+		@Nullable SessionFlags... flags
+	) {
 		assertActive();
 		try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName, flags))) {
 			return queryLogic.apply(session);
@@ -494,7 +502,10 @@ public final class Evita implements EvitaContract {
 	}
 
 	@Override
-	public void queryCatalog(@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> queryLogic, @Nullable SessionFlags... flags) {
+	public void queryCatalog(
+		@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> queryLogic,
+		@Nullable SessionFlags... flags
+	) {
 		assertActive();
 		try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName, flags))) {
 			queryLogic.accept(session);
@@ -503,7 +514,10 @@ public final class Evita implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public <T> CompletableFuture<T> queryCatalogAsync(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> queryLogic, @Nullable SessionFlags... flags) {
+	public <T> CompletableFuture<T> queryCatalogAsync(
+		@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> queryLogic,
+		@Nullable SessionFlags... flags
+	) {
 		return CompletableFuture.supplyAsync(
 			() -> {
 				assertActive();
@@ -539,13 +553,13 @@ public final class Evita implements EvitaContract {
 			final T resultValue = createdSession.session().execute(updater);
 			// join the transaction future and return the result
 			return createdSession.commitProgress()
-				.on(commitBehaviour)
-				.handle((__, ex) -> {
-					if (ex != null) {
-						throw new CompletionException(ex);
-					}
-					return resultValue;
-				});
+			                     .on(commitBehaviour)
+			                     .handle((__, ex) -> {
+				                     if (ex != null) {
+					                     throw new CompletionException(ex);
+				                     }
+				                     return resultValue;
+			                     });
 		} catch (RuntimeException ex) {
 			createdSession.commitProgress().completeExceptionally(ex);
 			throw ex;
@@ -585,6 +599,14 @@ public final class Evita implements EvitaContract {
 		} finally {
 			createdSession.session().closeNow(commitBehaviour);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(
+		@Nonnull ChangeSystemCaptureRequest request
+	) {
+		return this.changeObserver.registerPublisher(request);
 	}
 
 	@Nonnull
@@ -639,24 +661,14 @@ public final class Evita implements EvitaContract {
 
 	/**
 	 * Asynchronously executes supplier lambda in the request thread pool.
+	 *
 	 * @param supplier supplier to be executed
+	 * @param <T>      type of the result
 	 * @return future with result of the supplier
-	 * @param <T> type of the result
 	 */
 	@Nonnull
 	public <T> CompletionStage<T> executeAsyncInRequestThreadPool(@Nonnull Supplier<T> supplier) {
 		return CompletableFuture.supplyAsync(supplier, this.requestExecutor);
-	}
-
-	/**
-	 * Asynchronously executes supplier lambda in the transactional thread pool.
-	 * @param supplier supplier to be executed
-	 * @return future with result of the supplier
-	 * @param <T> type of the result
-	 */
-	@Nonnull
-	public <T> CompletableFuture<T> executeAsyncInTransactionThreadPool(@Nonnull Supplier<T> supplier) {
-		return CompletableFuture.supplyAsync(supplier, this.transactionExecutor);
 	}
 
 	/**
@@ -714,10 +726,41 @@ public final class Evita implements EvitaContract {
 		);
 	}
 
-	@Nonnull
-	@Override
-	public ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request) {
-		return this.changeObserver.registerPublisher(request);
+	/**
+	 * Verifies this instance is still active.
+	 */
+	void assertActive() {
+		if (!this.active) {
+			throw new InstanceTerminatedException("instance");
+		}
+	}
+
+	/**
+	 * Verifies this instance is still active and not in read-only mode.
+	 */
+	void assertActiveAndWritable() {
+		assertActive();
+		if (this.readOnly) {
+			throw new ReadOnlyException();
+		}
+	}
+
+	/**
+	 * Emits statistics of the ThreadPool associated with the scheduler.
+	 */
+	private void emitScheduledForkJoinPoolStatistics() {
+		final ScheduledThreadPoolExecutor tp = this.serviceExecutor.getExecutorServiceInternal();
+		final long currentlyCompleted = tp.getCompletedTaskCount();
+		new ScheduledExecutorStatisticsEvent(
+			currentlyCompleted - this.schedulerCompletedTasks,
+			tp.getActiveCount(),
+			tp.getQueue().size(),
+			tp.getQueue().remainingCapacity(),
+			tp.getPoolSize(),
+			tp.getCorePoolSize(),
+			tp.getMaximumPoolSize()
+		).commit();
+		this.schedulerCompletedTasks = currentlyCompleted;
 	}
 
 	/*
@@ -725,12 +768,42 @@ public final class Evita implements EvitaContract {
 	*/
 
 	/**
+	 * Emits statistics of the ForkJoinPool associated with the request executor.
+	 */
+	private void emitRequestForkJoinPoolStatistics() {
+		final ForkJoinPool fj = ((ObservableThreadExecutor) this.requestExecutor).getForkJoinPoolInternal();
+		final long currentStealCount = fj.getStealCount();
+		new RequestForkJoinPoolStatisticsEvent(
+			currentStealCount - this.requestExecutorSteals,
+			fj.getQueuedTaskCount(),
+			fj.getActiveThreadCount(),
+			fj.getRunningThreadCount()
+		).commit();
+		this.requestExecutorSteals = currentStealCount;
+	}
+
+	/**
+	 * Emits statistics of the ForkJoinPool associated with the transactional executor.
+	 */
+	private void emitTransactionalForkJoinPoolStatistics() {
+		final ForkJoinPool fj = ((ObservableThreadExecutor) this.transactionExecutor).getForkJoinPoolInternal();
+		final long currentStealCount = fj.getStealCount();
+		new RequestForkJoinPoolStatisticsEvent(
+			currentStealCount - this.transactionalExecutorSteals,
+			fj.getQueuedTaskCount(),
+			fj.getActiveThreadCount(),
+			fj.getRunningThreadCount()
+		).commit();
+		this.transactionalExecutorSteals = currentStealCount;
+	}
+
+	/**
 	 * Creates new catalog in the evitaDB.
 	 */
 	private void createCatalogInternal(@Nonnull CreateCatalogSchemaMutation createCatalogSchema) {
 		final String catalogName = createCatalogSchema.getCatalogName();
 		final CatalogSchemaContract catalogSchema = Objects.requireNonNull(createCatalogSchema.mutate(null))
-			.updatedCatalogSchema();
+		                                                   .updatedCatalogSchema();
 
 		this.catalogs.compute(
 			catalogName,
@@ -738,30 +811,31 @@ public final class Evita implements EvitaContract {
 				if (existingCatalog == null) {
 					// check the names in all naming conventions are unique in the entity schema
 					this.catalogs.values()
-						.stream()
-						.flatMap(it -> {
-							final Stream<Entry<NamingConvention, String>> nameStream;
-							if (it instanceof CorruptedCatalog) {
-								nameStream = NamingConvention.generate(it.getName())
-									.entrySet()
-									.stream();
-							} else {
-								nameStream = it.getSchema()
-									.getNameVariants()
-									.entrySet()
-									.stream();
-							}
-							return nameStream
-								.map(name -> new CatalogNameInConvention(it.getName(), name.getKey(), name.getValue()));
-						})
-						.filter(nameVariant -> nameVariant.name().equals(catalogSchema.getNameVariant(nameVariant.convention())))
-						.map(nameVariant -> new CatalogNamingConventionConflict(nameVariant.catalogName(), nameVariant.convention(), nameVariant.name()))
-						.forEach(conflict -> {
-							throw new CatalogAlreadyPresentException(
-								catalogName, conflict.conflictingCatalogName(),
-								conflict.convention(), conflict.conflictingName()
-							);
-						});
+					             .stream()
+					             .flatMap(it -> {
+						             final Stream<Entry<NamingConvention, String>> nameStream;
+						             if (it instanceof CorruptedCatalog) {
+							             nameStream = NamingConvention.generate(it.getName())
+							                                          .entrySet()
+							                                          .stream();
+						             } else {
+							             nameStream = it.getSchema()
+							                            .getNameVariants()
+							                            .entrySet()
+							                            .stream();
+						             }
+						             return nameStream
+							             .map(name -> new CatalogNameInConvention(it.getName(), name.getKey(), name.getValue()));
+					             })
+					             .filter(nameVariant -> nameVariant.name()
+					                                               .equals(catalogSchema.getNameVariant(nameVariant.convention())))
+					             .map(nameVariant -> new CatalogNamingConventionConflict(nameVariant.catalogName(), nameVariant.convention(), nameVariant.name()))
+					             .forEach(conflict -> {
+						             throw new CatalogAlreadyPresentException(
+							             catalogName, conflict.conflictingCatalogName(),
+							             conflict.convention(), conflict.conflictingName()
+						             );
+					             });
 
 					return new Catalog(
 						catalogSchema,
@@ -958,25 +1032,6 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Verifies this instance is still active.
-	 */
-	void assertActive() {
-		if (!this.active) {
-			throw new InstanceTerminatedException("instance");
-		}
-	}
-
-	/**
-	 * Verifies this instance is still active and not in read-only mode.
-	 */
-	void assertActiveAndWritable() {
-		assertActive();
-		if (this.readOnly) {
-			throw new ReadOnlyException();
-		}
-	}
-
-	/**
 	 * Creates {@link EvitaSession} instance and registers all appropriate termination callbacks along.
 	 */
 	@Nonnull
@@ -1064,6 +1119,7 @@ public final class Evita implements EvitaContract {
 
 	/**
 	 * Emits the event about catalog statistics in metrics.
+	 *
 	 * @param catalogName name of the catalog
 	 */
 	private void emitCatalogStatistics(@Nonnull String catalogName) {
@@ -1132,20 +1188,21 @@ public final class Evita implements EvitaContract {
 
 	/**
 	 * Third stage of shut down: terminates all catalogs.
+	 *
 	 * @return future that completes when all catalogs are terminated
 	 */
 	@Nonnull
 	private CompletableFuture<Void> closeCatalogs() {
 		return CompletableFuture.allOf(
 			this.catalogs.values()
-				.stream()
-				.map(catalog -> CompletableFuture.runAsync(catalog::terminate))
-				.toArray(CompletableFuture[]::new)
+			             .stream()
+			             .map(catalog -> CompletableFuture.runAsync(catalog::terminate))
+			             .toArray(CompletableFuture[]::new)
 		).thenAccept(__ -> {
 			// clear map
 			this.catalogs.clear();
 			// release lock
-			IOUtils.closeQuietly(this.folderLock::close);
+			IOUtils.closeQuietly(this.enginePersistenceService::close);
 		});
 	}
 
@@ -1177,7 +1234,7 @@ public final class Evita implements EvitaContract {
 	 * Represents a created session.
 	 * This class is a record that encapsulates a session and a future for closing the session.
 	 *
-	 * @param session     reference to the created session itself
+	 * @param session        reference to the created session itself
 	 * @param commitProgress record containing futures related to a commit progression on session close
 	 */
 	private record CreatedSession(

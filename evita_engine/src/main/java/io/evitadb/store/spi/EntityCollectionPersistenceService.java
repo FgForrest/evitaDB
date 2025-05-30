@@ -58,7 +58,7 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public non-sealed interface EntityCollectionPersistenceService extends PersistenceService {
+public non-sealed interface EntityCollectionPersistenceService extends RichPersistenceService {
 
 	/**
 	 * Returns underlying {@link StoragePartPersistenceService} which this instance uses for {@link StoragePart}

@@ -567,19 +567,17 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 	}
 
 	public AbstractWriteAheadLog(
-		long catalogVersion,
+		long version,
 		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path storageFolder,
 		@Nonnull Pool<Kryo> kryoPool,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler,
-		@Nonnull LongConsumer bootstrapFileTrimmer,
-		@Nonnull WalPurgeCallback onWalPurgeCallback
+		@Nonnull Scheduler scheduler
 	) {
 		this.walFileNameProvider = walFileNameProvider;
 		this.kryoPool = kryoPool;
-		this.processedVersion = new AtomicLong(catalogVersion);
+		this.processedVersion = new AtomicLong(version);
 		this.storageOptions = storageOptions;
 		this.cutWalCacheTask = this.createDelayedAsyncTask(
 			"WAL cache cutter",
@@ -680,7 +678,7 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 	 * Constructor for internal use only. It is used to create a new WAL file with the given parameters.
 	 */
 	public AbstractWriteAheadLog(
-		long catalogVersion,
+		long version,
 		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path storageFolder,
 		@Nonnull Pool<Kryo> kryoPool,
@@ -693,7 +691,7 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 		this.storageOptions = storageOptions;
 		this.storageFolder = storageFolder;
 		this.kryoPool = kryoPool;
-		this.processedVersion = new AtomicLong(catalogVersion);
+		this.processedVersion = new AtomicLong(version);
 		this.cutWalCacheTask = this.createDelayedAsyncTask(
 			"WAL cache cutter",
 			scheduler,
@@ -807,8 +805,9 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 	 * @param walReference        The reference to the WAL file.
 	 * @return the number of Bytes written
 	 */
+	@Nonnull
 	@SuppressWarnings("StringConcatenationMissingWhitespace")
-	public long append(
+	public WalFileReference append(
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
 	) {
@@ -831,8 +830,8 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 			)
 		);
 
-		final long newWalFileSize = this.currentWalFile.get()
-		                                               .getCurrentWalFileSize() + transactionMutation.getWalSizeInBytes() + 4;
+		final long currentWalFileSize = this.currentWalFile.get().getCurrentWalFileSize();
+		final long newWalFileSize = currentWalFileSize + transactionMutation.getWalSizeInBytes() + 4;
 		if (newWalFileSize > this.maxWalFileSizeBytes) {
 			// rotate the WAL file
 			rotateWalFile();
@@ -919,7 +918,7 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 					emitWalStatisticsEvent(transactionMutation.getCommitTimestamp());
 				}
 			);
-			final int writtenLength = 4 + writtenHead + writtenContent;
+			final int writtenLength = writtenHead + writtenContent;
 			theCurrentWalFile.updateLastWrittenVersion(transactionMutation.getVersion(), writtenLength);
 
 			// clean up the folder if empty
@@ -927,7 +926,11 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 			            .map(Path::getParent)
 			            .ifPresent(FileUtils::deleteFolderIfEmpty);
 
-			return writtenLength;
+			return new WalFileReference(
+				this.walFileNameProvider,
+				theCurrentWalFile.getWalFileIndex(),
+				new FileLocation(currentWalFileSize, writtenLength)
+			);
 
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
@@ -1443,17 +1446,19 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 
 			if (!toRemove.isEmpty()) {
 				this.pendingRemovals.removeAll(toRemove);
-				// first trim the bootstrap record file
-				this.bootstrapFileTrimmer.accept(firstVersionToBeKept);
-				// call the listener to remove the obsolete files
-				if (firstVersionToBeKept > -1) {
-					this.onWalPurgeCallback.purgeFilesUpTo(firstVersionToBeKept);
-				}
+				updateFirstVersionKept(firstVersionToBeKept);
 			}
 
 			return -1;
 		}
 	}
+
+	/**
+	 * Updates the first version that is retained in the WAL files.
+	 *
+	 * @param firstVersionToBeKept The version number representing the first version available in the WAL files
+	 */
+	protected abstract void updateFirstVersionKept(long firstVersionToBeKept);
 
 	/**
 	 * Truncates a WAL file to a consistent length and emits a data file compact event.

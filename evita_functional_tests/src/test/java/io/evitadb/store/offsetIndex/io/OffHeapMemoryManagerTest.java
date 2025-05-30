@@ -35,12 +35,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * This test verifies {@link OffHeapMemoryManager} functionality.
+ * This test verifies {@link CatalogOffHeapMemoryManager} functionality.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 class OffHeapMemoryManagerTest {
-	private final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TestConstants.TEST_CATALOG, 1024, 16);
+	private final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(TestConstants.TEST_CATALOG, 1024, 16);
 
 	@Test
 	void shouldAcquireOutputStreamWriteOutputAndReadItAgain() throws IOException {

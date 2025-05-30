@@ -33,7 +33,7 @@ import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.service.SharedClassesConfigurer;
@@ -63,12 +63,12 @@ import static org.mockito.Mockito.when;
  */
 class TransactionalStoragePartPersistenceServiceTest {
 	private TransactionalStoragePartPersistenceService service;
-	private OffHeapMemoryManager offHeapMemoryManager;
+	private CatalogOffHeapMemoryManager offHeapMemoryManager;
 	private StoragePartPersistenceService delegateService;
 
 	@BeforeEach
 	public void setUp() {
-		this.offHeapMemoryManager = new OffHeapMemoryManager(TestConstants.TEST_CATALOG, 2048, 1);
+		this.offHeapMemoryManager = new CatalogOffHeapMemoryManager(TestConstants.TEST_CATALOG, 2048, 1);
 		this.delegateService = mock(StoragePartPersistenceService.class);
 		when(this.delegateService.getReadOnlyKeyCompressor()).thenReturn(new ReadOnlyKeyCompressor(Map.of()));
 		final StorageOptions storageOptions = StorageOptions.builder().build();

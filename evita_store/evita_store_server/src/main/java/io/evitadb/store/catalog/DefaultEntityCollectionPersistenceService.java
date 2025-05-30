@@ -100,7 +100,7 @@ import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -735,7 +735,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EntityCollectionHeader entityTypeHeader,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry
 	) {
@@ -860,18 +860,18 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreChanges dataStoreChanges) {
+	public void flushTrappedUpdates(long version, @Nonnull DataStoreChanges dataStoreChanges) {
 		// now store all entity trapped updates
 		dataStoreChanges.popTrappedUpdates()
 			.forEach(it -> {
 				if (it instanceof RemovedStoragePart removedStoragePart) {
 					this.storagePartPersistenceService.removeStoragePart(
-						catalogVersion,
+						version,
 						removedStoragePart.getStoragePartPKOrElseThrowException(),
 						removedStoragePart.containerType()
 					);
 				} else {
-					this.storagePartPersistenceService.putStoragePart(catalogVersion, it);
+					this.storagePartPersistenceService.putStoragePart(version, it);
 				}
 			});
 	}

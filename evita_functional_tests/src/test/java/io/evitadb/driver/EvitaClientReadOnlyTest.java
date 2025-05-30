@@ -55,7 +55,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
@@ -1305,11 +1305,11 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final CatalogVersion catalogVersionAt = session.getCatalogVersionAt(OffsetDateTime.now());
+				final StoredVersion catalogVersionAt = session.getCatalogVersionAt(OffsetDateTime.now());
 				assertEquals(lastCatalogVersion, catalogVersionAt.version());
 				assertNotNull(catalogVersionAt.introducedAt());
 
-				final CatalogVersion firstCatalogVersionAt = session.getCatalogVersionAt(null);
+				final StoredVersion firstCatalogVersionAt = session.getCatalogVersionAt(null);
 				assertEquals(0, firstCatalogVersionAt.version());
 				assertNotNull(firstCatalogVersionAt.introducedAt());
 			}

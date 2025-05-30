@@ -94,6 +94,17 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		return this.options.lockTimeoutSeconds();
 	}
 
+	public ObservableOutputKeeper(@Nonnull StorageOptions options, @Nonnull Scheduler scheduler) {
+		this.catalogName = null;
+		this.options = options;
+		this.cutTask = new DelayedAsyncTask(
+			null, "Write buffer releaser",
+			scheduler,
+			this::cutOutputCache,
+			CUT_OUTPUTS_AFTER_INACTIVITY_MS, TimeUnit.MILLISECONDS
+		);
+	}
+
 	public ObservableOutputKeeper(@Nonnull String catalogName, @Nonnull StorageOptions options, @Nonnull Scheduler scheduler) {
 		this.catalogName = catalogName;
 		this.options = options;
@@ -184,11 +195,18 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		);
 
 		// emit event
-		new ObservableOutputChangeEvent(
-			this.catalogName,
-			this.cachedOutputToFiles.size(),
-			(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
-		).commit();
+		if (this.catalogName == null) {
+			new ObservableOutputChangeEvent(
+				this.cachedOutputToFiles.size(),
+				(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+			).commit();
+		} else {
+			new ObservableOutputChangeEvent(
+				this.catalogName,
+				this.cachedOutputToFiles.size(),
+				(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+			).commit();
+		}
 
 		if (!this.cachedOutputToFiles.isEmpty()) {
 			log.error(
@@ -236,11 +254,18 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		}
 
 		// emit event
-		new ObservableOutputChangeEvent(
-			this.catalogName,
-			this.cachedOutputToFiles.size(),
-			(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
-		).commit();
+		if (this.catalogName == null) {
+			new ObservableOutputChangeEvent(
+				this.cachedOutputToFiles.size(),
+				(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+			).commit();
+		} else {
+			new ObservableOutputChangeEvent(
+				this.catalogName,
+				this.cachedOutputToFiles.size(),
+				(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+			).commit();
+		}
 
 		// re-plan the scheduled cut to the moment when the next entry should be cut down
 		return oldestNotCutEntryTouchTime > -1L ? (oldestNotCutEntryTouchTime - threshold) + 1 : -1L;

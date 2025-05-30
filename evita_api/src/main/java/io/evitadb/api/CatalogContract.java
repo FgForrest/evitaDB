@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
@@ -289,7 +290,7 @@ public interface CatalogContract {
 	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
 	 */
 	@Nonnull
-	CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+	StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns a paginated list of catalog versions based on the provided time flow, page number, and page size.
@@ -299,10 +300,10 @@ public interface CatalogContract {
 	 * @param timeFlow the time flow used to filter the catalog versions
 	 * @param page     the page number of the paginated list
 	 * @param pageSize the number of versions per page
-	 * @return a paginated list of {@link CatalogVersion} instances
+	 * @return a paginated list of {@link StoredVersion} instances
 	 */
 	@Nonnull
-	PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
+	PaginatedList<StoredVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
 
 	/**
 	 * Returns a stream of {@link WriteAheadLogVersionDescriptor} instances for the given catalog versions. Descriptors will

@@ -29,6 +29,8 @@ import io.evitadb.store.spi.model.CatalogVariableContentFileReference;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
+import java.util.Objects;
+import java.util.function.IntFunction;
 import java.util.function.IntFunction;
 
 /**
@@ -58,4 +60,26 @@ public record WalFileReference(
 		return new WalFileReference(this.walFileNameProvider, this.fileIndex + 1, null);
 	}
 
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof final WalFileReference that)) return false;
+
+		return this.fileIndex == that.fileIndex && Objects.equals(this.fileLocation, that.fileLocation);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = this.fileIndex;
+		result = 31 * result + Objects.hashCode(this.fileLocation);
+		return result;
+	}
+
+	@Nonnull
+	@Override
+	public String toString() {
+		return "WalFileReference{" +
+			"fileIndex=" + this.fileIndex +
+			", fileLocation=" + this.fileLocation +
+			'}';
+	}
 }

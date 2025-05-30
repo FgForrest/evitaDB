@@ -37,7 +37,7 @@ import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.exception.PersistenceServiceClosed;
@@ -88,7 +88,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	/**
 	 * Memory manager for off-heap memory.
 	 */
-	@Nonnull protected final OffHeapMemoryManager offHeapMemoryManager;
+	@Nonnull protected final CatalogOffHeapMemoryManager offHeapMemoryManager;
 	/**
 	 * This instance keeps references to the {@link ObservableOutput} instances that internally keep large buffers in
 	 * {@link ObservableOutput#getBuffer()} to use them for serialization. There buffers are not necessary when there are
@@ -111,7 +111,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 		@Nonnull FileType fileType,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull OffsetIndex offsetIndex,
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
 	) {

@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.MutationEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
@@ -93,7 +94,7 @@ import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.PrematureEndOfFileException;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
 import io.evitadb.store.offsetIndex.io.BootstrapWriteOnlyFileHandle;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
@@ -211,7 +212,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * The off-heap memory manager instance that is used for allocating off-heap memory regions for storing data.
 	 */
-	private final OffHeapMemoryManager offHeapMemoryManager;
+	private final CatalogOffHeapMemoryManager offHeapMemoryManager;
 	/**
 	 * The export file service instance that is used for backing-up data from the catalog.
 	 */
@@ -285,7 +286,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Pool contains instances of {@link Kryo} that are used for serializing mutations in WAL.
 	 */
-	private final Pool<Kryo> catalogKryoPool = new Pool<>(true, false, 16) {
+	private final Pool<Kryo> walKryoPool = new Pool<>(true, false, 16) {
 		@Override
 		protected Kryo create() {
 			return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
@@ -808,16 +809,16 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	/**
-	 * Reads a catalog version from a file handle and returns a CatalogVersion object.
+	 * Reads a catalog version from a file handle and returns a StoredVersion object.
 	 *
 	 * @param readHandle        The file handle used for reading the catalog version.
 	 * @param positionForRecord The position in the file for the catalog record.
-	 * @return The CatalogVersion object containing the catalog version and timestamp.
+	 * @return The StoredVersion object containing the catalog version and timestamp.
 	 */
 	@Nonnull
-	private static CatalogVersion readCatalogVersion(@Nonnull ReadOnlyFileHandle readHandle, long positionForRecord) {
+	private static StoredVersion readCatalogVersion(@Nonnull ReadOnlyFileHandle readHandle, long positionForRecord) {
 		final CatalogBootstrap catalogBootstrap = deserializeCatalogBootstrapRecord(positionForRecord, readHandle);
-		return new CatalogVersion(
+		return new StoredVersion(
 			catalogBootstrap.catalogVersion(),
 			catalogBootstrap.timestamp()
 		);
@@ -1119,7 +1120,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.transactionOptions = transactionOptions;
 		this.scheduler = scheduler;
 		this.exportFileService = exportFileService;
-		this.offHeapMemoryManager = new OffHeapMemoryManager(
+		this.offHeapMemoryManager = new CatalogOffHeapMemoryManager(
 			catalogName,
 			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
 			transactionOptions.transactionMemoryRegionCount()
@@ -1150,7 +1151,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			this::trimBootstrapFile,
 			this.obsoleteFileMaintainer::createWalPurgeCallback,
 			this.catalogStoragePath,
-			this.catalogKryoPool
+			this.walKryoPool
 		);
 
 		final String catalogFileName = getCatalogDataStoreFileName(catalogName, lastCatalogBootstrap.catalogFileIndex());
@@ -1198,7 +1199,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.transactionOptions = transactionOptions;
 		this.scheduler = scheduler;
 		this.exportFileService = exportFileService;
-		this.offHeapMemoryManager = new OffHeapMemoryManager(
+		this.offHeapMemoryManager = new CatalogOffHeapMemoryManager(
 			catalogName,
 			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
 			transactionOptions.transactionMemoryRegionCount()
@@ -1233,7 +1234,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			catalogVersion, catalogName, this.walFileNameProvider,
 			this.storageOptions, transactionOptions, scheduler,
 			this::trimBootstrapFile, this.obsoleteFileMaintainer::createWalPurgeCallback,
-			this.catalogStoragePath, this.catalogKryoPool
+			this.catalogStoragePath, this.walKryoPool
 		);
 
 		this.catalogStoragePartPersistenceService = CollectionUtils.createConcurrentHashMap(16);
@@ -1735,7 +1736,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	public IsolatedWalPersistenceService createIsolatedWalPersistenceService(@Nonnull UUID transactionId) {
 		return new DefaultIsolatedWalService(
 			transactionId,
-			this.catalogKryoPool.obtain(),
+			this.walKryoPool.obtain(),
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				this.transactionOptions.transactionWorkDirectory()
 					.resolve(transactionId.toString())
@@ -1765,7 +1766,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
 				this.catalogWal = getCatalogWriteAheadLog(
 					this.bootstrapUsed.catalogVersion(), this.catalogName, this.walFileNameProvider,
-					this.catalogStoragePath, catalogHeader, this.catalogKryoPool,
+					this.catalogStoragePath, catalogHeader, this.walKryoPool,
 					this.storageOptions, this.transactionOptions, this.scheduler,
 					this::trimBootstrapFile,
 					this.obsoleteFileMaintainer::createWalPurgeCallback
@@ -1780,7 +1781,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				"Catalog WAL is unexpectedly not present!"
 			);
 
-			return this.catalogWal.append(transactionMutation, walReference);
+			return Objects.requireNonNull(this.catalogWal.append(transactionMutation, walReference).fileLocation())
+			              .recordLength();
 		}
 	}
 
@@ -2078,7 +2080,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
+	public PaginatedList<StoredVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
 		final String bootstrapFileName = getCatalogBootstrapFileName(this.catalogName);
 		final Path bootstrapFilePath = this.catalogStoragePath.resolve(bootstrapFileName);
 		final File bootstrapFile = bootstrapFilePath.toFile();
@@ -2089,7 +2091,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			try (
 				final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, this.bootstrapStorageOptions)
 			) {
-				final List<CatalogVersion> catalogVersions = new ArrayList<>(pageSize);
+				final List<StoredVersion> catalogVersions = new ArrayList<>(pageSize);
 				if (timeFlow == TimeFlow.FROM_OLDEST_TO_NEWEST) {
 					final int firstNumber = PaginatedList.getFirstItemNumberForPage(pageNumber, pageSize);
 					for (int i = firstNumber; i < Math.min(firstNumber + pageSize, recordCount); i++) {
@@ -2125,7 +2127,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+	public StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
 		final CatalogBootstrap bootstrap;
 		if (moment == null) {
 			bootstrap = DefaultCatalogPersistenceService.getFirstCatalogBootstrap(
@@ -2137,7 +2139,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.catalogName, this.bootstrapStorageOptions, moment
 			);
 		}
-		return new CatalogVersion(bootstrap.catalogVersion(), bootstrap.timestamp());
+		return new StoredVersion(bootstrap.catalogVersion(), bootstrap.timestamp());
 	}
 
 	@Nonnull
@@ -2150,7 +2152,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final Path bootstrapFilePath = this.catalogStoragePath.resolve(bootstrapFileName);
 		final File bootstrapFile = bootstrapFilePath.toFile();
 		if (bootstrapFile.exists()) {
-			final Map<Long, CatalogVersion> catalogVersionPreviousVersions = createPreviousCatalogVersionsIndex(
+			final Map<Long, StoredVersion> catalogVersionPreviousVersions = createPreviousCatalogVersionsIndex(
 				catalogVersion, bootstrapFile, bootstrapFilePath
 			);
 			return this.catalogWal == null ?
@@ -2331,10 +2333,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreChanges dataStoreChanges) {
+	public void flushTrappedUpdates(long version, @Nonnull DataStoreChanges dataStoreChanges) {
 		// now store all the entity trapped updates
 		dataStoreChanges.popTrappedUpdates()
-			.forEach(it -> getStoragePartPersistenceService(catalogVersion).putStoragePart(catalogVersion, it));
+			.forEach(it -> getStoragePartPersistenceService(version).putStoragePart(version, it));
 	}
 
 	@Override
@@ -2680,7 +2682,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String newCatalogName,
 		@Nonnull CatalogBootstrap bootstrapRecord
 	) {
-		final Kryo kryo = this.catalogKryoPool.obtain();
+		final Kryo kryo = this.walKryoPool.obtain();
 		try {
 			this.bootstrapWriteLock.lockInterruptibly();
 			final BootstrapWriteOnlyFileHandle originalBootstrapHandle = this.bootstrapWriteHandle.get();
@@ -2722,7 +2724,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			);
 		} finally {
 			this.bootstrapWriteLock.unlock();
-			this.catalogKryoPool.free(kryo);
+			this.walKryoPool.free(kryo);
 			log.debug("Catalog `{}` stored to `{}`.", newCatalogName, this.catalogStoragePath);
 		}
 	}
@@ -3032,11 +3034,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * them and for each version stores the previous version.
 	 *
 	 * @param catalogVersion an array of catalog versions
-	 * @return a {@link CatalogVersion} object that contains PREVIOUS VERSION and CURRENT VERSION TIMESTAMP
+	 * @return a {@link StoredVersion} object that contains PREVIOUS VERSION and CURRENT VERSION TIMESTAMP
 	 * (this is a little bit hacky, but we avoid declaring new record type)
 	 */
 	@Nonnull
-	private Map<Long, CatalogVersion> createPreviousCatalogVersionsIndex(
+	private Map<Long, StoredVersion> createPreviousCatalogVersionsIndex(
 		@Nonnull long[] catalogVersion,
 		@Nonnull File bootstrapFile,
 		@Nonnull Path bootstrapFilePath
@@ -3061,16 +3063,16 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			// iterate over records between those versions
 			final int normalizedMinCvIndex = Math.max(0, minCvIndex < 0 ? -minCvIndex - 2 : minCvIndex - 1);
 			final int normalizedMaxCvIndex = Math.min(recordCount, maxCvIndex < 0 ? -maxCvIndex - 1 : maxCvIndex);
-			final Map<Long, CatalogVersion> catalogVersionPreviousVersions = CollectionUtils.createHashMap(
+			final Map<Long, StoredVersion> catalogVersionPreviousVersions = CollectionUtils.createHashMap(
 				normalizedMaxCvIndex - normalizedMinCvIndex + 1
 			);
-			CatalogVersion previousVersion = minCvIndex == -1 ? new CatalogVersion(-1L, OffsetDateTime.MIN) : null;
+			StoredVersion previousVersion = minCvIndex == -1 ? new StoredVersion(-1L, OffsetDateTime.MIN) : null;
 			for (int i = normalizedMinCvIndex; i <= normalizedMaxCvIndex; i++) {
-				final CatalogVersion cv = readCatalogVersion(readHandle, CatalogBootstrap.getPositionForRecord(i));
+				final StoredVersion cv = readCatalogVersion(readHandle, CatalogBootstrap.getPositionForRecord(i));
 				if (previousVersion != null) {
 					catalogVersionPreviousVersions.put(
 						cv.version(),
-						new CatalogVersion(previousVersion.version(), cv.introducedAt())
+						new StoredVersion(previousVersion.version(), cv.introducedAt())
 					);
 				}
 				previousVersion = cv;

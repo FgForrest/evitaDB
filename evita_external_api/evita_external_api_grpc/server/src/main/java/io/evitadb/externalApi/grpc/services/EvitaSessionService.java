@@ -57,7 +57,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.task.Task;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
@@ -589,7 +589,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	public void getCatalogVersionAt(GrpcCatalogVersionAtRequest request, StreamObserver<GrpcCatalogVersionAtResponse> responseObserver) {
 		executeWithClientContext(
 			session -> {
-				final CatalogVersion catalogVersionAt = session.getCatalogVersionAt(
+				final StoredVersion catalogVersionAt = session.getCatalogVersionAt(
 					request.hasTheMoment() ? toOffsetDateTime(request.getTheMoment()) : null
 				);
 				responseObserver.onNext(

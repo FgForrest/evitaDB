@@ -57,7 +57,7 @@ import java.util.function.BiConsumer;
 @RequiredArgsConstructor
 public class OffHeapMemoryOutputStream extends OutputStream {
 	/**
-	 * The region index of the OffHeapMemoryOutputStream in {@link OffHeapMemoryManager} memory block.
+	 * The region index of the OffHeapMemoryOutputStream in {@link CatalogOffHeapMemoryManager} memory block.
 	 */
 	@Getter private int regionIndex;
 	/**

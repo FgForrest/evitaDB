@@ -39,7 +39,7 @@ import io.evitadb.core.async.Scheduler;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.CatalogPersistenceService;
@@ -111,8 +111,8 @@ public class CatalogWriteAheadLogIntegrationTest {
 		              .build(),
 		Mockito.mock(Scheduler.class)
 	);
-	private final OffHeapMemoryManager noOffHeapMemoryManager = new OffHeapMemoryManager(TEST_CATALOG, 0, 0);
-	private final OffHeapMemoryManager bigOffHeapMemoryManager = new OffHeapMemoryManager(TEST_CATALOG, 10_000_000, 128);
+	private final CatalogOffHeapMemoryManager noOffHeapMemoryManager = new CatalogOffHeapMemoryManager(TEST_CATALOG, 0, 0);
+	private final CatalogOffHeapMemoryManager bigOffHeapMemoryManager = new CatalogOffHeapMemoryManager(TEST_CATALOG, 10_000_000, 128);
 	private final int[] txSizes = new int[]{2000, 3000, 4000, 5000, 7000, 9000, 1_000};
 	private final MockCatalogVersionConsumer offsetConsumer = new MockCatalogVersionConsumer();
 	private CatalogWriteAheadLog wal;
@@ -129,7 +129,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 	 */
 	@Nonnull
 	public static Map<Long, List<Mutation>> writeWal(
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		int[] transactionSizes,
 		@Nullable OffsetDateTime initialTimestamp,
 		@Nonnull Path isolatedWalFilePath,
@@ -424,7 +424,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 	 */
 	@Nonnull
 	private Map<Long, List<Mutation>> writeWal(
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager, int[] transactionSizes) {
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager, int[] transactionSizes) {
 		return writeWal(offHeapMemoryManager, transactionSizes, null, this.isolatedWalFilePath, this.observableOutputKeeper, this.wal);
 	}
 

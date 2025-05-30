@@ -21,25 +21,34 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.schema.mutation;
+package io.evitadb.store.offsetIndex.io;
 
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.core.metric.event.transaction.OffHeapMemoryAllocationChangeEvent;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 
 /**
- * This interface marks all mutations that needs to be executed on entire evitaDB level and not locally to
- * single catalog schema instance.
+ * CatalogOffHeapMemoryManager class is responsible for managing off-heap memory regions and providing
+ * free regions to acquire OutputStreams for writing data.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface TopLevelCatalogSchemaMutation extends CatalogSchemaMutation, EngineMutation {
-
+@Slf4j
+public class CatalogOffHeapMemoryManager extends OffHeapMemoryManager {
 	/**
-	 * Returns the name of the modified catalog schema.
-	 * @see CatalogSchemaContract#getName()
+	 * The name of the catalog that this memory manager is associated with.
 	 */
-	@Nonnull
-	String getCatalogName();
+	@Getter private final String catalogName;
 
+	public CatalogOffHeapMemoryManager(@Nonnull String catalogName, long sizeInBytes, int regions) {
+		super(sizeInBytes, regions);
+		this.catalogName = catalogName;
+	}
+
+	@Override
+	protected void emitAllocationEvent(long allocatedMemoryBytes, long usedMemoryBytes) {
+		new OffHeapMemoryAllocationChangeEvent(this.catalogName, allocatedMemoryBytes, usedMemoryBytes).commit();
+	}
 }

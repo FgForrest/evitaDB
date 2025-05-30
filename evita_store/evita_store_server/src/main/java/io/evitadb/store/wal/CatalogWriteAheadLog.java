@@ -83,6 +83,14 @@ public class CatalogWriteAheadLog extends AbstractWriteAheadLog {
 	 * The name of the catalog.
 	 */
 	private final String catalogName;
+	/**
+	 * This lambda allows trimming the bootstrap file to the given date.
+	 */
+	protected final LongConsumer bootstrapFileTrimmer;
+	/**
+	 * Callback to be called when the WAL file is purged.
+	 */
+	protected final WalPurgeCallback onWalPurgeCallback;
 
 	/**
 	 * Creates a new instance of CatalogTransactionChanges based on the given parameters.
@@ -137,11 +145,11 @@ public class CatalogWriteAheadLog extends AbstractWriteAheadLog {
 			kryoPool,
 			storageOptions,
 			transactionOptions,
-			scheduler,
-			bootstrapFileTrimmer,
-			onWalPurgeCallback
+			scheduler
 		);
 		this.catalogName = catalogName;
+		this.bootstrapFileTrimmer = bootstrapFileTrimmer;
+		this.onWalPurgeCallback = onWalPurgeCallback;
 	}
 
 	/**
@@ -169,6 +177,8 @@ public class CatalogWriteAheadLog extends AbstractWriteAheadLog {
 			walFileIndex
 		);
 		this.catalogName = catalogName;
+		this.bootstrapFileTrimmer = null;
+		this.onWalPurgeCallback = null;
 	}
 
 	/**
@@ -248,6 +258,16 @@ public class CatalogWriteAheadLog extends AbstractWriteAheadLog {
 					)
 				);
 			}
+		}
+	}
+
+	@Override
+	protected void updateFirstVersionKept(long firstVersionToBeKept) {
+		// first trim the bootstrap record file
+		this.bootstrapFileTrimmer.accept(firstVersionToBeKept);
+		// call the listener to remove the obsolete files
+		if (firstVersionToBeKept > -1) {
+			this.onWalPurgeCallback.purgeFilesUpTo(firstVersionToBeKept);
 		}
 	}
 

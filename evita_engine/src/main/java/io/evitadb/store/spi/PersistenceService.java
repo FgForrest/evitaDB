@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,9 +23,6 @@
 
 package io.evitadb.store.spi;
 
-import io.evitadb.core.buffer.DataStoreChanges;
-
-import javax.annotation.Nonnull;
 import java.io.Closeable;
 
 /**
@@ -35,18 +32,23 @@ import java.io.Closeable;
  */
 sealed interface PersistenceService
 	extends Closeable
-	permits CatalogPersistenceService, EntityCollectionPersistenceService {
+	permits EnginePersistenceService, RichPersistenceService {
+
+	/**
+	 * This constant represents the current version of the storage protocol. The version is changed everytime
+	 * the storage protocol on disk changes and the data with the old protocol version cannot be read by the new
+	 * protocol version.
+	 *
+	 * This means that the data needs to be converted from old to new protocol version first.
+	 */
+	int STORAGE_PROTOCOL_VERSION = 3;
+	String BOOT_FILE_SUFFIX = ".boot";
+	String WAL_FILE_SUFFIX = ".wal";
 
 	/**
 	 * Returns true if underlying file was not yet created.
 	 */
 	boolean isNew();
-
-	/**
-	 * Flushes all trapped memory data to the persistent storage.
-	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
-	 */
-	void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreChanges dataStoreChanges);
 
 	/**
 	 * Returns true if the persistence service is closed.

@@ -33,7 +33,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeS
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -89,7 +89,7 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 		getTestDirectory().resolve(this.transactionId.toString()),
 		StorageOptions.temporary(),
 		this.observableOutputKeeper,
-		new OffHeapMemoryManager(TEST_CATALOG, 512, 1)
+		new CatalogOffHeapMemoryManager(TEST_CATALOG, 512, 1)
 	);
 	private final DefaultIsolatedWalService tested = new DefaultIsolatedWalService(
 		this.transactionId,

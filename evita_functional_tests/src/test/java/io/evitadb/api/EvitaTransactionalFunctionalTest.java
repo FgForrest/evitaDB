@@ -47,6 +47,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
@@ -64,7 +65,7 @@ import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.CatalogPersistenceService;
@@ -170,7 +171,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		StorageOptions.temporary(),
 		Mockito.mock(Scheduler.class)
 	);
-	private final OffHeapMemoryManager offHeapMemoryManager = new OffHeapMemoryManager(TEST_CATALOG, 10_000_000, 128);
+	private final CatalogOffHeapMemoryManager offHeapMemoryManager = new CatalogOffHeapMemoryManager(TEST_CATALOG, 10_000_000, 128);
 
 	/**
 	 * Verifies the contents of the catalog in the given Evita instance.
@@ -631,7 +632,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				final long[] versions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5)
 					.getData()
 					.stream()
-					.mapToLong(CatalogVersion::version)
+					.mapToLong(StoredVersion::version)
 					.toArray();
 				assertArrayEquals(new long[]{59, 54, 50, 45, 41}, versions);
 
@@ -724,7 +725,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				final long[] prevVersions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 2, 5)
 					.getData()
 					.stream()
-					.mapToLong(CatalogVersion::version)
+					.mapToLong(StoredVersion::version)
 					.toArray();
 				assertArrayEquals(new long[]{36, 32, 27, 23, 18}, prevVersions);
 
@@ -752,7 +753,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				final long[] prevPrevVersions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 3, 5)
 					.getData()
 					.stream()
-					.mapToLong(CatalogVersion::version)
+					.mapToLong(StoredVersion::version)
 					.toArray();
 				assertArrayEquals(new long[]{14, 9, 4, 1, 0}, prevPrevVersions);
 
@@ -1765,7 +1766,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	@Nonnull
 	private Map<Long, List<EntityContract>> appendWal(
 		long baseCatalogVersion,
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull CatalogWriteAheadLog wal,
 		int[] transactionSizes,
 		@Nonnull SealedCatalogSchema catalogSchema,

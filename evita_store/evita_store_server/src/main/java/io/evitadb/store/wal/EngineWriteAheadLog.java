@@ -95,51 +95,22 @@ public class EngineWriteAheadLog extends AbstractWriteAheadLog {
 	}
 
 	public EngineWriteAheadLog(
-		long catalogVersion,
+		long version,
 		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path storageFolder,
 		@Nonnull Pool<Kryo> kryoPool,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler,
-		@Nonnull LongConsumer bootstrapFileTrimmer,
-		@Nonnull WalPurgeCallback onWalPurgeCallback
+		@Nonnull Scheduler scheduler
 	) {
 		super(
-			catalogVersion,
+			version,
 			walFileNameProvider,
 			storageFolder,
 			kryoPool,
 			storageOptions,
 			transactionOptions,
-			scheduler,
-			bootstrapFileTrimmer,
-			onWalPurgeCallback
-		);
-	}
-
-	/**
-	 * Constructor for internal use only. It is used to create a new WAL file with the given parameters.
-	 */
-	public EngineWriteAheadLog(
-		long catalogVersion,
-		@Nonnull IntFunction<String> walFileNameProvider,
-		@Nonnull Path storageFolder,
-		@Nonnull Pool<Kryo> kryoPool,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler,
-		int walFileIndex
-	) {
-		super(
-			catalogVersion,
-			walFileNameProvider,
-			storageFolder,
-			kryoPool,
-			storageOptions,
-			transactionOptions,
-			scheduler,
-			walFileIndex
+			scheduler
 		);
 	}
 
@@ -201,6 +172,11 @@ public class EngineWriteAheadLog extends AbstractWriteAheadLog {
 				);
 			}
 		}
+	}
+
+	@Override
+	protected void updateFirstVersionKept(long firstVersionToBeKept) {
+		// do nothing, this is not used in engine WAL
 	}
 
 	@Override

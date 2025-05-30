@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,34 +21,17 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.storage;
+package io.evitadb.api.requestResponse.schema.mutation;
+
+
+import io.evitadb.api.requestResponse.mutation.Mutation;
 
 /**
- * Allows to distinguish files by their type.
+ * This mutation represents a top-level mutation that is executed on the entire evitaDB instance and not just on a
+ * single catalog schema instance.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public enum FileType {
-
-	/**
-	 * Engine state file.
-	 */
-	ENGINE,
-	/**
-	 * Catalog file.
-	 */
-	CATALOG,
-	/**
-	 * Entity collection file.
-	 */
-	ENTITY_COLLECTION,
-	/**
-	 * Write-ahead log file.
-	 */
-	WAL,
-	/**
-	 * Bootstrap file.
-	 */
-	BOOTSTRAP
+public non-sealed interface EngineMutation extends Mutation {
 
 }

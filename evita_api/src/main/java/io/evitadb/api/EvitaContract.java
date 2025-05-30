@@ -33,7 +33,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
-import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.EngineMutation;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
@@ -190,11 +190,15 @@ public interface EvitaContract extends AutoCloseable {
 	boolean deleteCatalogIfExists(@Nonnull String catalogName);
 
 	/**
-	 * Applies catalog mutation affecting entire catalog.
-	 * The reason why we use mutations for this is to be able to include those operations to the WAL that is
-	 * synchronized to replicas.
+	 * Applies top-level engine mutation to the Evita instance. This method is used for applying catalog schema changes
+	 * and other engine-level changes that are not related to any particular catalog. The reason why we use mutations
+	 * for this is to be able to include those operations to the WAL that is synchronized to replicas.
+	 *
+	 * Top-level mutations are always applied immediately and cannot be rolled back or wrapped into a larger transaction.
+	 * To revert the changes made by this mutation, you have to create a new mutation that performs the opposite operation
+	 * (e.g. if you create a new catalog with this mutation, you have to create another mutation that deletes the catalog).
 	 */
-	void update(@Nonnull TopLevelCatalogSchemaMutation... catalogMutations);
+	void update(@Nonnull EngineMutation engineMutation);
 
 	/**
 	 * Executes querying logic in the newly created Evita session. Session is safely closed at the end of this method

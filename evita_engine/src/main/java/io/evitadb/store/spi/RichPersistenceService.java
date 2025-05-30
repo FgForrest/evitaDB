@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,24 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.system;
+package io.evitadb.store.spi;
+
+
+import io.evitadb.core.buffer.DataStoreChanges;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
-import java.time.OffsetDateTime;
 
 /**
- * This record represents the particular version of the catalog and the date / time when such version was introduced to
- * the system. Introduction of the non-transactional catalog version is the moment when the catalog version was updated
- * for the last time.
+ * Interface extends {@link PersistenceService} and provides additional methods for storing rich data structures
+ * like indexes and storage parts.
  *
- * @param version      the version of the catalog
- * @param introducedAt the date / time when the version was introduced to the system
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public record CatalogVersion(
-	long version,
-	@Nonnull OffsetDateTime introducedAt
-) implements Serializable {
+public sealed interface RichPersistenceService extends PersistenceService
+	permits CatalogPersistenceService, EntityCollectionPersistenceService {
+
+	/**
+	 * Flushes all trapped memory data to the persistent storage.
+	 * This method doesn't take transactional memory into account but only flushes changes for trapped updates.
+	 */
+	void flushTrappedUpdates(long version, @Nonnull DataStoreChanges dataStoreChanges);
+
 }

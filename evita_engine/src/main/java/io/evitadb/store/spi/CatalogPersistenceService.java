@@ -31,6 +31,7 @@ import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.system.CatalogVersion;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
@@ -73,7 +74,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public non-sealed interface CatalogPersistenceService extends PersistenceService {
+public non-sealed interface CatalogPersistenceService extends RichPersistenceService {
 	/**
 	 * This constant represents the current version of the storage protocol. The version is changed everytime
 	 * the storage protocol on disk changes and the data with the old protocol version cannot be read by the new
@@ -81,11 +82,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 *
 	 * This means that the data needs to be converted from old to new protocol version first.
 	 */
-	int STORAGE_PROTOCOL_VERSION = 3;
-	String BOOT_FILE_SUFFIX = ".boot";
 	String CATALOG_FILE_SUFFIX = ".catalog";
 	String ENTITY_COLLECTION_FILE_SUFFIX = ".collection";
-	String WAL_FILE_SUFFIX = ".wal";
 	String RESTORE_FLAG = ".restored";
 	Pattern GENERIC_ENTITY_COLLECTION_PATTERN = Pattern.compile(".*-(\\d+)_(\\d+)" + ENTITY_COLLECTION_FILE_SUFFIX);
 
@@ -448,10 +446,10 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @param timeFlow the time flow used to filter the catalog versions
 	 * @param page     the page number of the paginated list
 	 * @param pageSize the number of versions per page
-	 * @return a paginated list of {@link CatalogVersion} instances
+	 * @return a paginated list of {@link StoredVersion} instances
 	 */
 	@Nonnull
-	PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
+	PaginatedList<StoredVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
 
 	/**
 	 * Returns information about the version that was valid at the specified moment in time. If the moment is not
@@ -463,7 +461,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
 	 */
 	@Nonnull
-	CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+	StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns a stream of {@link WriteAheadLogVersionDescriptor} instances for the given catalog versions. Descriptors will

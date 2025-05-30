@@ -47,7 +47,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.driver.cdc.ClientRxPublisher;
@@ -69,7 +69,6 @@ import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFuture
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
-import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
@@ -89,10 +88,8 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateEncodingException;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -683,12 +680,15 @@ public class EvitaClient implements EvitaContract {
 	}
 
 	@Override
-	public void update(@Nonnull TopLevelCatalogSchemaMutation... catalogMutations) {
+	public void update(@Nonnull EngineMutation engineMutation) {
 		assertActive();
 
-		final List<GrpcTopLevelCatalogSchemaMutation> grpcSchemaMutations = Arrays.stream(catalogMutations)
+		/* TODO JNO - rework */
+		/*final List<GrpcTopLevelCatalogSchemaMutation> grpcSchemaMutations = Arrays.stream(catalogMutations)
 			.map(DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE::convert)
 			.toList();
+
+		DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE.convert(engineMutation);
 
 		final GrpcUpdateEvitaRequest request = GrpcUpdateEvitaRequest.newBuilder()
 			.addAllSchemaMutations(grpcSchemaMutations)
@@ -696,7 +696,7 @@ public class EvitaClient implements EvitaContract {
 
 		executeWithEvitaService(
 			evitaService -> evitaService.update(request)
-		);
+		);*/
 	}
 
 	@Override

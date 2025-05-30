@@ -128,7 +128,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 	private final Runnable onClose;
 
 	public AbstractMutationSupplier(
-		long catalogVersion,
+		long version,
 		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path storageFolder,
 		@Nonnull StorageOptions storageOptions,
@@ -171,7 +171,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 				Optional<TransactionMutationWithLocation> initialTransactionMutation;
 				do {
 					this.filePosition = ofNullable(this.transactionLocationsCache.get(this.walFileIndex))
-						.map(it -> it.findNearestLocation(catalogVersion))
+						.map(it -> it.findNearestLocation(version))
 						.orElse(0L);
 
 					this.observableInput.seekWithUnknownLength(this.filePosition);
@@ -179,7 +179,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 					final long walFileLength = this.walFile.length();
 					initialTransactionMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
 					// move cursor to the end of the lead mutation
-					while (initialTransactionMutation.map(it -> it.getVersion() < catalogVersion).orElse(false)) {
+					while (initialTransactionMutation.map(it -> it.getVersion() < version).orElse(false)) {
 						// move cursor to the next transaction mutation
 						this.filePosition += initialTransactionMutation.get().getTransactionSpan().recordLength();
 						this.observableInput.seekWithUnknownLength(this.filePosition);

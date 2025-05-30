@@ -21,34 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.metric.event.storage;
+package io.evitadb.api.requestResponse.system;
+
+import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.time.OffsetDateTime;
 
 /**
- * Allows to distinguish files by their type.
+ * This record represents the particular version of the data structure and the date / time when such version was
+ * introduced to the system. Introduction of the non-transactional version is the moment when the version was updated
+ * for the last time.
+ *
+ * @param version      the version of the data structure, which is incremented every time the data structure is changed
+ * @param introducedAt the date / time when the version was introduced to the system
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public enum FileType {
-
-	/**
-	 * Engine state file.
-	 */
-	ENGINE,
-	/**
-	 * Catalog file.
-	 */
-	CATALOG,
-	/**
-	 * Entity collection file.
-	 */
-	ENTITY_COLLECTION,
-	/**
-	 * Write-ahead log file.
-	 */
-	WAL,
-	/**
-	 * Bootstrap file.
-	 */
-	BOOTSTRAP
-
+public record StoredVersion(
+	long version,
+	@Nonnull OffsetDateTime introducedAt
+) implements Serializable {
 }

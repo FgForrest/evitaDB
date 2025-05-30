@@ -79,6 +79,7 @@ module evita.engine {
 	exports io.evitadb.store.spi.model.storageParts.index;
 	exports io.evitadb.store.spi.exception;
 
+	uses io.evitadb.store.spi.EnginePersistenceServiceFactory;
 	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 	uses io.evitadb.store.spi.TrafficRecorder;
 
