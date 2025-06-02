@@ -78,6 +78,7 @@ import io.evitadb.api.requestResponse.data.structure.ExistingEntityBuilder;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
