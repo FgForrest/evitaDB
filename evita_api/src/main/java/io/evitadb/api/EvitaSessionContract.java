@@ -1236,6 +1236,17 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	) throws TemporalDataNotAvailableException;
 
 	/**
+	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 * Full backup includes all data files, WAL files, and the catalog header file from the catalog storage.
+	 * After restoring catalog from the full backup, the catalog will contain all the data - so you should be able to
+	 * create even point-in-time backups from it.
+	 *
+	 * @return jobId of the backup process
+	 */
+	@Nonnull
+	Task<?, FileForFetch> fullBackupCatalog();
+
+	/**
 	 * Default implementation uses ID for comparing two sessions (and to distinguish one session from another).
 	 *
 	 * @return 0 if both sessions are the same

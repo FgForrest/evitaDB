@@ -163,6 +163,16 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 
 	@Nonnull
 	@Override
+	public CompletableFuture<FileForFetch> fullBackupCatalog(@Nonnull String catalogName) {
+		this.evita.assertActiveAndWritable();
+		// we need writable session for backup
+		try (final EvitaSessionContract session = this.evita.createReadWriteSession(catalogName)) {
+			return session.fullBackupCatalog().getFutureResult();
+		}
+	}
+
+	@Nonnull
+	@Override
 	public Task<?, Void> restoreCatalog(
 		@Nonnull String catalogName,
 		long totalBytesExpected,

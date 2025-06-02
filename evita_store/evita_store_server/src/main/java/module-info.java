@@ -55,5 +55,6 @@ module evita.store.server {
 	requires evita.store.key.value;
 	requires com.carrotsearch.hppc;
 	requires jdk.jfr;
+	requires java.desktop;
 
 }

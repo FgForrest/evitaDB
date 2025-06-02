@@ -520,6 +520,19 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	) throws TemporalDataNotAvailableException;
 
 	/**
+	 * Creates a full backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 *
+	 * @param onStart        callback that is called before the backup starts
+	 * @param onComplete     callback that is called when the backup is finished (either successfully or with an error)
+	 * @return path to the file where the backup was created
+	 */
+	@Nonnull
+	ServerTask<?, FileForFetch> createFullBackupTask(
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	);
+
+	/**
 	 * Verifies the integrity of a system, component, or data structure.
 	 * This method performs an internal check to ensure that the state
 	 * or configuration adheres to expected standards or rules.

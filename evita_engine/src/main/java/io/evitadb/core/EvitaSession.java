@@ -1285,6 +1285,24 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Interruptible
+	@Traced
+	@Nonnull
+	@Override
+	public Task<?, FileForFetch> fullBackupCatalog() {
+		// added read only check
+		isTrue(
+			!isReadOnly(),
+			ReadOnlyException::new
+		);
+		final CatalogContract theCatalog = this.catalog;
+		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
+		return theCatalog.fullBackup(
+			ccControl::registerConsumerOfCatalogInVersion,
+			ccControl::unregisterConsumerOfCatalogInVersion
+		);
+	}
+
 	@Nonnull
 	@Override
 	public Optional<UUID> getOpenedTransactionId() {
