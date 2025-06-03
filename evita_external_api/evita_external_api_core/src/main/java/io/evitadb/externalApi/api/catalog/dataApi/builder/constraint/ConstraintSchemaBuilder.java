@@ -37,6 +37,7 @@ import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.descriptor.ConstraintValueStructure;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
@@ -422,6 +423,33 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 								}
 								return plainType;
 							}
+						);
+
+					return buildChildren(allowedChildrenPredicate, constraintDescriptors, fieldBuilder).stream();
+				})
+				.toList()
+		);
+
+		fields.addAll(
+			findSortableAttributeCompoundSchemas(buildContext.dataLocator())
+				.stream()
+				.flatMap(sortableAttributeCompoundSchema -> {
+					// build constraint with dynamic classifiers only, others are currently not needed
+					final Set<ConstraintDescriptor> constraintDescriptors = ConstraintDescriptorProvider.getConstraintsSupportingCompounds(
+							getConstraintType(),
+							ConstraintPropertyType.ATTRIBUTE,
+							buildContext.dataLocator().targetDomain()
+						)
+						.stream()
+						.filter(cd -> cd.creator().hasClassifierParameter())
+						.collect(Collectors.toUnmodifiableSet());
+
+					final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder =
+						constraintDescriptor -> buildFieldFromConstraintDescriptor(
+							buildContext, // attribute constraints doesn't support children, thus parent domain is used as the default
+							constraintDescriptor,
+							() -> sortableAttributeCompoundSchema.getNameVariant(CLASSIFIER_NAMING_CONVENTION),
+							null
 						);
 
 					return buildChildren(allowedChildrenPredicate, constraintDescriptors, fieldBuilder).stream();
@@ -967,6 +995,27 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 				.values()
 				.stream()
 				.filter(getAttributeSchemaFilter())
+				.toList();
+		}
+
+		return Collections.emptyList();
+	}
+
+	/**
+	 * Find sortable attribute compound schemas for specific data locator.
+	 */
+	@Nonnull
+	protected Collection<? extends SortableAttributeCompoundSchemaContract> findSortableAttributeCompoundSchemas(@Nonnull DataLocator dataLocator) {
+		if (dataLocator.entityTypePointer() instanceof ExternalEntityTypePointer) {
+			return Collections.emptyList();
+		}
+
+		if (dataLocator instanceof final EntityDataLocator entityDataLocator) {
+			return this.sharedContext.getEntitySchemaOrThrowException(entityDataLocator.entityType())
+				.getSortableAttributeCompounds()
+				.values()
+				.stream()
+				.filter(SortableAttributeCompoundSchemaContract::isIndexedInAnyScope)
 				.toList();
 		}
 

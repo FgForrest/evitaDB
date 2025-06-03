@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -206,6 +206,22 @@ public class ConstraintDescriptorProvider {
 				cd.supportedValues().dataTypes().contains(requiredSupportedValueType.isPrimitive() ? EvitaDataTypes.getWrappingPrimitiveClass(requiredSupportedValueType) : requiredSupportedValueType) &&
 				verifyNullabilitySupport(cd.supportedValues().nullability(), nullableData) &&
 				(!arraySupportRequired || cd.supportedValues().supportsArrays()))
+			.collect(Collectors.toUnmodifiableSet());
+	}
+
+	/**
+	 * @return descriptors of all correctly registered constraints supporting compound data types
+	 */
+	@Nonnull
+	public static Set<ConstraintDescriptor> getConstraintsSupportingCompounds(@Nonnull ConstraintType requiredType,
+	                                                                          @Nonnull ConstraintPropertyType requiredPropertyType,
+	                                                                          @Nonnull ConstraintDomain requiredSupportedDomain) {
+		return CONSTRAINT_DESCRIPTORS.stream()
+			.filter(cd -> cd.type().equals(requiredType) &&
+				cd.propertyType().equals(requiredPropertyType) &&
+				cd.supportedIn().contains(requiredSupportedDomain) &&
+				cd.supportedValues() != null &&
+				cd.supportedValues().compoundsSupported())
 			.collect(Collectors.toUnmodifiableSet());
 	}
 

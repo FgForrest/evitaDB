@@ -96,7 +96,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 		final GraphQLInputObjectType.Builder containerBuilder = newInputObject().name(containerName);
 		final GraphQLInputType containerPointer = typeRef(containerName);
 		// cache new container for reuse
-		sharedContext.cacheContainer(containerKey, containerPointer);
+		this.sharedContext.cacheContainer(containerKey, containerPointer);
 
 		final List<GraphQLInputObjectField> children = new LinkedList<>();
 		children.addAll(buildGenericChildren(buildContext, allowedChildrenPredicate));
@@ -125,7 +125,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 			containerBuilder.field(field);
 		});
 
-		sharedContext.addNewType(containerBuilder.build());
+		this.sharedContext.addNewType(containerBuilder.build());
 		return containerPointer;
 	}
 
