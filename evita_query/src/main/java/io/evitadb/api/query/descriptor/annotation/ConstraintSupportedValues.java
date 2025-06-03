@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,6 +45,8 @@ public @interface ConstraintSupportedValues {
 
 	/**
 	 * Set of value data types of target data this query can operate on. Cannot be primitive types.
+	 *
+	 * If {@link #allTypesSupported()} is set to true, this parameter is ignored.
 	 */
 	Class<?>[] supportedTypes() default {};
 
@@ -58,6 +60,11 @@ public @interface ConstraintSupportedValues {
 	 * Flag stating that those {@link #supportedTypes()} can be in arrays in queried data.
 	 */
 	boolean arraysSupported() default false;
+
+	/**
+	 * Flag stating that compound types can be used as a value in the constraint.
+	 */
+	boolean compoundsSupported() default false;
 
 	/**
 	 * Whether the constraint supports only nullable data or only nonnull data or both and so on.

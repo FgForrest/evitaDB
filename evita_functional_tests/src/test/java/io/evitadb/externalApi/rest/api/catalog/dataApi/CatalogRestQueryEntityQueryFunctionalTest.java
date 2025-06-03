@@ -51,7 +51,6 @@ import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
@@ -67,7 +66,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
-import org.junit.jupiter.api.Disabled;
+import io.evitadb.utils.Assert;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -89,12 +88,12 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.SORTABLE_ATTRIBUTE_COMPOUND_CODE_NAME;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static org.hamcrest.Matchers.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -1952,6 +1951,63 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.statusCode(200)
 			.body(
 				DATA_PATH + "." + EntityDescriptor.PRIMARY_KEY.name(),
+				contains(expectedEntities)
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should order entities by sortable attribute compound")
+	void shouldOrderEntitiesBySortableAttributeCompound(Evita evita, RestTester tester) {
+		final Integer[] expectedEntities = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityLocaleEquals(CZECH_LOCALE)
+							),
+							orderBy(
+								attributeNatural(SORTABLE_ATTRIBUTE_COMPOUND_CODE_NAME, DESC)
+							),
+							require(
+								page(1, 30)
+							)
+						),
+						EntityReference.class
+					)
+					.getRecordData()
+					.stream()
+					.map(EntityReference::getPrimaryKey)
+					.toArray(Integer[]::new);
+			}
+		);
+		Assert.isPremiseValid(expectedEntities.length == 30, "Expected entities");
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+		            {
+			            "filterBy": {
+	                        "entityLocaleEquals": "cs-CZ"
+	                    },
+	                    "orderBy": [{
+	                        "attributeCodeNameNatural": "DESC"
+	                    }],
+	                    "require": {
+							"strip": {
+								"limit": 30
+							}
+						}
+					}
+					"""
+			)
+			.executeAndExpectOkAndThen()
+			.body(
+				resultPath(DATA_PATH, EntityDescriptor.PRIMARY_KEY.name()),
 				contains(expectedEntities)
 			);
 	}
