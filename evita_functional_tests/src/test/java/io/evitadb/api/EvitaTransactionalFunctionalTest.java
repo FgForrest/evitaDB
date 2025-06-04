@@ -1754,6 +1754,196 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		}
 	}
 
+	@Tag(LONG_RUNNING_TEST)
+	@ParameterizedTest(name = "This test verifies, that all data files are correctly rotated and compacted.")
+	@ArgumentsSource(TimeArgumentProvider.class)
+	void shouldCorrectlyRotateAllFilesManyItems(GenerationalTestInput input) throws Exception {
+		final Path testDirectory = getTestDirectory().resolve("shouldCorrectlyRotateAllFiles");
+		final Path testDirectoryExport = getTestDirectory().resolve("shouldCorrectlyRotateAllFiles_export");
+		cleanTestSubDirectory("shouldCorrectlyRotateAllFiles");
+		cleanTestSubDirectory("shouldCorrectlyRotateAllFiles_export");
+
+		try {
+			final Evita evita = new Evita(
+				EvitaConfiguration.builder()
+					.storage(
+						StorageOptions.builder()
+							.storageDirectory(testDirectory)
+							.exportDirectory(testDirectoryExport)
+							.minimalActiveRecordShare(0.9)
+							.fileSizeCompactionThresholdBytes(250_000)
+							.timeTravelEnabled(true)
+							.compress(true)
+							.build()
+					)
+					.transaction(
+						TransactionOptions.builder()
+							.walFileCountKept(2)
+							.build()
+					)
+					.server(
+						ServerOptions.builder()
+							.queryTimeoutInMilliseconds(-1)
+							.transactionTimeoutInMilliseconds(-1)
+							.closeSessionsAfterSecondsOfInactivity(-1)
+							.build()
+					)
+					.build()
+			);
+
+			try {
+				final String entityProduct = "product";
+				final String attributeUrl = "url";
+				final String attributeCode = "code";
+				final String attributeName = "name";
+				final String attributePrice = "price";
+
+				final Faker faker = new Faker(new Random(input.randomSeed()));
+				evita.defineCatalog(TEST_CATALOG)
+					.updateAndFetchViaNewSession(evita)
+					.openForWrite()
+					.withAttribute(attributeUrl, String.class)
+					.withEntitySchema(entityProduct, productSchema -> productSchema
+						.withoutGeneratedPrimaryKey()
+						.withGlobalAttribute(attributeUrl)
+						.withAttribute(attributeCode, String.class)
+						.withAttribute(attributeName, String.class)
+						.withAttribute(attributePrice, BigDecimal.class))
+					.updateViaNewSession(evita);
+				evita.updateCatalog(
+					TEST_CATALOG, session -> {
+						session.goLiveAndClose();
+					}
+				);
+
+				final LocalDateTime initialStart = LocalDateTime.now();
+				final ConcurrentHashMap<Integer, SealedEntity> entities = new ConcurrentHashMap<>();
+
+				Long expectedLastVersion = 0L;
+				final AtomicInteger updates = new AtomicInteger(0);
+				do {
+					evita.updateCatalog(
+						TEST_CATALOG,
+						session -> {
+							for (int i = 0; i < 1000; i++) {
+								if (entities.size() < 10000 || faker.random().nextBoolean()) {
+									final EntityReference ref = session.createNewEntity(entityProduct, entities.size() + 1)
+										.setAttribute(attributeUrl, faker.internet().url())
+										.setAttribute(attributeCode, faker.code().isbn10())
+										.setAttribute(attributeName, faker.book().title())
+										.setAttribute(attributePrice, BigDecimal.valueOf(faker.number().randomDouble(2, 1, 1000)))
+										.upsertVia(session);
+									entities.put(ref.primaryKey(), session.getEntity(entityProduct, ref.primaryKey(), attributeContentAll()).orElseThrow());
+								} else {
+									updates.incrementAndGet();
+									final int entityPrimaryKey = faker.random().nextInt(entities.size()) + 1;
+									final EntityBuilder entityBuilder = session.getEntity(
+											entityProduct, entityPrimaryKey, attributeContentAll()
+										)
+										.map(SealedInstance::openForWrite)
+										.orElseThrow(() -> new IllegalStateException("Entity with primary key " + entityPrimaryKey + " not found!"))
+										.setAttribute(attributeUrl, faker.internet().url())
+										.setAttribute(attributeCode, faker.code().isbn10())
+										.setAttribute(attributeName, faker.book().title())
+										.setAttribute(attributePrice, BigDecimal.valueOf(faker.number().randomDouble(2, 1, 1000)));
+									entityBuilder.upsertVia(session);
+
+									entities.put(entityPrimaryKey, entityBuilder.toInstance());
+								}
+							}
+						}
+					);
+
+				} while (Duration.between(initialStart, LocalDateTime.now()).toMinutes() < input.intervalInMinutes());
+
+				// check there is a first record
+				final TriConsumer<EvitaContract, Integer, String> catalogChecker = (theEvita, primaryKey, catalogName) -> theEvita.queryCatalog(
+					catalogName,
+					evitaSessionContract -> {
+						final long catalogVersion = evitaSessionContract.getCatalogVersion();
+
+						final SealedEntity expectedEntity = entities.get(primaryKey);
+						final Optional<SealedEntity> entity = evitaSessionContract.getEntity(entityProduct, primaryKey, attributeContentAll());
+						assertTrue(entity.isPresent(), "Entity should be present in the catalog!");
+						final SealedEntity realEntity = entity.get();
+						assertEquals(
+							expectedEntity.getAttribute(attributeCode, String.class),
+							realEntity.getAttribute(attributeCode, String.class),
+							"Entity code at version " + catalogVersion + " should match the expected one!"
+						);
+						assertEquals(
+							expectedEntity.getAttribute(attributeName, String.class),
+							realEntity.getAttribute(attributeName, String.class),
+							"Entity name at version " + catalogVersion + " should match the expected one!"
+						);
+						assertEquals(
+							expectedEntity.getAttribute(attributePrice, BigDecimal.class),
+							realEntity.getAttribute(attributePrice, BigDecimal.class),
+							"Entity price at version " + catalogVersion + " should match the expected one!"
+						);
+						assertEquals(
+							expectedEntity.getAttribute(attributeUrl, String.class),
+							realEntity.getAttribute(attributeUrl, String.class),
+							"Entity URL at version " + catalogVersion + " should match the expected one!"
+						);
+					}
+				);
+
+				log.info("Waiting for catalog version " + expectedLastVersion + " to be processed.");
+
+				final LocalDateTime wait = LocalDateTime.now();
+				long lastReportedCatalogVersion = 0L;
+				do {
+					final Long currentCatalogVersion = evita.queryCatalog(
+						TEST_CATALOG,
+						EvitaSessionContract::getCatalogVersion
+					);
+					if (currentCatalogVersion >= expectedLastVersion) {
+						log.info("Catalog version " + expectedLastVersion + " finally processed.");
+						for (Integer entityPrimaryKey : entities.keySet()) {
+							catalogChecker.accept(evita, entityPrimaryKey, TEST_CATALOG);
+						}
+						break;
+					} else if (currentCatalogVersion - 500 > lastReportedCatalogVersion) {
+						lastReportedCatalogVersion = currentCatalogVersion;
+						log.info("Waiting for catalog version " + expectedLastVersion + " to be processed (current " + currentCatalogVersion + ").");
+					}
+					Thread.onSpinWait();
+				} while (Duration.between(wait, LocalDateTime.now()).toMinutes() < 1);
+
+				final Long currentCatalogVersion = evita.queryCatalog(
+					TEST_CATALOG,
+					EvitaSessionContract::getCatalogVersion
+				);
+				log.info("Current catalog version: " + currentCatalogVersion + ", entities: " + entities.size() + ", updates: " + updates.get());
+
+				// close the evita
+				evita.close();
+
+				try (final Evita restartedEvita = new Evita(evita.getConfiguration())) {
+					assertInstanceOf(
+						Catalog.class, restartedEvita.getCatalogInstance(TEST_CATALOG).orElseThrow(),
+						"Catalog should be loaded from the disk!"
+					);
+
+					for (Integer entityPrimaryKey : entities.keySet()) {
+						catalogChecker.accept(restartedEvita, entityPrimaryKey, TEST_CATALOG);
+					}
+				}
+			} catch (Exception ex) {
+				log.error("Exception thrown within test!", ex);
+				fail(ex);
+			} finally {
+				if (evita.isActive()) {
+					evita.close();
+				}
+			}
+		} finally {
+			cleanTestSubDirectory("shouldCorrectlyRotateAllFiles");
+			cleanTestSubDirectory("shouldCorrectlyRotateAllFiles_export");
+		}
+	}
+
 	/**
 	 * Writes the Write-Ahead Log (WAL) using the provided off-heap memory manager.
 	 *

@@ -345,7 +345,8 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 				new OffsetIndexDescriptor(
 					fileOffsetIndexDescriptor.fileLocation(),
 					fileOffsetIndexDescriptor,
-					1.0, 0L
+					1.0,
+					fileOffsetIndexDescriptor.getFileSize()
 				),
 				limitedBufferOptions,
 				offsetIndexRecordTypeRegistry,
@@ -369,7 +370,8 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 				new OffsetIndexDescriptor(
 					updatedOffsetIndexDescriptor.fileLocation(),
 					updatedOffsetIndexDescriptor,
-					1.0, 0L
+					1.0,
+					updatedOffsetIndexDescriptor.getFileSize()
 				),
 				limitedBufferOptions,
 				offsetIndexRecordTypeRegistry,
@@ -453,7 +455,8 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 				new OffsetIndexDescriptor(
 					fileOffsetIndexInfo.fileLocation(),
 					fileOffsetIndexInfo,
-					1.0, 0L
+					1.0,
+					fileOffsetIndexInfo.getFileSize()
 				),
 				storageOptions,
 				offsetIndexRecordTypeRegistry,
@@ -521,7 +524,8 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 				new OffsetIndexDescriptor(
 					fileOffsetIndexDescriptor.fileLocation(),
 					fileOffsetIndexDescriptor,
-					1.0, 0L
+					1.0,
+					fileOffsetIndexDescriptor.getFileSize()
 				),
 				storageOptions,
 				offsetIndexRecordTypeRegistry,
@@ -753,7 +757,8 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 						new OffsetIndexDescriptor(
 							fileOffsetIndexDescriptor.fileLocation(),
 							fileOffsetIndexDescriptor,
-							1.0, 0L
+							1.0,
+							fileOffsetIndexDescriptor.getFileSize()
 						),
 						storageOptions,
 						offsetIndexRecordTypeRegistry,
@@ -843,7 +848,8 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 							new OffsetIndexDescriptor(
 								compactedDescriptor.fileLocation(),
 								compactedDescriptor,
-								1.0, 0L
+								1.0,
+								compactedDescriptor.getFileSize()
 							),
 							storageOptions,
 							offsetIndexRecordTypeRegistry,
@@ -942,7 +948,8 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 				new OffsetIndexDescriptor(
 					fileOffsetIndexDescriptor.fileLocation(),
 					fileOffsetIndexDescriptor,
-					1.0, 0L
+					1.0,
+					fileOffsetIndexDescriptor.getFileSize()
 				),
 				storageOptions,
 				offsetIndexRecordTypeRegistry,

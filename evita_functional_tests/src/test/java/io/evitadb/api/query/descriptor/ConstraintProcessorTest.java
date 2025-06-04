@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -230,6 +230,7 @@ class ConstraintProcessorTest {
 			new SupportedValues(
 				Set.of(String.class),
 				true,
+				false,
 				ConstraintNullabilitySupport.NULLABLE_AND_NONNULL
 			),
 			new ConstraintCreator(
@@ -324,6 +325,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -341,6 +343,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -355,6 +358,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public String getName() {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 
@@ -383,12 +387,14 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public String toString() {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 
 		@Nonnull
 		@Override
 		public ConstraintWithoutType cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -403,6 +409,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public String getName() {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 
@@ -431,12 +438,14 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public String toString() {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -461,6 +470,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -479,6 +489,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -497,6 +508,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -515,6 +527,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -533,6 +546,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -551,6 +565,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -569,6 +584,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -592,6 +608,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -610,6 +627,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -632,6 +650,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -654,6 +673,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -672,6 +692,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -690,6 +711,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -708,6 +730,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -740,6 +763,7 @@ class ConstraintProcessorTest {
 		@Nonnull
 		@Override
 		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
 			return null;
 		}
 	}
@@ -779,16 +803,18 @@ class ConstraintProcessorTest {
 			visitor.visit(this);
 		}
 
-		@Nonnull
-		@Override
-		public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-			return null;
-		}
+	    @Nonnull
+	    @Override
+	    public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	        //noinspection ReturnOfNull,DataFlowIssue
+	        return null;
+			}
 
-		@Nonnull
-		@Override
-		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-			return null;
+	    @Nonnull
+	    @Override
+	    public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+	        //noinspection ReturnOfNull,DataFlowIssue
+	        return null;
 		}
 	}
 }

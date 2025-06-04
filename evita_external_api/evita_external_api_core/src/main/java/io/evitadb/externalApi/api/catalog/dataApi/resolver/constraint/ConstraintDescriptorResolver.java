@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
@@ -206,7 +207,9 @@ class ConstraintDescriptorResolver {
 				final EntitySchemaContract schemaForClassifier = catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType());
 				return switch (constraintDescriptor.propertyType()) {
 					case ATTRIBUTE -> schemaForClassifier.getAttributeByName(c, CLASSIFIER_NAMING_CONVENTION)
-						.map(AttributeSchemaContract::getName)
+						.map(NamedSchemaContract.class::cast)
+						.or(() -> schemaForClassifier.getSortableAttributeCompoundByName(c, CLASSIFIER_NAMING_CONVENTION))
+						.map(NamedSchemaContract::getName)
 						.orElseThrow(() -> new ExternalApiInternalError(
 							"Could not find attribute schema for classifier `" + c + "`."
 						));
