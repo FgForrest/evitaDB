@@ -351,6 +351,22 @@ public interface CatalogContract {
 	) throws TemporalDataNotAvailableException;
 
 	/**
+	 * Creates a full backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 * Full backup includes all data files, WAL files, and the catalog header file from the catalog storage.
+	 * After restoring catalog from the full backup, the catalog will contain all the data - so you should be able to
+	 * create even point-in-time backups from it.
+	 *
+	 * @param onStart        callback that will be executed before the backup process starts
+	 * @param onComplete     callback that will be executed when the backup process is completed
+	 * @return jobId of the backup process
+	 */
+	@Nonnull
+	ServerTask<?, FileForFetch> fullBackup(
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	);
+
+	/**
 	 * Returns catalog statistics aggregating basic information about the catalog and the data stored in it.
 	 *
 	 * @return catalog statistics

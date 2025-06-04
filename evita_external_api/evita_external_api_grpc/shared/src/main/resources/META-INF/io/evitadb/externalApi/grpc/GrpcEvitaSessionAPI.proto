@@ -334,6 +334,12 @@ message GrpcBackupCatalogResponse {
   GrpcTaskStatus taskStatus = 1;
 }
 
+// Response to a catalog full backup request.
+message GrpcFullBackupCatalogResponse {
+  // the task that is used to backup the catalog and getting its progress
+  GrpcTaskStatus taskStatus = 1;
+}
+
 // Request for acquiring the list of all entity types.
 message GrpcEntityTypesResponse {
   // The list of all entity types.
@@ -545,6 +551,8 @@ service EvitaSessionService {
   rpc GoLiveAndClose(google.protobuf.Empty) returns (GrpcGoLiveAndCloseResponse);
   // Procedure used to backup an existing catalog.
   rpc BackupCatalog(GrpcBackupCatalogRequest) returns (GrpcBackupCatalogResponse);
+  // Procedure used to backup an existing catalog.
+  rpc FullBackupCatalog(google.protobuf.Empty) returns (GrpcFullBackupCatalogResponse);
   // Procedure that closes the session.
   rpc Close(GrpcCloseRequest) returns (GrpcCloseResponse);
   // Procedure that closes the session opening a stream that listens to transaction processing phases.

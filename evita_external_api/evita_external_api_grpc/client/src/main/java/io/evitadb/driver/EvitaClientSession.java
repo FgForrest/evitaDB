@@ -1574,6 +1574,24 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
+	public Task<?, FileForFetch> fullBackupCatalog() {
+		assertActive();
+		return executeInTransactionIfPossible(session -> {
+			final GrpcFullBackupCatalogResponse grpcResponse = executeWithBlockingEvitaSessionService(
+				evitaSessionService -> evitaSessionService.fullBackupCatalog(
+					Empty.newBuilder().build()
+				)
+			);
+
+			//noinspection unchecked
+			return (Task<?, FileForFetch>) this.management.createTask(
+				toTaskStatus(grpcResponse.getTaskStatus())
+			);
+		});
+	}
+
+	@Nonnull
+	@Override
 	public Optional<UUID> getOpenedTransactionId() {
 		assertActive();
 		return ofNullable(this.transactionAccessor.get())

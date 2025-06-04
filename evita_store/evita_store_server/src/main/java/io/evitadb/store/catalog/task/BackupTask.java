@@ -106,8 +106,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		super(
 			catalogName,
 			BackupTask.class.getSimpleName(),
-			"Backup catalog " + catalogName +
-				(pastMoment == null ? " now" : " at " + pastMoment) +
+			"Catalog " + catalogName + " backup" +
+				(pastMoment == null ? " with current data" : " snapshot at " + pastMoment) +
 				(catalogVersion == null ? "" : " for version " + catalogVersion) +
 				(includingWAL ? "" : ", including WAL"),
 			new BackupSettings(pastMoment, catalogVersion, includingWAL),
@@ -548,6 +548,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		boolean includingWAL
 	) implements Serializable {
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return Objects.requireNonNull(
