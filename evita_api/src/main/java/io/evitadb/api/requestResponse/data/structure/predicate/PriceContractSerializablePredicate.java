@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceForSaleContextWithCachedResult;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleContext;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
@@ -79,6 +80,11 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	 */
 	@Getter @Nullable private final String[] priceLists;
 	/**
+	 * Contains information about default ordered price list names, that should be used for calculating accompanying
+	 * prices when no specific price list order is requested.
+	 */
+	@Getter @Nullable private final String[] defaultAccompanyingPricePriceLists;
+	/**
 	 * Contains information about price lists that should be fetched in addition to filtered prices.
 	 */
 	@Getter @Nullable private final String[] additionalPriceLists;
@@ -111,6 +117,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		this.currency = null;
 		this.validIn = null;
 		this.priceLists = null;
+		this.defaultAccompanyingPricePriceLists = null;
 		this.additionalPriceLists = null;
 		this.priceListsAsSet = Collections.emptySet();
 		this.underlyingPredicate = null;
@@ -124,9 +131,11 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		this.validIn = evitaRequest.getRequiresPriceValidIn();
 		this.priceLists = evitaRequest.getRequiresPriceLists();
 		this.additionalPriceLists = evitaRequest.getFetchesAdditionalPriceLists();
+		this.defaultAccompanyingPricePriceLists = evitaRequest.getDefaultAccompanyingPricePriceLists();
 		this.priceListsAsSet = CollectionUtils.createLinkedHashSet(this.priceLists.length + this.additionalPriceLists.length);
 		Collections.addAll(this.priceListsAsSet, this.priceLists);
 		Collections.addAll(this.priceListsAsSet, this.additionalPriceLists);
+		Collections.addAll(this.priceListsAsSet, this.defaultAccompanyingPricePriceLists);
 		this.underlyingPredicate = null;
 		this.contextAvailable = contextAvailable != null ?
 			contextAvailable : this.currency != null && !ArrayUtils.isEmpty(this.priceLists);
@@ -145,9 +154,11 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		this.validIn = underlyingPredicate.validIn;
 		this.priceLists = evitaRequest.getRequiresPriceLists();
 		this.additionalPriceLists = evitaRequest.getFetchesAdditionalPriceLists();
+		this.defaultAccompanyingPricePriceLists = evitaRequest.getDefaultAccompanyingPricePriceLists();
 		this.priceListsAsSet = CollectionUtils.createLinkedHashSet(this.priceLists.length + this.additionalPriceLists.length);
 		Collections.addAll(this.priceListsAsSet, this.priceLists);
 		Collections.addAll(this.priceListsAsSet, this.additionalPriceLists);
+		Collections.addAll(this.priceListsAsSet, this.defaultAccompanyingPricePriceLists);
 		this.underlyingPredicate = underlyingPredicate;
 		this.contextAvailable = this.currency != null && !ArrayUtils.isEmpty(this.priceLists);
 		this.queryPriceMode = evitaRequest.getQueryPriceMode();
@@ -159,6 +170,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		@Nullable OffsetDateTime validIn,
 		@Nullable String[] priceLists,
 		@Nullable String[] additionalPriceLists,
+		@Nullable String[] defaultAccompanyingPricePriceLists,
 		@Nonnull Set<String> priceListsAsSet,
 		@Nonnull QueryPriceMode queryPriceMode,
 		boolean contextAvailable
@@ -168,6 +180,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		this.validIn = validIn;
 		this.priceLists = priceLists;
 		this.additionalPriceLists = additionalPriceLists;
+		this.defaultAccompanyingPricePriceLists = defaultAccompanyingPricePriceLists;
 		this.priceListsAsSet = priceListsAsSet;
 		this.underlyingPredicate = null;
 		this.queryPriceMode = queryPriceMode;
@@ -176,13 +189,13 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 
 	@Override
 	public boolean test(PriceContract priceContract) {
-		return switch (priceContentMode) {
+		return switch (this.priceContentMode) {
 			case NONE -> false;
 			case ALL -> priceContract.exists();
 			case RESPECTING_FILTER -> priceContract.exists() &&
-				(currency == null || Objects.equals(currency, priceContract.currency())) &&
-				(ArrayUtils.isEmpty(priceLists) || priceListsAsSet.contains(priceContract.priceList())) &&
-				(validIn == null || ofNullable(priceContract.validity()).map(it -> it.isValidFor(validIn)).orElse(true));
+				(this.currency == null || Objects.equals(this.currency, priceContract.currency())) &&
+				(ArrayUtils.isEmpty(this.priceLists) || this.priceListsAsSet.contains(priceContract.priceList())) &&
+				(this.validIn == null || ofNullable(priceContract.validity()).map(it -> it.isValidFor(this.validIn)).orElse(true));
 		};
 	}
 
@@ -201,7 +214,9 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	public Optional<PriceForSaleContext> getPriceForSaleContext() {
 		if (this.contextAvailable) {
 			if (this.priceForSaleContext == null) {
-				this.priceForSaleContext = new PriceForSaleContext(this.priceLists, this.currency, this.validIn);
+				this.priceForSaleContext = new PriceForSaleContextWithCachedResult(
+					this.priceLists, this.currency, this.validIn, this.defaultAccompanyingPricePriceLists
+				);
 			}
 			return Optional.of(this.priceForSaleContext);
 		} else {
@@ -214,16 +229,16 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	 * along with the entity.
 	 */
 	public void checkFetched(@Nullable Currency currency, @Nonnull String... priceList) throws ContextMissingException {
-		switch (priceContentMode) {
+		switch (this.priceContentMode) {
 			case NONE -> throw ContextMissingException.pricesNotFetched();
 			case RESPECTING_FILTER -> {
 				if (this.currency != null && currency != null && !Objects.equals(this.currency, currency)) {
 					throw ContextMissingException.pricesNotFetched(currency, this.currency);
 				}
-				if (!priceListsAsSet.isEmpty()) {
+				if (!this.priceListsAsSet.isEmpty()) {
 					for (String checkedPriceList : priceList) {
-						if (!priceListsAsSet.contains(checkedPriceList)) {
-							throw ContextMissingException.pricesNotFetched(checkedPriceList, priceListsAsSet);
+						if (!this.priceListsAsSet.contains(checkedPriceList)) {
+							throw ContextMissingException.pricesNotFetched(checkedPriceList, this.priceListsAsSet);
 						}
 					}
 				}
@@ -235,7 +250,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	 * Returns true if the prices were fetched.
 	 */
 	public boolean isFetched() {
-		return priceContentMode != PriceContentMode.NONE;
+		return this.priceContentMode != PriceContentMode.NONE;
 	}
 
 	/**
@@ -244,14 +259,25 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	 * @throws ContextMissingException if no price was fetched with the entity
 	 */
 	public void checkPricesFetched() throws ContextMissingException {
-		if (priceContentMode == PriceContentMode.NONE) {
+		if (this.priceContentMode == PriceContentMode.NONE) {
 			throw ContextMissingException.pricesNotFetched();
 		}
 	}
 
+	/**
+	 * Creates and returns a richer copy of the current PriceContractSerializablePredicate instance with properties
+	 * updated or augmented based on the provided EvitaRequest.
+	 *
+	 * @param evitaRequest the request containing additional details or constraints such as required entity prices,
+	 *                     additional price lists, or accompanying price lists which affect the returned predicate.
+	 * @return a new PriceContractSerializablePredicate instance that has been enriched with the provided properties
+	 *         or the current instance if no changes are required.
+	 */
+	@Nonnull
 	public PriceContractSerializablePredicate createRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
 		final PriceContentMode requiresEntityPrices = evitaRequest.getRequiresEntityPrices();
 		final String[] fetchesAdditionalPriceLists = evitaRequest.getFetchesAdditionalPriceLists();
+		final String[] redefinedDefaultAccompanyingPriceLists = evitaRequest.getDefaultAccompanyingPricePriceLists();
 		if (this.priceContentMode.ordinal() >= requiresEntityPrices.ordinal()) {
 			if (ArrayUtils.isEmpty(fetchesAdditionalPriceLists)) {
 				// this predicate cannot change since everything is taken from the filter and this cannot change in time
@@ -261,6 +287,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 					requiresEntityPrices,
 					this.currency, this.validIn, this.priceLists,
 					this.additionalPriceLists == null ? fetchesAdditionalPriceLists : ArrayUtils.mergeArrays(this.additionalPriceLists, fetchesAdditionalPriceLists),
+					redefinedDefaultAccompanyingPriceLists.length == 0 ? this.defaultAccompanyingPricePriceLists : redefinedDefaultAccompanyingPriceLists,
 					this.priceListsAsSet,
 					this.queryPriceMode,
 					this.contextAvailable
@@ -272,6 +299,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 					requiresEntityPrices,
 					this.currency, this.validIn, this.priceLists,
 					this.additionalPriceLists,
+					redefinedDefaultAccompanyingPriceLists.length == 0 ? this.defaultAccompanyingPricePriceLists : redefinedDefaultAccompanyingPriceLists,
 					this.priceListsAsSet,
 					this.queryPriceMode,
 					this.contextAvailable
@@ -282,6 +310,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 					this.currency, this.validIn,
 					this.priceLists,
 					this.additionalPriceLists == null ? fetchesAdditionalPriceLists : ArrayUtils.mergeArrays(this.additionalPriceLists, fetchesAdditionalPriceLists),
+					redefinedDefaultAccompanyingPriceLists.length == 0 ? this.defaultAccompanyingPricePriceLists : redefinedDefaultAccompanyingPriceLists,
 					this.additionalPriceLists == null ? this.priceListsAsSet : Stream.concat(this.priceListsAsSet.stream(), Arrays.stream(fetchesAdditionalPriceLists)).collect(Collectors.toSet()),
 					this.queryPriceMode,
 					this.contextAvailable

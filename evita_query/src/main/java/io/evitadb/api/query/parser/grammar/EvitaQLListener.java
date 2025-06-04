@@ -1421,6 +1421,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitAllRequiresHierarchyContentConstraint(EvitaQLParser.AllRequiresHierarchyContentConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code accompanyingPriceConstraints}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterAccompanyingPriceConstraints(EvitaQLParser.AccompanyingPriceConstraintsContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code accompanyingPriceConstraints}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitAccompanyingPriceConstraints(EvitaQLParser.AccompanyingPriceConstraintsContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code priceTypeConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree

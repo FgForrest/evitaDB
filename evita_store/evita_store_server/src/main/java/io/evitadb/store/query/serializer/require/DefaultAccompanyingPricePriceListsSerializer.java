@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,23 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.query.serializer.filter;
+package io.evitadb.store.query.serializer.require;
+
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.filter.PriceInPriceLists;
+import io.evitadb.api.query.require.DefaultAccompanyingPricePriceLists;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link PriceInPriceLists} from/to binary format.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class PriceInPriceListsSerializer extends Serializer<PriceInPriceLists> {
+public class DefaultAccompanyingPricePriceListsSerializer extends Serializer<DefaultAccompanyingPricePriceLists> {
 
 	@Override
-	public void write(Kryo kryo, Output output, PriceInPriceLists object) {
+	public void write(Kryo kryo, Output output, DefaultAccompanyingPricePriceLists object) {
 		final String[] priceLists = object.getPriceLists();
 		output.writeVarInt(priceLists.length, true);
 		for (String priceList : priceLists) {
@@ -46,13 +48,13 @@ public class PriceInPriceListsSerializer extends Serializer<PriceInPriceLists> {
 	}
 
 	@Override
-	public PriceInPriceLists read(Kryo kryo, Input input, Class<? extends PriceInPriceLists> type) {
+	public DefaultAccompanyingPricePriceLists read(Kryo kryo, Input input, Class<? extends DefaultAccompanyingPricePriceLists> type) {
 		final int priceListCount = input.readVarInt(true);
 		final String[] priceLists = new String[priceListCount];
 		for (int i = 0; i < priceListCount; i++) {
 			priceLists[i] = input.readString();
 		}
-		return new PriceInPriceLists(priceLists);
+		return new DefaultAccompanyingPricePriceLists(priceLists);
 	}
 
 }

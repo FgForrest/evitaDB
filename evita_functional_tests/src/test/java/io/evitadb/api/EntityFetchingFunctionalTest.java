@@ -1172,6 +1172,60 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		);
 	}
 
+	@DisplayName("Should return entity with price for sale and accompanied price")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntityWithPriceForSaleAndAccompanyingPrice(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getPrices().stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_B2B::equals)
+		);
+
+		assertTrue(entitiesMatchingTheRequirements.length > 0, "None entity match the filter, test would not work!");
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements[0]),
+							priceInCurrency(CURRENCY_EUR),
+							priceInPriceLists(PRICE_LIST_BASIC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								priceContent(PriceContentMode.RESPECTING_FILTER),
+								accompanyingPrice(PRICE_LIST_B2B)
+							)
+						)
+					)
+				);
+
+				assertEquals(1, productByPk.getRecordData().size());
+				assertEquals(1, productByPk.getTotalRecordCount());
+
+				final SealedEntity product = productByPk.getRecordData().get(0);
+				final Optional<PriceContract> priceForSale = product.getPriceForSale();
+
+				assertTrue(priceForSale.isPresent(), "Product should have a price for sale!");
+				assertEquals(CURRENCY_EUR, priceForSale.get().currency());
+				assertEquals(PRICE_LIST_BASIC, priceForSale.get().priceList());
+
+				final Optional<PriceContract> accompanyingPrice = product.getAccompanyingPrice();
+				assertTrue(accompanyingPrice.isPresent(), "Product should have an accompanying price!");
+				assertEquals(CURRENCY_EUR, accompanyingPrice.get().currency());
+				assertEquals(PRICE_LIST_B2B, accompanyingPrice.get().priceList());
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Multiple entities with prices in selected currency by their primary keys should be found")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test

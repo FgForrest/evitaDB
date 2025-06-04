@@ -35414,6 +35414,44 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * The `accompanyingPrice` constraint defines the ordered price list names that should be used for calculation of
+	 * so-called accompanying price, which is a price not used for selling, but rather for displaying additional price
+	 * information (such as "previous price", "recommended price", etc.).
+	 *
+	 * <pre>
+	 * accompanyingPrice(
+	 *     "reference",
+	 *     "basic"
+	 * )
+	 * </pre>
+	 *
+	 * Settings defined in this constraint can be overridden by exact accompanying price retrieval place (such as method
+	 * call of field access). However, this constraint defines the default price lists that should be used for accompanying
+	 * price when no other price lists are specified.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static DefaultAccompanyingPricePriceLists accompanyingPrice(@Nullable String... priceList) {
+		if (priceList == null) {
+			return null;
+		}
+		// if the array is empty - it was deliberate action which needs to produce empty result of the query
+		if (priceList.length == 0) {
+			return new DefaultAccompanyingPricePriceLists(priceList);
+		}
+		final String[] normalizeNames = Arrays.stream(priceList).filter(Objects::nonNull).filter(it -> !it.isBlank()).toArray(String[]::new);
+		// the array was not empty, but contains only null values - this may not be deliberate action - for example
+		// the initalization was like `accompanyingPrice(nullVariable)` and this should exclude the constraint
+		if (normalizeNames.length == 0) {
+			return null;
+		}
+		// otherwise propagate only non-null values
+		return normalizeNames.length == priceList.length ?
+			new DefaultAccompanyingPricePriceLists(priceList) : new DefaultAccompanyingPricePriceLists(normalizeNames);
+	}
+
+	/**
 	 * This `useOfPrice` require constraint can be used to control the form of prices that will be used for computation in
 	 * {@link io.evitadb.api.query.filter.PriceBetween} filtering, and {@link PriceNatural},
 	 * ordering. Also {@link PriceHistogram} is sensitive to this setting.

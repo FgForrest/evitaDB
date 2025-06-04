@@ -27,6 +27,7 @@ import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.require.DefaultAccompanyingPricePriceLists;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.structure.CumulatedPrice;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -57,6 +58,7 @@ import static java.util.Optional.ofNullable;
  */
 public interface PricesContract extends Versioned, Serializable {
 	AccompanyingPrice[] NO_ACCOMPANYING_PRICES = new AccompanyingPrice[0];
+	String DEFAULT_ACCOMPANYING_PRICE = "__default";
 
 	/**
 	 * Computes a price for which the entity should be sold. Only indexed prices in requested currency, valid
@@ -168,7 +170,7 @@ public interface PricesContract extends Versioned, Serializable {
 							new PriceForSaleWithAccompanyingPrices(
 								priceForSale,
 								calculateAccompanyingPricesForSumInnerRecordHandling(
-									priceForSale,  entityPrices, currency, atTheMoment, accompanyingPrices
+									priceForSale, entityPrices, currency, atTheMoment, accompanyingPrices
 								)
 							)
 						) : empty();
@@ -193,6 +195,45 @@ public interface PricesContract extends Versioned, Serializable {
 				.stream()
 				.anyMatch(it -> it.differsFrom(second.getPrice(it.priceId(), it.priceList(), it.currency()).orElse(null)));
 		}
+	}
+
+	/**
+	 * Calculates a map of accompanying prices based on the provided price, collection of entity prices,
+	 * inner record handling, currency, moment in time, and accompanying price configuration.
+	 *
+	 * @param priceForSale        The primary price to reference for calculating accompanying prices.
+	 * @param entityPrices        A collection of price contracts related to the entity for which accompanying prices should be calculated.
+	 * @param innerRecordHandling The method of handling inner record prices, which affects the way accompanying prices are aggregated.
+	 * @param currency            The currency in which the accompanying prices are expected to be calculated.
+	 * @param atTheMoment         The specific point in time at which the accompanying prices should be calculated. May be null to ignore time-based context.
+	 * @param accompanyingPrices  An array of accompanying price configurations that determines which prices to calculate.
+	 * @return A map where the keys are the names of the accompanying prices and the values are Optional instances of corresponding price contracts.
+	 */
+	@Nonnull
+	static Map<String, Optional<PriceContract>> calculateAccompanyingPrices(
+		@Nonnull PriceContract priceForSale,
+		@Nonnull Collection<PriceContract> entityPrices,
+		@Nonnull PriceInnerRecordHandling innerRecordHandling,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nonnull AccompanyingPrice[] accompanyingPrices
+	) {
+		return switch (innerRecordHandling) {
+			case NONE -> calculateAccompanyingPricesForNoneInnerRecordHandling(
+				entityPrices, currency, atTheMoment, accompanyingPrices
+			);
+			case LOWEST_PRICE -> calculateAccompanyingPricesForLowestPriceInnerRecordHandling(
+				entityPrices.stream()
+					.filter(it -> Objects.equals(priceForSale.innerRecordId(), it.innerRecordId()))
+					.collect(Collectors.toList()),
+				accompanyingPrices
+			);
+			case SUM -> calculateAccompanyingPricesForSumInnerRecordHandling(
+				priceForSale, entityPrices, currency, atTheMoment, accompanyingPrices
+			);
+			default ->
+				throw new GenericEvitaInternalError("Unknown price inner record handling mode: " + innerRecordHandling);
+		};
 	}
 
 	/**
@@ -317,7 +358,7 @@ public interface PricesContract extends Versioned, Serializable {
 								.stream()
 								.map(
 									it -> it.values().stream().filter(prices -> accompanyingPriorityIndex.containsKey(prices.priceList()))
-									.min(Comparator.comparing(o -> accompanyingPriorityIndex.get(o.priceList())))
+										.min(Comparator.comparing(o -> accompanyingPriorityIndex.get(o.priceList())))
 								)
 								.filter(Optional::isPresent)
 								.map(Optional::get)
@@ -492,6 +533,35 @@ public interface PricesContract extends Versioned, Serializable {
 	}
 
 	/**
+	 * Returns a default accompanying price that relates to the current price for sale. The method can be used only
+	 * when {@link DefaultAccompanyingPricePriceLists} requirement is used in the query - so that the ordered price list
+	 * sequence is known for the accompanying price. Query must also contain the filters allowing to calculate
+	 * the price for sale.
+	 *
+	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
+	 */
+	default Optional<PriceContract> getAccompanyingPrice() throws ContextMissingException {
+		final PriceForSaleContext context = getPriceForSaleContext().orElseThrow(ContextMissingException::new);
+		final Optional<PriceForSaleWithAccompanyingPrices> priceForSaleWithAccompanyingPrices;
+		if (context instanceof PriceForSaleContextWithCachedResult pfscwcr) {
+			priceForSaleWithAccompanyingPrices = pfscwcr.compute(getPrices(), getPriceInnerRecordHandling());
+		} else {
+			priceForSaleWithAccompanyingPrices = computePriceForSale(
+				getPrices(), getPriceInnerRecordHandling(),
+				context.currency(), context.atTheMoment(), context.priceListPriority(), Objects::nonNull,
+				new AccompanyingPrice[]{
+					new AccompanyingPrice(
+						DEFAULT_ACCOMPANYING_PRICE,
+						ofNullable(context.defaultAccompanyingPricePriceListPriority()).orElseThrow(ContextMissingException::new)
+					)
+				}
+			);
+		}
+		return priceForSaleWithAccompanyingPrices
+			.flatMap(it -> it.accompanyingPrices().get(DEFAULT_ACCOMPANYING_PRICE));
+	}
+
+	/**
 	 * Returns a price for which the entity should be sold. Only indexed prices in requested currency, valid
 	 * at the passed moment are taken into an account. Prices are also limited by the passed set of price lists and
 	 * the first price found in the order of the requested price list ids will be returned.
@@ -512,10 +582,30 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull String[] priceListPriority,
 		@Nonnull AccompanyingPrice[] accompanyingPricesRequest
 	) throws ContextMissingException {
-		return computePriceForSale(
-			getPrices(), getPriceInnerRecordHandling(), currency, atTheMoment, priceListPriority, Objects::nonNull,
-			accompanyingPricesRequest
-		);
+		final PriceForSaleContext context = getPriceForSaleContext().orElse(null);
+		if (context instanceof PriceForSaleContextWithCachedResult pfscwcr && pfscwcr.matches(currency, atTheMoment, priceListPriority)) {
+			final Optional<PriceForSaleWithAccompanyingPrices> defaultPriceCalculation = pfscwcr.compute(getPrices(), getPriceInnerRecordHandling());
+			if (accompanyingPricesRequest.length == 0) {
+				return defaultPriceCalculation;
+			} else {
+				return defaultPriceCalculation
+					.map(
+						dpc -> new PriceForSaleWithAccompanyingPrices(
+							dpc.priceForSale(),
+							calculateAccompanyingPrices(
+								dpc.priceForSale(),
+								getPrices(), getPriceInnerRecordHandling(),
+								currency, atTheMoment, accompanyingPricesRequest
+							)
+						)
+					);
+			}
+		} else {
+			return computePriceForSale(
+				getPrices(), getPriceInnerRecordHandling(), currency, atTheMoment, priceListPriority, Objects::nonNull,
+				accompanyingPricesRequest
+			);
+		}
 	}
 
 	/**
@@ -535,11 +625,31 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull AccompanyingPrice[] accompanyingPricesRequest
 	) throws ContextMissingException {
 		final PriceForSaleContext context = getPriceForSaleContext().orElseThrow(ContextMissingException::new);
-		return computePriceForSale(
-			getPrices(), getPriceInnerRecordHandling(),
-			context.currency(), context.atTheMoment(), context.priceListPriority(), Objects::nonNull,
-			accompanyingPricesRequest
-		);
+		if (context instanceof PriceForSaleContextWithCachedResult pfscwcr) {
+			final Optional<PriceForSaleWithAccompanyingPrices> priceForSaleWithAccompanyingPrices =
+				pfscwcr.compute(getPrices(), getPriceInnerRecordHandling());
+			if (accompanyingPricesRequest.length == 0) {
+				return priceForSaleWithAccompanyingPrices;
+			} else {
+				return priceForSaleWithAccompanyingPrices
+					.map(
+						dpc -> new PriceForSaleWithAccompanyingPrices(
+							dpc.priceForSale(),
+							calculateAccompanyingPrices(
+								dpc.priceForSale(),
+								getPrices(), getPriceInnerRecordHandling(),
+								context.currency(), context.atTheMoment(), accompanyingPricesRequest
+							)
+						)
+					);
+			}
+		} else {
+			return computePriceForSale(
+				getPrices(), getPriceInnerRecordHandling(),
+				context.currency(), context.atTheMoment(), context.priceListPriority(), Objects::nonNull,
+				accompanyingPricesRequest
+			);
+		}
 	}
 
 	/**
@@ -809,6 +919,43 @@ public interface PricesContract extends Versioned, Serializable {
 			.toList();
 	}
 
+	interface PriceForSaleContext {
+
+		/**
+		 * Returns the price list priority that is used for the price for sale calculation.
+		 *
+		 * @return array of price list priorities
+		 */
+		@Nullable
+		String[] priceListPriority();
+
+		/**
+		 * Returns the currency used for the price for sale calculation.
+		 *
+		 * @return currency used for price for sale calculation
+		 */
+		@Nullable
+		Currency currency();
+
+		/**
+		 * Returns the moment used for the price for sale calculation.
+		 *
+		 * @return moment used for price for sale calculation
+		 */
+		@Nullable
+		OffsetDateTime atTheMoment();
+
+		/**
+		 * Returns the default accompanying price price list priority that is used for the default accompanying price
+		 * calculation.
+		 *
+		 * @return array of price list priorities for default accompanying price
+		 */
+		@Nullable
+		String[] defaultAccompanyingPricePriceListPriority();
+
+	}
+
 	/**
 	 * Describes requirement for computation of additional prices along with the price for sale.
 	 *
@@ -833,18 +980,5 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull Map<String, Optional<PriceContract>> accompanyingPrices
 	) {
 	}
-
-	/**
-	 * Describes context for computation of price for sale.
-	 *
-	 * @param priceListPriority list of price lists sorted by priority
-	 * @param currency currency used for price for sale calculation
-	 * @param atTheMoment moment used for price for sale calculation
-	 */
-	record PriceForSaleContext(
-		@Nonnull String[] priceListPriority,
-		@Nonnull Currency currency,
-		@Nullable OffsetDateTime atTheMoment
-	) {}
 
 }

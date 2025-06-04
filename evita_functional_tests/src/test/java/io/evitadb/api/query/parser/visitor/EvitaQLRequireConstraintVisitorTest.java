@@ -48,12 +48,12 @@ import java.util.Locale;
 import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
 import static io.evitadb.api.query.require.FacetRelationType.CONJUNCTION;
 import static io.evitadb.api.query.require.FacetRelationType.DISJUNCTION;
 import static io.evitadb.api.query.require.FacetRelationType.EXCLUSIVITY;
 import static io.evitadb.api.query.require.FacetRelationType.NEGATION;
-import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
 import static io.evitadb.api.query.require.FacetStatisticsDepth.COUNTS;
 import static io.evitadb.api.query.require.FacetStatisticsDepth.IMPACT;
 import static io.evitadb.api.query.require.QueryPriceMode.WITH_TAX;
@@ -2042,6 +2042,54 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceType('a')"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceType(WITH_TAX,WITH_TAX)"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceType(TAX)"));
+	}
+
+	@Test
+	void shouldParseAccompanyingPriceConstraint() {
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("accompanyingPrice('A')");
+		assertEquals(accompanyingPrice("A"), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("accompanyingPrice('A','B','C','E')");
+		assertEquals(accompanyingPrice("A", "B", "C", "E"), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("accompanyingPrice ( 'A' ,  'B' , 'C' , 'D' )");
+		assertEquals(accompanyingPrice("A", "B", "C", "D"), constraint3);
+
+		final RequireConstraint constraint4 = parseRequireConstraintUnsafe("accompanyingPrice('basic')");
+		assertEquals(accompanyingPrice("basic"), constraint4);
+
+		final RequireConstraint constraint5 = parseRequireConstraintUnsafe("accompanyingPrice('basic','reference')");
+		assertEquals(accompanyingPrice("basic", "reference"), constraint5);
+
+		final RequireConstraint constraint6 = parseRequireConstraintUnsafe("accompanyingPrice ( 'basic' ,  'reference' , 'action' )");
+		assertEquals(accompanyingPrice("basic", "reference", "action"), constraint6);
+
+		final RequireConstraint constraint8 = parseRequireConstraint("accompanyingPrice(?)", "basic");
+		assertEquals(accompanyingPrice("basic"), constraint8);
+
+		final RequireConstraint constraint9 = parseRequireConstraint("accompanyingPrice(@pl)", Map.of("pl", "basic"));
+		assertEquals(accompanyingPrice("basic"), constraint9);
+
+		final RequireConstraint constraint10 = parseRequireConstraint("accompanyingPrice(?)", List.of("basic", "vip"));
+		assertEquals(accompanyingPrice("basic", "vip"), constraint10);
+
+		final RequireConstraint constraint11 = parseRequireConstraint("accompanyingPrice(@pl)", Map.of("pl", List.of("basic", "vip")));
+		assertEquals(accompanyingPrice("basic", "vip"), constraint11);
+
+		final RequireConstraint constraint12 = parseRequireConstraint("accompanyingPrice(?,?)", "basic", "vip");
+		assertEquals(accompanyingPrice("basic", "vip"), constraint12);
+
+		final RequireConstraint constraint13 = parseRequireConstraint("accompanyingPrice(@pl1,@pl2)", Map.of("pl1", "basic", "pl2", "vip"));
+		assertEquals(accompanyingPrice("basic", "vip"), constraint13);
+	}
+
+	@Test
+	void shouldNotParseAccompanyingPriceConstraint() {
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("accompanyingPrice('basic')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("accompanyingPrice(?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("accompanyingPrice(@a)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("accompanyingPrice"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("accompanyingPrice()"));
 	}
 
 	@Test
