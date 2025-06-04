@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -210,8 +210,10 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 		if (mode == Mode.READ) {
 			switchMode(Mode.WRITE);
 		}
+		// reset position to first byte before dumping data
+		buffer.flip();
+		// write all data in a cycle
 		while(buffer.hasRemaining()) {
-			buffer.flip();
 			final int written = fileChannel.write(buffer);
 			Assert.isPremiseValid(
 				written == buffer.limit(),

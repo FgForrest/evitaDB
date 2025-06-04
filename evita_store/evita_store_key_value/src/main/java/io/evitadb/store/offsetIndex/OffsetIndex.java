@@ -583,7 +583,12 @@ public class OffsetIndex {
 	 * by {@link #getEntries()} or {@link #getFileLocations()} avoiding unnecessary index lookup.
 	 */
 	@Nullable
-	public <T extends Serializable> T get(FileLocation location, @Nonnull Class<T> recordType) {
+	public <T extends Serializable> T get(@Nonnull FileLocation location, @Nonnull Class<T> recordType) {
+		// if the record was not yet flushed to the disk we need to enforce sync so that we can read it
+		if (this.lastSyncedPosition < location.endPosition()) {
+			doSoftFlush();
+		}
+
 		return doGet(recordType, -1, location).payload();
 	}
 
@@ -744,7 +749,15 @@ public class OffsetIndex {
 				inputStream -> {
 					assertOperative();
 					return this.readKryoPool.borrowAndExecute(
-						kryo -> verify(this, inputStream, readOnlyFileHandle.getLastWrittenPosition())
+						kryo -> verify(
+							inputStream,
+							readOnlyFileHandle.getLastWrittenPosition(),
+							new FileOffsetIndexStatistics(
+								// use the latest possible version - we need actual count of records
+								this.count(Long.MAX_VALUE),
+								this.getTotalSizeBytes()
+							), this.getStorageOptions()
+						)
 					);
 				}
 			)
@@ -1089,7 +1102,12 @@ public class OffsetIndex {
 	 */
 
 	/**
-	 * Calculates estimated total active size.
+	 * Calculates estimated total active size. In case of compression enabled this size might exceed the actual size
+	 * of the file on the disk, since it calculates potential size of the all the records in the index (compressed)
+	 * and the index itself (uncompressed - since it hasn't been compressed yet).
+	 *
+	 * Note: we could make this more precise if we'd store the size of the index in the {@link OffsetIndexDescriptor}
+	 * and estimate the uncompressed size only for the volatile values. But we don't necessarily need that precision now.
 	 *
 	 * @return The total active size.
 	 */
@@ -1102,7 +1120,7 @@ public class OffsetIndex {
 	 */
 	private void assertOperative() {
 		isPremiseValid(
-			this.operative || Boolean.TRUE.equals(this.shutdownDownProcedureActive.get()),
+			this.operative || this.shutdownDownProcedureActive.get(),
 			"OffsetIndex has been already closed!"
 		);
 	}
