@@ -33,6 +33,10 @@
         <option name="SUGGEST_NULLABLE_ANNOTATIONS" value="true" />
         <option name="DONT_REPORT_TRUE_ASSERT_STATEMENTS" value="false" />
       </scope>
+      <scope name="Tests" level="WARNING" enabled="true" editorAttributes="INFO_ATTRIBUTES">
+        <option name="SUGGEST_NULLABLE_ANNOTATIONS" value="true" />
+        <option name="DONT_REPORT_TRUE_ASSERT_STATEMENTS" value="false" />
+      </scope>
       <option name="SUGGEST_NULLABLE_ANNOTATIONS" value="true" />
       <option name="DONT_REPORT_TRUE_ASSERT_STATEMENTS" value="false" />
     </inspection_tool>

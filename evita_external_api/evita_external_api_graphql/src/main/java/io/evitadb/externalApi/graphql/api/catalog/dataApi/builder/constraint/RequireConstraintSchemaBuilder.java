@@ -29,6 +29,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
+import io.evitadb.api.query.require.DefaultAccompanyingPricePriceLists;
 import io.evitadb.api.query.require.FacetCalculationRules;
 import io.evitadb.api.query.require.FacetGroupsConjunction;
 import io.evitadb.api.query.require.FacetGroupsDisjunction;
@@ -65,7 +66,8 @@ public class RequireConstraintSchemaBuilder extends GraphQLConstraintSchemaBuild
 		FacetGroupsDisjunction.class,
 		FacetGroupsNegation.class,
 		FacetGroupsExclusivity.class,
-		PriceType.class
+		PriceType.class,
+		DefaultAccompanyingPricePriceLists.class
 	);
 
 	protected RequireConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
