@@ -98,6 +98,10 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	 * Entity schemas for references of {@link #entitySchema} by field-formatted names.
 	 */
 	@Nonnull private final Map<String, EntitySchemaContract> referencedEntitySchemas;
+	/**
+	 * Entity schemas of group types in references by field-formatted names.
+	 */
+	@Nonnull private final Map<String, EntitySchemaContract> referencedGroupEntitySchemas;
 
 	@Nonnull private final HeadConstraintResolver headConstraintResolver;
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
@@ -131,6 +135,16 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 				final EntitySchemaContract referencedEntitySchema = catalogSchema.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
 				this.referencedEntitySchemas.put(referenceSchema.getName(), referencedEntitySchema);
 			});
+		this.referencedGroupEntitySchemas = createHashMap(entitySchema.getReferences().size());
+		entitySchema.getReferences()
+			.values()
+			.stream()
+			.filter(ReferenceSchemaContract::isReferencedGroupTypeManaged)
+			.forEach(referenceSchema -> {
+				//noinspection DataFlowIssue
+				final EntitySchemaContract referencedGroupEntitySchema = catalogSchema.getEntitySchemaOrThrowException(referenceSchema.getReferencedGroupType());
+				this.referencedGroupEntitySchemas.put(referenceSchema.getName(), referencedGroupEntitySchema);
+			});
 
 		this.headConstraintResolver = new HeadConstraintResolver(catalogSchema);
 		this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
@@ -154,6 +168,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		this.facetSummaryResolver = new FacetSummaryResolver(
 			entitySchema,
 			this.referencedEntitySchemas,
+			this.referencedGroupEntitySchemas,
 			this.entityFetchRequireResolver,
 			this.filterConstraintResolver,
 			this.orderConstraintResolver

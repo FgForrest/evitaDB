@@ -816,7 +816,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 		final OffsetIndexStoragePartPersistenceService previousStoragePartService = previous.storagePartPersistenceService;
 		final OffsetIndex previousOffsetIndex = previousStoragePartService.offsetIndex;
-		final long totalSize = previousOffsetIndex.getTotalSizeBytes();
 		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
 			catalogVersion,
 			catalogName,
@@ -844,8 +843,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					previousOffsetIndex.getFileOffsetIndexLocation(),
 					entityTypeHeader.compressedKeys(),
 					VERSIONED_KRYO_FACTORY,
-					previousOffsetIndex.getActiveRecordShare(totalSize),
-					totalSize
+					previousOffsetIndex.getActiveRecordShare(previousOffsetIndex.getTotalSizeBytes()),
+					this.entityCollectionFile.toFile().length()
 				)
 			),
 			previousStoragePartService.offHeapMemoryManager,

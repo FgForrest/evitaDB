@@ -315,17 +315,18 @@ class FileUtilsTest {
 		// Assert
 		assertTrue(Files.exists(zipFile));
 		try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(Files.newInputStream(zipFile))) {
-			java.util.zip.ZipEntry entry = zis.getNextEntry();
-			assertNotNull(entry);
-			assertEquals("file1.txt", entry.getName());
+			// Collect all entries from the ZIP file
+			java.util.List<String> entryNames = new java.util.ArrayList<>();
+			java.util.zip.ZipEntry entry;
+			while ((entry = zis.getNextEntry()) != null) {
+				entryNames.add(entry.getName());
+			}
 
-			entry = zis.getNextEntry();
-			assertNotNull(entry);
-			assertEquals("subDir/", entry.getName());
-
-			entry = zis.getNextEntry();
-			assertNotNull(entry);
-			assertEquals("subDir" + File.separatorChar + "file2.txt", entry.getName());
+			// Verify that all expected entries are present, regardless of their order
+			assertEquals(3, entryNames.size(), "Expected 3 entries in the ZIP file");
+			assertTrue(entryNames.contains("file1.txt"), "ZIP should contain file1.txt");
+			assertTrue(entryNames.contains("subDir/"), "ZIP should contain subDir/");
+			assertTrue(entryNames.contains("subDir" + File.separatorChar + "file2.txt"), "ZIP should contain subDir/file2.txt");
 		}
 	}
 

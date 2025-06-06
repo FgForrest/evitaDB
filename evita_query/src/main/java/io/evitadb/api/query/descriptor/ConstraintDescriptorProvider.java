@@ -221,6 +221,22 @@ public class ConstraintDescriptorProvider {
 	}
 
 	/**
+	 * @return descriptors of all correctly registered constraints supporting compound data types
+	 */
+	@Nonnull
+	public static Set<ConstraintDescriptor> getConstraintsSupportingCompounds(@Nonnull ConstraintType requiredType,
+	                                                                          @Nonnull ConstraintPropertyType requiredPropertyType,
+	                                                                          @Nonnull ConstraintDomain requiredSupportedDomain) {
+		return CONSTRAINT_DESCRIPTORS.stream()
+			.filter(cd -> cd.type().equals(requiredType) &&
+				cd.propertyType().equals(requiredPropertyType) &&
+				cd.supportedIn().contains(requiredSupportedDomain) &&
+				cd.supportedValues() != null &&
+				cd.supportedValues().compoundsSupported())
+			.collect(Collectors.toUnmodifiableSet());
+	}
+
+	/**
 	 * Checks if specified constraint is known to Evita.
 	 */
 	public static boolean isKnownConstraint(@Nonnull Class<?> constraintClass) {

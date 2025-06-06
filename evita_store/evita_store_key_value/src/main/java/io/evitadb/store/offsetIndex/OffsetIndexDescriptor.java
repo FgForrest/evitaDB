@@ -31,6 +31,7 @@ import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -121,6 +122,10 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		double activeRecordShare,
 		long fileSize
 	) {
+		Assert.isPremiseValid(
+			fileLocation.endPosition() <= fileSize,
+			"File location end position must be less than or equal to file size: " + fileLocation.endPosition() + " <= " + fileSize + "!"
+		);
 		this.version = version;
 		this.fileLocation = fileLocation;
 		this.kryoFactory = kryoFactory;
@@ -143,6 +148,10 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		double activeRecordShare,
 		long fileSize
 	) {
+		Assert.isPremiseValid(
+			fileLocation.endPosition() <= fileSize,
+			"File location end position must be less than or equal to file size: " + fileLocation.endPosition() + " <= " + fileSize + "!"
+		);
 		this.version = fileOffsetIndexDescriptor.version() + 1;
 		this.fileLocation = fileLocation;
 		this.kryoFactory = fileOffsetIndexDescriptor.kryoFactory;

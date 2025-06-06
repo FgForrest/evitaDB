@@ -155,14 +155,13 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	) {
 		final CatalogHeader catalogHeader = previous.getCatalogHeader(catalogVersion);
 		final OffsetIndex previousOffsetIndex = previous.offsetIndex;
-		final long totalSize = previousOffsetIndex.getTotalSizeBytes();
 		final OffsetIndexDescriptor offsetIndexDescriptor = new OffsetIndexDescriptor(
 			previousOffsetIndex.getVersion(),
 			previousOffsetIndex.getFileOffsetIndexLocation(),
 			catalogHeader.compressedKeys(),
 			kryoFactory,
-			previousOffsetIndex.getActiveRecordShare(totalSize),
-			totalSize
+			previousOffsetIndex.getActiveRecordShare(previousOffsetIndex.getTotalSizeBytes()),
+			catalogFilePath.toFile().length()
 		);
 
 		final OffsetIndex offsetIndex = new OffsetIndex(

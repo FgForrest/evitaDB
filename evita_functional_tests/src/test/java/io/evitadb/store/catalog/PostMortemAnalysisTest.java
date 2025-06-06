@@ -39,8 +39,11 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexStatistics;
+import io.evitadb.store.offsetIndex.OffsetIndexSerializationService;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.service.KryoFactory;
@@ -49,13 +52,16 @@ import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
+import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.test.EvitaTestSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.UUID;
@@ -310,4 +316,45 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 
 		}
 	}
+
+	@Test
+	void shouldVerifyCrc32() throws FileNotFoundException {
+		final StorageOptions storageOptions = StorageOptions.builder()
+			.storageDirectory(Path.of("/www/oss/evitaDB-temporary/data"))
+			.exportDirectory(Path.of("/www/oss/evitaDB-temporary/export"))
+			.fileSizeCompactionThresholdBytes(1_073_741_824L)
+			.minimalActiveRecordShare(0.7d)
+			.compress(true)
+			.build();
+		final String catalogName = "decodoma_cz";
+		final Path fileToCheck = storageOptions.storageDirectory().resolve(catalogName).resolve("decodoma_cz_0.catalog");
+		try (
+			final ObservableInput<RandomAccessFileInputStream> observableInput = new ObservableInput<>(
+				new RandomAccessFileInputStream(
+					new RandomAccessFile(fileToCheck.toFile(), "r")
+				)
+			)
+		) {
+			if (storageOptions.compress()) {
+				observableInput.compress();
+			}
+			if (storageOptions.computeCRC32C()) {
+				observableInput.computeCRC32();
+			}
+			final FileOffsetIndexStatistics statistics = new FileOffsetIndexStatistics(0, 0L);
+			OffsetIndexSerializationService.verify(
+				observableInput,
+				fileToCheck.toFile().length(),
+				statistics,
+				storageOptions
+			);
+			log.info(
+				"File `{}` CRC32C checksum is valid - total records: {}, size: {}B",
+				fileToCheck,
+				statistics.getRecordCount(),
+				statistics.getTotalSize()
+			);
+		}
+	}
+
 }

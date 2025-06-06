@@ -80,6 +80,21 @@ public interface EvitaManagementContract {
 	) throws TemporalDataNotAvailableException;
 
 	/**
+	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 * Full backup includes all data files, WAL files, and the catalog header file from the catalog storage.
+	 * After restoring catalog from the full backup, the catalog will contain all the data - so you should be able to
+	 * create even point-in-time backups from it.
+	 *
+	 * @param catalogName  the name of the catalog to backup
+	 *
+	 * @return jobId of the backup process
+	 */
+	@Nonnull
+	CompletableFuture<FileForFetch> fullBackupCatalog(
+		@Nonnull String catalogName
+	);
+
+	/**
 	 * Restores a catalog from the provided InputStream which contains the binary data of a previously backed up zip
 	 * file. The input stream is closed within the method.
 	 *

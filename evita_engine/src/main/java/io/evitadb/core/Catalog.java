@@ -939,6 +939,19 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Nonnull
 	@Override
+	public ServerTask<?, FileForFetch> fullBackup(
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	) {
+		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createFullBackupTask(
+			onStart, onComplete
+		);
+		this.scheduler.submit(backupTask);
+		return backupTask;
+	}
+
+	@Nonnull
+	@Override
 	public CatalogStatistics getStatistics() {
 		final EntityCollectionStatistics[] collectionStatistics = this.entityCollections.values()
 			.stream()

@@ -174,6 +174,16 @@ public class ExportFileService implements Closeable {
 	}
 
 	/**
+	 * Retrieves the path to the export directory where files are stored.
+	 *
+	 * @return the path to the export directory, ensuring it is not null
+	 */
+	@Nonnull
+	public Path getExportDirectory() {
+		return this.storageOptions.exportDirectory();
+	}
+
+	/**
 	 * Returns paginated list of files to fetch. Optionally filtered by origin.
 	 *
 	 * @param page     requested page

@@ -255,6 +255,15 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
+	public ServerTask<?, FileForFetch> fullBackup(
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	) {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Nonnull
+	@Override
 	public CatalogStatistics getStatistics() {
 		return new CatalogStatistics(
 			null,

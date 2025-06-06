@@ -111,25 +111,22 @@ public class OffsetIndexSerializationService {
 	 * Verifies the integrity of the offset index file by calculating CRC32 checksum on each record content (if enabled)
 	 * and performing control byte checks.
 	 *
-	 * @param offsetIndex The offset index to be verified.
 	 * @param inputStream The input stream containing the offset index file.
 	 * @param fileLength  The length of the offset index file.
+	 * @param statistics The statistics about the offset index file to be updated during verification.
+	 * @param storageOptions The storage options that define how the file is processed, including whether CRC32 checksums are computed.
 	 * @return The statistics about the offset index file after verification.
 	 */
 	@SuppressWarnings("StringConcatenationMissingWhitespace")
 	@Nonnull
 	public static FileOffsetIndexStatistics verify(
-		@Nonnull OffsetIndex offsetIndex,
 		@Nonnull ObservableInput<?> inputStream,
-		long fileLength
+		long fileLength,
+		@Nonnull FileOffsetIndexStatistics statistics,
+		@Nonnull StorageOptions storageOptions
 	) {
-		final FileOffsetIndexStatistics result = new FileOffsetIndexStatistics(
-			// use the latest possible version - we need actual count of records
-			offsetIndex.count(Long.MAX_VALUE),
-			offsetIndex.getTotalSizeBytes()
-		);
 		inputStream.resetToPosition(0);
-		final CRC32C crc32C = offsetIndex.getStorageOptions().computeCRC32C() ? new CRC32C() : null;
+		final CRC32C crc32C = storageOptions.computeCRC32C() ? new CRC32C() : null;
 		byte[] buffer = new byte[inputStream.getBuffer().length];
 		int recCount = 0;
 		long startPosition = 0;
@@ -204,7 +201,7 @@ public class OffsetIndexSerializationService {
 				}
 				accumulatedRecordLength += recordLength;
 				if (!BitUtils.isBitSet(control, StorageRecord.CONTINUATION_BIT)) {
-					result.registerRecord(accumulatedRecordLength);
+					statistics.registerRecord(accumulatedRecordLength);
 					accumulatedRecordLength = 0;
 				}
 			} catch (KryoException ex) {
@@ -212,9 +209,9 @@ public class OffsetIndexSerializationService {
 					"Record no. " + finalRecCount + " cannot be read!", ex
 				);
 			}
-		} while (fileLength > result.getTotalSize());
+		} while (fileLength > statistics.getTotalSize());
 
-		return result;
+		return statistics;
 	}
 
 	/**

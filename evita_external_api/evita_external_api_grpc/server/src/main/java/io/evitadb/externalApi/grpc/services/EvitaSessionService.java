@@ -796,6 +796,32 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
+	 * Method allows to fully backup a catalog and send the backup file to the client.
+	 *
+	 * @param request          empty request
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void fullBackupCatalog(Empty request, StreamObserver<GrpcFullBackupCatalogResponse> responseObserver) {
+		executeWithClientContext(
+			session -> {
+				final Task<?, FileForFetch> backupTask = session.fullBackupCatalog();
+
+				responseObserver.onNext(
+					GrpcFullBackupCatalogResponse.newBuilder()
+						.setTaskStatus(toGrpcTaskStatus(backupTask.getStatus()))
+						.build()
+				);
+
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
+		);
+	}
+
+	/**
 	 * Method used to close currently used session by calling {@link EvitaSessionContract#close()}.
 	 *
 	 * @param request          empty request

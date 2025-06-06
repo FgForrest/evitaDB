@@ -210,9 +210,11 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 		if (this.mode == Mode.READ) {
 			switchMode(Mode.WRITE);
 		}
+		// reset position to first byte before dumping data
+		this.buffer.flip();
+		// write all data in a cycle
 		while(this.buffer.hasRemaining()) {
-			this.buffer.flip();
-			final int written = fileChannel.write(this.buffer);
+			final int written = fileChannel.write(buffer);
 			Assert.isPremiseValid(
 				written == this.buffer.limit(),
 				"Failed to dump data to the file!"

@@ -75,6 +75,7 @@ import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.store.catalog.ObsoleteFileMaintainer.DataFilesBulkInfo;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.catalog.task.BackupTask;
+import io.evitadb.store.catalog.task.FullBackupTask;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.exception.InvalidFileNameException;
 import io.evitadb.store.exception.InvalidStoragePathException;
@@ -2249,6 +2250,20 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		return new BackupTask(
 			this.catalogName, pastMoment, catalogVersion, includingWAL,
 			bootstrapRecord, this.exportFileService, this,
+			onStart, onComplete
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ServerTask<?, FileForFetch> createFullBackupTask(
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	) {
+		return new FullBackupTask(
+			this.catalogName,
+			this.exportFileService,
+			this,
 			onStart, onComplete
 		);
 	}

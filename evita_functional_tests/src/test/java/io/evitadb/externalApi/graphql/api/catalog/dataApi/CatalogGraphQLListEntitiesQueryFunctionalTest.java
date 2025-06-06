@@ -55,6 +55,7 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.utils.Assert;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -2970,6 +2971,63 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(PRODUCT_LIST_PATH + "." + EntityDescriptor.PRIMARY_KEY.name(), contains(expectedEntities));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should order entities by sortable attribute compound")
+	void shouldOrderEntitiesBySortableAttributeCompound(Evita evita, GraphQLTester tester) {
+		final Integer[] expectedEntities = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityLocaleEquals(CZECH_LOCALE)
+							),
+							orderBy(
+								attributeNatural(SORTABLE_ATTRIBUTE_COMPOUND_CODE_NAME, DESC)
+							),
+							require(
+								page(1, 30)
+							)
+						),
+						EntityReference.class
+					)
+					.getRecordData()
+					.stream()
+					.map(EntityReference::getPrimaryKey)
+					.toArray(Integer[]::new);
+			}
+		);
+		Assert.isPremiseValid(expectedEntities.length == 30, "Expected entities");
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                listProduct(
+		                    filterBy: {
+		                        entityLocaleEquals: cs_CZ
+		                    },
+		                    orderBy: {
+		                        attributeCodeNameNatural: DESC
+		                    }
+		                    limit: 30
+		                ) {
+		                    primaryKey
+		                }
+		            }
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_LIST_PATH, EntityDescriptor.PRIMARY_KEY.name()),
+				contains(expectedEntities)
+			);
 	}
 
 	@Test

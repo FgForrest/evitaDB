@@ -146,6 +146,16 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 
 	@Nonnull
 	@Override
+	public CompletableFuture<FileForFetch> fullBackupCatalog(@Nonnull String catalogName) {
+		this.evitaClient.assertActive();
+		try (final EvitaSessionContract session = this.evitaClient.createReadWriteSession(catalogName)) {
+			final Task<?, FileForFetch> resultTask = session.fullBackupCatalog();
+			return resultTask.getFutureResult();
+		}
+	}
+
+	@Nonnull
+	@Override
 	public Task<?, Void> restoreCatalog(
 		@Nonnull String catalogName,
 		long totalBytesExpected,

@@ -78,6 +78,7 @@ public class FacetSummaryResolver {
 	 * Entity schemas for references of {@link #entitySchema} by field-formatted names.
 	 */
 	@Nonnull private final Map<String, EntitySchemaContract> referencedEntitySchemas;
+	@Nonnull private final Map<String, EntitySchemaContract> referencedGroupEntitySchemas;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
@@ -232,7 +233,7 @@ public class FacetSummaryResolver {
 			.flatMap(groupEntityField -> this.entityFetchRequireResolver.resolveGroupFetch(
 				SelectionSetAggregator.from(groupEntityField.getSelectionSet()),
 				desiredLocale,
-				this.referencedEntitySchemas.get(referenceName)
+				this.referencedGroupEntitySchemas.get(referenceName)
 			));
 	}
 }
