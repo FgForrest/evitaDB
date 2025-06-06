@@ -29,17 +29,17 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.filter.PriceInPriceLists;
-import io.evitadb.api.query.require.DefaultAccompanyingPricePriceLists;
+import io.evitadb.api.query.require.DefaultAccompanyingPrice;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link PriceInPriceLists} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class DefaultAccompanyingPricePriceListsSerializer extends Serializer<DefaultAccompanyingPricePriceLists> {
+public class DefaultAccompanyingPricePriceListsSerializer extends Serializer<DefaultAccompanyingPrice> {
 
 	@Override
-	public void write(Kryo kryo, Output output, DefaultAccompanyingPricePriceLists object) {
+	public void write(Kryo kryo, Output output, DefaultAccompanyingPrice object) {
 		final String[] priceLists = object.getPriceLists();
 		output.writeVarInt(priceLists.length, true);
 		for (String priceList : priceLists) {
@@ -48,13 +48,13 @@ public class DefaultAccompanyingPricePriceListsSerializer extends Serializer<Def
 	}
 
 	@Override
-	public DefaultAccompanyingPricePriceLists read(Kryo kryo, Input input, Class<? extends DefaultAccompanyingPricePriceLists> type) {
+	public DefaultAccompanyingPrice read(Kryo kryo, Input input, Class<? extends DefaultAccompanyingPrice> type) {
 		final int priceListCount = input.readVarInt(true);
 		final String[] priceLists = new String[priceListCount];
 		for (int i = 0; i < priceListCount; i++) {
 			priceLists[i] = input.readString();
 		}
-		return new DefaultAccompanyingPricePriceLists(priceLists);
+		return new DefaultAccompanyingPrice(priceLists);
 	}
 
 }

@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
 import io.evitadb.api.requestResponse.chunk.NoTransformer;
 import io.evitadb.api.requestResponse.chunk.PageTransformer;
 import io.evitadb.api.requestResponse.chunk.StripTransformer;
+import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -108,6 +109,7 @@ public class EvitaRequest {
 	private String[] priceLists;
 	private String[] additionalPriceLists;
 	private String[] defaultAccompanyingPricePriceLists;
+	@Nullable private AccompanyingPrice[] accompanyingPrices;
 	@Nullable private Integer start;
 	@Nullable private ConditionalGap[] conditionalGaps;
 	@Nullable private Map<String, HierarchyFilterConstraint> hierarchyWithin;
@@ -207,6 +209,7 @@ public class EvitaRequest {
 		this.requiresPriceLists = evitaRequest.requiresPriceLists;
 		this.additionalPriceLists = evitaRequest.additionalPriceLists;
 		this.defaultAccompanyingPricePriceLists = evitaRequest.defaultAccompanyingPricePriceLists;
+		this.accompanyingPrices = evitaRequest.accompanyingPrices;
 		this.priceLists = evitaRequest.priceLists;
 		this.start = evitaRequest.start;
 		this.conditionalGaps = evitaRequest.conditionalGaps;
@@ -292,6 +295,7 @@ public class EvitaRequest {
 		this.requiresPriceLists = evitaRequest.requiresPriceLists;
 		this.additionalPriceLists = evitaRequest.additionalPriceLists;
 		this.defaultAccompanyingPricePriceLists = evitaRequest.defaultAccompanyingPricePriceLists;
+		this.accompanyingPrices = null;
 		this.priceLists = evitaRequest.priceLists;
 		this.start = evitaRequest.start;
 		this.conditionalGaps = evitaRequest.conditionalGaps;
@@ -346,6 +350,7 @@ public class EvitaRequest {
 		this.priceLists = evitaRequest.getRequiresPriceLists();
 		this.additionalPriceLists = evitaRequest.getFetchesAdditionalPriceLists();
 		this.defaultAccompanyingPricePriceLists = evitaRequest.getDefaultAccompanyingPricePriceLists();
+		this.accompanyingPrices = null;
 		this.localeExamined = true;
 		this.locale = locale == null ? evitaRequest.getLocale() : locale;
 		this.requiredLocales = null;
@@ -639,6 +644,10 @@ public class EvitaRequest {
 	@Nonnull
 	public PriceContentMode getRequiresEntityPrices() {
 		if (this.entityPrices == null) {
+			this.defaultAccompanyingPricePriceLists = ofNullable(QueryUtils.findRequire(this.query, DefaultAccompanyingPrice.class, SeparateEntityContentRequireContainer.class))
+				.map(DefaultAccompanyingPrice::getPriceLists)
+				.orElse(ArrayUtils.EMPTY_STRING_ARRAY);
+
 			final EntityFetch entityFetch = QueryUtils.findRequire(this.query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
 			if (entityFetch == null) {
 				this.entityPrices = PriceContentMode.NONE;
@@ -649,20 +658,37 @@ public class EvitaRequest {
 				this.entityPrices = priceContentRequirement
 					.map(PriceContent::getFetchMode)
 					.orElse(PriceContentMode.NONE);
-				this.defaultAccompanyingPricePriceLists = ofNullable(QueryUtils.findConstraint(entityFetch, DefaultAccompanyingPricePriceLists.class, SeparateEntityContentRequireContainer.class))
-					.map(DefaultAccompanyingPricePriceLists::getPriceLists)
-					.orElse(ArrayUtils.EMPTY_STRING_ARRAY);
-				this.additionalPriceLists = this.defaultAccompanyingPricePriceLists.length == 0 ?
+				this.accompanyingPrices = QueryUtils.findConstraints(entityFetch, AccompanyingPriceContent.class, SeparateEntityContentRequireContainer.class)
+					.stream()
+					.map(it -> {
+						final String priceName = it.getAccompanyingPriceName().orElse(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE);
+						if (it.getPriceLists().length == 0) {
+							Assert.isTrue(
+								!ArrayUtils.isEmptyOrItsValuesNull(this.defaultAccompanyingPricePriceLists),
+								"Default accompanying price lists must be defined in the query if no accompanying price name and no price lists are specified in the query!"
+							);
+							return new AccompanyingPrice(priceName, this.defaultAccompanyingPricePriceLists);
+						} else {
+							return new AccompanyingPrice(priceName, it.getPriceLists());
+						}
+					})
+					.toArray(AccompanyingPrice[]::new);
+				this.additionalPriceLists = this.defaultAccompanyingPricePriceLists.length == 0 && this.accompanyingPrices.length == 0 ?
 					priceContentRequirement
 						.map(PriceContent::getAdditionalPriceListsToFetch)
 						.orElse(ArrayUtils.EMPTY_STRING_ARRAY) :
 					// default accompanying price lists are always fetched, so we can merge them with additional price lists
 					Stream.concat(
-							Arrays.stream(this.defaultAccompanyingPricePriceLists), Arrays.stream(
-								priceContentRequirement
-									.map(PriceContent::getAdditionalPriceListsToFetch)
-									.orElse(ArrayUtils.EMPTY_STRING_ARRAY)
-							)
+							Stream.concat(
+								Arrays.stream(this.defaultAccompanyingPricePriceLists), Arrays.stream(
+									priceContentRequirement
+										.map(PriceContent::getAdditionalPriceListsToFetch)
+										.orElse(ArrayUtils.EMPTY_STRING_ARRAY)
+								)
+							),
+							Arrays.stream(this.accompanyingPrices)
+								.flatMap(accompanyingPrice -> Arrays.stream(accompanyingPrice.priceListPriority())
+								)
 						)
 						.distinct()
 						.toArray(String[]::new);
@@ -672,7 +698,22 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns array of price list ids if requirement {@link DefaultAccompanyingPricePriceLists} is present in the query.
+	 * Retrieves an array of accompanying prices. If the accompanying prices have not
+	 * been initialized, it triggers the loading of entity prices.
+	 *
+	 * @return an array of AccompanyingPrice objects representing the accompanying prices.
+	 *         The returned array is non-null.
+	 */
+	@Nonnull
+	public AccompanyingPrice[] getAccompanyingPrices() {
+		if (this.accompanyingPrices == null) {
+			getRequiresEntityPrices();
+		}
+		return this.accompanyingPrices;
+	}
+
+	/**
+	 * Returns array of price list ids if requirement {@link DefaultAccompanyingPrice} is present in the query.
 	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
 	 */
 	@Nonnull

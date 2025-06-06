@@ -28,7 +28,6 @@ import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleContext;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,7 +43,6 @@ import static java.util.Optional.ofNullable;
 /**
  * Describes context for computation of price for sale.
  */
-@RequiredArgsConstructor
 public class PriceForSaleContextWithCachedResult implements PriceForSaleContext {
 	/**
 	 * List of price lists sorted by priority.
@@ -59,13 +57,25 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 	 */
 	@Nullable private final OffsetDateTime atTheMoment;
 	/**
-	 * List of price lists sorted by priority that will be used for calculation of default accompanying price.
+	 * List of accompanying prices that should be computed together with price for sale.
 	 */
-	@Nullable private final String[] defaultAccompanyingPricePriceListPriority;
+	@Nullable private final AccompanyingPrice[] accompanyingPrices;
 	/**
 	 * Cached result of price for sale calculation.
 	 */
 	private AtomicReference<PriceForSaleWithAccompanyingPrices> cachedResult;
+
+	public PriceForSaleContextWithCachedResult(
+		@Nullable String[] priceListPriority,
+		@Nullable Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nullable AccompanyingPrice[] accompanyingPrices
+	) {
+		this.priceListPriority = priceListPriority;
+		this.currency = currency;
+		this.atTheMoment = atTheMoment;
+		this.accompanyingPrices = accompanyingPrices;
+	}
 
 	@Nullable
 	@Override
@@ -87,8 +97,8 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 
 	@Nullable
 	@Override
-	public String[] defaultAccompanyingPricePriceListPriority() {
-		return this.defaultAccompanyingPricePriceListPriority;
+	public AccompanyingPrice[] accompanyingPrices() {
+		return this.accompanyingPrices;
 	}
 
 	/**
@@ -115,8 +125,6 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 	 * and inner record handling strategy consistency against cached value. Method is expected to be always called
 	 * with the same parameters as the first call.
 	 *
-	 * @param prices the collection of prices to compute from
-	 * @param innerRecordHandling handling of inner records
 	 * @return an Optional containing the computed PriceForSaleWithAccompanyingPrices or empty if no valid price is found
 	 */
 	@Nonnull
@@ -133,14 +141,8 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 					this.atTheMoment,
 					ofNullable(this.priceListPriority).orElseThrow(ContextMissingException::new),
 					Objects::nonNull,
-					this.defaultAccompanyingPricePriceListPriority == null ?
-						PricesContract.NO_ACCOMPANYING_PRICES :
-						new AccompanyingPrice[] {
-							new AccompanyingPrice(
-								PricesContract.DEFAULT_ACCOMPANYING_PRICE,
-								this.defaultAccompanyingPricePriceListPriority
-							)
-						}
+					ofNullable(this.accompanyingPrices)
+						.orElse(PricesContract.NO_ACCOMPANYING_PRICES)
 				).orElse(null)
 			);
 		}

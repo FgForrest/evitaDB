@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.query.require.AccompanyingPriceContent;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceForSaleContextWithCachedResult;
@@ -390,7 +391,12 @@ class PricesContractTest extends AbstractBuilderTest {
 					new String[]{BASIC},
 					CZK,
 					MOMENT_2020,
-					new String[] {REFERENCE, VIP}
+					new AccompanyingPrice[] {
+						new AccompanyingPrice(
+							AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE,
+							REFERENCE, VIP
+						)
+					}
 				)
 			)
 		);
@@ -398,16 +404,201 @@ class PricesContractTest extends AbstractBuilderTest {
 		// reference price is not indexed, vip price has not fulfilled validity, logged only is the first
 		assertEquals(1, prices.getPriceForSale().orElseThrow().priceId());
 		assertEquals(7, prices.getAccompanyingPrice().orElseThrow().priceId());
+	}
 
-		/*assertPriceForSaleWithAccompanyingPrices(
-			1, new int[]{7, 7, 3, -1}, null, prices, CZK, MOMENT_2020, new String[]{BASIC},
-			new AccompanyingPrice[]{
-				new AccompanyingPrice("p1", REFERENCE),
-				new AccompanyingPrice("p2", REFERENCE, VIP),
-				new AccompanyingPrice("p3", LOGGED_ONLY, VIP),
-				new AccompanyingPrice("p", VIP)
+	/**
+	 * Tests retrieval of default accompanying price when a price for sale context is available.
+	 * Verifies that no price is returned based on the context when not requested (even if present in cache).
+	 */
+	@Test
+	@DisplayName("Default accompanying price retrieval")
+	void shouldReturnNoAccompanyingPrice() {
+		final PricesContract prices = Mockito.spy(
+			new Prices(
+				PRODUCT_SCHEMA,
+				1,
+				Arrays.asList(
+					createStandardPriceSetWithMultiplier(null, BigDecimal.ONE)
+				),
+				PriceInnerRecordHandling.NONE,
+				true
+			)
+		);
+		Mockito.when(prices.getPriceForSaleContext())
+			.thenReturn(
+				Optional.of(
+					new PriceForSaleContextWithCachedResult(
+						new String[]{BASIC},
+						CZK,
+						MOMENT_2020,
+						new AccompanyingPrice[] {
+							new AccompanyingPrice(
+								AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE,
+								REFERENCE, VIP
+							)
+						}
+					)
+				)
+			);
+
+		// reference price is not indexed, vip price has not fulfilled validity, logged only is the first
+		final PriceForSaleWithAccompanyingPrices calculatedPrice = prices.getPriceForSaleWithAccompanyingPrices(
+			CZK, MOMENT_2020, new String[]{BASIC},
+			PricesContract.NO_ACCOMPANYING_PRICES
+		).orElseThrow();
+
+		assertEquals(1, calculatedPrice.priceForSale().priceId());
+		assertTrue(calculatedPrice.accompanyingPrices().isEmpty());
+	}
+
+	/**
+	 * Tests that when a different accompanying price is requested (different from what's cached),
+	 * it's calculated correctly.
+	 */
+	@Test
+	@DisplayName("Different accompanying price calculation")
+	void shouldCalculateDifferentAccompanyingPrice() {
+		final PricesContract prices = Mockito.spy(
+			new Prices(
+				PRODUCT_SCHEMA,
+				1,
+				Arrays.asList(
+					createStandardPriceSetWithMultiplier(null, BigDecimal.ONE)
+				),
+				PriceInnerRecordHandling.NONE,
+				true
+			)
+		);
+		Mockito.when(prices.getPriceForSaleContext())
+			.thenReturn(
+				Optional.of(
+					new PriceForSaleContextWithCachedResult(
+						new String[]{BASIC},
+						CZK,
+						MOMENT_2020,
+						new AccompanyingPrice[] {
+							new AccompanyingPrice(
+								AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE,
+								REFERENCE, VIP
+							)
+						}
+					)
+				)
+			);
+
+		// Request a different accompanying price than what's cached
+		final PriceForSaleWithAccompanyingPrices calculatedPrice = prices.getPriceForSaleWithAccompanyingPrices(
+			CZK, MOMENT_2020, new String[]{BASIC},
+			new AccompanyingPrice[] {
+				new AccompanyingPrice("differentPrice", LOGGED_ONLY)
 			}
-		);*/
+		).orElseThrow();
+
+		assertEquals(1, calculatedPrice.priceForSale().priceId());
+		assertEquals(1, calculatedPrice.accompanyingPrices().size());
+		assertEquals(3, calculatedPrice.accompanyingPrices().get("differentPrice").orElseThrow().priceId());
+	}
+
+	/**
+	 * Tests that when a different accompanying price is requested with the same name but different price lists,
+	 * it's calculated correctly.
+	 */
+	@Test
+	@DisplayName("Same name but different price lists calculation")
+	void shouldCalculateSameNameDifferentPriceLists() {
+		final PricesContract prices = Mockito.spy(
+			new Prices(
+				PRODUCT_SCHEMA,
+				1,
+				Arrays.asList(
+					createStandardPriceSetWithMultiplier(null, BigDecimal.ONE)
+				),
+				PriceInnerRecordHandling.NONE,
+				true
+			)
+		);
+
+		// Cache has "testPrice" with REFERENCE, VIP price lists
+		Mockito.when(prices.getPriceForSaleContext())
+			.thenReturn(
+				Optional.of(
+					new PriceForSaleContextWithCachedResult(
+						new String[]{BASIC},
+						CZK,
+						MOMENT_2020,
+						new AccompanyingPrice[] {
+							new AccompanyingPrice("testPrice", REFERENCE, VIP)
+						}
+					)
+				)
+			);
+
+		// Request "testPrice" but with LOGGED_ONLY price list instead
+		final PriceForSaleWithAccompanyingPrices calculatedPrice = prices.getPriceForSaleWithAccompanyingPrices(
+			CZK, MOMENT_2020, new String[]{BASIC},
+			new AccompanyingPrice[] {
+				new AccompanyingPrice("testPrice", LOGGED_ONLY)
+			}
+		).orElseThrow();
+
+		assertEquals(1, calculatedPrice.priceForSale().priceId());
+		assertEquals(1, calculatedPrice.accompanyingPrices().size());
+		// Should get price from LOGGED_ONLY price list (ID 3), not from REFERENCE (ID 7)
+		assertEquals(3, calculatedPrice.accompanyingPrices().get("testPrice").orElseThrow().priceId());
+	}
+
+	/**
+	 * Tests that when part of the cached prices and requested accompanying prices match,
+	 * the cached values are reused, but missing requested accompanying prices are calculated.
+	 */
+	@Test
+	@DisplayName("Partial cache reuse with new calculations")
+	void shouldReusePartialCacheAndCalculateRest() {
+		final PricesContract prices = Mockito.spy(
+			new Prices(
+				PRODUCT_SCHEMA,
+				1,
+				Arrays.asList(
+					createStandardPriceSetWithMultiplier(null, BigDecimal.ONE)
+				),
+				PriceInnerRecordHandling.NONE,
+				true
+			)
+		);
+
+		// Cache has two prices: "cachedPrice1" and "cachedPrice2"
+		Mockito.when(prices.getPriceForSaleContext())
+			.thenReturn(
+				Optional.of(
+					new PriceForSaleContextWithCachedResult(
+						new String[]{BASIC},
+						CZK,
+						MOMENT_2020,
+						new AccompanyingPrice[] {
+							new AccompanyingPrice("cachedPrice1", REFERENCE),
+							new AccompanyingPrice("cachedPrice2", VIP)
+						}
+					)
+				)
+			);
+
+		// Request "cachedPrice1" (should be reused from cache) and "newPrice" (should be calculated)
+		final PriceForSaleWithAccompanyingPrices calculatedPrice = prices.getPriceForSaleWithAccompanyingPrices(
+			CZK, MOMENT_2020, new String[]{BASIC},
+			new AccompanyingPrice[] {
+				new AccompanyingPrice("cachedPrice1", REFERENCE),
+				new AccompanyingPrice("newPrice", LOGGED_ONLY)
+			}
+		).orElseThrow();
+
+		assertEquals(1, calculatedPrice.priceForSale().priceId());
+		assertEquals(2, calculatedPrice.accompanyingPrices().size());
+
+		// cachedPrice1 should be reused from cache (REFERENCE price list, ID 7)
+		assertEquals(7, calculatedPrice.accompanyingPrices().get("cachedPrice1").orElseThrow().priceId());
+
+		// newPrice should be calculated (LOGGED_ONLY price list, ID 3)
+		assertEquals(3, calculatedPrice.accompanyingPrices().get("newPrice").orElseThrow().priceId());
 	}
 
 	/**

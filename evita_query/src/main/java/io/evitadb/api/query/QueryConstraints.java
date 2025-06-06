@@ -35419,26 +35419,25 @@ public interface QueryConstraints {
 	 * information (such as "previous price", "recommended price", etc.).
 	 *
 	 * <pre>
-	 * accompanyingPrice(
+	 * defaultAccompanyingPrice(
 	 *     "reference",
 	 *     "basic"
 	 * )
 	 * </pre>
 	 *
-	 * Settings defined in this constraint can be overridden by exact accompanying price retrieval place (such as method
-	 * call of field access). However, this constraint defines the default price lists that should be used for accompanying
-	 * price when no other price lists are specified.
+	 * This constraint doesn't trigger the accompanying price calculation itself, but rather defines the default price lists
+	 * that should be used in place where {@link AccompanyingPriceContent} requirement is used.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static DefaultAccompanyingPricePriceLists accompanyingPrice(@Nullable String... priceList) {
+	static DefaultAccompanyingPrice defaultAccompanyingPrice(@Nullable String... priceList) {
 		if (priceList == null) {
 			return null;
 		}
 		// if the array is empty - it was deliberate action which needs to produce empty result of the query
 		if (priceList.length == 0) {
-			return new DefaultAccompanyingPricePriceLists(priceList);
+			return null;
 		}
 		final String[] normalizeNames = Arrays.stream(priceList).filter(Objects::nonNull).filter(it -> !it.isBlank()).toArray(String[]::new);
 		// the array was not empty, but contains only null values - this may not be deliberate action - for example
@@ -35448,7 +35447,88 @@ public interface QueryConstraints {
 		}
 		// otherwise propagate only non-null values
 		return normalizeNames.length == priceList.length ?
-			new DefaultAccompanyingPricePriceLists(priceList) : new DefaultAccompanyingPricePriceLists(normalizeNames);
+			new DefaultAccompanyingPrice(priceList) : new DefaultAccompanyingPrice(normalizeNames);
+	}
+
+	/**
+	 * The `accompanyingPriceContent` constraint defines that entity should have another price calculated with a different
+	 * price list sequence than the price for sale (but this accompanying price cannot be calculated without also calculating
+	 * price for sale).
+	 *
+	 * <pre>
+	 * accompanyingPriceContent(
+	 *     "myCalculatedPrice",
+	 *     "reference",
+	 *     "basic"
+	 * )
+	 * </pre>
+	 *
+	 * First argument is the name of the accompanying price that should be used to label the price calculation. Second and
+	 * subsequent arguments are names of price lists that should be used for default accompanying price calculation.
+	 * The order of price lists is important, because it defines the order in which the prices are used in calculation.
+	 *
+	 * You can also use {@link DefaultAccompanyingPrice} constraint to define default rules for accompanying price
+	 * and then use only simple form of this constraint without arguments:
+	 *
+	 * <pre>
+	 *     accompanyingPriceContent()
+	 * </pre>
+	 *
+	 * Calculated price will be labeled as `default` and will use price lists defined in `defaultAccompanyingPrice` constraint.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static AccompanyingPriceContent accompanyingPriceContent() {
+		return new AccompanyingPriceContent();
+	}
+
+	/**
+	 * The `accompanyingPriceContent` constraint defines that entity should have another price calculated with a different
+	 * price list sequence than the price for sale (but this accompanying price cannot be calculated without also calculating
+	 * price for sale).
+	 *
+	 * <pre>
+	 * accompanyingPriceContent(
+	 *     "myCalculatedPrice",
+	 *     "reference",
+	 *     "basic"
+	 * )
+	 * </pre>
+	 *
+	 * First argument is the name of the accompanying price that should be used to label the price calculation. Second and
+	 * subsequent arguments are names of price lists that should be used for default accompanying price calculation.
+	 * The order of price lists is important, because it defines the order in which the prices are used in calculation.
+	 *
+	 * You can also use {@link DefaultAccompanyingPrice} constraint to define default rules for accompanying price
+	 * and then use only simple form of this constraint without arguments:
+	 *
+	 * <pre>
+	 *     accompanyingPriceContent()
+	 * </pre>
+	 *
+	 * Calculated price will be labeled as `default` and will use price lists defined in `defaultAccompanyingPrice` constraint.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static AccompanyingPriceContent accompanyingPriceContent(@Nullable String name, @Nullable String... priceList) {
+		// name is required argument
+		if (name == null || name.isBlank()) {
+			return null;
+		}
+		if (ArrayUtils.isEmptyOrItsValuesNull(priceList)) {
+			return new AccompanyingPriceContent(name);
+		}
+		final String[] normalizeNames = Arrays.stream(priceList).filter(Objects::nonNull).filter(it -> !it.isBlank()).toArray(String[]::new);
+		// the array was not empty, but contains only null values - this may not be deliberate action - for example
+		// the initalization was like `accompanyingPrice(nullVariable)` and this should exclude the constraint
+		if (normalizeNames.length == 0) {
+			return new AccompanyingPriceContent(name);
+		}
+		// otherwise propagate only non-null values
+		return normalizeNames.length == priceList.length ?
+			new AccompanyingPriceContent(name, priceList) : new AccompanyingPriceContent(name, normalizeNames);
 	}
 
 	/**

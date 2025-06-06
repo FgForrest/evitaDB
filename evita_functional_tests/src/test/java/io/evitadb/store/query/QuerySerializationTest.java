@@ -261,8 +261,8 @@ public class QuerySerializationTest {
 
 		assertSerializationRound(priceType(QueryPriceMode.WITHOUT_TAX));
 
-		assertSerializationRound(accompanyingPrice("a"));
-		assertSerializationRound(accompanyingPrice("a", "b"));
+		assertSerializationRound(accompanyingPriceContent("a"));
+		assertSerializationRound(accompanyingPriceContent("a", "b"));
 
 		assertSerializationRound(priceHistogram(20));
 		assertSerializationRound(priceHistogram(20, HistogramBehavior.OPTIMIZED));

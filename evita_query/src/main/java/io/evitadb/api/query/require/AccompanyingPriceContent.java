@@ -28,50 +28,88 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Optional;
 
 /**
- * The `accompanyingPrice` constraint defines the ordered price list names that should be used for calculation of
- * so-called accompanying price, which is a price not used for selling, but rather for displaying additional price
- * information (such as "previous price", "recommended price", etc.).
+ * The `accompanyingPriceContent` constraint defines that entity should have another price calculated with a different
+ * price list sequence than the price for sale (but this accompanying price cannot be calculated without also calculating
+ * price for sale).
  *
  * <pre>
- * accompanyingPrice(
+ * accompanyingPriceContent(
+ *     "myCalculatedPrice",
  *     "reference",
  *     "basic"
  * )
  * </pre>
  *
- * Settings defined in this constraint can be overridden by exact accompanying price retrieval place (such as method
- * call of field access). However, this constraint defines the default price lists that should be used for accompanying
- * price when no other price lists are specified.
+ * First argument is the name of the accompanying price that should be used to label the price calculation. Second and
+ * subsequent arguments are names of price lists that should be used for default accompanying price calculation.
+ * The order of price lists is important, because it defines the order in which the prices are used in calculation.
+ *
+ * You can also use {@link DefaultAccompanyingPrice} constraint to define default rules for accompanying price
+ * and then use only simple form of this constraint without arguments:
+ *
+ * <pre>
+ *     accompanyingPriceContent()
+ * </pre>
+ *
+ * Calculated price will be labeled as `default` and will use price lists defined in `defaultAccompanyingPrice` constraint.
  *
  * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
-	name = "accompanyingPrice",
+	name = "accompanyingPriceContent",
 	shortDescription = "The requirement defines the ordered price list names that should be used for calculation of" +
 		" so-called accompanying price, which is a price not used for selling, but rather for displaying additional" +
 		" price information (such as \"previous price\", \"recommended price\", etc.)..",
 	userDocsLink = "/documentation/query/requirements/price#accompanying-price",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class DefaultAccompanyingPricePriceLists extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint>, EntityContentRequire, RequireConstraint {
+public class AccompanyingPriceContent extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint>, EntityContentRequire, RequireConstraint {
+	public static final String DEFAULT_ACCOMPANYING_PRICE = "default";
 	@Serial private static final long serialVersionUID = -5786325458930138452L;
+	public static final String SUFFIX = "default";
 
-	private DefaultAccompanyingPricePriceLists(@Nonnull Serializable... priceLists) {
-		super(priceLists);
+	private AccompanyingPriceContent(@Nonnull Serializable... arguments) {
+		super(arguments);
+	}
+
+	@Creator(
+		suffix = SUFFIX
+	)
+	public AccompanyingPriceContent() {
+		super(new Serializable[] { DEFAULT_ACCOMPANYING_PRICE });
 	}
 
 	@Creator
-	public DefaultAccompanyingPricePriceLists(@Nonnull String... priceLists) {
-		super(priceLists);
+	public AccompanyingPriceContent(@Nonnull String accompanyingPriceName, @Nonnull String... priceLists) {
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[] {accompanyingPriceName},
+				priceLists
+			)
+		);
+	}
+
+	/**
+	 * Returns the accompanying price name that should be used to label the price calculation.
+	 *
+	 * @return accompanying price name to label the price calculation
+	 */
+	@Nonnull
+	public Optional<String> getAccompanyingPriceName() {
+		final Serializable[] args = getArguments();
+		return args.length == 0 ? Optional.empty() : Optional.of((String) args[0]);
 	}
 
 	/**
@@ -79,7 +117,7 @@ public class DefaultAccompanyingPricePriceLists extends AbstractRequireConstrain
 	 */
 	@Nonnull
 	public String[] getPriceLists() {
-		return Arrays.stream(getArguments()).map(String.class::cast).toArray(String[]::new);
+		return Arrays.stream(getArguments()).skip(1).map(String.class::cast).toArray(String[]::new);
 	}
 
 	@Override
@@ -90,12 +128,16 @@ public class DefaultAccompanyingPricePriceLists extends AbstractRequireConstrain
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new DefaultAccompanyingPricePriceLists(newArguments);
+		Assert.isTrue(
+			newArguments.length > 0 && newArguments[0] instanceof String,
+			"First argument must be a non-null accompanying price name!"
+		);
+		return new AccompanyingPriceContent(newArguments);
 	}
 
 	@Override
 	public <T extends EntityContentRequire> boolean isCombinableWith(@Nonnull T anotherRequirement) {
-		return anotherRequirement instanceof DefaultAccompanyingPricePriceLists;
+		return anotherRequirement instanceof AccompanyingPriceContent;
 	}
 
 	@Nonnull
