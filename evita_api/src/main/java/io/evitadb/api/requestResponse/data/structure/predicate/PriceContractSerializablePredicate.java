@@ -287,7 +287,6 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	public PriceContractSerializablePredicate createRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
 		final PriceContentMode requiresEntityPrices = evitaRequest.getRequiresEntityPrices();
 		final String[] fetchesAdditionalPriceLists = evitaRequest.getFetchesAdditionalPriceLists();
-		final String[] redefinedDefaultAccompanyingPriceLists = evitaRequest.getDefaultAccompanyingPricePriceLists();
 		final AccompanyingPrice[] accompanyingPrices = evitaRequest.getAccompanyingPrices();
 		if (this.priceContentMode.ordinal() >= requiresEntityPrices.ordinal()) {
 			if (ArrayUtils.isEmpty(fetchesAdditionalPriceLists)) {

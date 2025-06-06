@@ -43,7 +43,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
  * This test verifies behaviour of {@link PriceContractSerializablePredicate}.
- * TODO JNO - nechat dopsat testy na additional prices
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
