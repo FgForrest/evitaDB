@@ -1457,61 +1457,61 @@ public final class EvitaManagementServiceGrpc {
     @java.lang.Override
     @java.lang.SuppressWarnings("unchecked")
     public void invoke(Req request, io.grpc.stub.StreamObserver<Resp> responseObserver) {
-      switch (this.methodId) {
+      switch (methodId) {
         case METHODID_SERVER_STATUS:
-          this.serviceImpl.serverStatus((com.google.protobuf.Empty) request,
+          serviceImpl.serverStatus((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse>) responseObserver);
           break;
         case METHODID_GET_CONFIGURATION:
-          this.serviceImpl.getConfiguration((com.google.protobuf.Empty) request,
+          serviceImpl.getConfiguration((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse>) responseObserver);
           break;
         case METHODID_GET_CATALOG_STATISTICS:
-          this.serviceImpl.getCatalogStatistics((com.google.protobuf.Empty) request,
+          serviceImpl.getCatalogStatistics((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse>) responseObserver);
           break;
         case METHODID_RESTORE_CATALOG_UNARY:
-          this.serviceImpl.restoreCatalogUnary((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest) request,
+          serviceImpl.restoreCatalogUnary((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse>) responseObserver);
           break;
         case METHODID_RESTORE_CATALOG_FROM_SERVER_FILE:
-          this.serviceImpl.restoreCatalogFromServerFile((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest) request,
+          serviceImpl.restoreCatalogFromServerFile((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>) responseObserver);
           break;
         case METHODID_LIST_TASK_STATUSES:
-          this.serviceImpl.listTaskStatuses((io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest) request,
+          serviceImpl.listTaskStatuses((io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse>) responseObserver);
           break;
         case METHODID_GET_TASK_STATUS:
-          this.serviceImpl.getTaskStatus((io.evitadb.externalApi.grpc.generated.GrpcTaskStatusRequest) request,
+          serviceImpl.getTaskStatus((io.evitadb.externalApi.grpc.generated.GrpcTaskStatusRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTaskStatusResponse>) responseObserver);
           break;
         case METHODID_GET_TASK_STATUSES:
-          this.serviceImpl.getTaskStatuses((io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest) request,
+          serviceImpl.getTaskStatuses((io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesResponse>) responseObserver);
           break;
         case METHODID_CANCEL_TASK:
-          this.serviceImpl.cancelTask((io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest) request,
+          serviceImpl.cancelTask((io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse>) responseObserver);
           break;
         case METHODID_LIST_FILES_TO_FETCH:
-          this.serviceImpl.listFilesToFetch((io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest) request,
+          serviceImpl.listFilesToFetch((io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse>) responseObserver);
           break;
         case METHODID_GET_FILE_TO_FETCH:
-          this.serviceImpl.getFileToFetch((io.evitadb.externalApi.grpc.generated.GrpcFileToFetchRequest) request,
+          serviceImpl.getFileToFetch((io.evitadb.externalApi.grpc.generated.GrpcFileToFetchRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse>) responseObserver);
           break;
         case METHODID_FETCH_FILE:
-          this.serviceImpl.fetchFile((io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest) request,
+          serviceImpl.fetchFile((io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse>) responseObserver);
           break;
         case METHODID_DELETE_FILE:
-          this.serviceImpl.deleteFile((io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest) request,
+          serviceImpl.deleteFile((io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse>) responseObserver);
           break;
         case METHODID_LIST_RESERVED_KEYWORDS:
-          this.serviceImpl.listReservedKeywords((com.google.protobuf.Empty) request,
+          serviceImpl.listReservedKeywords((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReservedKeywordsResponse>) responseObserver);
           break;
         default:
@@ -1523,9 +1523,9 @@ public final class EvitaManagementServiceGrpc {
     @java.lang.SuppressWarnings("unchecked")
     public io.grpc.stub.StreamObserver<Req> invoke(
         io.grpc.stub.StreamObserver<Resp> responseObserver) {
-      switch (this.methodId) {
+      switch (methodId) {
         case METHODID_RESTORE_CATALOG:
-          return (io.grpc.stub.StreamObserver<Req>) this.serviceImpl.restoreCatalog(
+          return (io.grpc.stub.StreamObserver<Req>) serviceImpl.restoreCatalog(
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse>) responseObserver);
         default:
           throw new AssertionError();
@@ -1674,7 +1674,7 @@ public final class EvitaManagementServiceGrpc {
 
     @java.lang.Override
     public com.google.protobuf.Descriptors.MethodDescriptor getMethodDescriptor() {
-      return getServiceDescriptor().findMethodByName(this.methodName);
+      return getServiceDescriptor().findMethodByName(methodName);
     }
   }
 

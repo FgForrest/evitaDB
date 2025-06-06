@@ -43,8 +43,8 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcReplaceCatalogRequest() {
-    this.catalogNameToBeReplacedWith_ = "";
-    this.catalogNameToBeReplaced_ = "";
+    catalogNameToBeReplacedWith_ = "";
+    catalogNameToBeReplaced_ = "";
   }
 
   @java.lang.Override
@@ -80,13 +80,13 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            this.catalogNameToBeReplacedWith_ = s;
+            catalogNameToBeReplacedWith_ = s;
             break;
           }
           case 18: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            this.catalogNameToBeReplaced_ = s;
+            catalogNameToBeReplaced_ = s;
             break;
           }
           default: {
@@ -133,14 +133,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getCatalogNameToBeReplacedWith() {
-    java.lang.Object ref = this.catalogNameToBeReplacedWith_;
+    java.lang.Object ref = catalogNameToBeReplacedWith_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      this.catalogNameToBeReplacedWith_ = s;
+      catalogNameToBeReplacedWith_ = s;
       return s;
     }
   }
@@ -155,12 +155,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getCatalogNameToBeReplacedWithBytes() {
-    java.lang.Object ref = this.catalogNameToBeReplacedWith_;
+    java.lang.Object ref = catalogNameToBeReplacedWith_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      this.catalogNameToBeReplacedWith_ = b;
+      catalogNameToBeReplacedWith_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -179,14 +179,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getCatalogNameToBeReplaced() {
-    java.lang.Object ref = this.catalogNameToBeReplaced_;
+    java.lang.Object ref = catalogNameToBeReplaced_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      this.catalogNameToBeReplaced_ = s;
+      catalogNameToBeReplaced_ = s;
       return s;
     }
   }
@@ -201,12 +201,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getCatalogNameToBeReplacedBytes() {
-    java.lang.Object ref = this.catalogNameToBeReplaced_;
+    java.lang.Object ref = catalogNameToBeReplaced_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      this.catalogNameToBeReplaced_ = b;
+      catalogNameToBeReplaced_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -216,40 +216,40 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.catalogNameToBeReplacedWith_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.catalogNameToBeReplacedWith_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogNameToBeReplacedWith_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, catalogNameToBeReplacedWith_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.catalogNameToBeReplaced_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, this.catalogNameToBeReplaced_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogNameToBeReplaced_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, catalogNameToBeReplaced_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.catalogNameToBeReplacedWith_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.catalogNameToBeReplacedWith_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogNameToBeReplacedWith_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, catalogNameToBeReplacedWith_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.catalogNameToBeReplaced_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, this.catalogNameToBeReplaced_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogNameToBeReplaced_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, catalogNameToBeReplaced_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -267,14 +267,14 @@ private static final long serialVersionUID = 0L;
         .equals(other.getCatalogNameToBeReplacedWith())) return false;
     if (!getCatalogNameToBeReplaced()
         .equals(other.getCatalogNameToBeReplaced())) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -282,8 +282,8 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getCatalogNameToBeReplacedWith().hashCode();
     hash = (37 * hash) + CATALOGNAMETOBEREPLACED_FIELD_NUMBER;
     hash = (53 * hash) + getCatalogNameToBeReplaced().hashCode();
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -419,9 +419,9 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.catalogNameToBeReplacedWith_ = "";
+      catalogNameToBeReplacedWith_ = "";
 
-      this.catalogNameToBeReplaced_ = "";
+      catalogNameToBeReplaced_ = "";
 
       return this;
     }
@@ -449,8 +449,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest result = new io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest(this);
-      result.catalogNameToBeReplacedWith_ = this.catalogNameToBeReplacedWith_;
-      result.catalogNameToBeReplaced_ = this.catalogNameToBeReplaced_;
+      result.catalogNameToBeReplacedWith_ = catalogNameToBeReplacedWith_;
+      result.catalogNameToBeReplaced_ = catalogNameToBeReplaced_;
       onBuilt();
       return result;
     }
@@ -500,11 +500,11 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest.getDefaultInstance()) return this;
       if (!other.getCatalogNameToBeReplacedWith().isEmpty()) {
-        this.catalogNameToBeReplacedWith_ = other.catalogNameToBeReplacedWith_;
+        catalogNameToBeReplacedWith_ = other.catalogNameToBeReplacedWith_;
         onChanged();
       }
       if (!other.getCatalogNameToBeReplaced().isEmpty()) {
-        this.catalogNameToBeReplaced_ = other.catalogNameToBeReplaced_;
+        catalogNameToBeReplaced_ = other.catalogNameToBeReplaced_;
         onChanged();
       }
       this.mergeUnknownFields(other.unknownFields);
@@ -546,12 +546,12 @@ private static final long serialVersionUID = 0L;
      * @return The catalogNameToBeReplacedWith.
      */
     public java.lang.String getCatalogNameToBeReplacedWith() {
-      java.lang.Object ref = this.catalogNameToBeReplacedWith_;
+      java.lang.Object ref = catalogNameToBeReplacedWith_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        this.catalogNameToBeReplacedWith_ = s;
+        catalogNameToBeReplacedWith_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -567,12 +567,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getCatalogNameToBeReplacedWithBytes() {
-      java.lang.Object ref = this.catalogNameToBeReplacedWith_;
+      java.lang.Object ref = catalogNameToBeReplacedWith_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        this.catalogNameToBeReplacedWith_ = b;
+        catalogNameToBeReplacedWith_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -593,7 +593,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.catalogNameToBeReplacedWith_ = value;
+      catalogNameToBeReplacedWith_ = value;
       onChanged();
       return this;
     }
@@ -607,7 +607,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearCatalogNameToBeReplacedWith() {
 
-      this.catalogNameToBeReplacedWith_ = getDefaultInstance().getCatalogNameToBeReplacedWith();
+      catalogNameToBeReplacedWith_ = getDefaultInstance().getCatalogNameToBeReplacedWith();
       onChanged();
       return this;
     }
@@ -627,7 +627,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      this.catalogNameToBeReplacedWith_ = value;
+      catalogNameToBeReplacedWith_ = value;
       onChanged();
       return this;
     }
@@ -642,12 +642,12 @@ private static final long serialVersionUID = 0L;
      * @return The catalogNameToBeReplaced.
      */
     public java.lang.String getCatalogNameToBeReplaced() {
-      java.lang.Object ref = this.catalogNameToBeReplaced_;
+      java.lang.Object ref = catalogNameToBeReplaced_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        this.catalogNameToBeReplaced_ = s;
+        catalogNameToBeReplaced_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -663,12 +663,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getCatalogNameToBeReplacedBytes() {
-      java.lang.Object ref = this.catalogNameToBeReplaced_;
+      java.lang.Object ref = catalogNameToBeReplaced_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        this.catalogNameToBeReplaced_ = b;
+        catalogNameToBeReplaced_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -689,7 +689,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.catalogNameToBeReplaced_ = value;
+      catalogNameToBeReplaced_ = value;
       onChanged();
       return this;
     }
@@ -703,7 +703,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearCatalogNameToBeReplaced() {
 
-      this.catalogNameToBeReplaced_ = getDefaultInstance().getCatalogNameToBeReplaced();
+      catalogNameToBeReplaced_ = getDefaultInstance().getCatalogNameToBeReplaced();
       onChanged();
       return this;
     }
@@ -723,7 +723,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      this.catalogNameToBeReplaced_ = value;
+      catalogNameToBeReplaced_ = value;
       onChanged();
       return this;
     }

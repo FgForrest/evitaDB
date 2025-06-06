@@ -46,7 +46,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcApplyDeltaAttributeMutation() {
-    this.attributeName_ = "";
+    attributeName_ = "";
   }
 
   @java.lang.Override
@@ -82,86 +82,86 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            this.attributeName_ = s;
+            attributeName_ = s;
             break;
           }
           case 18: {
             io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder subBuilder = null;
-            if (this.attributeLocale_ != null) {
-              subBuilder = this.attributeLocale_.toBuilder();
+            if (attributeLocale_ != null) {
+              subBuilder = attributeLocale_.toBuilder();
             }
-            this.attributeLocale_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcLocale.parser(), extensionRegistry);
+            attributeLocale_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcLocale.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.attributeLocale_);
-              this.attributeLocale_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(attributeLocale_);
+              attributeLocale_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 24: {
-            this.delta_ = input.readInt32();
-            this.deltaCase_ = 3;
+            delta_ = input.readInt32();
+            deltaCase_ = 3;
             break;
           }
           case 32: {
-            this.delta_ = input.readInt64();
-            this.deltaCase_ = 4;
+            delta_ = input.readInt64();
+            deltaCase_ = 4;
             break;
           }
           case 42: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder subBuilder = null;
-            if (this.deltaCase_ == 5) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.delta_).toBuilder();
+            if (deltaCase_ == 5) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) delta_).toBuilder();
             }
-            this.delta_ =
+            delta_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.delta_);
-              this.delta_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) delta_);
+              delta_ = subBuilder.buildPartial();
             }
-            this.deltaCase_ = 5;
+            deltaCase_ = 5;
             break;
           }
           case 50: {
             io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder subBuilder = null;
-            if (this.requiredRangeAfterApplicationCase_ == 6) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.requiredRangeAfterApplication_).toBuilder();
+            if (requiredRangeAfterApplicationCase_ == 6) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) requiredRangeAfterApplication_).toBuilder();
             }
-            this.requiredRangeAfterApplication_ =
+            requiredRangeAfterApplication_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.requiredRangeAfterApplication_);
-              this.requiredRangeAfterApplication_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) requiredRangeAfterApplication_);
+              requiredRangeAfterApplication_ = subBuilder.buildPartial();
             }
-            this.requiredRangeAfterApplicationCase_ = 6;
+            requiredRangeAfterApplicationCase_ = 6;
             break;
           }
           case 58: {
             io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder subBuilder = null;
-            if (this.requiredRangeAfterApplicationCase_ == 7) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.requiredRangeAfterApplication_).toBuilder();
+            if (requiredRangeAfterApplicationCase_ == 7) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) requiredRangeAfterApplication_).toBuilder();
             }
-            this.requiredRangeAfterApplication_ =
+            requiredRangeAfterApplication_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.requiredRangeAfterApplication_);
-              this.requiredRangeAfterApplication_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) requiredRangeAfterApplication_);
+              requiredRangeAfterApplication_ = subBuilder.buildPartial();
             }
-            this.requiredRangeAfterApplicationCase_ = 7;
+            requiredRangeAfterApplicationCase_ = 7;
             break;
           }
           case 66: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder subBuilder = null;
-            if (this.requiredRangeAfterApplicationCase_ == 8) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.requiredRangeAfterApplication_).toBuilder();
+            if (requiredRangeAfterApplicationCase_ == 8) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) requiredRangeAfterApplication_).toBuilder();
             }
-            this.requiredRangeAfterApplication_ =
+            requiredRangeAfterApplication_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.requiredRangeAfterApplication_);
-              this.requiredRangeAfterApplication_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) requiredRangeAfterApplication_);
+              requiredRangeAfterApplication_ = subBuilder.buildPartial();
             }
-            this.requiredRangeAfterApplicationCase_ = 8;
+            requiredRangeAfterApplicationCase_ = 8;
             break;
           }
           default: {
@@ -236,7 +236,7 @@ private static final long serialVersionUID = 0L;
   public DeltaCase
   getDeltaCase() {
     return DeltaCase.forNumber(
-        this.deltaCase_);
+        deltaCase_);
   }
 
   private int requiredRangeAfterApplicationCase_ = 0;
@@ -279,7 +279,7 @@ private static final long serialVersionUID = 0L;
   public RequiredRangeAfterApplicationCase
   getRequiredRangeAfterApplicationCase() {
     return RequiredRangeAfterApplicationCase.forNumber(
-        this.requiredRangeAfterApplicationCase_);
+        requiredRangeAfterApplicationCase_);
   }
 
   public static final int ATTRIBUTENAME_FIELD_NUMBER = 1;
@@ -295,14 +295,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getAttributeName() {
-    java.lang.Object ref = this.attributeName_;
+    java.lang.Object ref = attributeName_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      this.attributeName_ = s;
+      attributeName_ = s;
       return s;
     }
   }
@@ -318,12 +318,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getAttributeNameBytes() {
-    java.lang.Object ref = this.attributeName_;
+    java.lang.Object ref = attributeName_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      this.attributeName_ = b;
+      attributeName_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -342,7 +342,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasAttributeLocale() {
-    return this.attributeLocale_ != null;
+    return attributeLocale_ != null;
   }
   /**
    * <pre>
@@ -354,7 +354,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLocale getAttributeLocale() {
-    return this.attributeLocale_ == null ? io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance() : this.attributeLocale_;
+    return attributeLocale_ == null ? io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance() : attributeLocale_;
   }
   /**
    * <pre>
@@ -379,7 +379,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasIntegerDelta() {
-    return this.deltaCase_ == 3;
+    return deltaCase_ == 3;
   }
   /**
    * <pre>
@@ -391,8 +391,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getIntegerDelta() {
-    if (this.deltaCase_ == 3) {
-      return (java.lang.Integer) this.delta_;
+    if (deltaCase_ == 3) {
+      return (java.lang.Integer) delta_;
     }
     return 0;
   }
@@ -408,7 +408,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasLongDelta() {
-    return this.deltaCase_ == 4;
+    return deltaCase_ == 4;
   }
   /**
    * <pre>
@@ -420,8 +420,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public long getLongDelta() {
-    if (this.deltaCase_ == 4) {
-      return (java.lang.Long) this.delta_;
+    if (deltaCase_ == 4) {
+      return (java.lang.Long) delta_;
     }
     return 0L;
   }
@@ -437,7 +437,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasBigDecimalDelta() {
-    return this.deltaCase_ == 5;
+    return deltaCase_ == 5;
   }
   /**
    * <pre>
@@ -449,8 +449,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getBigDecimalDelta() {
-    if (this.deltaCase_ == 5) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.delta_;
+    if (deltaCase_ == 5) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) delta_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
   }
@@ -463,8 +463,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getBigDecimalDeltaOrBuilder() {
-    if (this.deltaCase_ == 5) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.delta_;
+    if (deltaCase_ == 5) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) delta_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
   }
@@ -480,7 +480,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasIntegerRequiredRangeAfterApplication() {
-    return this.requiredRangeAfterApplicationCase_ == 6;
+    return requiredRangeAfterApplicationCase_ == 6;
   }
   /**
    * <pre>
@@ -492,8 +492,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange getIntegerRequiredRangeAfterApplication() {
-    if (this.requiredRangeAfterApplicationCase_ == 6) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.requiredRangeAfterApplication_;
+    if (requiredRangeAfterApplicationCase_ == 6) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) requiredRangeAfterApplication_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
   }
@@ -506,8 +506,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder getIntegerRequiredRangeAfterApplicationOrBuilder() {
-    if (this.requiredRangeAfterApplicationCase_ == 6) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.requiredRangeAfterApplication_;
+    if (requiredRangeAfterApplicationCase_ == 6) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) requiredRangeAfterApplication_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
   }
@@ -523,7 +523,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasLongRequiredRangeAfterApplication() {
-    return this.requiredRangeAfterApplicationCase_ == 7;
+    return requiredRangeAfterApplicationCase_ == 7;
   }
   /**
    * <pre>
@@ -535,8 +535,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange getLongRequiredRangeAfterApplication() {
-    if (this.requiredRangeAfterApplicationCase_ == 7) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.requiredRangeAfterApplication_;
+    if (requiredRangeAfterApplicationCase_ == 7) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) requiredRangeAfterApplication_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
   }
@@ -549,8 +549,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder getLongRequiredRangeAfterApplicationOrBuilder() {
-    if (this.requiredRangeAfterApplicationCase_ == 7) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.requiredRangeAfterApplication_;
+    if (requiredRangeAfterApplicationCase_ == 7) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) requiredRangeAfterApplication_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
   }
@@ -566,7 +566,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasBigDecimalRequiredRangeAfterApplication() {
-    return this.requiredRangeAfterApplicationCase_ == 8;
+    return requiredRangeAfterApplicationCase_ == 8;
   }
   /**
    * <pre>
@@ -578,8 +578,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange getBigDecimalRequiredRangeAfterApplication() {
-    if (this.requiredRangeAfterApplicationCase_ == 8) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.requiredRangeAfterApplication_;
+    if (requiredRangeAfterApplicationCase_ == 8) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) requiredRangeAfterApplication_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
   }
@@ -592,8 +592,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder getBigDecimalRequiredRangeAfterApplicationOrBuilder() {
-    if (this.requiredRangeAfterApplicationCase_ == 8) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.requiredRangeAfterApplication_;
+    if (requiredRangeAfterApplicationCase_ == 8) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) requiredRangeAfterApplication_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
   }
@@ -601,87 +601,87 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.attributeName_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.attributeName_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(attributeName_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, attributeName_);
     }
-    if (this.attributeLocale_ != null) {
+    if (attributeLocale_ != null) {
       output.writeMessage(2, getAttributeLocale());
     }
-    if (this.deltaCase_ == 3) {
+    if (deltaCase_ == 3) {
       output.writeInt32(
-          3, (int)((java.lang.Integer) this.delta_));
+          3, (int)((java.lang.Integer) delta_));
     }
-    if (this.deltaCase_ == 4) {
+    if (deltaCase_ == 4) {
       output.writeInt64(
-          4, (long)((java.lang.Long) this.delta_));
+          4, (long)((java.lang.Long) delta_));
     }
-    if (this.deltaCase_ == 5) {
-      output.writeMessage(5, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.delta_);
+    if (deltaCase_ == 5) {
+      output.writeMessage(5, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) delta_);
     }
-    if (this.requiredRangeAfterApplicationCase_ == 6) {
-      output.writeMessage(6, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.requiredRangeAfterApplication_);
+    if (requiredRangeAfterApplicationCase_ == 6) {
+      output.writeMessage(6, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) requiredRangeAfterApplication_);
     }
-    if (this.requiredRangeAfterApplicationCase_ == 7) {
-      output.writeMessage(7, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.requiredRangeAfterApplication_);
+    if (requiredRangeAfterApplicationCase_ == 7) {
+      output.writeMessage(7, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) requiredRangeAfterApplication_);
     }
-    if (this.requiredRangeAfterApplicationCase_ == 8) {
-      output.writeMessage(8, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.requiredRangeAfterApplication_);
+    if (requiredRangeAfterApplicationCase_ == 8) {
+      output.writeMessage(8, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) requiredRangeAfterApplication_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.attributeName_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.attributeName_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(attributeName_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, attributeName_);
     }
-    if (this.attributeLocale_ != null) {
+    if (attributeLocale_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getAttributeLocale());
     }
-    if (this.deltaCase_ == 3) {
+    if (deltaCase_ == 3) {
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(
-            3, (int)((java.lang.Integer) this.delta_));
+            3, (int)((java.lang.Integer) delta_));
     }
-    if (this.deltaCase_ == 4) {
+    if (deltaCase_ == 4) {
       size += com.google.protobuf.CodedOutputStream
         .computeInt64Size(
-            4, (long)((java.lang.Long) this.delta_));
+            4, (long)((java.lang.Long) delta_));
     }
-    if (this.deltaCase_ == 5) {
+    if (deltaCase_ == 5) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(5, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.delta_);
+        .computeMessageSize(5, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) delta_);
     }
-    if (this.requiredRangeAfterApplicationCase_ == 6) {
+    if (requiredRangeAfterApplicationCase_ == 6) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(6, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.requiredRangeAfterApplication_);
+        .computeMessageSize(6, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) requiredRangeAfterApplication_);
     }
-    if (this.requiredRangeAfterApplicationCase_ == 7) {
+    if (requiredRangeAfterApplicationCase_ == 7) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(7, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.requiredRangeAfterApplication_);
+        .computeMessageSize(7, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) requiredRangeAfterApplication_);
     }
-    if (this.requiredRangeAfterApplicationCase_ == 8) {
+    if (requiredRangeAfterApplicationCase_ == 8) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(8, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.requiredRangeAfterApplication_);
+        .computeMessageSize(8, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) requiredRangeAfterApplication_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -703,7 +703,7 @@ private static final long serialVersionUID = 0L;
           .equals(other.getAttributeLocale())) return false;
     }
     if (!getDeltaCase().equals(other.getDeltaCase())) return false;
-    switch (this.deltaCase_) {
+    switch (deltaCase_) {
       case 3:
         if (getIntegerDelta()
             != other.getIntegerDelta()) return false;
@@ -720,7 +720,7 @@ private static final long serialVersionUID = 0L;
       default:
     }
     if (!getRequiredRangeAfterApplicationCase().equals(other.getRequiredRangeAfterApplicationCase())) return false;
-    switch (this.requiredRangeAfterApplicationCase_) {
+    switch (requiredRangeAfterApplicationCase_) {
       case 6:
         if (!getIntegerRequiredRangeAfterApplication()
             .equals(other.getIntegerRequiredRangeAfterApplication())) return false;
@@ -736,14 +736,14 @@ private static final long serialVersionUID = 0L;
       case 0:
       default:
     }
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -753,7 +753,7 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + ATTRIBUTELOCALE_FIELD_NUMBER;
       hash = (53 * hash) + getAttributeLocale().hashCode();
     }
-    switch (this.deltaCase_) {
+    switch (deltaCase_) {
       case 3:
         hash = (37 * hash) + INTEGERDELTA_FIELD_NUMBER;
         hash = (53 * hash) + getIntegerDelta();
@@ -770,7 +770,7 @@ private static final long serialVersionUID = 0L;
       case 0:
       default:
     }
-    switch (this.requiredRangeAfterApplicationCase_) {
+    switch (requiredRangeAfterApplicationCase_) {
       case 6:
         hash = (37 * hash) + INTEGERREQUIREDRANGEAFTERAPPLICATION_FIELD_NUMBER;
         hash = (53 * hash) + getIntegerRequiredRangeAfterApplication().hashCode();
@@ -786,8 +786,8 @@ private static final long serialVersionUID = 0L;
       case 0:
       default:
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -926,18 +926,18 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.attributeName_ = "";
+      attributeName_ = "";
 
-      if (this.attributeLocaleBuilder_ == null) {
-        this.attributeLocale_ = null;
+      if (attributeLocaleBuilder_ == null) {
+        attributeLocale_ = null;
       } else {
-        this.attributeLocale_ = null;
-        this.attributeLocaleBuilder_ = null;
+        attributeLocale_ = null;
+        attributeLocaleBuilder_ = null;
       }
-      this.deltaCase_ = 0;
-      this.delta_ = null;
-      this.requiredRangeAfterApplicationCase_ = 0;
-      this.requiredRangeAfterApplication_ = null;
+      deltaCase_ = 0;
+      delta_ = null;
+      requiredRangeAfterApplicationCase_ = 0;
+      requiredRangeAfterApplication_ = null;
       return this;
     }
 
@@ -964,48 +964,48 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation result = new io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation(this);
-      result.attributeName_ = this.attributeName_;
-      if (this.attributeLocaleBuilder_ == null) {
-        result.attributeLocale_ = this.attributeLocale_;
+      result.attributeName_ = attributeName_;
+      if (attributeLocaleBuilder_ == null) {
+        result.attributeLocale_ = attributeLocale_;
       } else {
-        result.attributeLocale_ = this.attributeLocaleBuilder_.build();
+        result.attributeLocale_ = attributeLocaleBuilder_.build();
       }
-      if (this.deltaCase_ == 3) {
-        result.delta_ = this.delta_;
+      if (deltaCase_ == 3) {
+        result.delta_ = delta_;
       }
-      if (this.deltaCase_ == 4) {
-        result.delta_ = this.delta_;
+      if (deltaCase_ == 4) {
+        result.delta_ = delta_;
       }
-      if (this.deltaCase_ == 5) {
-        if (this.bigDecimalDeltaBuilder_ == null) {
-          result.delta_ = this.delta_;
+      if (deltaCase_ == 5) {
+        if (bigDecimalDeltaBuilder_ == null) {
+          result.delta_ = delta_;
         } else {
-          result.delta_ = this.bigDecimalDeltaBuilder_.build();
+          result.delta_ = bigDecimalDeltaBuilder_.build();
         }
       }
-      if (this.requiredRangeAfterApplicationCase_ == 6) {
-        if (this.integerRequiredRangeAfterApplicationBuilder_ == null) {
-          result.requiredRangeAfterApplication_ = this.requiredRangeAfterApplication_;
+      if (requiredRangeAfterApplicationCase_ == 6) {
+        if (integerRequiredRangeAfterApplicationBuilder_ == null) {
+          result.requiredRangeAfterApplication_ = requiredRangeAfterApplication_;
         } else {
-          result.requiredRangeAfterApplication_ = this.integerRequiredRangeAfterApplicationBuilder_.build();
+          result.requiredRangeAfterApplication_ = integerRequiredRangeAfterApplicationBuilder_.build();
         }
       }
-      if (this.requiredRangeAfterApplicationCase_ == 7) {
-        if (this.longRequiredRangeAfterApplicationBuilder_ == null) {
-          result.requiredRangeAfterApplication_ = this.requiredRangeAfterApplication_;
+      if (requiredRangeAfterApplicationCase_ == 7) {
+        if (longRequiredRangeAfterApplicationBuilder_ == null) {
+          result.requiredRangeAfterApplication_ = requiredRangeAfterApplication_;
         } else {
-          result.requiredRangeAfterApplication_ = this.longRequiredRangeAfterApplicationBuilder_.build();
+          result.requiredRangeAfterApplication_ = longRequiredRangeAfterApplicationBuilder_.build();
         }
       }
-      if (this.requiredRangeAfterApplicationCase_ == 8) {
-        if (this.bigDecimalRequiredRangeAfterApplicationBuilder_ == null) {
-          result.requiredRangeAfterApplication_ = this.requiredRangeAfterApplication_;
+      if (requiredRangeAfterApplicationCase_ == 8) {
+        if (bigDecimalRequiredRangeAfterApplicationBuilder_ == null) {
+          result.requiredRangeAfterApplication_ = requiredRangeAfterApplication_;
         } else {
-          result.requiredRangeAfterApplication_ = this.bigDecimalRequiredRangeAfterApplicationBuilder_.build();
+          result.requiredRangeAfterApplication_ = bigDecimalRequiredRangeAfterApplicationBuilder_.build();
         }
       }
-      result.deltaCase_ = this.deltaCase_;
-      result.requiredRangeAfterApplicationCase_ = this.requiredRangeAfterApplicationCase_;
+      result.deltaCase_ = deltaCase_;
+      result.requiredRangeAfterApplicationCase_ = requiredRangeAfterApplicationCase_;
       onBuilt();
       return result;
     }
@@ -1055,7 +1055,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcApplyDeltaAttributeMutation.getDefaultInstance()) return this;
       if (!other.getAttributeName().isEmpty()) {
-        this.attributeName_ = other.attributeName_;
+        attributeName_ = other.attributeName_;
         onChanged();
       }
       if (other.hasAttributeLocale()) {
@@ -1128,12 +1128,12 @@ private static final long serialVersionUID = 0L;
     public DeltaCase
         getDeltaCase() {
       return DeltaCase.forNumber(
-          this.deltaCase_);
+          deltaCase_);
     }
 
     public Builder clearDelta() {
-      this.deltaCase_ = 0;
-      this.delta_ = null;
+      deltaCase_ = 0;
+      delta_ = null;
       onChanged();
       return this;
     }
@@ -1143,12 +1143,12 @@ private static final long serialVersionUID = 0L;
     public RequiredRangeAfterApplicationCase
         getRequiredRangeAfterApplicationCase() {
       return RequiredRangeAfterApplicationCase.forNumber(
-          this.requiredRangeAfterApplicationCase_);
+          requiredRangeAfterApplicationCase_);
     }
 
     public Builder clearRequiredRangeAfterApplication() {
-      this.requiredRangeAfterApplicationCase_ = 0;
-      this.requiredRangeAfterApplication_ = null;
+      requiredRangeAfterApplicationCase_ = 0;
+      requiredRangeAfterApplication_ = null;
       onChanged();
       return this;
     }
@@ -1165,12 +1165,12 @@ private static final long serialVersionUID = 0L;
      * @return The attributeName.
      */
     public java.lang.String getAttributeName() {
-      java.lang.Object ref = this.attributeName_;
+      java.lang.Object ref = attributeName_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        this.attributeName_ = s;
+        attributeName_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -1187,12 +1187,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getAttributeNameBytes() {
-      java.lang.Object ref = this.attributeName_;
+      java.lang.Object ref = attributeName_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        this.attributeName_ = b;
+        attributeName_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -1214,7 +1214,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.attributeName_ = value;
+      attributeName_ = value;
       onChanged();
       return this;
     }
@@ -1229,7 +1229,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearAttributeName() {
 
-      this.attributeName_ = getDefaultInstance().getAttributeName();
+      attributeName_ = getDefaultInstance().getAttributeName();
       onChanged();
       return this;
     }
@@ -1250,7 +1250,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      this.attributeName_ = value;
+      attributeName_ = value;
       onChanged();
       return this;
     }
@@ -1267,7 +1267,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the attributeLocale field is set.
      */
     public boolean hasAttributeLocale() {
-      return this.attributeLocaleBuilder_ != null || this.attributeLocale_ != null;
+      return attributeLocaleBuilder_ != null || attributeLocale_ != null;
     }
     /**
      * <pre>
@@ -1278,10 +1278,10 @@ private static final long serialVersionUID = 0L;
      * @return The attributeLocale.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale getAttributeLocale() {
-      if (this.attributeLocaleBuilder_ == null) {
-        return this.attributeLocale_ == null ? io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance() : this.attributeLocale_;
+      if (attributeLocaleBuilder_ == null) {
+        return attributeLocale_ == null ? io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance() : attributeLocale_;
       } else {
-        return this.attributeLocaleBuilder_.getMessage();
+        return attributeLocaleBuilder_.getMessage();
       }
     }
     /**
@@ -1292,14 +1292,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public Builder setAttributeLocale(io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
-      if (this.attributeLocaleBuilder_ == null) {
+      if (attributeLocaleBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.attributeLocale_ = value;
+        attributeLocale_ = value;
         onChanged();
       } else {
-        this.attributeLocaleBuilder_.setMessage(value);
+        attributeLocaleBuilder_.setMessage(value);
       }
 
       return this;
@@ -1313,11 +1313,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setAttributeLocale(
         io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder builderForValue) {
-      if (this.attributeLocaleBuilder_ == null) {
-        this.attributeLocale_ = builderForValue.build();
+      if (attributeLocaleBuilder_ == null) {
+        attributeLocale_ = builderForValue.build();
         onChanged();
       } else {
-        this.attributeLocaleBuilder_.setMessage(builderForValue.build());
+        attributeLocaleBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1330,16 +1330,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public Builder mergeAttributeLocale(io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
-      if (this.attributeLocaleBuilder_ == null) {
-        if (this.attributeLocale_ != null) {
-          this.attributeLocale_ =
-            io.evitadb.externalApi.grpc.generated.GrpcLocale.newBuilder(this.attributeLocale_).mergeFrom(value).buildPartial();
+      if (attributeLocaleBuilder_ == null) {
+        if (attributeLocale_ != null) {
+          attributeLocale_ =
+            io.evitadb.externalApi.grpc.generated.GrpcLocale.newBuilder(attributeLocale_).mergeFrom(value).buildPartial();
         } else {
-          this.attributeLocale_ = value;
+          attributeLocale_ = value;
         }
         onChanged();
       } else {
-        this.attributeLocaleBuilder_.mergeFrom(value);
+        attributeLocaleBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1352,12 +1352,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public Builder clearAttributeLocale() {
-      if (this.attributeLocaleBuilder_ == null) {
-        this.attributeLocale_ = null;
+      if (attributeLocaleBuilder_ == null) {
+        attributeLocale_ = null;
         onChanged();
       } else {
-        this.attributeLocale_ = null;
-        this.attributeLocaleBuilder_ = null;
+        attributeLocale_ = null;
+        attributeLocaleBuilder_ = null;
       }
 
       return this;
@@ -1382,11 +1382,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getAttributeLocaleOrBuilder() {
-      if (this.attributeLocaleBuilder_ != null) {
-        return this.attributeLocaleBuilder_.getMessageOrBuilder();
+      if (attributeLocaleBuilder_ != null) {
+        return attributeLocaleBuilder_.getMessageOrBuilder();
       } else {
-        return this.attributeLocale_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance() : this.attributeLocale_;
+        return attributeLocale_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance() : attributeLocale_;
       }
     }
     /**
@@ -1399,15 +1399,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
         getAttributeLocaleFieldBuilder() {
-      if (this.attributeLocaleBuilder_ == null) {
-        this.attributeLocaleBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (attributeLocaleBuilder_ == null) {
+        attributeLocaleBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>(
                 getAttributeLocale(),
                 getParentForChildren(),
                 isClean());
-        this.attributeLocale_ = null;
+        attributeLocale_ = null;
       }
-      return this.attributeLocaleBuilder_;
+      return attributeLocaleBuilder_;
     }
 
     /**
@@ -1419,7 +1419,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the integerDelta field is set.
      */
     public boolean hasIntegerDelta() {
-      return this.deltaCase_ == 3;
+      return deltaCase_ == 3;
     }
     /**
      * <pre>
@@ -1430,8 +1430,8 @@ private static final long serialVersionUID = 0L;
      * @return The integerDelta.
      */
     public int getIntegerDelta() {
-      if (this.deltaCase_ == 3) {
-        return (java.lang.Integer) this.delta_;
+      if (deltaCase_ == 3) {
+        return (java.lang.Integer) delta_;
       }
       return 0;
     }
@@ -1445,8 +1445,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setIntegerDelta(int value) {
-      this.deltaCase_ = 3;
-      this.delta_ = value;
+      deltaCase_ = 3;
+      delta_ = value;
       onChanged();
       return this;
     }
@@ -1459,9 +1459,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIntegerDelta() {
-      if (this.deltaCase_ == 3) {
-        this.deltaCase_ = 0;
-        this.delta_ = null;
+      if (deltaCase_ == 3) {
+        deltaCase_ = 0;
+        delta_ = null;
         onChanged();
       }
       return this;
@@ -1476,7 +1476,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the longDelta field is set.
      */
     public boolean hasLongDelta() {
-      return this.deltaCase_ == 4;
+      return deltaCase_ == 4;
     }
     /**
      * <pre>
@@ -1487,8 +1487,8 @@ private static final long serialVersionUID = 0L;
      * @return The longDelta.
      */
     public long getLongDelta() {
-      if (this.deltaCase_ == 4) {
-        return (java.lang.Long) this.delta_;
+      if (deltaCase_ == 4) {
+        return (java.lang.Long) delta_;
       }
       return 0L;
     }
@@ -1502,8 +1502,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setLongDelta(long value) {
-      this.deltaCase_ = 4;
-      this.delta_ = value;
+      deltaCase_ = 4;
+      delta_ = value;
       onChanged();
       return this;
     }
@@ -1516,9 +1516,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearLongDelta() {
-      if (this.deltaCase_ == 4) {
-        this.deltaCase_ = 0;
-        this.delta_ = null;
+      if (deltaCase_ == 4) {
+        deltaCase_ = 0;
+        delta_ = null;
         onChanged();
       }
       return this;
@@ -1536,7 +1536,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasBigDecimalDelta() {
-      return this.deltaCase_ == 5;
+      return deltaCase_ == 5;
     }
     /**
      * <pre>
@@ -1548,14 +1548,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getBigDecimalDelta() {
-      if (this.bigDecimalDeltaBuilder_ == null) {
-        if (this.deltaCase_ == 5) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.delta_;
+      if (bigDecimalDeltaBuilder_ == null) {
+        if (deltaCase_ == 5) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) delta_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
       } else {
-        if (this.deltaCase_ == 5) {
-          return this.bigDecimalDeltaBuilder_.getMessage();
+        if (deltaCase_ == 5) {
+          return bigDecimalDeltaBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
       }
@@ -1568,16 +1568,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
      */
     public Builder setBigDecimalDelta(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (this.bigDecimalDeltaBuilder_ == null) {
+      if (bigDecimalDeltaBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.delta_ = value;
+        delta_ = value;
         onChanged();
       } else {
-        this.bigDecimalDeltaBuilder_.setMessage(value);
+        bigDecimalDeltaBuilder_.setMessage(value);
       }
-      this.deltaCase_ = 5;
+      deltaCase_ = 5;
       return this;
     }
     /**
@@ -1589,13 +1589,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setBigDecimalDelta(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
-      if (this.bigDecimalDeltaBuilder_ == null) {
-        this.delta_ = builderForValue.build();
+      if (bigDecimalDeltaBuilder_ == null) {
+        delta_ = builderForValue.build();
         onChanged();
       } else {
-        this.bigDecimalDeltaBuilder_.setMessage(builderForValue.build());
+        bigDecimalDeltaBuilder_.setMessage(builderForValue.build());
       }
-      this.deltaCase_ = 5;
+      deltaCase_ = 5;
       return this;
     }
     /**
@@ -1606,22 +1606,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
      */
     public Builder mergeBigDecimalDelta(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (this.bigDecimalDeltaBuilder_ == null) {
-        if (this.deltaCase_ == 5 &&
-            this.delta_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance()) {
-          this.delta_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.delta_)
+      if (bigDecimalDeltaBuilder_ == null) {
+        if (deltaCase_ == 5 &&
+            delta_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance()) {
+          delta_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) delta_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.delta_ = value;
+          delta_ = value;
         }
         onChanged();
       } else {
-        if (this.deltaCase_ == 5) {
-          this.bigDecimalDeltaBuilder_.mergeFrom(value);
+        if (deltaCase_ == 5) {
+          bigDecimalDeltaBuilder_.mergeFrom(value);
         }
-        this.bigDecimalDeltaBuilder_.setMessage(value);
+        bigDecimalDeltaBuilder_.setMessage(value);
       }
-      this.deltaCase_ = 5;
+      deltaCase_ = 5;
       return this;
     }
     /**
@@ -1632,18 +1632,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalDelta = 5;</code>
      */
     public Builder clearBigDecimalDelta() {
-      if (this.bigDecimalDeltaBuilder_ == null) {
-        if (this.deltaCase_ == 5) {
-          this.deltaCase_ = 0;
-          this.delta_ = null;
+      if (bigDecimalDeltaBuilder_ == null) {
+        if (deltaCase_ == 5) {
+          deltaCase_ = 0;
+          delta_ = null;
           onChanged();
         }
       } else {
-        if (this.deltaCase_ == 5) {
-          this.deltaCase_ = 0;
-          this.delta_ = null;
+        if (deltaCase_ == 5) {
+          deltaCase_ = 0;
+          delta_ = null;
         }
-        this.bigDecimalDeltaBuilder_.clear();
+        bigDecimalDeltaBuilder_.clear();
       }
       return this;
     }
@@ -1666,11 +1666,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getBigDecimalDeltaOrBuilder() {
-      if ((this.deltaCase_ == 5) && (this.bigDecimalDeltaBuilder_ != null)) {
-        return this.bigDecimalDeltaBuilder_.getMessageOrBuilder();
+      if ((deltaCase_ == 5) && (bigDecimalDeltaBuilder_ != null)) {
+        return bigDecimalDeltaBuilder_.getMessageOrBuilder();
       } else {
-        if (this.deltaCase_ == 5) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.delta_;
+        if (deltaCase_ == 5) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) delta_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
       }
@@ -1685,20 +1685,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
         getBigDecimalDeltaFieldBuilder() {
-      if (this.bigDecimalDeltaBuilder_ == null) {
-        if (!(this.deltaCase_ == 5)) {
-          this.delta_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
+      if (bigDecimalDeltaBuilder_ == null) {
+        if (!(deltaCase_ == 5)) {
+          delta_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
         }
-        this.bigDecimalDeltaBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        bigDecimalDeltaBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.delta_,
+                (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) delta_,
                 getParentForChildren(),
                 isClean());
-        this.delta_ = null;
+        delta_ = null;
       }
-      this.deltaCase_ = 5;
+      deltaCase_ = 5;
       onChanged();;
-      return this.bigDecimalDeltaBuilder_;
+      return bigDecimalDeltaBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1713,7 +1713,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasIntegerRequiredRangeAfterApplication() {
-      return this.requiredRangeAfterApplicationCase_ == 6;
+      return requiredRangeAfterApplicationCase_ == 6;
     }
     /**
      * <pre>
@@ -1725,14 +1725,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange getIntegerRequiredRangeAfterApplication() {
-      if (this.integerRequiredRangeAfterApplicationBuilder_ == null) {
-        if (this.requiredRangeAfterApplicationCase_ == 6) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.requiredRangeAfterApplication_;
+      if (integerRequiredRangeAfterApplicationBuilder_ == null) {
+        if (requiredRangeAfterApplicationCase_ == 6) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) requiredRangeAfterApplication_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
       } else {
-        if (this.requiredRangeAfterApplicationCase_ == 6) {
-          return this.integerRequiredRangeAfterApplicationBuilder_.getMessage();
+        if (requiredRangeAfterApplicationCase_ == 6) {
+          return integerRequiredRangeAfterApplicationBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
       }
@@ -1745,16 +1745,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
      */
     public Builder setIntegerRequiredRangeAfterApplication(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value) {
-      if (this.integerRequiredRangeAfterApplicationBuilder_ == null) {
+      if (integerRequiredRangeAfterApplicationBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.requiredRangeAfterApplication_ = value;
+        requiredRangeAfterApplication_ = value;
         onChanged();
       } else {
-        this.integerRequiredRangeAfterApplicationBuilder_.setMessage(value);
+        integerRequiredRangeAfterApplicationBuilder_.setMessage(value);
       }
-      this.requiredRangeAfterApplicationCase_ = 6;
+      requiredRangeAfterApplicationCase_ = 6;
       return this;
     }
     /**
@@ -1766,13 +1766,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setIntegerRequiredRangeAfterApplication(
         io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder builderForValue) {
-      if (this.integerRequiredRangeAfterApplicationBuilder_ == null) {
-        this.requiredRangeAfterApplication_ = builderForValue.build();
+      if (integerRequiredRangeAfterApplicationBuilder_ == null) {
+        requiredRangeAfterApplication_ = builderForValue.build();
         onChanged();
       } else {
-        this.integerRequiredRangeAfterApplicationBuilder_.setMessage(builderForValue.build());
+        integerRequiredRangeAfterApplicationBuilder_.setMessage(builderForValue.build());
       }
-      this.requiredRangeAfterApplicationCase_ = 6;
+      requiredRangeAfterApplicationCase_ = 6;
       return this;
     }
     /**
@@ -1783,22 +1783,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
      */
     public Builder mergeIntegerRequiredRangeAfterApplication(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value) {
-      if (this.integerRequiredRangeAfterApplicationBuilder_ == null) {
-        if (this.requiredRangeAfterApplicationCase_ == 6 &&
-            this.requiredRangeAfterApplication_ != io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance()) {
-          this.requiredRangeAfterApplication_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.requiredRangeAfterApplication_)
+      if (integerRequiredRangeAfterApplicationBuilder_ == null) {
+        if (requiredRangeAfterApplicationCase_ == 6 &&
+            requiredRangeAfterApplication_ != io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance()) {
+          requiredRangeAfterApplication_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) requiredRangeAfterApplication_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.requiredRangeAfterApplication_ = value;
+          requiredRangeAfterApplication_ = value;
         }
         onChanged();
       } else {
-        if (this.requiredRangeAfterApplicationCase_ == 6) {
-          this.integerRequiredRangeAfterApplicationBuilder_.mergeFrom(value);
+        if (requiredRangeAfterApplicationCase_ == 6) {
+          integerRequiredRangeAfterApplicationBuilder_.mergeFrom(value);
         }
-        this.integerRequiredRangeAfterApplicationBuilder_.setMessage(value);
+        integerRequiredRangeAfterApplicationBuilder_.setMessage(value);
       }
-      this.requiredRangeAfterApplicationCase_ = 6;
+      requiredRangeAfterApplicationCase_ = 6;
       return this;
     }
     /**
@@ -1809,18 +1809,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;</code>
      */
     public Builder clearIntegerRequiredRangeAfterApplication() {
-      if (this.integerRequiredRangeAfterApplicationBuilder_ == null) {
-        if (this.requiredRangeAfterApplicationCase_ == 6) {
-          this.requiredRangeAfterApplicationCase_ = 0;
-          this.requiredRangeAfterApplication_ = null;
+      if (integerRequiredRangeAfterApplicationBuilder_ == null) {
+        if (requiredRangeAfterApplicationCase_ == 6) {
+          requiredRangeAfterApplicationCase_ = 0;
+          requiredRangeAfterApplication_ = null;
           onChanged();
         }
       } else {
-        if (this.requiredRangeAfterApplicationCase_ == 6) {
-          this.requiredRangeAfterApplicationCase_ = 0;
-          this.requiredRangeAfterApplication_ = null;
+        if (requiredRangeAfterApplicationCase_ == 6) {
+          requiredRangeAfterApplicationCase_ = 0;
+          requiredRangeAfterApplication_ = null;
         }
-        this.integerRequiredRangeAfterApplicationBuilder_.clear();
+        integerRequiredRangeAfterApplicationBuilder_.clear();
       }
       return this;
     }
@@ -1843,11 +1843,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder getIntegerRequiredRangeAfterApplicationOrBuilder() {
-      if ((this.requiredRangeAfterApplicationCase_ == 6) && (this.integerRequiredRangeAfterApplicationBuilder_ != null)) {
-        return this.integerRequiredRangeAfterApplicationBuilder_.getMessageOrBuilder();
+      if ((requiredRangeAfterApplicationCase_ == 6) && (integerRequiredRangeAfterApplicationBuilder_ != null)) {
+        return integerRequiredRangeAfterApplicationBuilder_.getMessageOrBuilder();
       } else {
-        if (this.requiredRangeAfterApplicationCase_ == 6) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.requiredRangeAfterApplication_;
+        if (requiredRangeAfterApplicationCase_ == 6) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) requiredRangeAfterApplication_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
       }
@@ -1862,20 +1862,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder>
         getIntegerRequiredRangeAfterApplicationFieldBuilder() {
-      if (this.integerRequiredRangeAfterApplicationBuilder_ == null) {
-        if (!(this.requiredRangeAfterApplicationCase_ == 6)) {
-          this.requiredRangeAfterApplication_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
+      if (integerRequiredRangeAfterApplicationBuilder_ == null) {
+        if (!(requiredRangeAfterApplicationCase_ == 6)) {
+          requiredRangeAfterApplication_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
         }
-        this.integerRequiredRangeAfterApplicationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        integerRequiredRangeAfterApplicationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.requiredRangeAfterApplication_,
+                (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) requiredRangeAfterApplication_,
                 getParentForChildren(),
                 isClean());
-        this.requiredRangeAfterApplication_ = null;
+        requiredRangeAfterApplication_ = null;
       }
-      this.requiredRangeAfterApplicationCase_ = 6;
+      requiredRangeAfterApplicationCase_ = 6;
       onChanged();;
-      return this.integerRequiredRangeAfterApplicationBuilder_;
+      return integerRequiredRangeAfterApplicationBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1890,7 +1890,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasLongRequiredRangeAfterApplication() {
-      return this.requiredRangeAfterApplicationCase_ == 7;
+      return requiredRangeAfterApplicationCase_ == 7;
     }
     /**
      * <pre>
@@ -1902,14 +1902,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange getLongRequiredRangeAfterApplication() {
-      if (this.longRequiredRangeAfterApplicationBuilder_ == null) {
-        if (this.requiredRangeAfterApplicationCase_ == 7) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.requiredRangeAfterApplication_;
+      if (longRequiredRangeAfterApplicationBuilder_ == null) {
+        if (requiredRangeAfterApplicationCase_ == 7) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) requiredRangeAfterApplication_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
       } else {
-        if (this.requiredRangeAfterApplicationCase_ == 7) {
-          return this.longRequiredRangeAfterApplicationBuilder_.getMessage();
+        if (requiredRangeAfterApplicationCase_ == 7) {
+          return longRequiredRangeAfterApplicationBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
       }
@@ -1922,16 +1922,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
      */
     public Builder setLongRequiredRangeAfterApplication(io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value) {
-      if (this.longRequiredRangeAfterApplicationBuilder_ == null) {
+      if (longRequiredRangeAfterApplicationBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.requiredRangeAfterApplication_ = value;
+        requiredRangeAfterApplication_ = value;
         onChanged();
       } else {
-        this.longRequiredRangeAfterApplicationBuilder_.setMessage(value);
+        longRequiredRangeAfterApplicationBuilder_.setMessage(value);
       }
-      this.requiredRangeAfterApplicationCase_ = 7;
+      requiredRangeAfterApplicationCase_ = 7;
       return this;
     }
     /**
@@ -1943,13 +1943,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setLongRequiredRangeAfterApplication(
         io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder builderForValue) {
-      if (this.longRequiredRangeAfterApplicationBuilder_ == null) {
-        this.requiredRangeAfterApplication_ = builderForValue.build();
+      if (longRequiredRangeAfterApplicationBuilder_ == null) {
+        requiredRangeAfterApplication_ = builderForValue.build();
         onChanged();
       } else {
-        this.longRequiredRangeAfterApplicationBuilder_.setMessage(builderForValue.build());
+        longRequiredRangeAfterApplicationBuilder_.setMessage(builderForValue.build());
       }
-      this.requiredRangeAfterApplicationCase_ = 7;
+      requiredRangeAfterApplicationCase_ = 7;
       return this;
     }
     /**
@@ -1960,22 +1960,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
      */
     public Builder mergeLongRequiredRangeAfterApplication(io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value) {
-      if (this.longRequiredRangeAfterApplicationBuilder_ == null) {
-        if (this.requiredRangeAfterApplicationCase_ == 7 &&
-            this.requiredRangeAfterApplication_ != io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance()) {
-          this.requiredRangeAfterApplication_ = io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.requiredRangeAfterApplication_)
+      if (longRequiredRangeAfterApplicationBuilder_ == null) {
+        if (requiredRangeAfterApplicationCase_ == 7 &&
+            requiredRangeAfterApplication_ != io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance()) {
+          requiredRangeAfterApplication_ = io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) requiredRangeAfterApplication_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.requiredRangeAfterApplication_ = value;
+          requiredRangeAfterApplication_ = value;
         }
         onChanged();
       } else {
-        if (this.requiredRangeAfterApplicationCase_ == 7) {
-          this.longRequiredRangeAfterApplicationBuilder_.mergeFrom(value);
+        if (requiredRangeAfterApplicationCase_ == 7) {
+          longRequiredRangeAfterApplicationBuilder_.mergeFrom(value);
         }
-        this.longRequiredRangeAfterApplicationBuilder_.setMessage(value);
+        longRequiredRangeAfterApplicationBuilder_.setMessage(value);
       }
-      this.requiredRangeAfterApplicationCase_ = 7;
+      requiredRangeAfterApplicationCase_ = 7;
       return this;
     }
     /**
@@ -1986,18 +1986,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longRequiredRangeAfterApplication = 7;</code>
      */
     public Builder clearLongRequiredRangeAfterApplication() {
-      if (this.longRequiredRangeAfterApplicationBuilder_ == null) {
-        if (this.requiredRangeAfterApplicationCase_ == 7) {
-          this.requiredRangeAfterApplicationCase_ = 0;
-          this.requiredRangeAfterApplication_ = null;
+      if (longRequiredRangeAfterApplicationBuilder_ == null) {
+        if (requiredRangeAfterApplicationCase_ == 7) {
+          requiredRangeAfterApplicationCase_ = 0;
+          requiredRangeAfterApplication_ = null;
           onChanged();
         }
       } else {
-        if (this.requiredRangeAfterApplicationCase_ == 7) {
-          this.requiredRangeAfterApplicationCase_ = 0;
-          this.requiredRangeAfterApplication_ = null;
+        if (requiredRangeAfterApplicationCase_ == 7) {
+          requiredRangeAfterApplicationCase_ = 0;
+          requiredRangeAfterApplication_ = null;
         }
-        this.longRequiredRangeAfterApplicationBuilder_.clear();
+        longRequiredRangeAfterApplicationBuilder_.clear();
       }
       return this;
     }
@@ -2020,11 +2020,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder getLongRequiredRangeAfterApplicationOrBuilder() {
-      if ((this.requiredRangeAfterApplicationCase_ == 7) && (this.longRequiredRangeAfterApplicationBuilder_ != null)) {
-        return this.longRequiredRangeAfterApplicationBuilder_.getMessageOrBuilder();
+      if ((requiredRangeAfterApplicationCase_ == 7) && (longRequiredRangeAfterApplicationBuilder_ != null)) {
+        return longRequiredRangeAfterApplicationBuilder_.getMessageOrBuilder();
       } else {
-        if (this.requiredRangeAfterApplicationCase_ == 7) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.requiredRangeAfterApplication_;
+        if (requiredRangeAfterApplicationCase_ == 7) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) requiredRangeAfterApplication_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
       }
@@ -2039,20 +2039,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder>
         getLongRequiredRangeAfterApplicationFieldBuilder() {
-      if (this.longRequiredRangeAfterApplicationBuilder_ == null) {
-        if (!(this.requiredRangeAfterApplicationCase_ == 7)) {
-          this.requiredRangeAfterApplication_ = io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
+      if (longRequiredRangeAfterApplicationBuilder_ == null) {
+        if (!(requiredRangeAfterApplicationCase_ == 7)) {
+          requiredRangeAfterApplication_ = io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
         }
-        this.longRequiredRangeAfterApplicationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        longRequiredRangeAfterApplicationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.requiredRangeAfterApplication_,
+                (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) requiredRangeAfterApplication_,
                 getParentForChildren(),
                 isClean());
-        this.requiredRangeAfterApplication_ = null;
+        requiredRangeAfterApplication_ = null;
       }
-      this.requiredRangeAfterApplicationCase_ = 7;
+      requiredRangeAfterApplicationCase_ = 7;
       onChanged();;
-      return this.longRequiredRangeAfterApplicationBuilder_;
+      return longRequiredRangeAfterApplicationBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2067,7 +2067,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasBigDecimalRequiredRangeAfterApplication() {
-      return this.requiredRangeAfterApplicationCase_ == 8;
+      return requiredRangeAfterApplicationCase_ == 8;
     }
     /**
      * <pre>
@@ -2079,14 +2079,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange getBigDecimalRequiredRangeAfterApplication() {
-      if (this.bigDecimalRequiredRangeAfterApplicationBuilder_ == null) {
-        if (this.requiredRangeAfterApplicationCase_ == 8) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.requiredRangeAfterApplication_;
+      if (bigDecimalRequiredRangeAfterApplicationBuilder_ == null) {
+        if (requiredRangeAfterApplicationCase_ == 8) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) requiredRangeAfterApplication_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
       } else {
-        if (this.requiredRangeAfterApplicationCase_ == 8) {
-          return this.bigDecimalRequiredRangeAfterApplicationBuilder_.getMessage();
+        if (requiredRangeAfterApplicationCase_ == 8) {
+          return bigDecimalRequiredRangeAfterApplicationBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
       }
@@ -2099,16 +2099,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
      */
     public Builder setBigDecimalRequiredRangeAfterApplication(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value) {
-      if (this.bigDecimalRequiredRangeAfterApplicationBuilder_ == null) {
+      if (bigDecimalRequiredRangeAfterApplicationBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.requiredRangeAfterApplication_ = value;
+        requiredRangeAfterApplication_ = value;
         onChanged();
       } else {
-        this.bigDecimalRequiredRangeAfterApplicationBuilder_.setMessage(value);
+        bigDecimalRequiredRangeAfterApplicationBuilder_.setMessage(value);
       }
-      this.requiredRangeAfterApplicationCase_ = 8;
+      requiredRangeAfterApplicationCase_ = 8;
       return this;
     }
     /**
@@ -2120,13 +2120,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setBigDecimalRequiredRangeAfterApplication(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder builderForValue) {
-      if (this.bigDecimalRequiredRangeAfterApplicationBuilder_ == null) {
-        this.requiredRangeAfterApplication_ = builderForValue.build();
+      if (bigDecimalRequiredRangeAfterApplicationBuilder_ == null) {
+        requiredRangeAfterApplication_ = builderForValue.build();
         onChanged();
       } else {
-        this.bigDecimalRequiredRangeAfterApplicationBuilder_.setMessage(builderForValue.build());
+        bigDecimalRequiredRangeAfterApplicationBuilder_.setMessage(builderForValue.build());
       }
-      this.requiredRangeAfterApplicationCase_ = 8;
+      requiredRangeAfterApplicationCase_ = 8;
       return this;
     }
     /**
@@ -2137,22 +2137,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
      */
     public Builder mergeBigDecimalRequiredRangeAfterApplication(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value) {
-      if (this.bigDecimalRequiredRangeAfterApplicationBuilder_ == null) {
-        if (this.requiredRangeAfterApplicationCase_ == 8 &&
-            this.requiredRangeAfterApplication_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance()) {
-          this.requiredRangeAfterApplication_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.requiredRangeAfterApplication_)
+      if (bigDecimalRequiredRangeAfterApplicationBuilder_ == null) {
+        if (requiredRangeAfterApplicationCase_ == 8 &&
+            requiredRangeAfterApplication_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance()) {
+          requiredRangeAfterApplication_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) requiredRangeAfterApplication_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.requiredRangeAfterApplication_ = value;
+          requiredRangeAfterApplication_ = value;
         }
         onChanged();
       } else {
-        if (this.requiredRangeAfterApplicationCase_ == 8) {
-          this.bigDecimalRequiredRangeAfterApplicationBuilder_.mergeFrom(value);
+        if (requiredRangeAfterApplicationCase_ == 8) {
+          bigDecimalRequiredRangeAfterApplicationBuilder_.mergeFrom(value);
         }
-        this.bigDecimalRequiredRangeAfterApplicationBuilder_.setMessage(value);
+        bigDecimalRequiredRangeAfterApplicationBuilder_.setMessage(value);
       }
-      this.requiredRangeAfterApplicationCase_ = 8;
+      requiredRangeAfterApplicationCase_ = 8;
       return this;
     }
     /**
@@ -2163,18 +2163,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;</code>
      */
     public Builder clearBigDecimalRequiredRangeAfterApplication() {
-      if (this.bigDecimalRequiredRangeAfterApplicationBuilder_ == null) {
-        if (this.requiredRangeAfterApplicationCase_ == 8) {
-          this.requiredRangeAfterApplicationCase_ = 0;
-          this.requiredRangeAfterApplication_ = null;
+      if (bigDecimalRequiredRangeAfterApplicationBuilder_ == null) {
+        if (requiredRangeAfterApplicationCase_ == 8) {
+          requiredRangeAfterApplicationCase_ = 0;
+          requiredRangeAfterApplication_ = null;
           onChanged();
         }
       } else {
-        if (this.requiredRangeAfterApplicationCase_ == 8) {
-          this.requiredRangeAfterApplicationCase_ = 0;
-          this.requiredRangeAfterApplication_ = null;
+        if (requiredRangeAfterApplicationCase_ == 8) {
+          requiredRangeAfterApplicationCase_ = 0;
+          requiredRangeAfterApplication_ = null;
         }
-        this.bigDecimalRequiredRangeAfterApplicationBuilder_.clear();
+        bigDecimalRequiredRangeAfterApplicationBuilder_.clear();
       }
       return this;
     }
@@ -2197,11 +2197,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder getBigDecimalRequiredRangeAfterApplicationOrBuilder() {
-      if ((this.requiredRangeAfterApplicationCase_ == 8) && (this.bigDecimalRequiredRangeAfterApplicationBuilder_ != null)) {
-        return this.bigDecimalRequiredRangeAfterApplicationBuilder_.getMessageOrBuilder();
+      if ((requiredRangeAfterApplicationCase_ == 8) && (bigDecimalRequiredRangeAfterApplicationBuilder_ != null)) {
+        return bigDecimalRequiredRangeAfterApplicationBuilder_.getMessageOrBuilder();
       } else {
-        if (this.requiredRangeAfterApplicationCase_ == 8) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.requiredRangeAfterApplication_;
+        if (requiredRangeAfterApplicationCase_ == 8) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) requiredRangeAfterApplication_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
       }
@@ -2216,20 +2216,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder>
         getBigDecimalRequiredRangeAfterApplicationFieldBuilder() {
-      if (this.bigDecimalRequiredRangeAfterApplicationBuilder_ == null) {
-        if (!(this.requiredRangeAfterApplicationCase_ == 8)) {
-          this.requiredRangeAfterApplication_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
+      if (bigDecimalRequiredRangeAfterApplicationBuilder_ == null) {
+        if (!(requiredRangeAfterApplicationCase_ == 8)) {
+          requiredRangeAfterApplication_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
         }
-        this.bigDecimalRequiredRangeAfterApplicationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        bigDecimalRequiredRangeAfterApplicationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.requiredRangeAfterApplication_,
+                (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) requiredRangeAfterApplication_,
                 getParentForChildren(),
                 isClean());
-        this.requiredRangeAfterApplication_ = null;
+        requiredRangeAfterApplication_ = null;
       }
-      this.requiredRangeAfterApplicationCase_ = 8;
+      requiredRangeAfterApplicationCase_ = 8;
       onChanged();;
-      return this.bigDecimalRequiredRangeAfterApplicationBuilder_;
+      return bigDecimalRequiredRangeAfterApplicationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

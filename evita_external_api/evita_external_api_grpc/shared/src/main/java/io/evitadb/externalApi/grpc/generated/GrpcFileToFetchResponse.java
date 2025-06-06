@@ -77,13 +77,13 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             io.evitadb.externalApi.grpc.generated.GrpcFile.Builder subBuilder = null;
-            if (this.fileToFetch_ != null) {
-              subBuilder = this.fileToFetch_.toBuilder();
+            if (fileToFetch_ != null) {
+              subBuilder = fileToFetch_.toBuilder();
             }
-            this.fileToFetch_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcFile.parser(), extensionRegistry);
+            fileToFetch_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcFile.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.fileToFetch_);
-              this.fileToFetch_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(fileToFetch_);
+              fileToFetch_ = subBuilder.buildPartial();
             }
 
             break;
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasFileToFetch() {
-    return this.fileToFetch_ != null;
+    return fileToFetch_ != null;
   }
   /**
    * <pre>
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcFile getFileToFetch() {
-    return this.fileToFetch_ == null ? io.evitadb.externalApi.grpc.generated.GrpcFile.getDefaultInstance() : this.fileToFetch_;
+    return fileToFetch_ == null ? io.evitadb.externalApi.grpc.generated.GrpcFile.getDefaultInstance() : fileToFetch_;
   }
   /**
    * <pre>
@@ -161,35 +161,35 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.fileToFetch_ != null) {
+    if (fileToFetch_ != null) {
       output.writeMessage(1, getFileToFetch());
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.fileToFetch_ != null) {
+    if (fileToFetch_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getFileToFetch());
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -208,14 +208,14 @@ private static final long serialVersionUID = 0L;
       if (!getFileToFetch()
           .equals(other.getFileToFetch())) return false;
     }
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -223,8 +223,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + FILETOFETCH_FIELD_NUMBER;
       hash = (53 * hash) + getFileToFetch().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -360,11 +360,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (this.fileToFetchBuilder_ == null) {
-        this.fileToFetch_ = null;
+      if (fileToFetchBuilder_ == null) {
+        fileToFetch_ = null;
       } else {
-        this.fileToFetch_ = null;
-        this.fileToFetchBuilder_ = null;
+        fileToFetch_ = null;
+        fileToFetchBuilder_ = null;
       }
       return this;
     }
@@ -392,10 +392,10 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse result = new io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse(this);
-      if (this.fileToFetchBuilder_ == null) {
-        result.fileToFetch_ = this.fileToFetch_;
+      if (fileToFetchBuilder_ == null) {
+        result.fileToFetch_ = fileToFetch_;
       } else {
-        result.fileToFetch_ = this.fileToFetchBuilder_.build();
+        result.fileToFetch_ = fileToFetchBuilder_.build();
       }
       onBuilt();
       return result;
@@ -489,7 +489,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the fileToFetch field is set.
      */
     public boolean hasFileToFetch() {
-      return this.fileToFetchBuilder_ != null || this.fileToFetch_ != null;
+      return fileToFetchBuilder_ != null || fileToFetch_ != null;
     }
     /**
      * <pre>
@@ -500,10 +500,10 @@ private static final long serialVersionUID = 0L;
      * @return The fileToFetch.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFile getFileToFetch() {
-      if (this.fileToFetchBuilder_ == null) {
-        return this.fileToFetch_ == null ? io.evitadb.externalApi.grpc.generated.GrpcFile.getDefaultInstance() : this.fileToFetch_;
+      if (fileToFetchBuilder_ == null) {
+        return fileToFetch_ == null ? io.evitadb.externalApi.grpc.generated.GrpcFile.getDefaultInstance() : fileToFetch_;
       } else {
-        return this.fileToFetchBuilder_.getMessage();
+        return fileToFetchBuilder_.getMessage();
       }
     }
     /**
@@ -514,14 +514,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
      */
     public Builder setFileToFetch(io.evitadb.externalApi.grpc.generated.GrpcFile value) {
-      if (this.fileToFetchBuilder_ == null) {
+      if (fileToFetchBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.fileToFetch_ = value;
+        fileToFetch_ = value;
         onChanged();
       } else {
-        this.fileToFetchBuilder_.setMessage(value);
+        fileToFetchBuilder_.setMessage(value);
       }
 
       return this;
@@ -535,11 +535,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setFileToFetch(
         io.evitadb.externalApi.grpc.generated.GrpcFile.Builder builderForValue) {
-      if (this.fileToFetchBuilder_ == null) {
-        this.fileToFetch_ = builderForValue.build();
+      if (fileToFetchBuilder_ == null) {
+        fileToFetch_ = builderForValue.build();
         onChanged();
       } else {
-        this.fileToFetchBuilder_.setMessage(builderForValue.build());
+        fileToFetchBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -552,16 +552,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
      */
     public Builder mergeFileToFetch(io.evitadb.externalApi.grpc.generated.GrpcFile value) {
-      if (this.fileToFetchBuilder_ == null) {
-        if (this.fileToFetch_ != null) {
-          this.fileToFetch_ =
-            io.evitadb.externalApi.grpc.generated.GrpcFile.newBuilder(this.fileToFetch_).mergeFrom(value).buildPartial();
+      if (fileToFetchBuilder_ == null) {
+        if (fileToFetch_ != null) {
+          fileToFetch_ =
+            io.evitadb.externalApi.grpc.generated.GrpcFile.newBuilder(fileToFetch_).mergeFrom(value).buildPartial();
         } else {
-          this.fileToFetch_ = value;
+          fileToFetch_ = value;
         }
         onChanged();
       } else {
-        this.fileToFetchBuilder_.mergeFrom(value);
+        fileToFetchBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -574,12 +574,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
      */
     public Builder clearFileToFetch() {
-      if (this.fileToFetchBuilder_ == null) {
-        this.fileToFetch_ = null;
+      if (fileToFetchBuilder_ == null) {
+        fileToFetch_ = null;
         onChanged();
       } else {
-        this.fileToFetch_ = null;
-        this.fileToFetchBuilder_ = null;
+        fileToFetch_ = null;
+        fileToFetchBuilder_ = null;
       }
 
       return this;
@@ -604,11 +604,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder getFileToFetchOrBuilder() {
-      if (this.fileToFetchBuilder_ != null) {
-        return this.fileToFetchBuilder_.getMessageOrBuilder();
+      if (fileToFetchBuilder_ != null) {
+        return fileToFetchBuilder_.getMessageOrBuilder();
       } else {
-        return this.fileToFetch_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcFile.getDefaultInstance() : this.fileToFetch_;
+        return fileToFetch_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcFile.getDefaultInstance() : fileToFetch_;
       }
     }
     /**
@@ -621,15 +621,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcFile, io.evitadb.externalApi.grpc.generated.GrpcFile.Builder, io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder>
         getFileToFetchFieldBuilder() {
-      if (this.fileToFetchBuilder_ == null) {
-        this.fileToFetchBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (fileToFetchBuilder_ == null) {
+        fileToFetchBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcFile, io.evitadb.externalApi.grpc.generated.GrpcFile.Builder, io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder>(
                 getFileToFetch(),
                 getParentForChildren(),
                 isClean());
-        this.fileToFetch_ = null;
+        fileToFetch_ = null;
       }
-      return this.fileToFetchBuilder_;
+      return fileToFetchBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

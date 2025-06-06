@@ -77,33 +77,33 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder subBuilder = null;
-            if (this.from_ != null) {
-              subBuilder = this.from_.toBuilder();
+            if (from_ != null) {
+              subBuilder = from_.toBuilder();
             }
-            this.from_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
+            from_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.from_);
-              this.from_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(from_);
+              from_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 18: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder subBuilder = null;
-            if (this.to_ != null) {
-              subBuilder = this.to_.toBuilder();
+            if (to_ != null) {
+              subBuilder = to_.toBuilder();
             }
-            this.to_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
+            to_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.to_);
-              this.to_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(to_);
+              to_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 24: {
 
-            this.decimalPlacesToCompare_ = input.readInt32();
+            decimalPlacesToCompare_ = input.readInt32();
             break;
           }
           default: {
@@ -150,7 +150,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasFrom() {
-    return this.from_ != null;
+    return from_ != null;
   }
   /**
    * <pre>
@@ -162,7 +162,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getFrom() {
-    return this.from_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.from_;
+    return from_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : from_;
   }
   /**
    * <pre>
@@ -188,7 +188,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasTo() {
-    return this.to_ != null;
+    return to_ != null;
   }
   /**
    * <pre>
@@ -200,7 +200,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getTo() {
-    return this.to_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.to_;
+    return to_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : to_;
   }
   /**
    * <pre>
@@ -226,55 +226,55 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getDecimalPlacesToCompare() {
-    return this.decimalPlacesToCompare_;
+    return decimalPlacesToCompare_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.from_ != null) {
+    if (from_ != null) {
       output.writeMessage(1, getFrom());
     }
-    if (this.to_ != null) {
+    if (to_ != null) {
       output.writeMessage(2, getTo());
     }
-    if (this.decimalPlacesToCompare_ != 0) {
-      output.writeInt32(3, this.decimalPlacesToCompare_);
+    if (decimalPlacesToCompare_ != 0) {
+      output.writeInt32(3, decimalPlacesToCompare_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.from_ != null) {
+    if (from_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getFrom());
     }
-    if (this.to_ != null) {
+    if (to_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getTo());
     }
-    if (this.decimalPlacesToCompare_ != 0) {
+    if (decimalPlacesToCompare_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(3, this.decimalPlacesToCompare_);
+        .computeInt32Size(3, decimalPlacesToCompare_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -300,14 +300,14 @@ private static final long serialVersionUID = 0L;
     }
     if (getDecimalPlacesToCompare()
         != other.getDecimalPlacesToCompare()) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -321,8 +321,8 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + DECIMALPLACESTOCOMPARE_FIELD_NUMBER;
     hash = (53 * hash) + getDecimalPlacesToCompare();
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -458,19 +458,19 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (this.fromBuilder_ == null) {
-        this.from_ = null;
+      if (fromBuilder_ == null) {
+        from_ = null;
       } else {
-        this.from_ = null;
-        this.fromBuilder_ = null;
+        from_ = null;
+        fromBuilder_ = null;
       }
-      if (this.toBuilder_ == null) {
-        this.to_ = null;
+      if (toBuilder_ == null) {
+        to_ = null;
       } else {
-        this.to_ = null;
-        this.toBuilder_ = null;
+        to_ = null;
+        toBuilder_ = null;
       }
-      this.decimalPlacesToCompare_ = 0;
+      decimalPlacesToCompare_ = 0;
 
       return this;
     }
@@ -498,17 +498,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange result = new io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange(this);
-      if (this.fromBuilder_ == null) {
-        result.from_ = this.from_;
+      if (fromBuilder_ == null) {
+        result.from_ = from_;
       } else {
-        result.from_ = this.fromBuilder_.build();
+        result.from_ = fromBuilder_.build();
       }
-      if (this.toBuilder_ == null) {
-        result.to_ = this.to_;
+      if (toBuilder_ == null) {
+        result.to_ = to_;
       } else {
-        result.to_ = this.toBuilder_.build();
+        result.to_ = toBuilder_.build();
       }
-      result.decimalPlacesToCompare_ = this.decimalPlacesToCompare_;
+      result.decimalPlacesToCompare_ = decimalPlacesToCompare_;
       onBuilt();
       return result;
     }
@@ -607,7 +607,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the from field is set.
      */
     public boolean hasFrom() {
-      return this.fromBuilder_ != null || this.from_ != null;
+      return fromBuilder_ != null || from_ != null;
     }
     /**
      * <pre>
@@ -618,10 +618,10 @@ private static final long serialVersionUID = 0L;
      * @return The from.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getFrom() {
-      if (this.fromBuilder_ == null) {
-        return this.from_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.from_;
+      if (fromBuilder_ == null) {
+        return from_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : from_;
       } else {
-        return this.fromBuilder_.getMessage();
+        return fromBuilder_.getMessage();
       }
     }
     /**
@@ -632,14 +632,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
      */
     public Builder setFrom(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (this.fromBuilder_ == null) {
+      if (fromBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.from_ = value;
+        from_ = value;
         onChanged();
       } else {
-        this.fromBuilder_.setMessage(value);
+        fromBuilder_.setMessage(value);
       }
 
       return this;
@@ -653,11 +653,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setFrom(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
-      if (this.fromBuilder_ == null) {
-        this.from_ = builderForValue.build();
+      if (fromBuilder_ == null) {
+        from_ = builderForValue.build();
         onChanged();
       } else {
-        this.fromBuilder_.setMessage(builderForValue.build());
+        fromBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -670,16 +670,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
      */
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (this.fromBuilder_ == null) {
-        if (this.from_ != null) {
-          this.from_ =
-            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(this.from_).mergeFrom(value).buildPartial();
+      if (fromBuilder_ == null) {
+        if (from_ != null) {
+          from_ =
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(from_).mergeFrom(value).buildPartial();
         } else {
-          this.from_ = value;
+          from_ = value;
         }
         onChanged();
       } else {
-        this.fromBuilder_.mergeFrom(value);
+        fromBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -692,12 +692,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
      */
     public Builder clearFrom() {
-      if (this.fromBuilder_ == null) {
-        this.from_ = null;
+      if (fromBuilder_ == null) {
+        from_ = null;
         onChanged();
       } else {
-        this.from_ = null;
-        this.fromBuilder_ = null;
+        from_ = null;
+        fromBuilder_ = null;
       }
 
       return this;
@@ -722,11 +722,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getFromOrBuilder() {
-      if (this.fromBuilder_ != null) {
-        return this.fromBuilder_.getMessageOrBuilder();
+      if (fromBuilder_ != null) {
+        return fromBuilder_.getMessageOrBuilder();
       } else {
-        return this.from_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.from_;
+        return from_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : from_;
       }
     }
     /**
@@ -739,15 +739,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
         getFromFieldBuilder() {
-      if (this.fromBuilder_ == null) {
-        this.fromBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (fromBuilder_ == null) {
+        fromBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
                 getFrom(),
                 getParentForChildren(),
                 isClean());
-        this.from_ = null;
+        from_ = null;
       }
-      return this.fromBuilder_;
+      return fromBuilder_;
     }
 
     private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to_;
@@ -762,7 +762,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the to field is set.
      */
     public boolean hasTo() {
-      return this.toBuilder_ != null || this.to_ != null;
+      return toBuilder_ != null || to_ != null;
     }
     /**
      * <pre>
@@ -773,10 +773,10 @@ private static final long serialVersionUID = 0L;
      * @return The to.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getTo() {
-      if (this.toBuilder_ == null) {
-        return this.to_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.to_;
+      if (toBuilder_ == null) {
+        return to_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : to_;
       } else {
-        return this.toBuilder_.getMessage();
+        return toBuilder_.getMessage();
       }
     }
     /**
@@ -787,14 +787,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
      */
     public Builder setTo(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (this.toBuilder_ == null) {
+      if (toBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.to_ = value;
+        to_ = value;
         onChanged();
       } else {
-        this.toBuilder_.setMessage(value);
+        toBuilder_.setMessage(value);
       }
 
       return this;
@@ -808,11 +808,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTo(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
-      if (this.toBuilder_ == null) {
-        this.to_ = builderForValue.build();
+      if (toBuilder_ == null) {
+        to_ = builderForValue.build();
         onChanged();
       } else {
-        this.toBuilder_.setMessage(builderForValue.build());
+        toBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -825,16 +825,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
      */
     public Builder mergeTo(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (this.toBuilder_ == null) {
-        if (this.to_ != null) {
-          this.to_ =
-            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(this.to_).mergeFrom(value).buildPartial();
+      if (toBuilder_ == null) {
+        if (to_ != null) {
+          to_ =
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(to_).mergeFrom(value).buildPartial();
         } else {
-          this.to_ = value;
+          to_ = value;
         }
         onChanged();
       } else {
-        this.toBuilder_.mergeFrom(value);
+        toBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -847,12 +847,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
      */
     public Builder clearTo() {
-      if (this.toBuilder_ == null) {
-        this.to_ = null;
+      if (toBuilder_ == null) {
+        to_ = null;
         onChanged();
       } else {
-        this.to_ = null;
-        this.toBuilder_ = null;
+        to_ = null;
+        toBuilder_ = null;
       }
 
       return this;
@@ -877,11 +877,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getToOrBuilder() {
-      if (this.toBuilder_ != null) {
-        return this.toBuilder_.getMessageOrBuilder();
+      if (toBuilder_ != null) {
+        return toBuilder_.getMessageOrBuilder();
       } else {
-        return this.to_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.to_;
+        return to_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : to_;
       }
     }
     /**
@@ -894,15 +894,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
         getToFieldBuilder() {
-      if (this.toBuilder_ == null) {
-        this.toBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (toBuilder_ == null) {
+        toBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
                 getTo(),
                 getParentForChildren(),
                 isClean());
-        this.to_ = null;
+        to_ = null;
       }
-      return this.toBuilder_;
+      return toBuilder_;
     }
 
     private int decimalPlacesToCompare_ ;
@@ -916,7 +916,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getDecimalPlacesToCompare() {
-      return this.decimalPlacesToCompare_;
+      return decimalPlacesToCompare_;
     }
     /**
      * <pre>
@@ -929,7 +929,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setDecimalPlacesToCompare(int value) {
 
-      this.decimalPlacesToCompare_ = value;
+      decimalPlacesToCompare_ = value;
       onChanged();
       return this;
     }
@@ -943,7 +943,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearDecimalPlacesToCompare() {
 
-      this.decimalPlacesToCompare_ = 0;
+      decimalPlacesToCompare_ = 0;
       onChanged();
       return this;
     }

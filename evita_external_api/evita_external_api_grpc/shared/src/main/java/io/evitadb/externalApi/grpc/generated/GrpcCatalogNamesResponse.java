@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcCatalogNamesResponse() {
-    this.catalogNames_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+    catalogNames_ = com.google.protobuf.LazyStringArrayList.EMPTY;
   }
 
   @java.lang.Override
@@ -80,10 +80,10 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              this.catalogNames_ = new com.google.protobuf.LazyStringArrayList();
+              catalogNames_ = new com.google.protobuf.LazyStringArrayList();
               mutable_bitField0_ |= 0x00000001;
             }
-            this.catalogNames_.add(s);
+            catalogNames_.add(s);
             break;
           }
           default: {
@@ -102,7 +102,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        this.catalogNames_ = this.catalogNames_.getUnmodifiableView();
+        catalogNames_ = catalogNames_.getUnmodifiableView();
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -133,7 +133,7 @@ private static final long serialVersionUID = 0L;
    */
   public com.google.protobuf.ProtocolStringList
       getCatalogNamesList() {
-    return this.catalogNames_;
+    return catalogNames_;
   }
   /**
    * <pre>
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
    * @return The count of catalogNames.
    */
   public int getCatalogNamesCount() {
-    return this.catalogNames_.size();
+    return catalogNames_.size();
   }
   /**
    * <pre>
@@ -156,7 +156,7 @@ private static final long serialVersionUID = 0L;
    * @return The catalogNames at the given index.
    */
   public java.lang.String getCatalogNames(int index) {
-    return this.catalogNames_.get(index);
+    return catalogNames_.get(index);
   }
   /**
    * <pre>
@@ -169,45 +169,45 @@ private static final long serialVersionUID = 0L;
    */
   public com.google.protobuf.ByteString
       getCatalogNamesBytes(int index) {
-    return this.catalogNames_.getByteString(index);
+    return catalogNames_.getByteString(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    for (int i = 0; i < this.catalogNames_.size(); i++) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.catalogNames_.getRaw(i));
+    for (int i = 0; i < catalogNames_.size(); i++) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, catalogNames_.getRaw(i));
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
     {
       int dataSize = 0;
-      for (int i = 0; i < this.catalogNames_.size(); i++) {
-        dataSize += computeStringSizeNoTag(this.catalogNames_.getRaw(i));
+      for (int i = 0; i < catalogNames_.size(); i++) {
+        dataSize += computeStringSizeNoTag(catalogNames_.getRaw(i));
       }
       size += dataSize;
       size += 1 * getCatalogNamesList().size();
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -223,14 +223,14 @@ private static final long serialVersionUID = 0L;
 
     if (!getCatalogNamesList()
         .equals(other.getCatalogNamesList())) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -238,8 +238,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CATALOGNAMES_FIELD_NUMBER;
       hash = (53 * hash) + getCatalogNamesList().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -375,8 +375,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.catalogNames_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-      this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      catalogNames_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      bitField0_ = (bitField0_ & ~0x00000001);
       return this;
     }
 
@@ -403,12 +403,12 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse result = new io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse(this);
-      int from_bitField0_ = this.bitField0_;
-      if (((this.bitField0_ & 0x00000001) != 0)) {
-        this.catalogNames_ = this.catalogNames_.getUnmodifiableView();
-        this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      int from_bitField0_ = bitField0_;
+      if (((bitField0_ & 0x00000001) != 0)) {
+        catalogNames_ = catalogNames_.getUnmodifiableView();
+        bitField0_ = (bitField0_ & ~0x00000001);
       }
-      result.catalogNames_ = this.catalogNames_;
+      result.catalogNames_ = catalogNames_;
       onBuilt();
       return result;
     }
@@ -458,12 +458,12 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse.getDefaultInstance()) return this;
       if (!other.catalogNames_.isEmpty()) {
-        if (this.catalogNames_.isEmpty()) {
-          this.catalogNames_ = other.catalogNames_;
-          this.bitField0_ = (this.bitField0_ & ~0x00000001);
+        if (catalogNames_.isEmpty()) {
+          catalogNames_ = other.catalogNames_;
+          bitField0_ = (bitField0_ & ~0x00000001);
         } else {
           ensureCatalogNamesIsMutable();
-          this.catalogNames_.addAll(other.catalogNames_);
+          catalogNames_.addAll(other.catalogNames_);
         }
         onChanged();
       }
@@ -499,9 +499,9 @@ private static final long serialVersionUID = 0L;
 
     private com.google.protobuf.LazyStringList catalogNames_ = com.google.protobuf.LazyStringArrayList.EMPTY;
     private void ensureCatalogNamesIsMutable() {
-      if (!((this.bitField0_ & 0x00000001) != 0)) {
-        this.catalogNames_ = new com.google.protobuf.LazyStringArrayList(this.catalogNames_);
-        this.bitField0_ |= 0x00000001;
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        catalogNames_ = new com.google.protobuf.LazyStringArrayList(catalogNames_);
+        bitField0_ |= 0x00000001;
        }
     }
     /**
@@ -514,7 +514,7 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ProtocolStringList
         getCatalogNamesList() {
-      return this.catalogNames_.getUnmodifiableView();
+      return catalogNames_.getUnmodifiableView();
     }
     /**
      * <pre>
@@ -525,7 +525,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of catalogNames.
      */
     public int getCatalogNamesCount() {
-      return this.catalogNames_.size();
+      return catalogNames_.size();
     }
     /**
      * <pre>
@@ -537,7 +537,7 @@ private static final long serialVersionUID = 0L;
      * @return The catalogNames at the given index.
      */
     public java.lang.String getCatalogNames(int index) {
-      return this.catalogNames_.get(index);
+      return catalogNames_.get(index);
     }
     /**
      * <pre>
@@ -550,7 +550,7 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getCatalogNamesBytes(int index) {
-      return this.catalogNames_.getByteString(index);
+      return catalogNames_.getByteString(index);
     }
     /**
      * <pre>
@@ -568,7 +568,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   ensureCatalogNamesIsMutable();
-      this.catalogNames_.set(index, value);
+      catalogNames_.set(index, value);
       onChanged();
       return this;
     }
@@ -587,7 +587,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   ensureCatalogNamesIsMutable();
-      this.catalogNames_.add(value);
+      catalogNames_.add(value);
       onChanged();
       return this;
     }
@@ -604,7 +604,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<java.lang.String> values) {
       ensureCatalogNamesIsMutable();
       com.google.protobuf.AbstractMessageLite.Builder.addAll(
-          values, this.catalogNames_);
+          values, catalogNames_);
       onChanged();
       return this;
     }
@@ -617,8 +617,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogNames() {
-      this.catalogNames_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-      this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      catalogNames_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      bitField0_ = (bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
@@ -638,7 +638,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
       ensureCatalogNamesIsMutable();
-      this.catalogNames_.add(value);
+      catalogNames_.add(value);
       onChanged();
       return this;
     }

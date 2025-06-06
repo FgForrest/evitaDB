@@ -77,13 +77,13 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder subBuilder = null;
-            if (this.theMoment_ != null) {
-              subBuilder = this.theMoment_.toBuilder();
+            if (theMoment_ != null) {
+              subBuilder = theMoment_.toBuilder();
             }
-            this.theMoment_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.parser(), extensionRegistry);
+            theMoment_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.theMoment_);
-              this.theMoment_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(theMoment_);
+              theMoment_ = subBuilder.buildPartial();
             }
 
             break;
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasTheMoment() {
-    return this.theMoment_ != null;
+    return theMoment_ != null;
   }
   /**
    * <pre>
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getTheMoment() {
-    return this.theMoment_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : this.theMoment_;
+    return theMoment_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : theMoment_;
   }
   /**
    * <pre>
@@ -161,35 +161,35 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.theMoment_ != null) {
+    if (theMoment_ != null) {
       output.writeMessage(1, getTheMoment());
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.theMoment_ != null) {
+    if (theMoment_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getTheMoment());
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -208,14 +208,14 @@ private static final long serialVersionUID = 0L;
       if (!getTheMoment()
           .equals(other.getTheMoment())) return false;
     }
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -223,8 +223,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + THEMOMENT_FIELD_NUMBER;
       hash = (53 * hash) + getTheMoment().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -360,11 +360,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (this.theMomentBuilder_ == null) {
-        this.theMoment_ = null;
+      if (theMomentBuilder_ == null) {
+        theMoment_ = null;
       } else {
-        this.theMoment_ = null;
-        this.theMomentBuilder_ = null;
+        theMoment_ = null;
+        theMomentBuilder_ = null;
       }
       return this;
     }
@@ -392,10 +392,10 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtRequest result = new io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtRequest(this);
-      if (this.theMomentBuilder_ == null) {
-        result.theMoment_ = this.theMoment_;
+      if (theMomentBuilder_ == null) {
+        result.theMoment_ = theMoment_;
       } else {
-        result.theMoment_ = this.theMomentBuilder_.build();
+        result.theMoment_ = theMomentBuilder_.build();
       }
       onBuilt();
       return result;
@@ -489,7 +489,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the theMoment field is set.
      */
     public boolean hasTheMoment() {
-      return this.theMomentBuilder_ != null || this.theMoment_ != null;
+      return theMomentBuilder_ != null || theMoment_ != null;
     }
     /**
      * <pre>
@@ -500,10 +500,10 @@ private static final long serialVersionUID = 0L;
      * @return The theMoment.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getTheMoment() {
-      if (this.theMomentBuilder_ == null) {
-        return this.theMoment_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : this.theMoment_;
+      if (theMomentBuilder_ == null) {
+        return theMoment_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : theMoment_;
       } else {
-        return this.theMomentBuilder_.getMessage();
+        return theMomentBuilder_.getMessage();
       }
     }
     /**
@@ -514,14 +514,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime theMoment = 1;</code>
      */
     public Builder setTheMoment(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
-      if (this.theMomentBuilder_ == null) {
+      if (theMomentBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.theMoment_ = value;
+        theMoment_ = value;
         onChanged();
       } else {
-        this.theMomentBuilder_.setMessage(value);
+        theMomentBuilder_.setMessage(value);
       }
 
       return this;
@@ -535,11 +535,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTheMoment(
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
-      if (this.theMomentBuilder_ == null) {
-        this.theMoment_ = builderForValue.build();
+      if (theMomentBuilder_ == null) {
+        theMoment_ = builderForValue.build();
         onChanged();
       } else {
-        this.theMomentBuilder_.setMessage(builderForValue.build());
+        theMomentBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -552,16 +552,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime theMoment = 1;</code>
      */
     public Builder mergeTheMoment(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
-      if (this.theMomentBuilder_ == null) {
-        if (this.theMoment_ != null) {
-          this.theMoment_ =
-            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.newBuilder(this.theMoment_).mergeFrom(value).buildPartial();
+      if (theMomentBuilder_ == null) {
+        if (theMoment_ != null) {
+          theMoment_ =
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.newBuilder(theMoment_).mergeFrom(value).buildPartial();
         } else {
-          this.theMoment_ = value;
+          theMoment_ = value;
         }
         onChanged();
       } else {
-        this.theMomentBuilder_.mergeFrom(value);
+        theMomentBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -574,12 +574,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime theMoment = 1;</code>
      */
     public Builder clearTheMoment() {
-      if (this.theMomentBuilder_ == null) {
-        this.theMoment_ = null;
+      if (theMomentBuilder_ == null) {
+        theMoment_ = null;
         onChanged();
       } else {
-        this.theMoment_ = null;
-        this.theMomentBuilder_ = null;
+        theMoment_ = null;
+        theMomentBuilder_ = null;
       }
 
       return this;
@@ -604,11 +604,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime theMoment = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getTheMomentOrBuilder() {
-      if (this.theMomentBuilder_ != null) {
-        return this.theMomentBuilder_.getMessageOrBuilder();
+      if (theMomentBuilder_ != null) {
+        return theMomentBuilder_.getMessageOrBuilder();
       } else {
-        return this.theMoment_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : this.theMoment_;
+        return theMoment_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : theMoment_;
       }
     }
     /**
@@ -621,15 +621,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
         getTheMomentFieldBuilder() {
-      if (this.theMomentBuilder_ == null) {
-        this.theMomentBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (theMomentBuilder_ == null) {
+        theMomentBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>(
                 getTheMoment(),
                 getParentForChildren(),
                 isClean());
-        this.theMoment_ = null;
+        theMoment_ = null;
       }
-      return this.theMomentBuilder_;
+      return theMomentBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

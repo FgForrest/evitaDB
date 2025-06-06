@@ -77,18 +77,18 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            this.head_ = input.readBool();
+            head_ = input.readBool();
             break;
           }
           case 18: {
             com.google.protobuf.Int32Value.Builder subBuilder = null;
-            if (this.predecessorId_ != null) {
-              subBuilder = this.predecessorId_.toBuilder();
+            if (predecessorId_ != null) {
+              subBuilder = predecessorId_.toBuilder();
             }
-            this.predecessorId_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            predecessorId_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.predecessorId_);
-              this.predecessorId_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(predecessorId_);
+              predecessorId_ = subBuilder.buildPartial();
             }
 
             break;
@@ -137,7 +137,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean getHead() {
-    return this.head_;
+    return head_;
   }
 
   public static final int PREDECESSORID_FIELD_NUMBER = 2;
@@ -152,7 +152,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasPredecessorId() {
-    return this.predecessorId_ != null;
+    return predecessorId_ != null;
   }
   /**
    * <pre>
@@ -164,7 +164,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.Int32Value getPredecessorId() {
-    return this.predecessorId_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : this.predecessorId_;
+    return predecessorId_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : predecessorId_;
   }
   /**
    * <pre>
@@ -181,42 +181,42 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.head_ != false) {
-      output.writeBool(1, this.head_);
+    if (head_ != false) {
+      output.writeBool(1, head_);
     }
-    if (this.predecessorId_ != null) {
+    if (predecessorId_ != null) {
       output.writeMessage(2, getPredecessorId());
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.head_ != false) {
+    if (head_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(1, this.head_);
+        .computeBoolSize(1, head_);
     }
-    if (this.predecessorId_ != null) {
+    if (predecessorId_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getPredecessorId());
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -237,14 +237,14 @@ private static final long serialVersionUID = 0L;
       if (!getPredecessorId()
           .equals(other.getPredecessorId())) return false;
     }
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -255,8 +255,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + PREDECESSORID_FIELD_NUMBER;
       hash = (53 * hash) + getPredecessorId().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -392,13 +392,13 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.head_ = false;
+      head_ = false;
 
-      if (this.predecessorIdBuilder_ == null) {
-        this.predecessorId_ = null;
+      if (predecessorIdBuilder_ == null) {
+        predecessorId_ = null;
       } else {
-        this.predecessorId_ = null;
-        this.predecessorIdBuilder_ = null;
+        predecessorId_ = null;
+        predecessorIdBuilder_ = null;
       }
       return this;
     }
@@ -426,11 +426,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcPredecessor buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcPredecessor result = new io.evitadb.externalApi.grpc.generated.GrpcPredecessor(this);
-      result.head_ = this.head_;
-      if (this.predecessorIdBuilder_ == null) {
-        result.predecessorId_ = this.predecessorId_;
+      result.head_ = head_;
+      if (predecessorIdBuilder_ == null) {
+        result.predecessorId_ = predecessorId_;
       } else {
-        result.predecessorId_ = this.predecessorIdBuilder_.build();
+        result.predecessorId_ = predecessorIdBuilder_.build();
       }
       onBuilt();
       return result;
@@ -526,7 +526,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean getHead() {
-      return this.head_;
+      return head_;
     }
     /**
      * <pre>
@@ -539,7 +539,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setHead(boolean value) {
 
-      this.head_ = value;
+      head_ = value;
       onChanged();
       return this;
     }
@@ -553,7 +553,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearHead() {
 
-      this.head_ = false;
+      head_ = false;
       onChanged();
       return this;
     }
@@ -570,7 +570,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the predecessorId field is set.
      */
     public boolean hasPredecessorId() {
-      return this.predecessorIdBuilder_ != null || this.predecessorId_ != null;
+      return predecessorIdBuilder_ != null || predecessorId_ != null;
     }
     /**
      * <pre>
@@ -581,10 +581,10 @@ private static final long serialVersionUID = 0L;
      * @return The predecessorId.
      */
     public com.google.protobuf.Int32Value getPredecessorId() {
-      if (this.predecessorIdBuilder_ == null) {
-        return this.predecessorId_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : this.predecessorId_;
+      if (predecessorIdBuilder_ == null) {
+        return predecessorId_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : predecessorId_;
       } else {
-        return this.predecessorIdBuilder_.getMessage();
+        return predecessorIdBuilder_.getMessage();
       }
     }
     /**
@@ -595,14 +595,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
      */
     public Builder setPredecessorId(com.google.protobuf.Int32Value value) {
-      if (this.predecessorIdBuilder_ == null) {
+      if (predecessorIdBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.predecessorId_ = value;
+        predecessorId_ = value;
         onChanged();
       } else {
-        this.predecessorIdBuilder_.setMessage(value);
+        predecessorIdBuilder_.setMessage(value);
       }
 
       return this;
@@ -616,11 +616,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setPredecessorId(
         com.google.protobuf.Int32Value.Builder builderForValue) {
-      if (this.predecessorIdBuilder_ == null) {
-        this.predecessorId_ = builderForValue.build();
+      if (predecessorIdBuilder_ == null) {
+        predecessorId_ = builderForValue.build();
         onChanged();
       } else {
-        this.predecessorIdBuilder_.setMessage(builderForValue.build());
+        predecessorIdBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -633,16 +633,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
      */
     public Builder mergePredecessorId(com.google.protobuf.Int32Value value) {
-      if (this.predecessorIdBuilder_ == null) {
-        if (this.predecessorId_ != null) {
-          this.predecessorId_ =
-            com.google.protobuf.Int32Value.newBuilder(this.predecessorId_).mergeFrom(value).buildPartial();
+      if (predecessorIdBuilder_ == null) {
+        if (predecessorId_ != null) {
+          predecessorId_ =
+            com.google.protobuf.Int32Value.newBuilder(predecessorId_).mergeFrom(value).buildPartial();
         } else {
-          this.predecessorId_ = value;
+          predecessorId_ = value;
         }
         onChanged();
       } else {
-        this.predecessorIdBuilder_.mergeFrom(value);
+        predecessorIdBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -655,12 +655,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
      */
     public Builder clearPredecessorId() {
-      if (this.predecessorIdBuilder_ == null) {
-        this.predecessorId_ = null;
+      if (predecessorIdBuilder_ == null) {
+        predecessorId_ = null;
         onChanged();
       } else {
-        this.predecessorId_ = null;
-        this.predecessorIdBuilder_ = null;
+        predecessorId_ = null;
+        predecessorIdBuilder_ = null;
       }
 
       return this;
@@ -685,11 +685,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getPredecessorIdOrBuilder() {
-      if (this.predecessorIdBuilder_ != null) {
-        return this.predecessorIdBuilder_.getMessageOrBuilder();
+      if (predecessorIdBuilder_ != null) {
+        return predecessorIdBuilder_.getMessageOrBuilder();
       } else {
-        return this.predecessorId_ == null ?
-            com.google.protobuf.Int32Value.getDefaultInstance() : this.predecessorId_;
+        return predecessorId_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : predecessorId_;
       }
     }
     /**
@@ -702,15 +702,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getPredecessorIdFieldBuilder() {
-      if (this.predecessorIdBuilder_ == null) {
-        this.predecessorIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (predecessorIdBuilder_ == null) {
+        predecessorIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
                 getPredecessorId(),
                 getParentForChildren(),
                 isClean());
-        this.predecessorId_ = null;
+        predecessorId_ = null;
       }
-      return this.predecessorIdBuilder_;
+      return predecessorIdBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

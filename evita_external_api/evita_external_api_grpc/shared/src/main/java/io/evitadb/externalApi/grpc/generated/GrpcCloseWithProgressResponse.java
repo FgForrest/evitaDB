@@ -39,7 +39,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcCloseWithProgressResponse() {
-    this.finishedPhase_ = 0;
+    finishedPhase_ = 0;
   }
 
   @java.lang.Override
@@ -74,18 +74,18 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            this.catalogVersion_ = input.readInt64();
+            catalogVersion_ = input.readInt64();
             break;
           }
           case 16: {
 
-            this.catalogSchemaVersion_ = input.readInt32();
+            catalogSchemaVersion_ = input.readInt32();
             break;
           }
           case 24: {
             int rawValue = input.readEnum();
 
-            this.finishedPhase_ = rawValue;
+            finishedPhase_ = rawValue;
             break;
           }
           default: {
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public long getCatalogVersion() {
-    return this.catalogVersion_;
+    return catalogVersion_;
   }
 
   public static final int CATALOGSCHEMAVERSION_FIELD_NUMBER = 2;
@@ -149,7 +149,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getCatalogSchemaVersion() {
-    return this.catalogSchemaVersion_;
+    return catalogSchemaVersion_;
   }
 
   public static final int FINISHEDPHASE_FIELD_NUMBER = 3;
@@ -163,7 +163,7 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for finishedPhase.
    */
   @java.lang.Override public int getFinishedPhaseValue() {
-    return this.finishedPhase_;
+    return finishedPhase_;
   }
   /**
    * <pre>
@@ -175,56 +175,56 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase getFinishedPhase() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase result = io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase.valueOf(this.finishedPhase_);
+    io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase result = io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase.valueOf(finishedPhase_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase.UNRECOGNIZED : result;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.catalogVersion_ != 0L) {
-      output.writeInt64(1, this.catalogVersion_);
+    if (catalogVersion_ != 0L) {
+      output.writeInt64(1, catalogVersion_);
     }
-    if (this.catalogSchemaVersion_ != 0) {
-      output.writeInt32(2, this.catalogSchemaVersion_);
+    if (catalogSchemaVersion_ != 0) {
+      output.writeInt32(2, catalogSchemaVersion_);
     }
-    if (this.finishedPhase_ != io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase.CONFLICTS_RESOLVED.getNumber()) {
-      output.writeEnum(3, this.finishedPhase_);
+    if (finishedPhase_ != io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase.CONFLICTS_RESOLVED.getNumber()) {
+      output.writeEnum(3, finishedPhase_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.catalogVersion_ != 0L) {
+    if (catalogVersion_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(1, this.catalogVersion_);
+        .computeInt64Size(1, catalogVersion_);
     }
-    if (this.catalogSchemaVersion_ != 0) {
+    if (catalogSchemaVersion_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, this.catalogSchemaVersion_);
+        .computeInt32Size(2, catalogSchemaVersion_);
     }
-    if (this.finishedPhase_ != io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase.CONFLICTS_RESOLVED.getNumber()) {
+    if (finishedPhase_ != io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase.CONFLICTS_RESOLVED.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(3, this.finishedPhase_);
+        .computeEnumSize(3, finishedPhase_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -242,15 +242,15 @@ private static final long serialVersionUID = 0L;
         != other.getCatalogVersion()) return false;
     if (getCatalogSchemaVersion()
         != other.getCatalogSchemaVersion()) return false;
-    if (this.finishedPhase_ != other.finishedPhase_) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (finishedPhase_ != other.finishedPhase_) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -260,9 +260,9 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + CATALOGSCHEMAVERSION_FIELD_NUMBER;
     hash = (53 * hash) + getCatalogSchemaVersion();
     hash = (37 * hash) + FINISHEDPHASE_FIELD_NUMBER;
-    hash = (53 * hash) + this.finishedPhase_;
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (53 * hash) + finishedPhase_;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -394,11 +394,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.catalogVersion_ = 0L;
+      catalogVersion_ = 0L;
 
-      this.catalogSchemaVersion_ = 0;
+      catalogSchemaVersion_ = 0;
 
-      this.finishedPhase_ = 0;
+      finishedPhase_ = 0;
 
       return this;
     }
@@ -426,9 +426,9 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse result = new io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse(this);
-      result.catalogVersion_ = this.catalogVersion_;
-      result.catalogSchemaVersion_ = this.catalogSchemaVersion_;
-      result.finishedPhase_ = this.finishedPhase_;
+      result.catalogVersion_ = catalogVersion_;
+      result.catalogSchemaVersion_ = catalogSchemaVersion_;
+      result.finishedPhase_ = finishedPhase_;
       onBuilt();
       return result;
     }
@@ -526,7 +526,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public long getCatalogVersion() {
-      return this.catalogVersion_;
+      return catalogVersion_;
     }
     /**
      * <pre>
@@ -539,7 +539,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCatalogVersion(long value) {
 
-      this.catalogVersion_ = value;
+      catalogVersion_ = value;
       onChanged();
       return this;
     }
@@ -553,7 +553,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearCatalogVersion() {
 
-      this.catalogVersion_ = 0L;
+      catalogVersion_ = 0L;
       onChanged();
       return this;
     }
@@ -571,7 +571,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getCatalogSchemaVersion() {
-      return this.catalogSchemaVersion_;
+      return catalogSchemaVersion_;
     }
     /**
      * <pre>
@@ -586,7 +586,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCatalogSchemaVersion(int value) {
 
-      this.catalogSchemaVersion_ = value;
+      catalogSchemaVersion_ = value;
       onChanged();
       return this;
     }
@@ -602,7 +602,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearCatalogSchemaVersion() {
 
-      this.catalogSchemaVersion_ = 0;
+      catalogSchemaVersion_ = 0;
       onChanged();
       return this;
     }
@@ -617,7 +617,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire for finishedPhase.
      */
     @java.lang.Override public int getFinishedPhaseValue() {
-      return this.finishedPhase_;
+      return finishedPhase_;
     }
     /**
      * <pre>
@@ -630,7 +630,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setFinishedPhaseValue(int value) {
 
-      this.finishedPhase_ = value;
+      finishedPhase_ = value;
       onChanged();
       return this;
     }
@@ -645,7 +645,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase getFinishedPhase() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase result = io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase.valueOf(this.finishedPhase_);
+      io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase result = io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase.valueOf(finishedPhase_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTransactionPhase.UNRECOGNIZED : result;
     }
     /**
@@ -662,7 +662,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
 
-      this.finishedPhase_ = value.getNumber();
+      finishedPhase_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -676,7 +676,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearFinishedPhase() {
 
-      this.finishedPhase_ = 0;
+      finishedPhase_ = 0;
       onChanged();
       return this;
     }

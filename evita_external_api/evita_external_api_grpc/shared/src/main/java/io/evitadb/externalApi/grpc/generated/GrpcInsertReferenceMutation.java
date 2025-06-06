@@ -43,8 +43,8 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcInsertReferenceMutation() {
-    this.referenceName_ = "";
-    this.referenceCardinality_ = 0;
+    referenceName_ = "";
+    referenceCardinality_ = 0;
   }
 
   @java.lang.Override
@@ -80,29 +80,29 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            this.referenceName_ = s;
+            referenceName_ = s;
             break;
           }
           case 16: {
 
-            this.referencePrimaryKey_ = input.readInt32();
+            referencePrimaryKey_ = input.readInt32();
             break;
           }
           case 24: {
             int rawValue = input.readEnum();
 
-            this.referenceCardinality_ = rawValue;
+            referenceCardinality_ = rawValue;
             break;
           }
           case 34: {
             com.google.protobuf.StringValue.Builder subBuilder = null;
-            if (this.referencedEntityType_ != null) {
-              subBuilder = this.referencedEntityType_.toBuilder();
+            if (referencedEntityType_ != null) {
+              subBuilder = referencedEntityType_.toBuilder();
             }
-            this.referencedEntityType_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
+            referencedEntityType_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.referencedEntityType_);
-              this.referencedEntityType_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(referencedEntityType_);
+              referencedEntityType_ = subBuilder.buildPartial();
             }
 
             break;
@@ -151,14 +151,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getReferenceName() {
-    java.lang.Object ref = this.referenceName_;
+    java.lang.Object ref = referenceName_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      this.referenceName_ = s;
+      referenceName_ = s;
       return s;
     }
   }
@@ -173,12 +173,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getReferenceNameBytes() {
-    java.lang.Object ref = this.referenceName_;
+    java.lang.Object ref = referenceName_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      this.referenceName_ = b;
+      referenceName_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -198,7 +198,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getReferencePrimaryKey() {
-    return this.referencePrimaryKey_;
+    return referencePrimaryKey_;
   }
 
   public static final int REFERENCECARDINALITY_FIELD_NUMBER = 3;
@@ -213,7 +213,7 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for referenceCardinality.
    */
   @java.lang.Override public int getReferenceCardinalityValue() {
-    return this.referenceCardinality_;
+    return referenceCardinality_;
   }
   /**
    * <pre>
@@ -226,7 +226,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCardinality getReferenceCardinality() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcCardinality result = io.evitadb.externalApi.grpc.generated.GrpcCardinality.valueOf(this.referenceCardinality_);
+    io.evitadb.externalApi.grpc.generated.GrpcCardinality result = io.evitadb.externalApi.grpc.generated.GrpcCardinality.valueOf(referenceCardinality_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCardinality.UNRECOGNIZED : result;
   }
 
@@ -243,7 +243,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasReferencedEntityType() {
-    return this.referencedEntityType_ != null;
+    return referencedEntityType_ != null;
   }
   /**
    * <pre>
@@ -256,7 +256,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.StringValue getReferencedEntityType() {
-    return this.referencedEntityType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : this.referencedEntityType_;
+    return referencedEntityType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : referencedEntityType_;
   }
   /**
    * <pre>
@@ -274,55 +274,55 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.referenceName_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.referenceName_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(referenceName_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, referenceName_);
     }
-    if (this.referencePrimaryKey_ != 0) {
-      output.writeInt32(2, this.referencePrimaryKey_);
+    if (referencePrimaryKey_ != 0) {
+      output.writeInt32(2, referencePrimaryKey_);
     }
-    if (this.referenceCardinality_ != io.evitadb.externalApi.grpc.generated.GrpcCardinality.NOT_SPECIFIED.getNumber()) {
-      output.writeEnum(3, this.referenceCardinality_);
+    if (referenceCardinality_ != io.evitadb.externalApi.grpc.generated.GrpcCardinality.NOT_SPECIFIED.getNumber()) {
+      output.writeEnum(3, referenceCardinality_);
     }
-    if (this.referencedEntityType_ != null) {
+    if (referencedEntityType_ != null) {
       output.writeMessage(4, getReferencedEntityType());
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.referenceName_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.referenceName_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(referenceName_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, referenceName_);
     }
-    if (this.referencePrimaryKey_ != 0) {
+    if (referencePrimaryKey_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, this.referencePrimaryKey_);
+        .computeInt32Size(2, referencePrimaryKey_);
     }
-    if (this.referenceCardinality_ != io.evitadb.externalApi.grpc.generated.GrpcCardinality.NOT_SPECIFIED.getNumber()) {
+    if (referenceCardinality_ != io.evitadb.externalApi.grpc.generated.GrpcCardinality.NOT_SPECIFIED.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(3, this.referenceCardinality_);
+        .computeEnumSize(3, referenceCardinality_);
     }
-    if (this.referencedEntityType_ != null) {
+    if (referencedEntityType_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(4, getReferencedEntityType());
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -340,20 +340,20 @@ private static final long serialVersionUID = 0L;
         .equals(other.getReferenceName())) return false;
     if (getReferencePrimaryKey()
         != other.getReferencePrimaryKey()) return false;
-    if (this.referenceCardinality_ != other.referenceCardinality_) return false;
+    if (referenceCardinality_ != other.referenceCardinality_) return false;
     if (hasReferencedEntityType() != other.hasReferencedEntityType()) return false;
     if (hasReferencedEntityType()) {
       if (!getReferencedEntityType()
           .equals(other.getReferencedEntityType())) return false;
     }
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -362,13 +362,13 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + REFERENCEPRIMARYKEY_FIELD_NUMBER;
     hash = (53 * hash) + getReferencePrimaryKey();
     hash = (37 * hash) + REFERENCECARDINALITY_FIELD_NUMBER;
-    hash = (53 * hash) + this.referenceCardinality_;
+    hash = (53 * hash) + referenceCardinality_;
     if (hasReferencedEntityType()) {
       hash = (37 * hash) + REFERENCEDENTITYTYPE_FIELD_NUMBER;
       hash = (53 * hash) + getReferencedEntityType().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -504,17 +504,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.referenceName_ = "";
+      referenceName_ = "";
 
-      this.referencePrimaryKey_ = 0;
+      referencePrimaryKey_ = 0;
 
-      this.referenceCardinality_ = 0;
+      referenceCardinality_ = 0;
 
-      if (this.referencedEntityTypeBuilder_ == null) {
-        this.referencedEntityType_ = null;
+      if (referencedEntityTypeBuilder_ == null) {
+        referencedEntityType_ = null;
       } else {
-        this.referencedEntityType_ = null;
-        this.referencedEntityTypeBuilder_ = null;
+        referencedEntityType_ = null;
+        referencedEntityTypeBuilder_ = null;
       }
       return this;
     }
@@ -542,13 +542,13 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation result = new io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation(this);
-      result.referenceName_ = this.referenceName_;
-      result.referencePrimaryKey_ = this.referencePrimaryKey_;
-      result.referenceCardinality_ = this.referenceCardinality_;
-      if (this.referencedEntityTypeBuilder_ == null) {
-        result.referencedEntityType_ = this.referencedEntityType_;
+      result.referenceName_ = referenceName_;
+      result.referencePrimaryKey_ = referencePrimaryKey_;
+      result.referenceCardinality_ = referenceCardinality_;
+      if (referencedEntityTypeBuilder_ == null) {
+        result.referencedEntityType_ = referencedEntityType_;
       } else {
-        result.referencedEntityType_ = this.referencedEntityTypeBuilder_.build();
+        result.referencedEntityType_ = referencedEntityTypeBuilder_.build();
       }
       onBuilt();
       return result;
@@ -599,7 +599,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation.getDefaultInstance()) return this;
       if (!other.getReferenceName().isEmpty()) {
-        this.referenceName_ = other.referenceName_;
+        referenceName_ = other.referenceName_;
         onChanged();
       }
       if (other.getReferencePrimaryKey() != 0) {
@@ -650,12 +650,12 @@ private static final long serialVersionUID = 0L;
      * @return The referenceName.
      */
     public java.lang.String getReferenceName() {
-      java.lang.Object ref = this.referenceName_;
+      java.lang.Object ref = referenceName_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        this.referenceName_ = s;
+        referenceName_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -671,12 +671,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getReferenceNameBytes() {
-      java.lang.Object ref = this.referenceName_;
+      java.lang.Object ref = referenceName_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        this.referenceName_ = b;
+        referenceName_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -697,7 +697,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.referenceName_ = value;
+      referenceName_ = value;
       onChanged();
       return this;
     }
@@ -711,7 +711,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearReferenceName() {
 
-      this.referenceName_ = getDefaultInstance().getReferenceName();
+      referenceName_ = getDefaultInstance().getReferenceName();
       onChanged();
       return this;
     }
@@ -731,7 +731,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      this.referenceName_ = value;
+      referenceName_ = value;
       onChanged();
       return this;
     }
@@ -748,7 +748,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getReferencePrimaryKey() {
-      return this.referencePrimaryKey_;
+      return referencePrimaryKey_;
     }
     /**
      * <pre>
@@ -762,7 +762,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setReferencePrimaryKey(int value) {
 
-      this.referencePrimaryKey_ = value;
+      referencePrimaryKey_ = value;
       onChanged();
       return this;
     }
@@ -777,7 +777,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearReferencePrimaryKey() {
 
-      this.referencePrimaryKey_ = 0;
+      referencePrimaryKey_ = 0;
       onChanged();
       return this;
     }
@@ -793,7 +793,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire for referenceCardinality.
      */
     @java.lang.Override public int getReferenceCardinalityValue() {
-      return this.referenceCardinality_;
+      return referenceCardinality_;
     }
     /**
      * <pre>
@@ -807,7 +807,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setReferenceCardinalityValue(int value) {
 
-      this.referenceCardinality_ = value;
+      referenceCardinality_ = value;
       onChanged();
       return this;
     }
@@ -823,7 +823,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCardinality getReferenceCardinality() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcCardinality result = io.evitadb.externalApi.grpc.generated.GrpcCardinality.valueOf(this.referenceCardinality_);
+      io.evitadb.externalApi.grpc.generated.GrpcCardinality result = io.evitadb.externalApi.grpc.generated.GrpcCardinality.valueOf(referenceCardinality_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCardinality.UNRECOGNIZED : result;
     }
     /**
@@ -841,7 +841,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
 
-      this.referenceCardinality_ = value.getNumber();
+      referenceCardinality_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -856,7 +856,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearReferenceCardinality() {
 
-      this.referenceCardinality_ = 0;
+      referenceCardinality_ = 0;
       onChanged();
       return this;
     }
@@ -874,7 +874,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the referencedEntityType field is set.
      */
     public boolean hasReferencedEntityType() {
-      return this.referencedEntityTypeBuilder_ != null || this.referencedEntityType_ != null;
+      return referencedEntityTypeBuilder_ != null || referencedEntityType_ != null;
     }
     /**
      * <pre>
@@ -886,10 +886,10 @@ private static final long serialVersionUID = 0L;
      * @return The referencedEntityType.
      */
     public com.google.protobuf.StringValue getReferencedEntityType() {
-      if (this.referencedEntityTypeBuilder_ == null) {
-        return this.referencedEntityType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : this.referencedEntityType_;
+      if (referencedEntityTypeBuilder_ == null) {
+        return referencedEntityType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : referencedEntityType_;
       } else {
-        return this.referencedEntityTypeBuilder_.getMessage();
+        return referencedEntityTypeBuilder_.getMessage();
       }
     }
     /**
@@ -901,14 +901,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
      */
     public Builder setReferencedEntityType(com.google.protobuf.StringValue value) {
-      if (this.referencedEntityTypeBuilder_ == null) {
+      if (referencedEntityTypeBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.referencedEntityType_ = value;
+        referencedEntityType_ = value;
         onChanged();
       } else {
-        this.referencedEntityTypeBuilder_.setMessage(value);
+        referencedEntityTypeBuilder_.setMessage(value);
       }
 
       return this;
@@ -923,11 +923,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setReferencedEntityType(
         com.google.protobuf.StringValue.Builder builderForValue) {
-      if (this.referencedEntityTypeBuilder_ == null) {
-        this.referencedEntityType_ = builderForValue.build();
+      if (referencedEntityTypeBuilder_ == null) {
+        referencedEntityType_ = builderForValue.build();
         onChanged();
       } else {
-        this.referencedEntityTypeBuilder_.setMessage(builderForValue.build());
+        referencedEntityTypeBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -941,16 +941,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
      */
     public Builder mergeReferencedEntityType(com.google.protobuf.StringValue value) {
-      if (this.referencedEntityTypeBuilder_ == null) {
-        if (this.referencedEntityType_ != null) {
-          this.referencedEntityType_ =
-            com.google.protobuf.StringValue.newBuilder(this.referencedEntityType_).mergeFrom(value).buildPartial();
+      if (referencedEntityTypeBuilder_ == null) {
+        if (referencedEntityType_ != null) {
+          referencedEntityType_ =
+            com.google.protobuf.StringValue.newBuilder(referencedEntityType_).mergeFrom(value).buildPartial();
         } else {
-          this.referencedEntityType_ = value;
+          referencedEntityType_ = value;
         }
         onChanged();
       } else {
-        this.referencedEntityTypeBuilder_.mergeFrom(value);
+        referencedEntityTypeBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -964,12 +964,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
      */
     public Builder clearReferencedEntityType() {
-      if (this.referencedEntityTypeBuilder_ == null) {
-        this.referencedEntityType_ = null;
+      if (referencedEntityTypeBuilder_ == null) {
+        referencedEntityType_ = null;
         onChanged();
       } else {
-        this.referencedEntityType_ = null;
-        this.referencedEntityTypeBuilder_ = null;
+        referencedEntityType_ = null;
+        referencedEntityTypeBuilder_ = null;
       }
 
       return this;
@@ -996,11 +996,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue referencedEntityType = 4;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getReferencedEntityTypeOrBuilder() {
-      if (this.referencedEntityTypeBuilder_ != null) {
-        return this.referencedEntityTypeBuilder_.getMessageOrBuilder();
+      if (referencedEntityTypeBuilder_ != null) {
+        return referencedEntityTypeBuilder_.getMessageOrBuilder();
       } else {
-        return this.referencedEntityType_ == null ?
-            com.google.protobuf.StringValue.getDefaultInstance() : this.referencedEntityType_;
+        return referencedEntityType_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : referencedEntityType_;
       }
     }
     /**
@@ -1014,15 +1014,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getReferencedEntityTypeFieldBuilder() {
-      if (this.referencedEntityTypeBuilder_ == null) {
-        this.referencedEntityTypeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (referencedEntityTypeBuilder_ == null) {
+        referencedEntityTypeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
                 getReferencedEntityType(),
                 getParentForChildren(),
                 isClean());
-        this.referencedEntityType_ = null;
+        referencedEntityType_ = null;
       }
-      return this.referencedEntityTypeBuilder_;
+      return referencedEntityTypeBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

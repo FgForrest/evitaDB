@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcStringArray() {
-    this.value_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+    value_ = com.google.protobuf.LazyStringArrayList.EMPTY;
   }
 
   @java.lang.Override
@@ -80,10 +80,10 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              this.value_ = new com.google.protobuf.LazyStringArrayList();
+              value_ = new com.google.protobuf.LazyStringArrayList();
               mutable_bitField0_ |= 0x00000001;
             }
-            this.value_.add(s);
+            value_.add(s);
             break;
           }
           default: {
@@ -102,7 +102,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        this.value_ = this.value_.getUnmodifiableView();
+        value_ = value_.getUnmodifiableView();
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -133,7 +133,7 @@ private static final long serialVersionUID = 0L;
    */
   public com.google.protobuf.ProtocolStringList
       getValueList() {
-    return this.value_;
+    return value_;
   }
   /**
    * <pre>
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
    * @return The count of value.
    */
   public int getValueCount() {
-    return this.value_.size();
+    return value_.size();
   }
   /**
    * <pre>
@@ -156,7 +156,7 @@ private static final long serialVersionUID = 0L;
    * @return The value at the given index.
    */
   public java.lang.String getValue(int index) {
-    return this.value_.get(index);
+    return value_.get(index);
   }
   /**
    * <pre>
@@ -169,45 +169,45 @@ private static final long serialVersionUID = 0L;
    */
   public com.google.protobuf.ByteString
       getValueBytes(int index) {
-    return this.value_.getByteString(index);
+    return value_.getByteString(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    for (int i = 0; i < this.value_.size(); i++) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.value_.getRaw(i));
+    for (int i = 0; i < value_.size(); i++) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, value_.getRaw(i));
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
     {
       int dataSize = 0;
-      for (int i = 0; i < this.value_.size(); i++) {
-        dataSize += computeStringSizeNoTag(this.value_.getRaw(i));
+      for (int i = 0; i < value_.size(); i++) {
+        dataSize += computeStringSizeNoTag(value_.getRaw(i));
       }
       size += dataSize;
       size += 1 * getValueList().size();
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -223,14 +223,14 @@ private static final long serialVersionUID = 0L;
 
     if (!getValueList()
         .equals(other.getValueList())) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -238,8 +238,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + VALUE_FIELD_NUMBER;
       hash = (53 * hash) + getValueList().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -375,8 +375,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.value_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-      this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      value_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      bitField0_ = (bitField0_ & ~0x00000001);
       return this;
     }
 
@@ -403,12 +403,12 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcStringArray buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcStringArray result = new io.evitadb.externalApi.grpc.generated.GrpcStringArray(this);
-      int from_bitField0_ = this.bitField0_;
-      if (((this.bitField0_ & 0x00000001) != 0)) {
-        this.value_ = this.value_.getUnmodifiableView();
-        this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      int from_bitField0_ = bitField0_;
+      if (((bitField0_ & 0x00000001) != 0)) {
+        value_ = value_.getUnmodifiableView();
+        bitField0_ = (bitField0_ & ~0x00000001);
       }
-      result.value_ = this.value_;
+      result.value_ = value_;
       onBuilt();
       return result;
     }
@@ -458,12 +458,12 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcStringArray other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance()) return this;
       if (!other.value_.isEmpty()) {
-        if (this.value_.isEmpty()) {
-          this.value_ = other.value_;
-          this.bitField0_ = (this.bitField0_ & ~0x00000001);
+        if (value_.isEmpty()) {
+          value_ = other.value_;
+          bitField0_ = (bitField0_ & ~0x00000001);
         } else {
           ensureValueIsMutable();
-          this.value_.addAll(other.value_);
+          value_.addAll(other.value_);
         }
         onChanged();
       }
@@ -499,9 +499,9 @@ private static final long serialVersionUID = 0L;
 
     private com.google.protobuf.LazyStringList value_ = com.google.protobuf.LazyStringArrayList.EMPTY;
     private void ensureValueIsMutable() {
-      if (!((this.bitField0_ & 0x00000001) != 0)) {
-        this.value_ = new com.google.protobuf.LazyStringArrayList(this.value_);
-        this.bitField0_ |= 0x00000001;
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        value_ = new com.google.protobuf.LazyStringArrayList(value_);
+        bitField0_ |= 0x00000001;
        }
     }
     /**
@@ -514,7 +514,7 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ProtocolStringList
         getValueList() {
-      return this.value_.getUnmodifiableView();
+      return value_.getUnmodifiableView();
     }
     /**
      * <pre>
@@ -525,7 +525,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of value.
      */
     public int getValueCount() {
-      return this.value_.size();
+      return value_.size();
     }
     /**
      * <pre>
@@ -537,7 +537,7 @@ private static final long serialVersionUID = 0L;
      * @return The value at the given index.
      */
     public java.lang.String getValue(int index) {
-      return this.value_.get(index);
+      return value_.get(index);
     }
     /**
      * <pre>
@@ -550,7 +550,7 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getValueBytes(int index) {
-      return this.value_.getByteString(index);
+      return value_.getByteString(index);
     }
     /**
      * <pre>
@@ -568,7 +568,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   ensureValueIsMutable();
-      this.value_.set(index, value);
+      value_.set(index, value);
       onChanged();
       return this;
     }
@@ -587,7 +587,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   ensureValueIsMutable();
-      this.value_.add(value);
+      value_.add(value);
       onChanged();
       return this;
     }
@@ -604,7 +604,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<java.lang.String> values) {
       ensureValueIsMutable();
       com.google.protobuf.AbstractMessageLite.Builder.addAll(
-          values, this.value_);
+          values, value_);
       onChanged();
       return this;
     }
@@ -617,8 +617,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearValue() {
-      this.value_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-      this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      value_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      bitField0_ = (bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
@@ -638,7 +638,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
       ensureValueIsMutable();
-      this.value_.add(value);
+      value_.add(value);
       onChanged();
       return this;
     }

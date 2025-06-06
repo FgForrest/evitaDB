@@ -44,9 +44,9 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcCreateSortableAttributeCompoundSchemaMutation() {
-    this.name_ = "";
-    this.attributeElements_ = java.util.Collections.emptyList();
-    this.indexedInScopes_ = java.util.Collections.emptyList();
+    name_ = "";
+    attributeElements_ = java.util.Collections.emptyList();
+    indexedInScopes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -83,51 +83,51 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            this.name_ = s;
+            name_ = s;
             break;
           }
           case 18: {
             com.google.protobuf.StringValue.Builder subBuilder = null;
-            if (this.description_ != null) {
-              subBuilder = this.description_.toBuilder();
+            if (description_ != null) {
+              subBuilder = description_.toBuilder();
             }
-            this.description_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
+            description_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.description_);
-              this.description_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(description_);
+              description_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 26: {
             com.google.protobuf.StringValue.Builder subBuilder = null;
-            if (this.deprecationNotice_ != null) {
-              subBuilder = this.deprecationNotice_.toBuilder();
+            if (deprecationNotice_ != null) {
+              subBuilder = deprecationNotice_.toBuilder();
             }
-            this.deprecationNotice_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
+            deprecationNotice_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.deprecationNotice_);
-              this.deprecationNotice_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(deprecationNotice_);
+              deprecationNotice_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 34: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              this.attributeElements_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement>();
+              attributeElements_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement>();
               mutable_bitField0_ |= 0x00000001;
             }
-            this.attributeElements_.add(
+            attributeElements_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.parser(), extensionRegistry));
             break;
           }
           case 40: {
             int rawValue = input.readEnum();
             if (!((mutable_bitField0_ & 0x00000002) != 0)) {
-              this.indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+              indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
               mutable_bitField0_ |= 0x00000002;
             }
-            this.indexedInScopes_.add(rawValue);
+            indexedInScopes_.add(rawValue);
             break;
           }
           case 42: {
@@ -136,10 +136,10 @@ private static final long serialVersionUID = 0L;
             while(input.getBytesUntilLimit() > 0) {
               int rawValue = input.readEnum();
               if (!((mutable_bitField0_ & 0x00000002) != 0)) {
-                this.indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
+                indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>();
                 mutable_bitField0_ |= 0x00000002;
               }
-              this.indexedInScopes_.add(rawValue);
+              indexedInScopes_.add(rawValue);
             }
             input.popLimit(oldLimit);
             break;
@@ -160,10 +160,10 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        this.attributeElements_ = java.util.Collections.unmodifiableList(this.attributeElements_);
+        attributeElements_ = java.util.Collections.unmodifiableList(attributeElements_);
       }
       if (((mutable_bitField0_ & 0x00000002) != 0)) {
-        this.indexedInScopes_ = java.util.Collections.unmodifiableList(this.indexedInScopes_);
+        indexedInScopes_ = java.util.Collections.unmodifiableList(indexedInScopes_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -194,14 +194,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getName() {
-    java.lang.Object ref = this.name_;
+    java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      this.name_ = s;
+      name_ = s;
       return s;
     }
   }
@@ -216,12 +216,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getNameBytes() {
-    java.lang.Object ref = this.name_;
+    java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      this.name_ = b;
+      name_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -241,7 +241,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasDescription() {
-    return this.description_ != null;
+    return description_ != null;
   }
   /**
    * <pre>
@@ -254,7 +254,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.StringValue getDescription() {
-    return this.description_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : this.description_;
+    return description_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : description_;
   }
   /**
    * <pre>
@@ -283,7 +283,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasDeprecationNotice() {
-    return this.deprecationNotice_ != null;
+    return deprecationNotice_ != null;
   }
   /**
    * <pre>
@@ -297,7 +297,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.StringValue getDeprecationNotice() {
-    return this.deprecationNotice_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : this.deprecationNotice_;
+    return deprecationNotice_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : deprecationNotice_;
   }
   /**
    * <pre>
@@ -324,7 +324,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement> getAttributeElementsList() {
-    return this.attributeElements_;
+    return attributeElements_;
   }
   /**
    * <pre>
@@ -336,7 +336,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder>
       getAttributeElementsOrBuilderList() {
-    return this.attributeElements_;
+    return attributeElements_;
   }
   /**
    * <pre>
@@ -347,7 +347,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getAttributeElementsCount() {
-    return this.attributeElements_.size();
+    return attributeElements_.size();
   }
   /**
    * <pre>
@@ -358,7 +358,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcAttributeElement getAttributeElements(int index) {
-    return this.attributeElements_.get(index);
+    return attributeElements_.get(index);
   }
   /**
    * <pre>
@@ -370,7 +370,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder getAttributeElementsOrBuilder(
       int index) {
-    return this.attributeElements_.get(index);
+    return attributeElements_.get(index);
   }
 
   public static final int INDEXEDINSCOPES_FIELD_NUMBER = 5;
@@ -397,7 +397,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
     return new com.google.protobuf.Internal.ListAdapter<
-        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(this.indexedInScopes_, indexedInScopes_converter_);
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(indexedInScopes_, indexedInScopes_converter_);
   }
   /**
    * <pre>
@@ -410,7 +410,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getIndexedInScopesCount() {
-    return this.indexedInScopes_.size();
+    return indexedInScopes_.size();
   }
   /**
    * <pre>
@@ -424,7 +424,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index) {
-    return indexedInScopes_converter_.convert(this.indexedInScopes_.get(index));
+    return indexedInScopes_converter_.convert(indexedInScopes_.get(index));
   }
   /**
    * <pre>
@@ -438,7 +438,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<java.lang.Integer>
   getIndexedInScopesValueList() {
-    return this.indexedInScopes_;
+    return indexedInScopes_;
   }
   /**
    * <pre>
@@ -452,18 +452,18 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getIndexedInScopesValue(int index) {
-    return this.indexedInScopes_.get(index);
+    return indexedInScopes_.get(index);
   }
   private int indexedInScopesMemoizedSerializedSize;
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
@@ -471,63 +471,63 @@ private static final long serialVersionUID = 0L;
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
     getSerializedSize();
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.name_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.name_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, name_);
     }
-    if (this.description_ != null) {
+    if (description_ != null) {
       output.writeMessage(2, getDescription());
     }
-    if (this.deprecationNotice_ != null) {
+    if (deprecationNotice_ != null) {
       output.writeMessage(3, getDeprecationNotice());
     }
-    for (int i = 0; i < this.attributeElements_.size(); i++) {
-      output.writeMessage(4, this.attributeElements_.get(i));
+    for (int i = 0; i < attributeElements_.size(); i++) {
+      output.writeMessage(4, attributeElements_.get(i));
     }
     if (getIndexedInScopesList().size() > 0) {
       output.writeUInt32NoTag(42);
-      output.writeUInt32NoTag(this.indexedInScopesMemoizedSerializedSize);
+      output.writeUInt32NoTag(indexedInScopesMemoizedSerializedSize);
     }
-    for (int i = 0; i < this.indexedInScopes_.size(); i++) {
-      output.writeEnumNoTag(this.indexedInScopes_.get(i));
+    for (int i = 0; i < indexedInScopes_.size(); i++) {
+      output.writeEnumNoTag(indexedInScopes_.get(i));
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.name_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.name_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, name_);
     }
-    if (this.description_ != null) {
+    if (description_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getDescription());
     }
-    if (this.deprecationNotice_ != null) {
+    if (deprecationNotice_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getDeprecationNotice());
     }
-    for (int i = 0; i < this.attributeElements_.size(); i++) {
+    for (int i = 0; i < attributeElements_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(4, this.attributeElements_.get(i));
+        .computeMessageSize(4, attributeElements_.get(i));
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < this.indexedInScopes_.size(); i++) {
+      for (int i = 0; i < indexedInScopes_.size(); i++) {
         dataSize += com.google.protobuf.CodedOutputStream
-          .computeEnumSizeNoTag(this.indexedInScopes_.get(i));
+          .computeEnumSizeNoTag(indexedInScopes_.get(i));
       }
       size += dataSize;
       if (!getIndexedInScopesList().isEmpty()) {  size += 1;
         size += com.google.protobuf.CodedOutputStream
           .computeUInt32SizeNoTag(dataSize);
-      }this.indexedInScopesMemoizedSerializedSize = dataSize;
+      }indexedInScopesMemoizedSerializedSize = dataSize;
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -555,15 +555,15 @@ private static final long serialVersionUID = 0L;
     }
     if (!getAttributeElementsList()
         .equals(other.getAttributeElementsList())) return false;
-    if (!this.indexedInScopes_.equals(other.indexedInScopes_)) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!indexedInScopes_.equals(other.indexedInScopes_)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -583,10 +583,10 @@ private static final long serialVersionUID = 0L;
     }
     if (getIndexedInScopesCount() > 0) {
       hash = (37 * hash) + INDEXEDINSCOPES_FIELD_NUMBER;
-      hash = (53 * hash) + this.indexedInScopes_.hashCode();
+      hash = (53 * hash) + indexedInScopes_.hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -724,28 +724,28 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.name_ = "";
+      name_ = "";
 
-      if (this.descriptionBuilder_ == null) {
-        this.description_ = null;
+      if (descriptionBuilder_ == null) {
+        description_ = null;
       } else {
-        this.description_ = null;
-        this.descriptionBuilder_ = null;
+        description_ = null;
+        descriptionBuilder_ = null;
       }
-      if (this.deprecationNoticeBuilder_ == null) {
-        this.deprecationNotice_ = null;
+      if (deprecationNoticeBuilder_ == null) {
+        deprecationNotice_ = null;
       } else {
-        this.deprecationNotice_ = null;
-        this.deprecationNoticeBuilder_ = null;
+        deprecationNotice_ = null;
+        deprecationNoticeBuilder_ = null;
       }
-      if (this.attributeElementsBuilder_ == null) {
-        this.attributeElements_ = java.util.Collections.emptyList();
-        this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      if (attributeElementsBuilder_ == null) {
+        attributeElements_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
       } else {
-        this.attributeElementsBuilder_.clear();
+        attributeElementsBuilder_.clear();
       }
-      this.indexedInScopes_ = java.util.Collections.emptyList();
-      this.bitField0_ = (this.bitField0_ & ~0x00000002);
+      indexedInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000002);
       return this;
     }
 
@@ -772,32 +772,32 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation result = new io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation(this);
-      int from_bitField0_ = this.bitField0_;
-      result.name_ = this.name_;
-      if (this.descriptionBuilder_ == null) {
-        result.description_ = this.description_;
+      int from_bitField0_ = bitField0_;
+      result.name_ = name_;
+      if (descriptionBuilder_ == null) {
+        result.description_ = description_;
       } else {
-        result.description_ = this.descriptionBuilder_.build();
+        result.description_ = descriptionBuilder_.build();
       }
-      if (this.deprecationNoticeBuilder_ == null) {
-        result.deprecationNotice_ = this.deprecationNotice_;
+      if (deprecationNoticeBuilder_ == null) {
+        result.deprecationNotice_ = deprecationNotice_;
       } else {
-        result.deprecationNotice_ = this.deprecationNoticeBuilder_.build();
+        result.deprecationNotice_ = deprecationNoticeBuilder_.build();
       }
-      if (this.attributeElementsBuilder_ == null) {
-        if (((this.bitField0_ & 0x00000001) != 0)) {
-          this.attributeElements_ = java.util.Collections.unmodifiableList(this.attributeElements_);
-          this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      if (attributeElementsBuilder_ == null) {
+        if (((bitField0_ & 0x00000001) != 0)) {
+          attributeElements_ = java.util.Collections.unmodifiableList(attributeElements_);
+          bitField0_ = (bitField0_ & ~0x00000001);
         }
-        result.attributeElements_ = this.attributeElements_;
+        result.attributeElements_ = attributeElements_;
       } else {
-        result.attributeElements_ = this.attributeElementsBuilder_.build();
+        result.attributeElements_ = attributeElementsBuilder_.build();
       }
-      if (((this.bitField0_ & 0x00000002) != 0)) {
-        this.indexedInScopes_ = java.util.Collections.unmodifiableList(this.indexedInScopes_);
-        this.bitField0_ = (this.bitField0_ & ~0x00000002);
+      if (((bitField0_ & 0x00000002) != 0)) {
+        indexedInScopes_ = java.util.Collections.unmodifiableList(indexedInScopes_);
+        bitField0_ = (bitField0_ & ~0x00000002);
       }
-      result.indexedInScopes_ = this.indexedInScopes_;
+      result.indexedInScopes_ = indexedInScopes_;
       onBuilt();
       return result;
     }
@@ -847,7 +847,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.getDefaultInstance()) return this;
       if (!other.getName().isEmpty()) {
-        this.name_ = other.name_;
+        name_ = other.name_;
         onChanged();
       }
       if (other.hasDescription()) {
@@ -856,39 +856,39 @@ private static final long serialVersionUID = 0L;
       if (other.hasDeprecationNotice()) {
         mergeDeprecationNotice(other.getDeprecationNotice());
       }
-      if (this.attributeElementsBuilder_ == null) {
+      if (attributeElementsBuilder_ == null) {
         if (!other.attributeElements_.isEmpty()) {
-          if (this.attributeElements_.isEmpty()) {
-            this.attributeElements_ = other.attributeElements_;
-            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+          if (attributeElements_.isEmpty()) {
+            attributeElements_ = other.attributeElements_;
+            bitField0_ = (bitField0_ & ~0x00000001);
           } else {
             ensureAttributeElementsIsMutable();
-            this.attributeElements_.addAll(other.attributeElements_);
+            attributeElements_.addAll(other.attributeElements_);
           }
           onChanged();
         }
       } else {
         if (!other.attributeElements_.isEmpty()) {
-          if (this.attributeElementsBuilder_.isEmpty()) {
-            this.attributeElementsBuilder_.dispose();
-            this.attributeElementsBuilder_ = null;
-            this.attributeElements_ = other.attributeElements_;
-            this.bitField0_ = (this.bitField0_ & ~0x00000001);
-            this.attributeElementsBuilder_ =
+          if (attributeElementsBuilder_.isEmpty()) {
+            attributeElementsBuilder_.dispose();
+            attributeElementsBuilder_ = null;
+            attributeElements_ = other.attributeElements_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+            attributeElementsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getAttributeElementsFieldBuilder() : null;
           } else {
-            this.attributeElementsBuilder_.addAllMessages(other.attributeElements_);
+            attributeElementsBuilder_.addAllMessages(other.attributeElements_);
           }
         }
       }
       if (!other.indexedInScopes_.isEmpty()) {
-        if (this.indexedInScopes_.isEmpty()) {
-          this.indexedInScopes_ = other.indexedInScopes_;
-          this.bitField0_ = (this.bitField0_ & ~0x00000002);
+        if (indexedInScopes_.isEmpty()) {
+          indexedInScopes_ = other.indexedInScopes_;
+          bitField0_ = (bitField0_ & ~0x00000002);
         } else {
           ensureIndexedInScopesIsMutable();
-          this.indexedInScopes_.addAll(other.indexedInScopes_);
+          indexedInScopes_.addAll(other.indexedInScopes_);
         }
         onChanged();
       }
@@ -932,12 +932,12 @@ private static final long serialVersionUID = 0L;
      * @return The name.
      */
     public java.lang.String getName() {
-      java.lang.Object ref = this.name_;
+      java.lang.Object ref = name_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        this.name_ = s;
+        name_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -953,12 +953,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getNameBytes() {
-      java.lang.Object ref = this.name_;
+      java.lang.Object ref = name_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        this.name_ = b;
+        name_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -979,7 +979,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.name_ = value;
+      name_ = value;
       onChanged();
       return this;
     }
@@ -993,7 +993,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearName() {
 
-      this.name_ = getDefaultInstance().getName();
+      name_ = getDefaultInstance().getName();
       onChanged();
       return this;
     }
@@ -1013,7 +1013,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      this.name_ = value;
+      name_ = value;
       onChanged();
       return this;
     }
@@ -1031,7 +1031,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the description field is set.
      */
     public boolean hasDescription() {
-      return this.descriptionBuilder_ != null || this.description_ != null;
+      return descriptionBuilder_ != null || description_ != null;
     }
     /**
      * <pre>
@@ -1043,10 +1043,10 @@ private static final long serialVersionUID = 0L;
      * @return The description.
      */
     public com.google.protobuf.StringValue getDescription() {
-      if (this.descriptionBuilder_ == null) {
-        return this.description_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : this.description_;
+      if (descriptionBuilder_ == null) {
+        return description_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : description_;
       } else {
-        return this.descriptionBuilder_.getMessage();
+        return descriptionBuilder_.getMessage();
       }
     }
     /**
@@ -1058,14 +1058,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder setDescription(com.google.protobuf.StringValue value) {
-      if (this.descriptionBuilder_ == null) {
+      if (descriptionBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.description_ = value;
+        description_ = value;
         onChanged();
       } else {
-        this.descriptionBuilder_.setMessage(value);
+        descriptionBuilder_.setMessage(value);
       }
 
       return this;
@@ -1080,11 +1080,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setDescription(
         com.google.protobuf.StringValue.Builder builderForValue) {
-      if (this.descriptionBuilder_ == null) {
-        this.description_ = builderForValue.build();
+      if (descriptionBuilder_ == null) {
+        description_ = builderForValue.build();
         onChanged();
       } else {
-        this.descriptionBuilder_.setMessage(builderForValue.build());
+        descriptionBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1098,16 +1098,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder mergeDescription(com.google.protobuf.StringValue value) {
-      if (this.descriptionBuilder_ == null) {
-        if (this.description_ != null) {
-          this.description_ =
-            com.google.protobuf.StringValue.newBuilder(this.description_).mergeFrom(value).buildPartial();
+      if (descriptionBuilder_ == null) {
+        if (description_ != null) {
+          description_ =
+            com.google.protobuf.StringValue.newBuilder(description_).mergeFrom(value).buildPartial();
         } else {
-          this.description_ = value;
+          description_ = value;
         }
         onChanged();
       } else {
-        this.descriptionBuilder_.mergeFrom(value);
+        descriptionBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1121,12 +1121,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder clearDescription() {
-      if (this.descriptionBuilder_ == null) {
-        this.description_ = null;
+      if (descriptionBuilder_ == null) {
+        description_ = null;
         onChanged();
       } else {
-        this.description_ = null;
-        this.descriptionBuilder_ = null;
+        description_ = null;
+        descriptionBuilder_ = null;
       }
 
       return this;
@@ -1153,11 +1153,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDescriptionOrBuilder() {
-      if (this.descriptionBuilder_ != null) {
-        return this.descriptionBuilder_.getMessageOrBuilder();
+      if (descriptionBuilder_ != null) {
+        return descriptionBuilder_.getMessageOrBuilder();
       } else {
-        return this.description_ == null ?
-            com.google.protobuf.StringValue.getDefaultInstance() : this.description_;
+        return description_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : description_;
       }
     }
     /**
@@ -1171,15 +1171,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDescriptionFieldBuilder() {
-      if (this.descriptionBuilder_ == null) {
-        this.descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (descriptionBuilder_ == null) {
+        descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
                 getDescription(),
                 getParentForChildren(),
                 isClean());
-        this.description_ = null;
+        description_ = null;
       }
-      return this.descriptionBuilder_;
+      return descriptionBuilder_;
     }
 
     private com.google.protobuf.StringValue deprecationNotice_;
@@ -1196,7 +1196,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the deprecationNotice field is set.
      */
     public boolean hasDeprecationNotice() {
-      return this.deprecationNoticeBuilder_ != null || this.deprecationNotice_ != null;
+      return deprecationNoticeBuilder_ != null || deprecationNotice_ != null;
     }
     /**
      * <pre>
@@ -1209,10 +1209,10 @@ private static final long serialVersionUID = 0L;
      * @return The deprecationNotice.
      */
     public com.google.protobuf.StringValue getDeprecationNotice() {
-      if (this.deprecationNoticeBuilder_ == null) {
-        return this.deprecationNotice_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : this.deprecationNotice_;
+      if (deprecationNoticeBuilder_ == null) {
+        return deprecationNotice_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : deprecationNotice_;
       } else {
-        return this.deprecationNoticeBuilder_.getMessage();
+        return deprecationNoticeBuilder_.getMessage();
       }
     }
     /**
@@ -1225,14 +1225,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder setDeprecationNotice(com.google.protobuf.StringValue value) {
-      if (this.deprecationNoticeBuilder_ == null) {
+      if (deprecationNoticeBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.deprecationNotice_ = value;
+        deprecationNotice_ = value;
         onChanged();
       } else {
-        this.deprecationNoticeBuilder_.setMessage(value);
+        deprecationNoticeBuilder_.setMessage(value);
       }
 
       return this;
@@ -1248,11 +1248,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setDeprecationNotice(
         com.google.protobuf.StringValue.Builder builderForValue) {
-      if (this.deprecationNoticeBuilder_ == null) {
-        this.deprecationNotice_ = builderForValue.build();
+      if (deprecationNoticeBuilder_ == null) {
+        deprecationNotice_ = builderForValue.build();
         onChanged();
       } else {
-        this.deprecationNoticeBuilder_.setMessage(builderForValue.build());
+        deprecationNoticeBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1267,16 +1267,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder mergeDeprecationNotice(com.google.protobuf.StringValue value) {
-      if (this.deprecationNoticeBuilder_ == null) {
-        if (this.deprecationNotice_ != null) {
-          this.deprecationNotice_ =
-            com.google.protobuf.StringValue.newBuilder(this.deprecationNotice_).mergeFrom(value).buildPartial();
+      if (deprecationNoticeBuilder_ == null) {
+        if (deprecationNotice_ != null) {
+          deprecationNotice_ =
+            com.google.protobuf.StringValue.newBuilder(deprecationNotice_).mergeFrom(value).buildPartial();
         } else {
-          this.deprecationNotice_ = value;
+          deprecationNotice_ = value;
         }
         onChanged();
       } else {
-        this.deprecationNoticeBuilder_.mergeFrom(value);
+        deprecationNoticeBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1291,12 +1291,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public Builder clearDeprecationNotice() {
-      if (this.deprecationNoticeBuilder_ == null) {
-        this.deprecationNotice_ = null;
+      if (deprecationNoticeBuilder_ == null) {
+        deprecationNotice_ = null;
         onChanged();
       } else {
-        this.deprecationNotice_ = null;
-        this.deprecationNoticeBuilder_ = null;
+        deprecationNotice_ = null;
+        deprecationNoticeBuilder_ = null;
       }
 
       return this;
@@ -1325,11 +1325,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDeprecationNoticeOrBuilder() {
-      if (this.deprecationNoticeBuilder_ != null) {
-        return this.deprecationNoticeBuilder_.getMessageOrBuilder();
+      if (deprecationNoticeBuilder_ != null) {
+        return deprecationNoticeBuilder_.getMessageOrBuilder();
       } else {
-        return this.deprecationNotice_ == null ?
-            com.google.protobuf.StringValue.getDefaultInstance() : this.deprecationNotice_;
+        return deprecationNotice_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : deprecationNotice_;
       }
     }
     /**
@@ -1344,23 +1344,23 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDeprecationNoticeFieldBuilder() {
-      if (this.deprecationNoticeBuilder_ == null) {
-        this.deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (deprecationNoticeBuilder_ == null) {
+        deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
                 getDeprecationNotice(),
                 getParentForChildren(),
                 isClean());
-        this.deprecationNotice_ = null;
+        deprecationNotice_ = null;
       }
-      return this.deprecationNoticeBuilder_;
+      return deprecationNoticeBuilder_;
     }
 
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement> attributeElements_ =
       java.util.Collections.emptyList();
     private void ensureAttributeElementsIsMutable() {
-      if (!((this.bitField0_ & 0x00000001) != 0)) {
-        this.attributeElements_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement>(this.attributeElements_);
-        this.bitField0_ |= 0x00000001;
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        attributeElements_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement>(attributeElements_);
+        bitField0_ |= 0x00000001;
        }
     }
 
@@ -1375,10 +1375,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeElement> getAttributeElementsList() {
-      if (this.attributeElementsBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(this.attributeElements_);
+      if (attributeElementsBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(attributeElements_);
       } else {
-        return this.attributeElementsBuilder_.getMessageList();
+        return attributeElementsBuilder_.getMessageList();
       }
     }
     /**
@@ -1389,10 +1389,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public int getAttributeElementsCount() {
-      if (this.attributeElementsBuilder_ == null) {
-        return this.attributeElements_.size();
+      if (attributeElementsBuilder_ == null) {
+        return attributeElements_.size();
       } else {
-        return this.attributeElementsBuilder_.getCount();
+        return attributeElementsBuilder_.getCount();
       }
     }
     /**
@@ -1403,10 +1403,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeElement getAttributeElements(int index) {
-      if (this.attributeElementsBuilder_ == null) {
-        return this.attributeElements_.get(index);
+      if (attributeElementsBuilder_ == null) {
+        return attributeElements_.get(index);
       } else {
-        return this.attributeElementsBuilder_.getMessage(index);
+        return attributeElementsBuilder_.getMessage(index);
       }
     }
     /**
@@ -1418,15 +1418,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setAttributeElements(
         int index, io.evitadb.externalApi.grpc.generated.GrpcAttributeElement value) {
-      if (this.attributeElementsBuilder_ == null) {
+      if (attributeElementsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureAttributeElementsIsMutable();
-        this.attributeElements_.set(index, value);
+        attributeElements_.set(index, value);
         onChanged();
       } else {
-        this.attributeElementsBuilder_.setMessage(index, value);
+        attributeElementsBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -1439,12 +1439,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setAttributeElements(
         int index, io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.Builder builderForValue) {
-      if (this.attributeElementsBuilder_ == null) {
+      if (attributeElementsBuilder_ == null) {
         ensureAttributeElementsIsMutable();
-        this.attributeElements_.set(index, builderForValue.build());
+        attributeElements_.set(index, builderForValue.build());
         onChanged();
       } else {
-        this.attributeElementsBuilder_.setMessage(index, builderForValue.build());
+        attributeElementsBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1456,15 +1456,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public Builder addAttributeElements(io.evitadb.externalApi.grpc.generated.GrpcAttributeElement value) {
-      if (this.attributeElementsBuilder_ == null) {
+      if (attributeElementsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureAttributeElementsIsMutable();
-        this.attributeElements_.add(value);
+        attributeElements_.add(value);
         onChanged();
       } else {
-        this.attributeElementsBuilder_.addMessage(value);
+        attributeElementsBuilder_.addMessage(value);
       }
       return this;
     }
@@ -1477,15 +1477,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAttributeElements(
         int index, io.evitadb.externalApi.grpc.generated.GrpcAttributeElement value) {
-      if (this.attributeElementsBuilder_ == null) {
+      if (attributeElementsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureAttributeElementsIsMutable();
-        this.attributeElements_.add(index, value);
+        attributeElements_.add(index, value);
         onChanged();
       } else {
-        this.attributeElementsBuilder_.addMessage(index, value);
+        attributeElementsBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -1498,12 +1498,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAttributeElements(
         io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.Builder builderForValue) {
-      if (this.attributeElementsBuilder_ == null) {
+      if (attributeElementsBuilder_ == null) {
         ensureAttributeElementsIsMutable();
-        this.attributeElements_.add(builderForValue.build());
+        attributeElements_.add(builderForValue.build());
         onChanged();
       } else {
-        this.attributeElementsBuilder_.addMessage(builderForValue.build());
+        attributeElementsBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -1516,12 +1516,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAttributeElements(
         int index, io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.Builder builderForValue) {
-      if (this.attributeElementsBuilder_ == null) {
+      if (attributeElementsBuilder_ == null) {
         ensureAttributeElementsIsMutable();
-        this.attributeElements_.add(index, builderForValue.build());
+        attributeElements_.add(index, builderForValue.build());
         onChanged();
       } else {
-        this.attributeElementsBuilder_.addMessage(index, builderForValue.build());
+        attributeElementsBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1534,13 +1534,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllAttributeElements(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElement> values) {
-      if (this.attributeElementsBuilder_ == null) {
+      if (attributeElementsBuilder_ == null) {
         ensureAttributeElementsIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, this.attributeElements_);
+            values, attributeElements_);
         onChanged();
       } else {
-        this.attributeElementsBuilder_.addAllMessages(values);
+        attributeElementsBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -1552,12 +1552,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public Builder clearAttributeElements() {
-      if (this.attributeElementsBuilder_ == null) {
-        this.attributeElements_ = java.util.Collections.emptyList();
-        this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      if (attributeElementsBuilder_ == null) {
+        attributeElements_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        this.attributeElementsBuilder_.clear();
+        attributeElementsBuilder_.clear();
       }
       return this;
     }
@@ -1569,12 +1569,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeElement attributeElements = 4;</code>
      */
     public Builder removeAttributeElements(int index) {
-      if (this.attributeElementsBuilder_ == null) {
+      if (attributeElementsBuilder_ == null) {
         ensureAttributeElementsIsMutable();
-        this.attributeElements_.remove(index);
+        attributeElements_.remove(index);
         onChanged();
       } else {
-        this.attributeElementsBuilder_.remove(index);
+        attributeElementsBuilder_.remove(index);
       }
       return this;
     }
@@ -1598,9 +1598,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder getAttributeElementsOrBuilder(
         int index) {
-      if (this.attributeElementsBuilder_ == null) {
-        return this.attributeElements_.get(index);  } else {
-        return this.attributeElementsBuilder_.getMessageOrBuilder(index);
+      if (attributeElementsBuilder_ == null) {
+        return attributeElements_.get(index);  } else {
+        return attributeElementsBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -1612,10 +1612,10 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder>
          getAttributeElementsOrBuilderList() {
-      if (this.attributeElementsBuilder_ != null) {
-        return this.attributeElementsBuilder_.getMessageOrBuilderList();
+      if (attributeElementsBuilder_ != null) {
+        return attributeElementsBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(this.attributeElements_);
+        return java.util.Collections.unmodifiableList(attributeElements_);
       }
     }
     /**
@@ -1655,24 +1655,24 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.RepeatedFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcAttributeElement, io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.Builder, io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder>
         getAttributeElementsFieldBuilder() {
-      if (this.attributeElementsBuilder_ == null) {
-        this.attributeElementsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (attributeElementsBuilder_ == null) {
+        attributeElementsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcAttributeElement, io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.Builder, io.evitadb.externalApi.grpc.generated.GrpcAttributeElementOrBuilder>(
-                this.attributeElements_,
-                ((this.bitField0_ & 0x00000001) != 0),
+                attributeElements_,
+                ((bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        this.attributeElements_ = null;
+        attributeElements_ = null;
       }
-      return this.attributeElementsBuilder_;
+      return attributeElementsBuilder_;
     }
 
     private java.util.List<java.lang.Integer> indexedInScopes_ =
       java.util.Collections.emptyList();
     private void ensureIndexedInScopesIsMutable() {
-      if (!((this.bitField0_ & 0x00000002) != 0)) {
-        this.indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>(this.indexedInScopes_);
-        this.bitField0_ |= 0x00000002;
+      if (!((bitField0_ & 0x00000002) != 0)) {
+        indexedInScopes_ = new java.util.ArrayList<java.lang.Integer>(indexedInScopes_);
+        bitField0_ |= 0x00000002;
       }
     }
     /**
@@ -1686,7 +1686,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
       return new com.google.protobuf.Internal.ListAdapter<
-          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(this.indexedInScopes_, indexedInScopes_converter_);
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(indexedInScopes_, indexedInScopes_converter_);
     }
     /**
      * <pre>
@@ -1698,7 +1698,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of indexedInScopes.
      */
     public int getIndexedInScopesCount() {
-      return this.indexedInScopes_.size();
+      return indexedInScopes_.size();
     }
     /**
      * <pre>
@@ -1711,7 +1711,7 @@ private static final long serialVersionUID = 0L;
      * @return The indexedInScopes at the given index.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index) {
-      return indexedInScopes_converter_.convert(this.indexedInScopes_.get(index));
+      return indexedInScopes_converter_.convert(indexedInScopes_.get(index));
     }
     /**
      * <pre>
@@ -1730,7 +1730,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureIndexedInScopesIsMutable();
-      this.indexedInScopes_.set(index, value.getNumber());
+      indexedInScopes_.set(index, value.getNumber());
       onChanged();
       return this;
     }
@@ -1749,7 +1749,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
       ensureIndexedInScopesIsMutable();
-      this.indexedInScopes_.add(value.getNumber());
+      indexedInScopes_.add(value.getNumber());
       onChanged();
       return this;
     }
@@ -1767,7 +1767,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityScope> values) {
       ensureIndexedInScopesIsMutable();
       for (io.evitadb.externalApi.grpc.generated.GrpcEntityScope value : values) {
-        this.indexedInScopes_.add(value.getNumber());
+        indexedInScopes_.add(value.getNumber());
       }
       onChanged();
       return this;
@@ -1782,8 +1782,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIndexedInScopes() {
-      this.indexedInScopes_ = java.util.Collections.emptyList();
-      this.bitField0_ = (this.bitField0_ & ~0x00000002);
+      indexedInScopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000002);
       onChanged();
       return this;
     }
@@ -1798,7 +1798,7 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<java.lang.Integer>
     getIndexedInScopesValueList() {
-      return java.util.Collections.unmodifiableList(this.indexedInScopes_);
+      return java.util.Collections.unmodifiableList(indexedInScopes_);
     }
     /**
      * <pre>
@@ -1811,7 +1811,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire of indexedInScopes at the given index.
      */
     public int getIndexedInScopesValue(int index) {
-      return this.indexedInScopes_.get(index);
+      return indexedInScopes_.get(index);
     }
     /**
      * <pre>
@@ -1827,7 +1827,7 @@ private static final long serialVersionUID = 0L;
     public Builder setIndexedInScopesValue(
         int index, int value) {
       ensureIndexedInScopesIsMutable();
-      this.indexedInScopes_.set(index, value);
+      indexedInScopes_.set(index, value);
       onChanged();
       return this;
     }
@@ -1843,7 +1843,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addIndexedInScopesValue(int value) {
       ensureIndexedInScopesIsMutable();
-      this.indexedInScopes_.add(value);
+      indexedInScopes_.add(value);
       onChanged();
       return this;
     }
@@ -1861,7 +1861,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<java.lang.Integer> values) {
       ensureIndexedInScopesIsMutable();
       for (int value : values) {
-        this.indexedInScopes_.add(value);
+        indexedInScopes_.add(value);
       }
       onChanged();
       return this;

@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcFetchFileResponse() {
-    this.fileContents_ = com.google.protobuf.ByteString.EMPTY;
+    fileContents_ = com.google.protobuf.ByteString.EMPTY;
   }
 
   @java.lang.Override
@@ -78,12 +78,12 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
 
-            this.fileContents_ = input.readBytes();
+            fileContents_ = input.readBytes();
             break;
           }
           case 16: {
 
-            this.totalSizeInBytes_ = input.readInt64();
+            totalSizeInBytes_ = input.readInt64();
             break;
           }
           default: {
@@ -130,7 +130,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.ByteString getFileContents() {
-    return this.fileContents_;
+    return fileContents_;
   }
 
   public static final int TOTALSIZEINBYTES_FIELD_NUMBER = 2;
@@ -145,48 +145,48 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public long getTotalSizeInBytes() {
-    return this.totalSizeInBytes_;
+    return totalSizeInBytes_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!this.fileContents_.isEmpty()) {
-      output.writeBytes(1, this.fileContents_);
+    if (!fileContents_.isEmpty()) {
+      output.writeBytes(1, fileContents_);
     }
-    if (this.totalSizeInBytes_ != 0L) {
-      output.writeInt64(2, this.totalSizeInBytes_);
+    if (totalSizeInBytes_ != 0L) {
+      output.writeInt64(2, totalSizeInBytes_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!this.fileContents_.isEmpty()) {
+    if (!fileContents_.isEmpty()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBytesSize(1, this.fileContents_);
+        .computeBytesSize(1, fileContents_);
     }
-    if (this.totalSizeInBytes_ != 0L) {
+    if (totalSizeInBytes_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(2, this.totalSizeInBytes_);
+        .computeInt64Size(2, totalSizeInBytes_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -204,14 +204,14 @@ private static final long serialVersionUID = 0L;
         .equals(other.getFileContents())) return false;
     if (getTotalSizeInBytes()
         != other.getTotalSizeInBytes()) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -220,8 +220,8 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + TOTALSIZEINBYTES_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getTotalSizeInBytes());
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -357,9 +357,9 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.fileContents_ = com.google.protobuf.ByteString.EMPTY;
+      fileContents_ = com.google.protobuf.ByteString.EMPTY;
 
-      this.totalSizeInBytes_ = 0L;
+      totalSizeInBytes_ = 0L;
 
       return this;
     }
@@ -387,8 +387,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse result = new io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse(this);
-      result.fileContents_ = this.fileContents_;
-      result.totalSizeInBytes_ = this.totalSizeInBytes_;
+      result.fileContents_ = fileContents_;
+      result.totalSizeInBytes_ = totalSizeInBytes_;
       onBuilt();
       return result;
     }
@@ -483,7 +483,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public com.google.protobuf.ByteString getFileContents() {
-      return this.fileContents_;
+      return fileContents_;
     }
     /**
      * <pre>
@@ -499,7 +499,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.fileContents_ = value;
+      fileContents_ = value;
       onChanged();
       return this;
     }
@@ -513,7 +513,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearFileContents() {
 
-      this.fileContents_ = getDefaultInstance().getFileContents();
+      fileContents_ = getDefaultInstance().getFileContents();
       onChanged();
       return this;
     }
@@ -529,7 +529,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public long getTotalSizeInBytes() {
-      return this.totalSizeInBytes_;
+      return totalSizeInBytes_;
     }
     /**
      * <pre>
@@ -542,7 +542,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTotalSizeInBytes(long value) {
 
-      this.totalSizeInBytes_ = value;
+      totalSizeInBytes_ = value;
       onChanged();
       return this;
     }
@@ -556,7 +556,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearTotalSizeInBytes() {
 
-      this.totalSizeInBytes_ = 0L;
+      totalSizeInBytes_ = 0L;
       onChanged();
       return this;
     }

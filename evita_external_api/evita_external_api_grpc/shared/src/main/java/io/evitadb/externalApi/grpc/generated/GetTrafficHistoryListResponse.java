@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GetTrafficHistoryListResponse() {
-    this.trafficRecord_ = java.util.Collections.emptyList();
+    trafficRecord_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -79,10 +79,10 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              this.trafficRecord_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord>();
+              trafficRecord_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord>();
               mutable_bitField0_ |= 0x00000001;
             }
-            this.trafficRecord_.add(
+            trafficRecord_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord.parser(), extensionRegistry));
             break;
           }
@@ -102,7 +102,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        this.trafficRecord_ = java.util.Collections.unmodifiableList(this.trafficRecord_);
+        trafficRecord_ = java.util.Collections.unmodifiableList(trafficRecord_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord> getTrafficRecordList() {
-    return this.trafficRecord_;
+    return trafficRecord_;
   }
   /**
    * <pre>
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordOrBuilder>
       getTrafficRecordOrBuilderList() {
-    return this.trafficRecord_;
+    return trafficRecord_;
   }
   /**
    * <pre>
@@ -155,7 +155,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getTrafficRecordCount() {
-    return this.trafficRecord_.size();
+    return trafficRecord_.size();
   }
   /**
    * <pre>
@@ -166,7 +166,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord getTrafficRecord(int index) {
-    return this.trafficRecord_.get(index);
+    return trafficRecord_.get(index);
   }
   /**
    * <pre>
@@ -178,41 +178,41 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordOrBuilder getTrafficRecordOrBuilder(
       int index) {
-    return this.trafficRecord_.get(index);
+    return trafficRecord_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    for (int i = 0; i < this.trafficRecord_.size(); i++) {
-      output.writeMessage(1, this.trafficRecord_.get(i));
+    for (int i = 0; i < trafficRecord_.size(); i++) {
+      output.writeMessage(1, trafficRecord_.get(i));
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    for (int i = 0; i < this.trafficRecord_.size(); i++) {
+    for (int i = 0; i < trafficRecord_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(1, this.trafficRecord_.get(i));
+        .computeMessageSize(1, trafficRecord_.get(i));
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -228,14 +228,14 @@ private static final long serialVersionUID = 0L;
 
     if (!getTrafficRecordList()
         .equals(other.getTrafficRecordList())) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -243,8 +243,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + TRAFFICRECORD_FIELD_NUMBER;
       hash = (53 * hash) + getTrafficRecordList().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -381,11 +381,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (this.trafficRecordBuilder_ == null) {
-        this.trafficRecord_ = java.util.Collections.emptyList();
-        this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      if (trafficRecordBuilder_ == null) {
+        trafficRecord_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
       } else {
-        this.trafficRecordBuilder_.clear();
+        trafficRecordBuilder_.clear();
       }
       return this;
     }
@@ -413,15 +413,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse result = new io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse(this);
-      int from_bitField0_ = this.bitField0_;
-      if (this.trafficRecordBuilder_ == null) {
-        if (((this.bitField0_ & 0x00000001) != 0)) {
-          this.trafficRecord_ = java.util.Collections.unmodifiableList(this.trafficRecord_);
-          this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      int from_bitField0_ = bitField0_;
+      if (trafficRecordBuilder_ == null) {
+        if (((bitField0_ & 0x00000001) != 0)) {
+          trafficRecord_ = java.util.Collections.unmodifiableList(trafficRecord_);
+          bitField0_ = (bitField0_ & ~0x00000001);
         }
-        result.trafficRecord_ = this.trafficRecord_;
+        result.trafficRecord_ = trafficRecord_;
       } else {
-        result.trafficRecord_ = this.trafficRecordBuilder_.build();
+        result.trafficRecord_ = trafficRecordBuilder_.build();
       }
       onBuilt();
       return result;
@@ -471,29 +471,29 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse other) {
       if (other == io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse.getDefaultInstance()) return this;
-      if (this.trafficRecordBuilder_ == null) {
+      if (trafficRecordBuilder_ == null) {
         if (!other.trafficRecord_.isEmpty()) {
-          if (this.trafficRecord_.isEmpty()) {
-            this.trafficRecord_ = other.trafficRecord_;
-            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+          if (trafficRecord_.isEmpty()) {
+            trafficRecord_ = other.trafficRecord_;
+            bitField0_ = (bitField0_ & ~0x00000001);
           } else {
             ensureTrafficRecordIsMutable();
-            this.trafficRecord_.addAll(other.trafficRecord_);
+            trafficRecord_.addAll(other.trafficRecord_);
           }
           onChanged();
         }
       } else {
         if (!other.trafficRecord_.isEmpty()) {
-          if (this.trafficRecordBuilder_.isEmpty()) {
-            this.trafficRecordBuilder_.dispose();
-            this.trafficRecordBuilder_ = null;
-            this.trafficRecord_ = other.trafficRecord_;
-            this.bitField0_ = (this.bitField0_ & ~0x00000001);
-            this.trafficRecordBuilder_ =
+          if (trafficRecordBuilder_.isEmpty()) {
+            trafficRecordBuilder_.dispose();
+            trafficRecordBuilder_ = null;
+            trafficRecord_ = other.trafficRecord_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+            trafficRecordBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getTrafficRecordFieldBuilder() : null;
           } else {
-            this.trafficRecordBuilder_.addAllMessages(other.trafficRecord_);
+            trafficRecordBuilder_.addAllMessages(other.trafficRecord_);
           }
         }
       }
@@ -530,9 +530,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord> trafficRecord_ =
       java.util.Collections.emptyList();
     private void ensureTrafficRecordIsMutable() {
-      if (!((this.bitField0_ & 0x00000001) != 0)) {
-        this.trafficRecord_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord>(this.trafficRecord_);
-        this.bitField0_ |= 0x00000001;
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        trafficRecord_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord>(trafficRecord_);
+        bitField0_ |= 0x00000001;
        }
     }
 
@@ -547,10 +547,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord> getTrafficRecordList() {
-      if (this.trafficRecordBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(this.trafficRecord_);
+      if (trafficRecordBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(trafficRecord_);
       } else {
-        return this.trafficRecordBuilder_.getMessageList();
+        return trafficRecordBuilder_.getMessageList();
       }
     }
     /**
@@ -561,10 +561,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>
      */
     public int getTrafficRecordCount() {
-      if (this.trafficRecordBuilder_ == null) {
-        return this.trafficRecord_.size();
+      if (trafficRecordBuilder_ == null) {
+        return trafficRecord_.size();
       } else {
-        return this.trafficRecordBuilder_.getCount();
+        return trafficRecordBuilder_.getCount();
       }
     }
     /**
@@ -575,10 +575,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord getTrafficRecord(int index) {
-      if (this.trafficRecordBuilder_ == null) {
-        return this.trafficRecord_.get(index);
+      if (trafficRecordBuilder_ == null) {
+        return trafficRecord_.get(index);
       } else {
-        return this.trafficRecordBuilder_.getMessage(index);
+        return trafficRecordBuilder_.getMessage(index);
       }
     }
     /**
@@ -590,15 +590,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTrafficRecord(
         int index, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord value) {
-      if (this.trafficRecordBuilder_ == null) {
+      if (trafficRecordBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureTrafficRecordIsMutable();
-        this.trafficRecord_.set(index, value);
+        trafficRecord_.set(index, value);
         onChanged();
       } else {
-        this.trafficRecordBuilder_.setMessage(index, value);
+        trafficRecordBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -611,12 +611,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTrafficRecord(
         int index, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord.Builder builderForValue) {
-      if (this.trafficRecordBuilder_ == null) {
+      if (trafficRecordBuilder_ == null) {
         ensureTrafficRecordIsMutable();
-        this.trafficRecord_.set(index, builderForValue.build());
+        trafficRecord_.set(index, builderForValue.build());
         onChanged();
       } else {
-        this.trafficRecordBuilder_.setMessage(index, builderForValue.build());
+        trafficRecordBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -628,15 +628,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>
      */
     public Builder addTrafficRecord(io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord value) {
-      if (this.trafficRecordBuilder_ == null) {
+      if (trafficRecordBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureTrafficRecordIsMutable();
-        this.trafficRecord_.add(value);
+        trafficRecord_.add(value);
         onChanged();
       } else {
-        this.trafficRecordBuilder_.addMessage(value);
+        trafficRecordBuilder_.addMessage(value);
       }
       return this;
     }
@@ -649,15 +649,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addTrafficRecord(
         int index, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord value) {
-      if (this.trafficRecordBuilder_ == null) {
+      if (trafficRecordBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureTrafficRecordIsMutable();
-        this.trafficRecord_.add(index, value);
+        trafficRecord_.add(index, value);
         onChanged();
       } else {
-        this.trafficRecordBuilder_.addMessage(index, value);
+        trafficRecordBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -670,12 +670,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addTrafficRecord(
         io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord.Builder builderForValue) {
-      if (this.trafficRecordBuilder_ == null) {
+      if (trafficRecordBuilder_ == null) {
         ensureTrafficRecordIsMutable();
-        this.trafficRecord_.add(builderForValue.build());
+        trafficRecord_.add(builderForValue.build());
         onChanged();
       } else {
-        this.trafficRecordBuilder_.addMessage(builderForValue.build());
+        trafficRecordBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -688,12 +688,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addTrafficRecord(
         int index, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord.Builder builderForValue) {
-      if (this.trafficRecordBuilder_ == null) {
+      if (trafficRecordBuilder_ == null) {
         ensureTrafficRecordIsMutable();
-        this.trafficRecord_.add(index, builderForValue.build());
+        trafficRecord_.add(index, builderForValue.build());
         onChanged();
       } else {
-        this.trafficRecordBuilder_.addMessage(index, builderForValue.build());
+        trafficRecordBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -706,13 +706,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllTrafficRecord(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord> values) {
-      if (this.trafficRecordBuilder_ == null) {
+      if (trafficRecordBuilder_ == null) {
         ensureTrafficRecordIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, this.trafficRecord_);
+            values, trafficRecord_);
         onChanged();
       } else {
-        this.trafficRecordBuilder_.addAllMessages(values);
+        trafficRecordBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -724,12 +724,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>
      */
     public Builder clearTrafficRecord() {
-      if (this.trafficRecordBuilder_ == null) {
-        this.trafficRecord_ = java.util.Collections.emptyList();
-        this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      if (trafficRecordBuilder_ == null) {
+        trafficRecord_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        this.trafficRecordBuilder_.clear();
+        trafficRecordBuilder_.clear();
       }
       return this;
     }
@@ -741,12 +741,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>
      */
     public Builder removeTrafficRecord(int index) {
-      if (this.trafficRecordBuilder_ == null) {
+      if (trafficRecordBuilder_ == null) {
         ensureTrafficRecordIsMutable();
-        this.trafficRecord_.remove(index);
+        trafficRecord_.remove(index);
         onChanged();
       } else {
-        this.trafficRecordBuilder_.remove(index);
+        trafficRecordBuilder_.remove(index);
       }
       return this;
     }
@@ -770,9 +770,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordOrBuilder getTrafficRecordOrBuilder(
         int index) {
-      if (this.trafficRecordBuilder_ == null) {
-        return this.trafficRecord_.get(index);  } else {
-        return this.trafficRecordBuilder_.getMessageOrBuilder(index);
+      if (trafficRecordBuilder_ == null) {
+        return trafficRecord_.get(index);  } else {
+        return trafficRecordBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -784,10 +784,10 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordOrBuilder>
          getTrafficRecordOrBuilderList() {
-      if (this.trafficRecordBuilder_ != null) {
-        return this.trafficRecordBuilder_.getMessageOrBuilderList();
+      if (trafficRecordBuilder_ != null) {
+        return trafficRecordBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(this.trafficRecord_);
+        return java.util.Collections.unmodifiableList(trafficRecord_);
       }
     }
     /**
@@ -827,16 +827,16 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.RepeatedFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordOrBuilder>
         getTrafficRecordFieldBuilder() {
-      if (this.trafficRecordBuilder_ == null) {
-        this.trafficRecordBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (trafficRecordBuilder_ == null) {
+        trafficRecordBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordOrBuilder>(
-                this.trafficRecord_,
-                ((this.bitField0_ & 0x00000001) != 0),
+                trafficRecord_,
+                ((bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        this.trafficRecord_ = null;
+        trafficRecord_ = null;
       }
-      return this.trafficRecordBuilder_;
+      return trafficRecordBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

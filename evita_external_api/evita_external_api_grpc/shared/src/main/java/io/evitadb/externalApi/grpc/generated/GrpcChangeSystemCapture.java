@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcChangeSystemCapture() {
-    this.operation_ = 0;
+    operation_ = 0;
   }
 
   @java.lang.Override
@@ -78,23 +78,23 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            this.version_ = input.readInt64();
+            version_ = input.readInt64();
             break;
           }
           case 16: {
 
-            this.index_ = input.readInt32();
+            index_ = input.readInt32();
             break;
           }
           case 26: {
             com.google.protobuf.StringValue.Builder subBuilder = null;
-            if (this.catalog_ != null) {
-              subBuilder = this.catalog_.toBuilder();
+            if (catalog_ != null) {
+              subBuilder = catalog_.toBuilder();
             }
-            this.catalog_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
+            catalog_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.catalog_);
-              this.catalog_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(catalog_);
+              catalog_ = subBuilder.buildPartial();
             }
 
             break;
@@ -102,18 +102,18 @@ private static final long serialVersionUID = 0L;
           case 40: {
             int rawValue = input.readEnum();
 
-            this.operation_ = rawValue;
+            operation_ = rawValue;
             break;
           }
           case 50: {
             io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder subBuilder = null;
-            if (this.systemMutation_ != null) {
-              subBuilder = this.systemMutation_.toBuilder();
+            if (systemMutation_ != null) {
+              subBuilder = systemMutation_.toBuilder();
             }
-            this.systemMutation_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.parser(), extensionRegistry);
+            systemMutation_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.systemMutation_);
-              this.systemMutation_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(systemMutation_);
+              systemMutation_ = subBuilder.buildPartial();
             }
 
             break;
@@ -162,7 +162,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public long getVersion() {
-    return this.version_;
+    return version_;
   }
 
   public static final int INDEX_FIELD_NUMBER = 2;
@@ -177,7 +177,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getIndex() {
-    return this.index_;
+    return index_;
   }
 
   public static final int CATALOG_FIELD_NUMBER = 3;
@@ -192,7 +192,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasCatalog() {
-    return this.catalog_ != null;
+    return catalog_ != null;
   }
   /**
    * <pre>
@@ -204,7 +204,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.StringValue getCatalog() {
-    return this.catalog_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : this.catalog_;
+    return catalog_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : catalog_;
   }
   /**
    * <pre>
@@ -229,7 +229,7 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for operation.
    */
   @java.lang.Override public int getOperationValue() {
-    return this.operation_;
+    return operation_;
   }
   /**
    * <pre>
@@ -241,7 +241,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation getOperation() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation result = io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.valueOf(this.operation_);
+    io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation result = io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.valueOf(operation_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UNRECOGNIZED : result;
   }
 
@@ -257,7 +257,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasSystemMutation() {
-    return this.systemMutation_ != null;
+    return systemMutation_ != null;
   }
   /**
    * <pre>
@@ -269,7 +269,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation getSystemMutation() {
-    return this.systemMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.getDefaultInstance() : this.systemMutation_;
+    return systemMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.getDefaultInstance() : systemMutation_;
   }
   /**
    * <pre>
@@ -286,63 +286,63 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.version_ != 0L) {
-      output.writeInt64(1, this.version_);
+    if (version_ != 0L) {
+      output.writeInt64(1, version_);
     }
-    if (this.index_ != 0) {
-      output.writeInt32(2, this.index_);
+    if (index_ != 0) {
+      output.writeInt32(2, index_);
     }
-    if (this.catalog_ != null) {
+    if (catalog_ != null) {
       output.writeMessage(3, getCatalog());
     }
-    if (this.operation_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UPSERT.getNumber()) {
-      output.writeEnum(5, this.operation_);
+    if (operation_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UPSERT.getNumber()) {
+      output.writeEnum(5, operation_);
     }
-    if (this.systemMutation_ != null) {
+    if (systemMutation_ != null) {
       output.writeMessage(6, getSystemMutation());
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.version_ != 0L) {
+    if (version_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(1, this.version_);
+        .computeInt64Size(1, version_);
     }
-    if (this.index_ != 0) {
+    if (index_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, this.index_);
+        .computeInt32Size(2, index_);
     }
-    if (this.catalog_ != null) {
+    if (catalog_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getCatalog());
     }
-    if (this.operation_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UPSERT.getNumber()) {
+    if (operation_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UPSERT.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(5, this.operation_);
+        .computeEnumSize(5, operation_);
     }
-    if (this.systemMutation_ != null) {
+    if (systemMutation_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(6, getSystemMutation());
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -365,20 +365,20 @@ private static final long serialVersionUID = 0L;
       if (!getCatalog()
           .equals(other.getCatalog())) return false;
     }
-    if (this.operation_ != other.operation_) return false;
+    if (operation_ != other.operation_) return false;
     if (hasSystemMutation() != other.hasSystemMutation()) return false;
     if (hasSystemMutation()) {
       if (!getSystemMutation()
           .equals(other.getSystemMutation())) return false;
     }
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -392,13 +392,13 @@ private static final long serialVersionUID = 0L;
       hash = (53 * hash) + getCatalog().hashCode();
     }
     hash = (37 * hash) + OPERATION_FIELD_NUMBER;
-    hash = (53 * hash) + this.operation_;
+    hash = (53 * hash) + operation_;
     if (hasSystemMutation()) {
       hash = (37 * hash) + SYSTEMMUTATION_FIELD_NUMBER;
       hash = (53 * hash) + getSystemMutation().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -534,23 +534,23 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.version_ = 0L;
+      version_ = 0L;
 
-      this.index_ = 0;
+      index_ = 0;
 
-      if (this.catalogBuilder_ == null) {
-        this.catalog_ = null;
+      if (catalogBuilder_ == null) {
+        catalog_ = null;
       } else {
-        this.catalog_ = null;
-        this.catalogBuilder_ = null;
+        catalog_ = null;
+        catalogBuilder_ = null;
       }
-      this.operation_ = 0;
+      operation_ = 0;
 
-      if (this.systemMutationBuilder_ == null) {
-        this.systemMutation_ = null;
+      if (systemMutationBuilder_ == null) {
+        systemMutation_ = null;
       } else {
-        this.systemMutation_ = null;
-        this.systemMutationBuilder_ = null;
+        systemMutation_ = null;
+        systemMutationBuilder_ = null;
       }
       return this;
     }
@@ -578,18 +578,18 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture result = new io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture(this);
-      result.version_ = this.version_;
-      result.index_ = this.index_;
-      if (this.catalogBuilder_ == null) {
-        result.catalog_ = this.catalog_;
+      result.version_ = version_;
+      result.index_ = index_;
+      if (catalogBuilder_ == null) {
+        result.catalog_ = catalog_;
       } else {
-        result.catalog_ = this.catalogBuilder_.build();
+        result.catalog_ = catalogBuilder_.build();
       }
-      result.operation_ = this.operation_;
-      if (this.systemMutationBuilder_ == null) {
-        result.systemMutation_ = this.systemMutation_;
+      result.operation_ = operation_;
+      if (systemMutationBuilder_ == null) {
+        result.systemMutation_ = systemMutation_;
       } else {
-        result.systemMutation_ = this.systemMutationBuilder_.build();
+        result.systemMutation_ = systemMutationBuilder_.build();
       }
       onBuilt();
       return result;
@@ -694,7 +694,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public long getVersion() {
-      return this.version_;
+      return version_;
     }
     /**
      * <pre>
@@ -707,7 +707,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setVersion(long value) {
 
-      this.version_ = value;
+      version_ = value;
       onChanged();
       return this;
     }
@@ -721,7 +721,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearVersion() {
 
-      this.version_ = 0L;
+      version_ = 0L;
       onChanged();
       return this;
     }
@@ -737,7 +737,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getIndex() {
-      return this.index_;
+      return index_;
     }
     /**
      * <pre>
@@ -750,7 +750,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setIndex(int value) {
 
-      this.index_ = value;
+      index_ = value;
       onChanged();
       return this;
     }
@@ -764,7 +764,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearIndex() {
 
-      this.index_ = 0;
+      index_ = 0;
       onChanged();
       return this;
     }
@@ -781,7 +781,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the catalog field is set.
      */
     public boolean hasCatalog() {
-      return this.catalogBuilder_ != null || this.catalog_ != null;
+      return catalogBuilder_ != null || catalog_ != null;
     }
     /**
      * <pre>
@@ -792,10 +792,10 @@ private static final long serialVersionUID = 0L;
      * @return The catalog.
      */
     public com.google.protobuf.StringValue getCatalog() {
-      if (this.catalogBuilder_ == null) {
-        return this.catalog_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : this.catalog_;
+      if (catalogBuilder_ == null) {
+        return catalog_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : catalog_;
       } else {
-        return this.catalogBuilder_.getMessage();
+        return catalogBuilder_.getMessage();
       }
     }
     /**
@@ -806,14 +806,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue catalog = 3;</code>
      */
     public Builder setCatalog(com.google.protobuf.StringValue value) {
-      if (this.catalogBuilder_ == null) {
+      if (catalogBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.catalog_ = value;
+        catalog_ = value;
         onChanged();
       } else {
-        this.catalogBuilder_.setMessage(value);
+        catalogBuilder_.setMessage(value);
       }
 
       return this;
@@ -827,11 +827,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCatalog(
         com.google.protobuf.StringValue.Builder builderForValue) {
-      if (this.catalogBuilder_ == null) {
-        this.catalog_ = builderForValue.build();
+      if (catalogBuilder_ == null) {
+        catalog_ = builderForValue.build();
         onChanged();
       } else {
-        this.catalogBuilder_.setMessage(builderForValue.build());
+        catalogBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -844,16 +844,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue catalog = 3;</code>
      */
     public Builder mergeCatalog(com.google.protobuf.StringValue value) {
-      if (this.catalogBuilder_ == null) {
-        if (this.catalog_ != null) {
-          this.catalog_ =
-            com.google.protobuf.StringValue.newBuilder(this.catalog_).mergeFrom(value).buildPartial();
+      if (catalogBuilder_ == null) {
+        if (catalog_ != null) {
+          catalog_ =
+            com.google.protobuf.StringValue.newBuilder(catalog_).mergeFrom(value).buildPartial();
         } else {
-          this.catalog_ = value;
+          catalog_ = value;
         }
         onChanged();
       } else {
-        this.catalogBuilder_.mergeFrom(value);
+        catalogBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -866,12 +866,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue catalog = 3;</code>
      */
     public Builder clearCatalog() {
-      if (this.catalogBuilder_ == null) {
-        this.catalog_ = null;
+      if (catalogBuilder_ == null) {
+        catalog_ = null;
         onChanged();
       } else {
-        this.catalog_ = null;
-        this.catalogBuilder_ = null;
+        catalog_ = null;
+        catalogBuilder_ = null;
       }
 
       return this;
@@ -896,11 +896,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue catalog = 3;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getCatalogOrBuilder() {
-      if (this.catalogBuilder_ != null) {
-        return this.catalogBuilder_.getMessageOrBuilder();
+      if (catalogBuilder_ != null) {
+        return catalogBuilder_.getMessageOrBuilder();
       } else {
-        return this.catalog_ == null ?
-            com.google.protobuf.StringValue.getDefaultInstance() : this.catalog_;
+        return catalog_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : catalog_;
       }
     }
     /**
@@ -913,15 +913,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getCatalogFieldBuilder() {
-      if (this.catalogBuilder_ == null) {
-        this.catalogBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (catalogBuilder_ == null) {
+        catalogBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
                 getCatalog(),
                 getParentForChildren(),
                 isClean());
-        this.catalog_ = null;
+        catalog_ = null;
       }
-      return this.catalogBuilder_;
+      return catalogBuilder_;
     }
 
     private int operation_ = 0;
@@ -934,7 +934,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire for operation.
      */
     @java.lang.Override public int getOperationValue() {
-      return this.operation_;
+      return operation_;
     }
     /**
      * <pre>
@@ -947,7 +947,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setOperationValue(int value) {
 
-      this.operation_ = value;
+      operation_ = value;
       onChanged();
       return this;
     }
@@ -962,7 +962,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation getOperation() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation result = io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.valueOf(this.operation_);
+      io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation result = io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.valueOf(operation_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UNRECOGNIZED : result;
     }
     /**
@@ -979,7 +979,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
 
-      this.operation_ = value.getNumber();
+      operation_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -993,7 +993,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearOperation() {
 
-      this.operation_ = 0;
+      operation_ = 0;
       onChanged();
       return this;
     }
@@ -1010,7 +1010,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the systemMutation field is set.
      */
     public boolean hasSystemMutation() {
-      return this.systemMutationBuilder_ != null || this.systemMutation_ != null;
+      return systemMutationBuilder_ != null || systemMutation_ != null;
     }
     /**
      * <pre>
@@ -1021,10 +1021,10 @@ private static final long serialVersionUID = 0L;
      * @return The systemMutation.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation getSystemMutation() {
-      if (this.systemMutationBuilder_ == null) {
-        return this.systemMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.getDefaultInstance() : this.systemMutation_;
+      if (systemMutationBuilder_ == null) {
+        return systemMutation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.getDefaultInstance() : systemMutation_;
       } else {
-        return this.systemMutationBuilder_.getMessage();
+        return systemMutationBuilder_.getMessage();
       }
     }
     /**
@@ -1035,14 +1035,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
      */
     public Builder setSystemMutation(io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation value) {
-      if (this.systemMutationBuilder_ == null) {
+      if (systemMutationBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.systemMutation_ = value;
+        systemMutation_ = value;
         onChanged();
       } else {
-        this.systemMutationBuilder_.setMessage(value);
+        systemMutationBuilder_.setMessage(value);
       }
 
       return this;
@@ -1056,11 +1056,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setSystemMutation(
         io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder builderForValue) {
-      if (this.systemMutationBuilder_ == null) {
-        this.systemMutation_ = builderForValue.build();
+      if (systemMutationBuilder_ == null) {
+        systemMutation_ = builderForValue.build();
         onChanged();
       } else {
-        this.systemMutationBuilder_.setMessage(builderForValue.build());
+        systemMutationBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1073,16 +1073,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
      */
     public Builder mergeSystemMutation(io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation value) {
-      if (this.systemMutationBuilder_ == null) {
-        if (this.systemMutation_ != null) {
-          this.systemMutation_ =
-            io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.newBuilder(this.systemMutation_).mergeFrom(value).buildPartial();
+      if (systemMutationBuilder_ == null) {
+        if (systemMutation_ != null) {
+          systemMutation_ =
+            io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.newBuilder(systemMutation_).mergeFrom(value).buildPartial();
         } else {
-          this.systemMutation_ = value;
+          systemMutation_ = value;
         }
         onChanged();
       } else {
-        this.systemMutationBuilder_.mergeFrom(value);
+        systemMutationBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1095,12 +1095,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
      */
     public Builder clearSystemMutation() {
-      if (this.systemMutationBuilder_ == null) {
-        this.systemMutation_ = null;
+      if (systemMutationBuilder_ == null) {
+        systemMutation_ = null;
         onChanged();
       } else {
-        this.systemMutation_ = null;
-        this.systemMutationBuilder_ = null;
+        systemMutation_ = null;
+        systemMutationBuilder_ = null;
       }
 
       return this;
@@ -1125,11 +1125,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder getSystemMutationOrBuilder() {
-      if (this.systemMutationBuilder_ != null) {
-        return this.systemMutationBuilder_.getMessageOrBuilder();
+      if (systemMutationBuilder_ != null) {
+        return systemMutationBuilder_.getMessageOrBuilder();
       } else {
-        return this.systemMutation_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.getDefaultInstance() : this.systemMutation_;
+        return systemMutation_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.getDefaultInstance() : systemMutation_;
       }
     }
     /**
@@ -1142,15 +1142,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder>
         getSystemMutationFieldBuilder() {
-      if (this.systemMutationBuilder_ == null) {
-        this.systemMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (systemMutationBuilder_ == null) {
+        systemMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder>(
                 getSystemMutation(),
                 getParentForChildren(),
                 isClean());
-        this.systemMutation_ = null;
+        systemMutation_ = null;
       }
-      return this.systemMutationBuilder_;
+      return systemMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

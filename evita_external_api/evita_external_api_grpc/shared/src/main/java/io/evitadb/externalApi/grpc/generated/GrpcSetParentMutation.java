@@ -77,7 +77,7 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            this.primaryKey_ = input.readInt32();
+            primaryKey_ = input.readInt32();
             break;
           }
           default: {
@@ -124,41 +124,41 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getPrimaryKey() {
-    return this.primaryKey_;
+    return primaryKey_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.primaryKey_ != 0) {
-      output.writeInt32(1, this.primaryKey_);
+    if (primaryKey_ != 0) {
+      output.writeInt32(1, primaryKey_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.primaryKey_ != 0) {
+    if (primaryKey_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, this.primaryKey_);
+        .computeInt32Size(1, primaryKey_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -174,21 +174,21 @@ private static final long serialVersionUID = 0L;
 
     if (getPrimaryKey()
         != other.getPrimaryKey()) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + PRIMARYKEY_FIELD_NUMBER;
     hash = (53 * hash) + getPrimaryKey();
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -324,7 +324,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.primaryKey_ = 0;
+      primaryKey_ = 0;
 
       return this;
     }
@@ -352,7 +352,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation result = new io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation(this);
-      result.primaryKey_ = this.primaryKey_;
+      result.primaryKey_ = primaryKey_;
       onBuilt();
       return result;
     }
@@ -444,7 +444,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getPrimaryKey() {
-      return this.primaryKey_;
+      return primaryKey_;
     }
     /**
      * <pre>
@@ -457,7 +457,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setPrimaryKey(int value) {
 
-      this.primaryKey_ = value;
+      primaryKey_ = value;
       onChanged();
       return this;
     }
@@ -471,7 +471,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearPrimaryKey() {
 
-      this.primaryKey_ = 0;
+      primaryKey_ = 0;
       onChanged();
       return this;
     }

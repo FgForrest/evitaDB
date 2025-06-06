@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcAllowCurrencyInEntitySchemaMutation() {
-    this.currencies_ = java.util.Collections.emptyList();
+    currencies_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -79,10 +79,10 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              this.currencies_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcCurrency>();
+              currencies_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcCurrency>();
               mutable_bitField0_ |= 0x00000001;
             }
-            this.currencies_.add(
+            currencies_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcCurrency.parser(), extensionRegistry));
             break;
           }
@@ -102,7 +102,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        this.currencies_ = java.util.Collections.unmodifiableList(this.currencies_);
+        currencies_ = java.util.Collections.unmodifiableList(currencies_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency> getCurrenciesList() {
-    return this.currencies_;
+    return currencies_;
   }
   /**
    * <pre>
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
       getCurrenciesOrBuilderList() {
-    return this.currencies_;
+    return currencies_;
   }
   /**
    * <pre>
@@ -155,7 +155,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getCurrenciesCount() {
-    return this.currencies_.size();
+    return currencies_.size();
   }
   /**
    * <pre>
@@ -166,7 +166,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcCurrency getCurrencies(int index) {
-    return this.currencies_.get(index);
+    return currencies_.get(index);
   }
   /**
    * <pre>
@@ -178,41 +178,41 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder getCurrenciesOrBuilder(
       int index) {
-    return this.currencies_.get(index);
+    return currencies_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    for (int i = 0; i < this.currencies_.size(); i++) {
-      output.writeMessage(1, this.currencies_.get(i));
+    for (int i = 0; i < currencies_.size(); i++) {
+      output.writeMessage(1, currencies_.get(i));
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    for (int i = 0; i < this.currencies_.size(); i++) {
+    for (int i = 0; i < currencies_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(1, this.currencies_.get(i));
+        .computeMessageSize(1, currencies_.get(i));
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -228,14 +228,14 @@ private static final long serialVersionUID = 0L;
 
     if (!getCurrenciesList()
         .equals(other.getCurrenciesList())) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -243,8 +243,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CURRENCIES_FIELD_NUMBER;
       hash = (53 * hash) + getCurrenciesList().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -381,11 +381,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (this.currenciesBuilder_ == null) {
-        this.currencies_ = java.util.Collections.emptyList();
-        this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      if (currenciesBuilder_ == null) {
+        currencies_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
       } else {
-        this.currenciesBuilder_.clear();
+        currenciesBuilder_.clear();
       }
       return this;
     }
@@ -413,15 +413,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation result = new io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation(this);
-      int from_bitField0_ = this.bitField0_;
-      if (this.currenciesBuilder_ == null) {
-        if (((this.bitField0_ & 0x00000001) != 0)) {
-          this.currencies_ = java.util.Collections.unmodifiableList(this.currencies_);
-          this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      int from_bitField0_ = bitField0_;
+      if (currenciesBuilder_ == null) {
+        if (((bitField0_ & 0x00000001) != 0)) {
+          currencies_ = java.util.Collections.unmodifiableList(currencies_);
+          bitField0_ = (bitField0_ & ~0x00000001);
         }
-        result.currencies_ = this.currencies_;
+        result.currencies_ = currencies_;
       } else {
-        result.currencies_ = this.currenciesBuilder_.build();
+        result.currencies_ = currenciesBuilder_.build();
       }
       onBuilt();
       return result;
@@ -471,29 +471,29 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcAllowCurrencyInEntitySchemaMutation.getDefaultInstance()) return this;
-      if (this.currenciesBuilder_ == null) {
+      if (currenciesBuilder_ == null) {
         if (!other.currencies_.isEmpty()) {
-          if (this.currencies_.isEmpty()) {
-            this.currencies_ = other.currencies_;
-            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+          if (currencies_.isEmpty()) {
+            currencies_ = other.currencies_;
+            bitField0_ = (bitField0_ & ~0x00000001);
           } else {
             ensureCurrenciesIsMutable();
-            this.currencies_.addAll(other.currencies_);
+            currencies_.addAll(other.currencies_);
           }
           onChanged();
         }
       } else {
         if (!other.currencies_.isEmpty()) {
-          if (this.currenciesBuilder_.isEmpty()) {
-            this.currenciesBuilder_.dispose();
-            this.currenciesBuilder_ = null;
-            this.currencies_ = other.currencies_;
-            this.bitField0_ = (this.bitField0_ & ~0x00000001);
-            this.currenciesBuilder_ =
+          if (currenciesBuilder_.isEmpty()) {
+            currenciesBuilder_.dispose();
+            currenciesBuilder_ = null;
+            currencies_ = other.currencies_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+            currenciesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getCurrenciesFieldBuilder() : null;
           } else {
-            this.currenciesBuilder_.addAllMessages(other.currencies_);
+            currenciesBuilder_.addAllMessages(other.currencies_);
           }
         }
       }
@@ -530,9 +530,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency> currencies_ =
       java.util.Collections.emptyList();
     private void ensureCurrenciesIsMutable() {
-      if (!((this.bitField0_ & 0x00000001) != 0)) {
-        this.currencies_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcCurrency>(this.currencies_);
-        this.bitField0_ |= 0x00000001;
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        currencies_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcCurrency>(currencies_);
+        bitField0_ |= 0x00000001;
        }
     }
 
@@ -547,10 +547,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency> getCurrenciesList() {
-      if (this.currenciesBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(this.currencies_);
+      if (currenciesBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(currencies_);
       } else {
-        return this.currenciesBuilder_.getMessageList();
+        return currenciesBuilder_.getMessageList();
       }
     }
     /**
@@ -561,10 +561,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public int getCurrenciesCount() {
-      if (this.currenciesBuilder_ == null) {
-        return this.currencies_.size();
+      if (currenciesBuilder_ == null) {
+        return currencies_.size();
       } else {
-        return this.currenciesBuilder_.getCount();
+        return currenciesBuilder_.getCount();
       }
     }
     /**
@@ -575,10 +575,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrency getCurrencies(int index) {
-      if (this.currenciesBuilder_ == null) {
-        return this.currencies_.get(index);
+      if (currenciesBuilder_ == null) {
+        return currencies_.get(index);
       } else {
-        return this.currenciesBuilder_.getMessage(index);
+        return currenciesBuilder_.getMessage(index);
       }
     }
     /**
@@ -590,15 +590,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCurrencies(
         int index, io.evitadb.externalApi.grpc.generated.GrpcCurrency value) {
-      if (this.currenciesBuilder_ == null) {
+      if (currenciesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureCurrenciesIsMutable();
-        this.currencies_.set(index, value);
+        currencies_.set(index, value);
         onChanged();
       } else {
-        this.currenciesBuilder_.setMessage(index, value);
+        currenciesBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -611,12 +611,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCurrencies(
         int index, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder builderForValue) {
-      if (this.currenciesBuilder_ == null) {
+      if (currenciesBuilder_ == null) {
         ensureCurrenciesIsMutable();
-        this.currencies_.set(index, builderForValue.build());
+        currencies_.set(index, builderForValue.build());
         onChanged();
       } else {
-        this.currenciesBuilder_.setMessage(index, builderForValue.build());
+        currenciesBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -628,15 +628,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public Builder addCurrencies(io.evitadb.externalApi.grpc.generated.GrpcCurrency value) {
-      if (this.currenciesBuilder_ == null) {
+      if (currenciesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureCurrenciesIsMutable();
-        this.currencies_.add(value);
+        currencies_.add(value);
         onChanged();
       } else {
-        this.currenciesBuilder_.addMessage(value);
+        currenciesBuilder_.addMessage(value);
       }
       return this;
     }
@@ -649,15 +649,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addCurrencies(
         int index, io.evitadb.externalApi.grpc.generated.GrpcCurrency value) {
-      if (this.currenciesBuilder_ == null) {
+      if (currenciesBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureCurrenciesIsMutable();
-        this.currencies_.add(index, value);
+        currencies_.add(index, value);
         onChanged();
       } else {
-        this.currenciesBuilder_.addMessage(index, value);
+        currenciesBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -670,12 +670,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addCurrencies(
         io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder builderForValue) {
-      if (this.currenciesBuilder_ == null) {
+      if (currenciesBuilder_ == null) {
         ensureCurrenciesIsMutable();
-        this.currencies_.add(builderForValue.build());
+        currencies_.add(builderForValue.build());
         onChanged();
       } else {
-        this.currenciesBuilder_.addMessage(builderForValue.build());
+        currenciesBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -688,12 +688,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addCurrencies(
         int index, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder builderForValue) {
-      if (this.currenciesBuilder_ == null) {
+      if (currenciesBuilder_ == null) {
         ensureCurrenciesIsMutable();
-        this.currencies_.add(index, builderForValue.build());
+        currencies_.add(index, builderForValue.build());
         onChanged();
       } else {
-        this.currenciesBuilder_.addMessage(index, builderForValue.build());
+        currenciesBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -706,13 +706,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllCurrencies(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrency> values) {
-      if (this.currenciesBuilder_ == null) {
+      if (currenciesBuilder_ == null) {
         ensureCurrenciesIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, this.currencies_);
+            values, currencies_);
         onChanged();
       } else {
-        this.currenciesBuilder_.addAllMessages(values);
+        currenciesBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -724,12 +724,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public Builder clearCurrencies() {
-      if (this.currenciesBuilder_ == null) {
-        this.currencies_ = java.util.Collections.emptyList();
-        this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      if (currenciesBuilder_ == null) {
+        currencies_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        this.currenciesBuilder_.clear();
+        currenciesBuilder_.clear();
       }
       return this;
     }
@@ -741,12 +741,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
     public Builder removeCurrencies(int index) {
-      if (this.currenciesBuilder_ == null) {
+      if (currenciesBuilder_ == null) {
         ensureCurrenciesIsMutable();
-        this.currencies_.remove(index);
+        currencies_.remove(index);
         onChanged();
       } else {
-        this.currenciesBuilder_.remove(index);
+        currenciesBuilder_.remove(index);
       }
       return this;
     }
@@ -770,9 +770,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder getCurrenciesOrBuilder(
         int index) {
-      if (this.currenciesBuilder_ == null) {
-        return this.currencies_.get(index);  } else {
-        return this.currenciesBuilder_.getMessageOrBuilder(index);
+      if (currenciesBuilder_ == null) {
+        return currencies_.get(index);  } else {
+        return currenciesBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -784,10 +784,10 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
          getCurrenciesOrBuilderList() {
-      if (this.currenciesBuilder_ != null) {
-        return this.currenciesBuilder_.getMessageOrBuilderList();
+      if (currenciesBuilder_ != null) {
+        return currenciesBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(this.currencies_);
+        return java.util.Collections.unmodifiableList(currencies_);
       }
     }
     /**
@@ -827,16 +827,16 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.RepeatedFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
         getCurrenciesFieldBuilder() {
-      if (this.currenciesBuilder_ == null) {
-        this.currenciesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (currenciesBuilder_ == null) {
+        currenciesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>(
-                this.currencies_,
-                ((this.bitField0_ & 0x00000001) != 0),
+                currencies_,
+                ((bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        this.currencies_ = null;
+        currencies_ = null;
       }
-      return this.currenciesBuilder_;
+      return currenciesBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

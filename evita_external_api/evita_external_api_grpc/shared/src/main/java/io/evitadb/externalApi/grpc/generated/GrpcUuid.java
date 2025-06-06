@@ -77,12 +77,12 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            this.mostSignificantBits_ = input.readInt64();
+            mostSignificantBits_ = input.readInt64();
             break;
           }
           case 16: {
 
-            this.leastSignificantBits_ = input.readInt64();
+            leastSignificantBits_ = input.readInt64();
             break;
           }
           default: {
@@ -129,7 +129,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public long getMostSignificantBits() {
-    return this.mostSignificantBits_;
+    return mostSignificantBits_;
   }
 
   public static final int LEASTSIGNIFICANTBITS_FIELD_NUMBER = 2;
@@ -140,48 +140,48 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public long getLeastSignificantBits() {
-    return this.leastSignificantBits_;
+    return leastSignificantBits_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.mostSignificantBits_ != 0L) {
-      output.writeInt64(1, this.mostSignificantBits_);
+    if (mostSignificantBits_ != 0L) {
+      output.writeInt64(1, mostSignificantBits_);
     }
-    if (this.leastSignificantBits_ != 0L) {
-      output.writeInt64(2, this.leastSignificantBits_);
+    if (leastSignificantBits_ != 0L) {
+      output.writeInt64(2, leastSignificantBits_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.mostSignificantBits_ != 0L) {
+    if (mostSignificantBits_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(1, this.mostSignificantBits_);
+        .computeInt64Size(1, mostSignificantBits_);
     }
-    if (this.leastSignificantBits_ != 0L) {
+    if (leastSignificantBits_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(2, this.leastSignificantBits_);
+        .computeInt64Size(2, leastSignificantBits_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -199,14 +199,14 @@ private static final long serialVersionUID = 0L;
         != other.getMostSignificantBits()) return false;
     if (getLeastSignificantBits()
         != other.getLeastSignificantBits()) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -216,8 +216,8 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + LEASTSIGNIFICANTBITS_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getLeastSignificantBits());
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -353,9 +353,9 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.mostSignificantBits_ = 0L;
+      mostSignificantBits_ = 0L;
 
-      this.leastSignificantBits_ = 0L;
+      leastSignificantBits_ = 0L;
 
       return this;
     }
@@ -383,8 +383,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcUuid buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcUuid result = new io.evitadb.externalApi.grpc.generated.GrpcUuid(this);
-      result.mostSignificantBits_ = this.mostSignificantBits_;
-      result.leastSignificantBits_ = this.leastSignificantBits_;
+      result.mostSignificantBits_ = mostSignificantBits_;
+      result.leastSignificantBits_ = leastSignificantBits_;
       onBuilt();
       return result;
     }
@@ -479,7 +479,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public long getMostSignificantBits() {
-      return this.mostSignificantBits_;
+      return mostSignificantBits_;
     }
     /**
      * <pre>
@@ -492,7 +492,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setMostSignificantBits(long value) {
 
-      this.mostSignificantBits_ = value;
+      mostSignificantBits_ = value;
       onChanged();
       return this;
     }
@@ -506,7 +506,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearMostSignificantBits() {
 
-      this.mostSignificantBits_ = 0L;
+      mostSignificantBits_ = 0L;
       onChanged();
       return this;
     }
@@ -518,7 +518,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public long getLeastSignificantBits() {
-      return this.leastSignificantBits_;
+      return leastSignificantBits_;
     }
     /**
      * <code>int64 leastSignificantBits = 2;</code>
@@ -527,7 +527,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setLeastSignificantBits(long value) {
 
-      this.leastSignificantBits_ = value;
+      leastSignificantBits_ = value;
       onChanged();
       return this;
     }
@@ -537,7 +537,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearLeastSignificantBits() {
 
-      this.leastSignificantBits_ = 0L;
+      leastSignificantBits_ = 0L;
       onChanged();
       return this;
     }

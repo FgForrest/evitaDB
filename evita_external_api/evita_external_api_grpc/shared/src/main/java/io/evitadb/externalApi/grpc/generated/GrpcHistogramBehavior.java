@@ -82,7 +82,7 @@ public enum GrpcHistogramBehavior
       throw new java.lang.IllegalArgumentException(
           "Can't get the number of an unknown enum value.");
     }
-    return this.value;
+    return value;
   }
 
   /**

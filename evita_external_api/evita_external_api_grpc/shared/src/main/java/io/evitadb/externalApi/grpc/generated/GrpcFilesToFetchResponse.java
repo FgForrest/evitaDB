@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcFilesToFetchResponse() {
-    this.filesToFetch_ = java.util.Collections.emptyList();
+    filesToFetch_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -79,26 +79,26 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            this.pageSize_ = input.readInt32();
+            pageSize_ = input.readInt32();
             break;
           }
           case 16: {
 
-            this.pageNumber_ = input.readInt32();
+            pageNumber_ = input.readInt32();
             break;
           }
           case 26: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              this.filesToFetch_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcFile>();
+              filesToFetch_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcFile>();
               mutable_bitField0_ |= 0x00000001;
             }
-            this.filesToFetch_.add(
+            filesToFetch_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcFile.parser(), extensionRegistry));
             break;
           }
           case 32: {
 
-            this.totalNumberOfRecords_ = input.readInt32();
+            totalNumberOfRecords_ = input.readInt32();
             break;
           }
           default: {
@@ -117,7 +117,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        this.filesToFetch_ = java.util.Collections.unmodifiableList(this.filesToFetch_);
+        filesToFetch_ = java.util.Collections.unmodifiableList(filesToFetch_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -148,7 +148,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getPageSize() {
-    return this.pageSize_;
+    return pageSize_;
   }
 
   public static final int PAGENUMBER_FIELD_NUMBER = 2;
@@ -163,7 +163,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getPageNumber() {
-    return this.pageNumber_;
+    return pageNumber_;
   }
 
   public static final int FILESTOFETCH_FIELD_NUMBER = 3;
@@ -177,7 +177,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFile> getFilesToFetchList() {
-    return this.filesToFetch_;
+    return filesToFetch_;
   }
   /**
    * <pre>
@@ -189,7 +189,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder>
       getFilesToFetchOrBuilderList() {
-    return this.filesToFetch_;
+    return filesToFetch_;
   }
   /**
    * <pre>
@@ -200,7 +200,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getFilesToFetchCount() {
-    return this.filesToFetch_.size();
+    return filesToFetch_.size();
   }
   /**
    * <pre>
@@ -211,7 +211,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcFile getFilesToFetch(int index) {
-    return this.filesToFetch_.get(index);
+    return filesToFetch_.get(index);
   }
   /**
    * <pre>
@@ -223,7 +223,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder getFilesToFetchOrBuilder(
       int index) {
-    return this.filesToFetch_.get(index);
+    return filesToFetch_.get(index);
   }
 
   public static final int TOTALNUMBEROFRECORDS_FIELD_NUMBER = 4;
@@ -238,62 +238,62 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getTotalNumberOfRecords() {
-    return this.totalNumberOfRecords_;
+    return totalNumberOfRecords_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.pageSize_ != 0) {
-      output.writeInt32(1, this.pageSize_);
+    if (pageSize_ != 0) {
+      output.writeInt32(1, pageSize_);
     }
-    if (this.pageNumber_ != 0) {
-      output.writeInt32(2, this.pageNumber_);
+    if (pageNumber_ != 0) {
+      output.writeInt32(2, pageNumber_);
     }
-    for (int i = 0; i < this.filesToFetch_.size(); i++) {
-      output.writeMessage(3, this.filesToFetch_.get(i));
+    for (int i = 0; i < filesToFetch_.size(); i++) {
+      output.writeMessage(3, filesToFetch_.get(i));
     }
-    if (this.totalNumberOfRecords_ != 0) {
-      output.writeInt32(4, this.totalNumberOfRecords_);
+    if (totalNumberOfRecords_ != 0) {
+      output.writeInt32(4, totalNumberOfRecords_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.pageSize_ != 0) {
+    if (pageSize_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, this.pageSize_);
+        .computeInt32Size(1, pageSize_);
     }
-    if (this.pageNumber_ != 0) {
+    if (pageNumber_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, this.pageNumber_);
+        .computeInt32Size(2, pageNumber_);
     }
-    for (int i = 0; i < this.filesToFetch_.size(); i++) {
+    for (int i = 0; i < filesToFetch_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(3, this.filesToFetch_.get(i));
+        .computeMessageSize(3, filesToFetch_.get(i));
     }
-    if (this.totalNumberOfRecords_ != 0) {
+    if (totalNumberOfRecords_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(4, this.totalNumberOfRecords_);
+        .computeInt32Size(4, totalNumberOfRecords_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -315,14 +315,14 @@ private static final long serialVersionUID = 0L;
         .equals(other.getFilesToFetchList())) return false;
     if (getTotalNumberOfRecords()
         != other.getTotalNumberOfRecords()) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -336,8 +336,8 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + TOTALNUMBEROFRECORDS_FIELD_NUMBER;
     hash = (53 * hash) + getTotalNumberOfRecords();
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -474,17 +474,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.pageSize_ = 0;
+      pageSize_ = 0;
 
-      this.pageNumber_ = 0;
+      pageNumber_ = 0;
 
-      if (this.filesToFetchBuilder_ == null) {
-        this.filesToFetch_ = java.util.Collections.emptyList();
-        this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      if (filesToFetchBuilder_ == null) {
+        filesToFetch_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
       } else {
-        this.filesToFetchBuilder_.clear();
+        filesToFetchBuilder_.clear();
       }
-      this.totalNumberOfRecords_ = 0;
+      totalNumberOfRecords_ = 0;
 
       return this;
     }
@@ -512,19 +512,19 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse result = new io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchResponse(this);
-      int from_bitField0_ = this.bitField0_;
-      result.pageSize_ = this.pageSize_;
-      result.pageNumber_ = this.pageNumber_;
-      if (this.filesToFetchBuilder_ == null) {
-        if (((this.bitField0_ & 0x00000001) != 0)) {
-          this.filesToFetch_ = java.util.Collections.unmodifiableList(this.filesToFetch_);
-          this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      int from_bitField0_ = bitField0_;
+      result.pageSize_ = pageSize_;
+      result.pageNumber_ = pageNumber_;
+      if (filesToFetchBuilder_ == null) {
+        if (((bitField0_ & 0x00000001) != 0)) {
+          filesToFetch_ = java.util.Collections.unmodifiableList(filesToFetch_);
+          bitField0_ = (bitField0_ & ~0x00000001);
         }
-        result.filesToFetch_ = this.filesToFetch_;
+        result.filesToFetch_ = filesToFetch_;
       } else {
-        result.filesToFetch_ = this.filesToFetchBuilder_.build();
+        result.filesToFetch_ = filesToFetchBuilder_.build();
       }
-      result.totalNumberOfRecords_ = this.totalNumberOfRecords_;
+      result.totalNumberOfRecords_ = totalNumberOfRecords_;
       onBuilt();
       return result;
     }
@@ -579,29 +579,29 @@ private static final long serialVersionUID = 0L;
       if (other.getPageNumber() != 0) {
         setPageNumber(other.getPageNumber());
       }
-      if (this.filesToFetchBuilder_ == null) {
+      if (filesToFetchBuilder_ == null) {
         if (!other.filesToFetch_.isEmpty()) {
-          if (this.filesToFetch_.isEmpty()) {
-            this.filesToFetch_ = other.filesToFetch_;
-            this.bitField0_ = (this.bitField0_ & ~0x00000001);
+          if (filesToFetch_.isEmpty()) {
+            filesToFetch_ = other.filesToFetch_;
+            bitField0_ = (bitField0_ & ~0x00000001);
           } else {
             ensureFilesToFetchIsMutable();
-            this.filesToFetch_.addAll(other.filesToFetch_);
+            filesToFetch_.addAll(other.filesToFetch_);
           }
           onChanged();
         }
       } else {
         if (!other.filesToFetch_.isEmpty()) {
-          if (this.filesToFetchBuilder_.isEmpty()) {
-            this.filesToFetchBuilder_.dispose();
-            this.filesToFetchBuilder_ = null;
-            this.filesToFetch_ = other.filesToFetch_;
-            this.bitField0_ = (this.bitField0_ & ~0x00000001);
-            this.filesToFetchBuilder_ =
+          if (filesToFetchBuilder_.isEmpty()) {
+            filesToFetchBuilder_.dispose();
+            filesToFetchBuilder_ = null;
+            filesToFetch_ = other.filesToFetch_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+            filesToFetchBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getFilesToFetchFieldBuilder() : null;
           } else {
-            this.filesToFetchBuilder_.addAllMessages(other.filesToFetch_);
+            filesToFetchBuilder_.addAllMessages(other.filesToFetch_);
           }
         }
       }
@@ -649,7 +649,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getPageSize() {
-      return this.pageSize_;
+      return pageSize_;
     }
     /**
      * <pre>
@@ -662,7 +662,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setPageSize(int value) {
 
-      this.pageSize_ = value;
+      pageSize_ = value;
       onChanged();
       return this;
     }
@@ -676,7 +676,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearPageSize() {
 
-      this.pageSize_ = 0;
+      pageSize_ = 0;
       onChanged();
       return this;
     }
@@ -692,7 +692,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getPageNumber() {
-      return this.pageNumber_;
+      return pageNumber_;
     }
     /**
      * <pre>
@@ -705,7 +705,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setPageNumber(int value) {
 
-      this.pageNumber_ = value;
+      pageNumber_ = value;
       onChanged();
       return this;
     }
@@ -719,7 +719,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearPageNumber() {
 
-      this.pageNumber_ = 0;
+      pageNumber_ = 0;
       onChanged();
       return this;
     }
@@ -727,9 +727,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFile> filesToFetch_ =
       java.util.Collections.emptyList();
     private void ensureFilesToFetchIsMutable() {
-      if (!((this.bitField0_ & 0x00000001) != 0)) {
-        this.filesToFetch_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcFile>(this.filesToFetch_);
-        this.bitField0_ |= 0x00000001;
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        filesToFetch_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcFile>(filesToFetch_);
+        bitField0_ |= 0x00000001;
        }
     }
 
@@ -744,10 +744,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFile filesToFetch = 3;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFile> getFilesToFetchList() {
-      if (this.filesToFetchBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(this.filesToFetch_);
+      if (filesToFetchBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(filesToFetch_);
       } else {
-        return this.filesToFetchBuilder_.getMessageList();
+        return filesToFetchBuilder_.getMessageList();
       }
     }
     /**
@@ -758,10 +758,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFile filesToFetch = 3;</code>
      */
     public int getFilesToFetchCount() {
-      if (this.filesToFetchBuilder_ == null) {
-        return this.filesToFetch_.size();
+      if (filesToFetchBuilder_ == null) {
+        return filesToFetch_.size();
       } else {
-        return this.filesToFetchBuilder_.getCount();
+        return filesToFetchBuilder_.getCount();
       }
     }
     /**
@@ -772,10 +772,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFile filesToFetch = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFile getFilesToFetch(int index) {
-      if (this.filesToFetchBuilder_ == null) {
-        return this.filesToFetch_.get(index);
+      if (filesToFetchBuilder_ == null) {
+        return filesToFetch_.get(index);
       } else {
-        return this.filesToFetchBuilder_.getMessage(index);
+        return filesToFetchBuilder_.getMessage(index);
       }
     }
     /**
@@ -787,15 +787,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setFilesToFetch(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFile value) {
-      if (this.filesToFetchBuilder_ == null) {
+      if (filesToFetchBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureFilesToFetchIsMutable();
-        this.filesToFetch_.set(index, value);
+        filesToFetch_.set(index, value);
         onChanged();
       } else {
-        this.filesToFetchBuilder_.setMessage(index, value);
+        filesToFetchBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -808,12 +808,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setFilesToFetch(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFile.Builder builderForValue) {
-      if (this.filesToFetchBuilder_ == null) {
+      if (filesToFetchBuilder_ == null) {
         ensureFilesToFetchIsMutable();
-        this.filesToFetch_.set(index, builderForValue.build());
+        filesToFetch_.set(index, builderForValue.build());
         onChanged();
       } else {
-        this.filesToFetchBuilder_.setMessage(index, builderForValue.build());
+        filesToFetchBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -825,15 +825,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFile filesToFetch = 3;</code>
      */
     public Builder addFilesToFetch(io.evitadb.externalApi.grpc.generated.GrpcFile value) {
-      if (this.filesToFetchBuilder_ == null) {
+      if (filesToFetchBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureFilesToFetchIsMutable();
-        this.filesToFetch_.add(value);
+        filesToFetch_.add(value);
         onChanged();
       } else {
-        this.filesToFetchBuilder_.addMessage(value);
+        filesToFetchBuilder_.addMessage(value);
       }
       return this;
     }
@@ -846,15 +846,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addFilesToFetch(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFile value) {
-      if (this.filesToFetchBuilder_ == null) {
+      if (filesToFetchBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureFilesToFetchIsMutable();
-        this.filesToFetch_.add(index, value);
+        filesToFetch_.add(index, value);
         onChanged();
       } else {
-        this.filesToFetchBuilder_.addMessage(index, value);
+        filesToFetchBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -867,12 +867,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addFilesToFetch(
         io.evitadb.externalApi.grpc.generated.GrpcFile.Builder builderForValue) {
-      if (this.filesToFetchBuilder_ == null) {
+      if (filesToFetchBuilder_ == null) {
         ensureFilesToFetchIsMutable();
-        this.filesToFetch_.add(builderForValue.build());
+        filesToFetch_.add(builderForValue.build());
         onChanged();
       } else {
-        this.filesToFetchBuilder_.addMessage(builderForValue.build());
+        filesToFetchBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -885,12 +885,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addFilesToFetch(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFile.Builder builderForValue) {
-      if (this.filesToFetchBuilder_ == null) {
+      if (filesToFetchBuilder_ == null) {
         ensureFilesToFetchIsMutable();
-        this.filesToFetch_.add(index, builderForValue.build());
+        filesToFetch_.add(index, builderForValue.build());
         onChanged();
       } else {
-        this.filesToFetchBuilder_.addMessage(index, builderForValue.build());
+        filesToFetchBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -903,13 +903,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllFilesToFetch(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcFile> values) {
-      if (this.filesToFetchBuilder_ == null) {
+      if (filesToFetchBuilder_ == null) {
         ensureFilesToFetchIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, this.filesToFetch_);
+            values, filesToFetch_);
         onChanged();
       } else {
-        this.filesToFetchBuilder_.addAllMessages(values);
+        filesToFetchBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -921,12 +921,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFile filesToFetch = 3;</code>
      */
     public Builder clearFilesToFetch() {
-      if (this.filesToFetchBuilder_ == null) {
-        this.filesToFetch_ = java.util.Collections.emptyList();
-        this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      if (filesToFetchBuilder_ == null) {
+        filesToFetch_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        this.filesToFetchBuilder_.clear();
+        filesToFetchBuilder_.clear();
       }
       return this;
     }
@@ -938,12 +938,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFile filesToFetch = 3;</code>
      */
     public Builder removeFilesToFetch(int index) {
-      if (this.filesToFetchBuilder_ == null) {
+      if (filesToFetchBuilder_ == null) {
         ensureFilesToFetchIsMutable();
-        this.filesToFetch_.remove(index);
+        filesToFetch_.remove(index);
         onChanged();
       } else {
-        this.filesToFetchBuilder_.remove(index);
+        filesToFetchBuilder_.remove(index);
       }
       return this;
     }
@@ -967,9 +967,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder getFilesToFetchOrBuilder(
         int index) {
-      if (this.filesToFetchBuilder_ == null) {
-        return this.filesToFetch_.get(index);  } else {
-        return this.filesToFetchBuilder_.getMessageOrBuilder(index);
+      if (filesToFetchBuilder_ == null) {
+        return filesToFetch_.get(index);  } else {
+        return filesToFetchBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -981,10 +981,10 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder>
          getFilesToFetchOrBuilderList() {
-      if (this.filesToFetchBuilder_ != null) {
-        return this.filesToFetchBuilder_.getMessageOrBuilderList();
+      if (filesToFetchBuilder_ != null) {
+        return filesToFetchBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(this.filesToFetch_);
+        return java.util.Collections.unmodifiableList(filesToFetch_);
       }
     }
     /**
@@ -1024,16 +1024,16 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.RepeatedFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcFile, io.evitadb.externalApi.grpc.generated.GrpcFile.Builder, io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder>
         getFilesToFetchFieldBuilder() {
-      if (this.filesToFetchBuilder_ == null) {
-        this.filesToFetchBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (filesToFetchBuilder_ == null) {
+        filesToFetchBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcFile, io.evitadb.externalApi.grpc.generated.GrpcFile.Builder, io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder>(
-                this.filesToFetch_,
-                ((this.bitField0_ & 0x00000001) != 0),
+                filesToFetch_,
+                ((bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        this.filesToFetch_ = null;
+        filesToFetch_ = null;
       }
-      return this.filesToFetchBuilder_;
+      return filesToFetchBuilder_;
     }
 
     private int totalNumberOfRecords_ ;
@@ -1047,7 +1047,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getTotalNumberOfRecords() {
-      return this.totalNumberOfRecords_;
+      return totalNumberOfRecords_;
     }
     /**
      * <pre>
@@ -1060,7 +1060,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTotalNumberOfRecords(int value) {
 
-      this.totalNumberOfRecords_ = value;
+      totalNumberOfRecords_ = value;
       onChanged();
       return this;
     }
@@ -1074,7 +1074,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearTotalNumberOfRecords() {
 
-      this.totalNumberOfRecords_ = 0;
+      totalNumberOfRecords_ = 0;
       onChanged();
       return this;
     }

@@ -43,8 +43,8 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcRestoreCatalogUnaryRequest() {
-    this.catalogName_ = "";
-    this.backupFile_ = com.google.protobuf.ByteString.EMPTY;
+    catalogName_ = "";
+    backupFile_ = com.google.protobuf.ByteString.EMPTY;
   }
 
   @java.lang.Override
@@ -80,30 +80,30 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            this.catalogName_ = s;
+            catalogName_ = s;
             break;
           }
           case 18: {
 
-            this.backupFile_ = input.readBytes();
+            backupFile_ = input.readBytes();
             break;
           }
           case 26: {
             io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder subBuilder = null;
-            if (this.fileId_ != null) {
-              subBuilder = this.fileId_.toBuilder();
+            if (fileId_ != null) {
+              subBuilder = fileId_.toBuilder();
             }
-            this.fileId_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry);
+            fileId_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.fileId_);
-              this.fileId_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(fileId_);
+              fileId_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 32: {
 
-            this.totalSizeInBytes_ = input.readInt64();
+            totalSizeInBytes_ = input.readInt64();
             break;
           }
           default: {
@@ -151,14 +151,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getCatalogName() {
-    java.lang.Object ref = this.catalogName_;
+    java.lang.Object ref = catalogName_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      this.catalogName_ = s;
+      catalogName_ = s;
       return s;
     }
   }
@@ -174,12 +174,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getCatalogNameBytes() {
-    java.lang.Object ref = this.catalogName_;
+    java.lang.Object ref = catalogName_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      this.catalogName_ = b;
+      catalogName_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -198,7 +198,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.ByteString getBackupFile() {
-    return this.backupFile_;
+    return backupFile_;
   }
 
   public static final int FILEID_FIELD_NUMBER = 3;
@@ -213,7 +213,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasFileId() {
-    return this.fileId_ != null;
+    return fileId_ != null;
   }
   /**
    * <pre>
@@ -225,7 +225,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcUuid getFileId() {
-    return this.fileId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : this.fileId_;
+    return fileId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : fileId_;
   }
   /**
    * <pre>
@@ -251,61 +251,61 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public long getTotalSizeInBytes() {
-    return this.totalSizeInBytes_;
+    return totalSizeInBytes_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.catalogName_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.catalogName_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, catalogName_);
     }
-    if (!this.backupFile_.isEmpty()) {
-      output.writeBytes(2, this.backupFile_);
+    if (!backupFile_.isEmpty()) {
+      output.writeBytes(2, backupFile_);
     }
-    if (this.fileId_ != null) {
+    if (fileId_ != null) {
       output.writeMessage(3, getFileId());
     }
-    if (this.totalSizeInBytes_ != 0L) {
-      output.writeInt64(4, this.totalSizeInBytes_);
+    if (totalSizeInBytes_ != 0L) {
+      output.writeInt64(4, totalSizeInBytes_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.catalogName_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.catalogName_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, catalogName_);
     }
-    if (!this.backupFile_.isEmpty()) {
+    if (!backupFile_.isEmpty()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBytesSize(2, this.backupFile_);
+        .computeBytesSize(2, backupFile_);
     }
-    if (this.fileId_ != null) {
+    if (fileId_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getFileId());
     }
-    if (this.totalSizeInBytes_ != 0L) {
+    if (totalSizeInBytes_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(4, this.totalSizeInBytes_);
+        .computeInt64Size(4, totalSizeInBytes_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -330,14 +330,14 @@ private static final long serialVersionUID = 0L;
     }
     if (getTotalSizeInBytes()
         != other.getTotalSizeInBytes()) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -352,8 +352,8 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + TOTALSIZEINBYTES_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getTotalSizeInBytes());
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -489,17 +489,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.catalogName_ = "";
+      catalogName_ = "";
 
-      this.backupFile_ = com.google.protobuf.ByteString.EMPTY;
+      backupFile_ = com.google.protobuf.ByteString.EMPTY;
 
-      if (this.fileIdBuilder_ == null) {
-        this.fileId_ = null;
+      if (fileIdBuilder_ == null) {
+        fileId_ = null;
       } else {
-        this.fileId_ = null;
-        this.fileIdBuilder_ = null;
+        fileId_ = null;
+        fileIdBuilder_ = null;
       }
-      this.totalSizeInBytes_ = 0L;
+      totalSizeInBytes_ = 0L;
 
       return this;
     }
@@ -527,14 +527,14 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest result = new io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest(this);
-      result.catalogName_ = this.catalogName_;
-      result.backupFile_ = this.backupFile_;
-      if (this.fileIdBuilder_ == null) {
-        result.fileId_ = this.fileId_;
+      result.catalogName_ = catalogName_;
+      result.backupFile_ = backupFile_;
+      if (fileIdBuilder_ == null) {
+        result.fileId_ = fileId_;
       } else {
-        result.fileId_ = this.fileIdBuilder_.build();
+        result.fileId_ = fileIdBuilder_.build();
       }
-      result.totalSizeInBytes_ = this.totalSizeInBytes_;
+      result.totalSizeInBytes_ = totalSizeInBytes_;
       onBuilt();
       return result;
     }
@@ -584,7 +584,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest.getDefaultInstance()) return this;
       if (!other.getCatalogName().isEmpty()) {
-        this.catalogName_ = other.catalogName_;
+        catalogName_ = other.catalogName_;
         onChanged();
       }
       if (other.getBackupFile() != com.google.protobuf.ByteString.EMPTY) {
@@ -636,12 +636,12 @@ private static final long serialVersionUID = 0L;
      * @return The catalogName.
      */
     public java.lang.String getCatalogName() {
-      java.lang.Object ref = this.catalogName_;
+      java.lang.Object ref = catalogName_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        this.catalogName_ = s;
+        catalogName_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -658,12 +658,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getCatalogNameBytes() {
-      java.lang.Object ref = this.catalogName_;
+      java.lang.Object ref = catalogName_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        this.catalogName_ = b;
+        catalogName_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -685,7 +685,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.catalogName_ = value;
+      catalogName_ = value;
       onChanged();
       return this;
     }
@@ -700,7 +700,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearCatalogName() {
 
-      this.catalogName_ = getDefaultInstance().getCatalogName();
+      catalogName_ = getDefaultInstance().getCatalogName();
       onChanged();
       return this;
     }
@@ -721,7 +721,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      this.catalogName_ = value;
+      catalogName_ = value;
       onChanged();
       return this;
     }
@@ -737,7 +737,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public com.google.protobuf.ByteString getBackupFile() {
-      return this.backupFile_;
+      return backupFile_;
     }
     /**
      * <pre>
@@ -753,7 +753,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.backupFile_ = value;
+      backupFile_ = value;
       onChanged();
       return this;
     }
@@ -767,7 +767,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearBackupFile() {
 
-      this.backupFile_ = getDefaultInstance().getBackupFile();
+      backupFile_ = getDefaultInstance().getBackupFile();
       onChanged();
       return this;
     }
@@ -784,7 +784,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the fileId field is set.
      */
     public boolean hasFileId() {
-      return this.fileIdBuilder_ != null || this.fileId_ != null;
+      return fileIdBuilder_ != null || fileId_ != null;
     }
     /**
      * <pre>
@@ -795,10 +795,10 @@ private static final long serialVersionUID = 0L;
      * @return The fileId.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuid getFileId() {
-      if (this.fileIdBuilder_ == null) {
-        return this.fileId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : this.fileId_;
+      if (fileIdBuilder_ == null) {
+        return fileId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : fileId_;
       } else {
-        return this.fileIdBuilder_.getMessage();
+        return fileIdBuilder_.getMessage();
       }
     }
     /**
@@ -809,14 +809,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
      */
     public Builder setFileId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
-      if (this.fileIdBuilder_ == null) {
+      if (fileIdBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.fileId_ = value;
+        fileId_ = value;
         onChanged();
       } else {
-        this.fileIdBuilder_.setMessage(value);
+        fileIdBuilder_.setMessage(value);
       }
 
       return this;
@@ -830,11 +830,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setFileId(
         io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder builderForValue) {
-      if (this.fileIdBuilder_ == null) {
-        this.fileId_ = builderForValue.build();
+      if (fileIdBuilder_ == null) {
+        fileId_ = builderForValue.build();
         onChanged();
       } else {
-        this.fileIdBuilder_.setMessage(builderForValue.build());
+        fileIdBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -847,16 +847,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
      */
     public Builder mergeFileId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
-      if (this.fileIdBuilder_ == null) {
-        if (this.fileId_ != null) {
-          this.fileId_ =
-            io.evitadb.externalApi.grpc.generated.GrpcUuid.newBuilder(this.fileId_).mergeFrom(value).buildPartial();
+      if (fileIdBuilder_ == null) {
+        if (fileId_ != null) {
+          fileId_ =
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.newBuilder(fileId_).mergeFrom(value).buildPartial();
         } else {
-          this.fileId_ = value;
+          fileId_ = value;
         }
         onChanged();
       } else {
-        this.fileIdBuilder_.mergeFrom(value);
+        fileIdBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -869,12 +869,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
      */
     public Builder clearFileId() {
-      if (this.fileIdBuilder_ == null) {
-        this.fileId_ = null;
+      if (fileIdBuilder_ == null) {
+        fileId_ = null;
         onChanged();
       } else {
-        this.fileId_ = null;
-        this.fileIdBuilder_ = null;
+        fileId_ = null;
+        fileIdBuilder_ = null;
       }
 
       return this;
@@ -899,11 +899,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getFileIdOrBuilder() {
-      if (this.fileIdBuilder_ != null) {
-        return this.fileIdBuilder_.getMessageOrBuilder();
+      if (fileIdBuilder_ != null) {
+        return fileIdBuilder_.getMessageOrBuilder();
       } else {
-        return this.fileId_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : this.fileId_;
+        return fileId_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : fileId_;
       }
     }
     /**
@@ -916,15 +916,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
         getFileIdFieldBuilder() {
-      if (this.fileIdBuilder_ == null) {
-        this.fileIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (fileIdBuilder_ == null) {
+        fileIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>(
                 getFileId(),
                 getParentForChildren(),
                 isClean());
-        this.fileId_ = null;
+        fileId_ = null;
       }
-      return this.fileIdBuilder_;
+      return fileIdBuilder_;
     }
 
     private long totalSizeInBytes_ ;
@@ -938,7 +938,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public long getTotalSizeInBytes() {
-      return this.totalSizeInBytes_;
+      return totalSizeInBytes_;
     }
     /**
      * <pre>
@@ -951,7 +951,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTotalSizeInBytes(long value) {
 
-      this.totalSizeInBytes_ = value;
+      totalSizeInBytes_ = value;
       onChanged();
       return this;
     }
@@ -965,7 +965,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearTotalSizeInBytes() {
 
-      this.totalSizeInBytes_ = 0L;
+      totalSizeInBytes_ = 0L;
       onChanged();
       return this;
     }

@@ -67,4 +67,5 @@ module evita.external.api.grpc {
 	requires org.checkerframework.checker.qual;
 	requires net.bytebuddy;
 	requires org.reactivestreams;
+	requires reactive.grpc.common;
 }

@@ -77,13 +77,13 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.Builder subBuilder = null;
-            if (this.capture_ != null) {
-              subBuilder = this.capture_.toBuilder();
+            if (capture_ != null) {
+              subBuilder = capture_.toBuilder();
             }
-            this.capture_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.parser(), extensionRegistry);
+            capture_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.capture_);
-              this.capture_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(capture_);
+              capture_ = subBuilder.buildPartial();
             }
 
             break;
@@ -128,7 +128,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasCapture() {
-    return this.capture_ != null;
+    return capture_ != null;
   }
   /**
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
@@ -136,7 +136,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture getCapture() {
-    return this.capture_ == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.getDefaultInstance() : this.capture_;
+    return capture_ == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.getDefaultInstance() : capture_;
   }
   /**
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
@@ -149,35 +149,35 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.capture_ != null) {
+    if (capture_ != null) {
       output.writeMessage(1, getCapture());
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.capture_ != null) {
+    if (capture_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getCapture());
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -196,14 +196,14 @@ private static final long serialVersionUID = 0L;
       if (!getCapture()
           .equals(other.getCapture())) return false;
     }
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -211,8 +211,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CAPTURE_FIELD_NUMBER;
       hash = (53 * hash) + getCapture().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -348,11 +348,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (this.captureBuilder_ == null) {
-        this.capture_ = null;
+      if (captureBuilder_ == null) {
+        capture_ = null;
       } else {
-        this.capture_ = null;
-        this.captureBuilder_ = null;
+        capture_ = null;
+        captureBuilder_ = null;
       }
       return this;
     }
@@ -380,10 +380,10 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse result = new io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse(this);
-      if (this.captureBuilder_ == null) {
-        result.capture_ = this.capture_;
+      if (captureBuilder_ == null) {
+        result.capture_ = capture_;
       } else {
-        result.capture_ = this.captureBuilder_.build();
+        result.capture_ = captureBuilder_.build();
       }
       onBuilt();
       return result;
@@ -473,31 +473,31 @@ private static final long serialVersionUID = 0L;
      * @return Whether the capture field is set.
      */
     public boolean hasCapture() {
-      return this.captureBuilder_ != null || this.capture_ != null;
+      return captureBuilder_ != null || capture_ != null;
     }
     /**
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      * @return The capture.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture getCapture() {
-      if (this.captureBuilder_ == null) {
-        return this.capture_ == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.getDefaultInstance() : this.capture_;
+      if (captureBuilder_ == null) {
+        return capture_ == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.getDefaultInstance() : capture_;
       } else {
-        return this.captureBuilder_.getMessage();
+        return captureBuilder_.getMessage();
       }
     }
     /**
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      */
     public Builder setCapture(io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture value) {
-      if (this.captureBuilder_ == null) {
+      if (captureBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.capture_ = value;
+        capture_ = value;
         onChanged();
       } else {
-        this.captureBuilder_.setMessage(value);
+        captureBuilder_.setMessage(value);
       }
 
       return this;
@@ -507,11 +507,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCapture(
         io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.Builder builderForValue) {
-      if (this.captureBuilder_ == null) {
-        this.capture_ = builderForValue.build();
+      if (captureBuilder_ == null) {
+        capture_ = builderForValue.build();
         onChanged();
       } else {
-        this.captureBuilder_.setMessage(builderForValue.build());
+        captureBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -520,16 +520,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      */
     public Builder mergeCapture(io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture value) {
-      if (this.captureBuilder_ == null) {
-        if (this.capture_ != null) {
-          this.capture_ =
-            io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.newBuilder(this.capture_).mergeFrom(value).buildPartial();
+      if (captureBuilder_ == null) {
+        if (capture_ != null) {
+          capture_ =
+            io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.newBuilder(capture_).mergeFrom(value).buildPartial();
         } else {
-          this.capture_ = value;
+          capture_ = value;
         }
         onChanged();
       } else {
-        this.captureBuilder_.mergeFrom(value);
+        captureBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -538,12 +538,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      */
     public Builder clearCapture() {
-      if (this.captureBuilder_ == null) {
-        this.capture_ = null;
+      if (captureBuilder_ == null) {
+        capture_ = null;
         onChanged();
       } else {
-        this.capture_ = null;
-        this.captureBuilder_ = null;
+        capture_ = null;
+        captureBuilder_ = null;
       }
 
       return this;
@@ -560,11 +560,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureOrBuilder getCaptureOrBuilder() {
-      if (this.captureBuilder_ != null) {
-        return this.captureBuilder_.getMessageOrBuilder();
+      if (captureBuilder_ != null) {
+        return captureBuilder_.getMessageOrBuilder();
       } else {
-        return this.capture_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.getDefaultInstance() : this.capture_;
+        return capture_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.getDefaultInstance() : capture_;
       }
     }
     /**
@@ -573,15 +573,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureOrBuilder>
         getCaptureFieldBuilder() {
-      if (this.captureBuilder_ == null) {
-        this.captureBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (captureBuilder_ == null) {
+        captureBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureOrBuilder>(
                 getCapture(),
                 getParentForChildren(),
                 isClean());
-        this.capture_ = null;
+        capture_ = null;
       }
-      return this.captureBuilder_;
+      return captureBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

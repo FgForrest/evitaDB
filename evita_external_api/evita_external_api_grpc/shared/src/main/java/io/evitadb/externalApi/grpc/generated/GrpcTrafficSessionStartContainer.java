@@ -77,7 +77,7 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            this.catalogVersion_ = input.readInt64();
+            catalogVersion_ = input.readInt64();
             break;
           }
           default: {
@@ -124,41 +124,41 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public long getCatalogVersion() {
-    return this.catalogVersion_;
+    return catalogVersion_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.catalogVersion_ != 0L) {
-      output.writeInt64(1, this.catalogVersion_);
+    if (catalogVersion_ != 0L) {
+      output.writeInt64(1, catalogVersion_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.catalogVersion_ != 0L) {
+    if (catalogVersion_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(1, this.catalogVersion_);
+        .computeInt64Size(1, catalogVersion_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -174,22 +174,22 @@ private static final long serialVersionUID = 0L;
 
     if (getCatalogVersion()
         != other.getCatalogVersion()) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + CATALOGVERSION_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getCatalogVersion());
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -325,7 +325,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.catalogVersion_ = 0L;
+      catalogVersion_ = 0L;
 
       return this;
     }
@@ -353,7 +353,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer result = new io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer(this);
-      result.catalogVersion_ = this.catalogVersion_;
+      result.catalogVersion_ = catalogVersion_;
       onBuilt();
       return result;
     }
@@ -445,7 +445,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public long getCatalogVersion() {
-      return this.catalogVersion_;
+      return catalogVersion_;
     }
     /**
      * <pre>
@@ -458,7 +458,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCatalogVersion(long value) {
 
-      this.catalogVersion_ = value;
+      catalogVersion_ = value;
       onChanged();
       return this;
     }
@@ -472,7 +472,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearCatalogVersion() {
 
-      this.catalogVersion_ = 0L;
+      catalogVersion_ = 0L;
       onChanged();
       return this;
     }

@@ -43,8 +43,8 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcApiStatus() {
-    this.baseUrl_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-    this.endpoints_ = java.util.Collections.emptyList();
+    baseUrl_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+    endpoints_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -80,29 +80,29 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            this.enabled_ = input.readBool();
+            enabled_ = input.readBool();
             break;
           }
           case 16: {
 
-            this.ready_ = input.readBool();
+            ready_ = input.readBool();
             break;
           }
           case 26: {
             java.lang.String s = input.readStringRequireUtf8();
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              this.baseUrl_ = new com.google.protobuf.LazyStringArrayList();
+              baseUrl_ = new com.google.protobuf.LazyStringArrayList();
               mutable_bitField0_ |= 0x00000001;
             }
-            this.baseUrl_.add(s);
+            baseUrl_.add(s);
             break;
           }
           case 34: {
             if (!((mutable_bitField0_ & 0x00000002) != 0)) {
-              this.endpoints_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcEndpoint>();
+              endpoints_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcEndpoint>();
               mutable_bitField0_ |= 0x00000002;
             }
-            this.endpoints_.add(
+            endpoints_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEndpoint.parser(), extensionRegistry));
             break;
           }
@@ -122,10 +122,10 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        this.baseUrl_ = this.baseUrl_.getUnmodifiableView();
+        baseUrl_ = baseUrl_.getUnmodifiableView();
       }
       if (((mutable_bitField0_ & 0x00000002) != 0)) {
-        this.endpoints_ = java.util.Collections.unmodifiableList(this.endpoints_);
+        endpoints_ = java.util.Collections.unmodifiableList(endpoints_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -156,7 +156,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean getEnabled() {
-    return this.enabled_;
+    return enabled_;
   }
 
   public static final int READY_FIELD_NUMBER = 2;
@@ -171,7 +171,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean getReady() {
-    return this.ready_;
+    return ready_;
   }
 
   public static final int BASEURL_FIELD_NUMBER = 3;
@@ -186,7 +186,7 @@ private static final long serialVersionUID = 0L;
    */
   public com.google.protobuf.ProtocolStringList
       getBaseUrlList() {
-    return this.baseUrl_;
+    return baseUrl_;
   }
   /**
    * <pre>
@@ -197,7 +197,7 @@ private static final long serialVersionUID = 0L;
    * @return The count of baseUrl.
    */
   public int getBaseUrlCount() {
-    return this.baseUrl_.size();
+    return baseUrl_.size();
   }
   /**
    * <pre>
@@ -209,7 +209,7 @@ private static final long serialVersionUID = 0L;
    * @return The baseUrl at the given index.
    */
   public java.lang.String getBaseUrl(int index) {
-    return this.baseUrl_.get(index);
+    return baseUrl_.get(index);
   }
   /**
    * <pre>
@@ -222,7 +222,7 @@ private static final long serialVersionUID = 0L;
    */
   public com.google.protobuf.ByteString
       getBaseUrlBytes(int index) {
-    return this.baseUrl_.getByteString(index);
+    return baseUrl_.getByteString(index);
   }
 
   public static final int ENDPOINTS_FIELD_NUMBER = 4;
@@ -237,7 +237,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEndpoint> getEndpointsList() {
-    return this.endpoints_;
+    return endpoints_;
   }
   /**
    * <pre>
@@ -250,7 +250,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEndpointOrBuilder>
       getEndpointsOrBuilderList() {
-    return this.endpoints_;
+    return endpoints_;
   }
   /**
    * <pre>
@@ -262,7 +262,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getEndpointsCount() {
-    return this.endpoints_.size();
+    return endpoints_.size();
   }
   /**
    * <pre>
@@ -274,7 +274,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEndpoint getEndpoints(int index) {
-    return this.endpoints_.get(index);
+    return endpoints_.get(index);
   }
   /**
    * <pre>
@@ -287,66 +287,66 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEndpointOrBuilder getEndpointsOrBuilder(
       int index) {
-    return this.endpoints_.get(index);
+    return endpoints_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.enabled_ != false) {
-      output.writeBool(1, this.enabled_);
+    if (enabled_ != false) {
+      output.writeBool(1, enabled_);
     }
-    if (this.ready_ != false) {
-      output.writeBool(2, this.ready_);
+    if (ready_ != false) {
+      output.writeBool(2, ready_);
     }
-    for (int i = 0; i < this.baseUrl_.size(); i++) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 3, this.baseUrl_.getRaw(i));
+    for (int i = 0; i < baseUrl_.size(); i++) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 3, baseUrl_.getRaw(i));
     }
-    for (int i = 0; i < this.endpoints_.size(); i++) {
-      output.writeMessage(4, this.endpoints_.get(i));
+    for (int i = 0; i < endpoints_.size(); i++) {
+      output.writeMessage(4, endpoints_.get(i));
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.enabled_ != false) {
+    if (enabled_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(1, this.enabled_);
+        .computeBoolSize(1, enabled_);
     }
-    if (this.ready_ != false) {
+    if (ready_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(2, this.ready_);
+        .computeBoolSize(2, ready_);
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < this.baseUrl_.size(); i++) {
-        dataSize += computeStringSizeNoTag(this.baseUrl_.getRaw(i));
+      for (int i = 0; i < baseUrl_.size(); i++) {
+        dataSize += computeStringSizeNoTag(baseUrl_.getRaw(i));
       }
       size += dataSize;
       size += 1 * getBaseUrlList().size();
     }
-    for (int i = 0; i < this.endpoints_.size(); i++) {
+    for (int i = 0; i < endpoints_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(4, this.endpoints_.get(i));
+        .computeMessageSize(4, endpoints_.get(i));
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -368,14 +368,14 @@ private static final long serialVersionUID = 0L;
         .equals(other.getBaseUrlList())) return false;
     if (!getEndpointsList()
         .equals(other.getEndpointsList())) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -393,8 +393,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + ENDPOINTS_FIELD_NUMBER;
       hash = (53 * hash) + getEndpointsList().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -531,17 +531,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.enabled_ = false;
+      enabled_ = false;
 
-      this.ready_ = false;
+      ready_ = false;
 
-      this.baseUrl_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-      this.bitField0_ = (this.bitField0_ & ~0x00000001);
-      if (this.endpointsBuilder_ == null) {
-        this.endpoints_ = java.util.Collections.emptyList();
-        this.bitField0_ = (this.bitField0_ & ~0x00000002);
+      baseUrl_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      bitField0_ = (bitField0_ & ~0x00000001);
+      if (endpointsBuilder_ == null) {
+        endpoints_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000002);
       } else {
-        this.endpointsBuilder_.clear();
+        endpointsBuilder_.clear();
       }
       return this;
     }
@@ -569,22 +569,22 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcApiStatus buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcApiStatus result = new io.evitadb.externalApi.grpc.generated.GrpcApiStatus(this);
-      int from_bitField0_ = this.bitField0_;
-      result.enabled_ = this.enabled_;
-      result.ready_ = this.ready_;
-      if (((this.bitField0_ & 0x00000001) != 0)) {
-        this.baseUrl_ = this.baseUrl_.getUnmodifiableView();
-        this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      int from_bitField0_ = bitField0_;
+      result.enabled_ = enabled_;
+      result.ready_ = ready_;
+      if (((bitField0_ & 0x00000001) != 0)) {
+        baseUrl_ = baseUrl_.getUnmodifiableView();
+        bitField0_ = (bitField0_ & ~0x00000001);
       }
-      result.baseUrl_ = this.baseUrl_;
-      if (this.endpointsBuilder_ == null) {
-        if (((this.bitField0_ & 0x00000002) != 0)) {
-          this.endpoints_ = java.util.Collections.unmodifiableList(this.endpoints_);
-          this.bitField0_ = (this.bitField0_ & ~0x00000002);
+      result.baseUrl_ = baseUrl_;
+      if (endpointsBuilder_ == null) {
+        if (((bitField0_ & 0x00000002) != 0)) {
+          endpoints_ = java.util.Collections.unmodifiableList(endpoints_);
+          bitField0_ = (bitField0_ & ~0x00000002);
         }
-        result.endpoints_ = this.endpoints_;
+        result.endpoints_ = endpoints_;
       } else {
-        result.endpoints_ = this.endpointsBuilder_.build();
+        result.endpoints_ = endpointsBuilder_.build();
       }
       onBuilt();
       return result;
@@ -641,38 +641,38 @@ private static final long serialVersionUID = 0L;
         setReady(other.getReady());
       }
       if (!other.baseUrl_.isEmpty()) {
-        if (this.baseUrl_.isEmpty()) {
-          this.baseUrl_ = other.baseUrl_;
-          this.bitField0_ = (this.bitField0_ & ~0x00000001);
+        if (baseUrl_.isEmpty()) {
+          baseUrl_ = other.baseUrl_;
+          bitField0_ = (bitField0_ & ~0x00000001);
         } else {
           ensureBaseUrlIsMutable();
-          this.baseUrl_.addAll(other.baseUrl_);
+          baseUrl_.addAll(other.baseUrl_);
         }
         onChanged();
       }
-      if (this.endpointsBuilder_ == null) {
+      if (endpointsBuilder_ == null) {
         if (!other.endpoints_.isEmpty()) {
-          if (this.endpoints_.isEmpty()) {
-            this.endpoints_ = other.endpoints_;
-            this.bitField0_ = (this.bitField0_ & ~0x00000002);
+          if (endpoints_.isEmpty()) {
+            endpoints_ = other.endpoints_;
+            bitField0_ = (bitField0_ & ~0x00000002);
           } else {
             ensureEndpointsIsMutable();
-            this.endpoints_.addAll(other.endpoints_);
+            endpoints_.addAll(other.endpoints_);
           }
           onChanged();
         }
       } else {
         if (!other.endpoints_.isEmpty()) {
-          if (this.endpointsBuilder_.isEmpty()) {
-            this.endpointsBuilder_.dispose();
-            this.endpointsBuilder_ = null;
-            this.endpoints_ = other.endpoints_;
-            this.bitField0_ = (this.bitField0_ & ~0x00000002);
-            this.endpointsBuilder_ =
+          if (endpointsBuilder_.isEmpty()) {
+            endpointsBuilder_.dispose();
+            endpointsBuilder_ = null;
+            endpoints_ = other.endpoints_;
+            bitField0_ = (bitField0_ & ~0x00000002);
+            endpointsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getEndpointsFieldBuilder() : null;
           } else {
-            this.endpointsBuilder_.addAllMessages(other.endpoints_);
+            endpointsBuilder_.addAllMessages(other.endpoints_);
           }
         }
       }
@@ -717,7 +717,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean getEnabled() {
-      return this.enabled_;
+      return enabled_;
     }
     /**
      * <pre>
@@ -730,7 +730,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setEnabled(boolean value) {
 
-      this.enabled_ = value;
+      enabled_ = value;
       onChanged();
       return this;
     }
@@ -744,7 +744,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearEnabled() {
 
-      this.enabled_ = false;
+      enabled_ = false;
       onChanged();
       return this;
     }
@@ -760,7 +760,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean getReady() {
-      return this.ready_;
+      return ready_;
     }
     /**
      * <pre>
@@ -773,7 +773,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setReady(boolean value) {
 
-      this.ready_ = value;
+      ready_ = value;
       onChanged();
       return this;
     }
@@ -787,16 +787,16 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearReady() {
 
-      this.ready_ = false;
+      ready_ = false;
       onChanged();
       return this;
     }
 
     private com.google.protobuf.LazyStringList baseUrl_ = com.google.protobuf.LazyStringArrayList.EMPTY;
     private void ensureBaseUrlIsMutable() {
-      if (!((this.bitField0_ & 0x00000001) != 0)) {
-        this.baseUrl_ = new com.google.protobuf.LazyStringArrayList(this.baseUrl_);
-        this.bitField0_ |= 0x00000001;
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        baseUrl_ = new com.google.protobuf.LazyStringArrayList(baseUrl_);
+        bitField0_ |= 0x00000001;
        }
     }
     /**
@@ -809,7 +809,7 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ProtocolStringList
         getBaseUrlList() {
-      return this.baseUrl_.getUnmodifiableView();
+      return baseUrl_.getUnmodifiableView();
     }
     /**
      * <pre>
@@ -820,7 +820,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of baseUrl.
      */
     public int getBaseUrlCount() {
-      return this.baseUrl_.size();
+      return baseUrl_.size();
     }
     /**
      * <pre>
@@ -832,7 +832,7 @@ private static final long serialVersionUID = 0L;
      * @return The baseUrl at the given index.
      */
     public java.lang.String getBaseUrl(int index) {
-      return this.baseUrl_.get(index);
+      return baseUrl_.get(index);
     }
     /**
      * <pre>
@@ -845,7 +845,7 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getBaseUrlBytes(int index) {
-      return this.baseUrl_.getByteString(index);
+      return baseUrl_.getByteString(index);
     }
     /**
      * <pre>
@@ -863,7 +863,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   ensureBaseUrlIsMutable();
-      this.baseUrl_.set(index, value);
+      baseUrl_.set(index, value);
       onChanged();
       return this;
     }
@@ -882,7 +882,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   ensureBaseUrlIsMutable();
-      this.baseUrl_.add(value);
+      baseUrl_.add(value);
       onChanged();
       return this;
     }
@@ -899,7 +899,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<java.lang.String> values) {
       ensureBaseUrlIsMutable();
       com.google.protobuf.AbstractMessageLite.Builder.addAll(
-          values, this.baseUrl_);
+          values, baseUrl_);
       onChanged();
       return this;
     }
@@ -912,8 +912,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearBaseUrl() {
-      this.baseUrl_ = com.google.protobuf.LazyStringArrayList.EMPTY;
-      this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      baseUrl_ = com.google.protobuf.LazyStringArrayList.EMPTY;
+      bitField0_ = (bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
@@ -933,7 +933,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
       ensureBaseUrlIsMutable();
-      this.baseUrl_.add(value);
+      baseUrl_.add(value);
       onChanged();
       return this;
     }
@@ -941,9 +941,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEndpoint> endpoints_ =
       java.util.Collections.emptyList();
     private void ensureEndpointsIsMutable() {
-      if (!((this.bitField0_ & 0x00000002) != 0)) {
-        this.endpoints_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcEndpoint>(this.endpoints_);
-        this.bitField0_ |= 0x00000002;
+      if (!((bitField0_ & 0x00000002) != 0)) {
+        endpoints_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcEndpoint>(endpoints_);
+        bitField0_ |= 0x00000002;
        }
     }
 
@@ -959,10 +959,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEndpoint> getEndpointsList() {
-      if (this.endpointsBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(this.endpoints_);
+      if (endpointsBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(endpoints_);
       } else {
-        return this.endpointsBuilder_.getMessageList();
+        return endpointsBuilder_.getMessageList();
       }
     }
     /**
@@ -974,10 +974,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
      */
     public int getEndpointsCount() {
-      if (this.endpointsBuilder_ == null) {
-        return this.endpoints_.size();
+      if (endpointsBuilder_ == null) {
+        return endpoints_.size();
       } else {
-        return this.endpointsBuilder_.getCount();
+        return endpointsBuilder_.getCount();
       }
     }
     /**
@@ -989,10 +989,10 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEndpoint getEndpoints(int index) {
-      if (this.endpointsBuilder_ == null) {
-        return this.endpoints_.get(index);
+      if (endpointsBuilder_ == null) {
+        return endpoints_.get(index);
       } else {
-        return this.endpointsBuilder_.getMessage(index);
+        return endpointsBuilder_.getMessage(index);
       }
     }
     /**
@@ -1005,15 +1005,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setEndpoints(
         int index, io.evitadb.externalApi.grpc.generated.GrpcEndpoint value) {
-      if (this.endpointsBuilder_ == null) {
+      if (endpointsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureEndpointsIsMutable();
-        this.endpoints_.set(index, value);
+        endpoints_.set(index, value);
         onChanged();
       } else {
-        this.endpointsBuilder_.setMessage(index, value);
+        endpointsBuilder_.setMessage(index, value);
       }
       return this;
     }
@@ -1027,12 +1027,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setEndpoints(
         int index, io.evitadb.externalApi.grpc.generated.GrpcEndpoint.Builder builderForValue) {
-      if (this.endpointsBuilder_ == null) {
+      if (endpointsBuilder_ == null) {
         ensureEndpointsIsMutable();
-        this.endpoints_.set(index, builderForValue.build());
+        endpoints_.set(index, builderForValue.build());
         onChanged();
       } else {
-        this.endpointsBuilder_.setMessage(index, builderForValue.build());
+        endpointsBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1045,15 +1045,15 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
      */
     public Builder addEndpoints(io.evitadb.externalApi.grpc.generated.GrpcEndpoint value) {
-      if (this.endpointsBuilder_ == null) {
+      if (endpointsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureEndpointsIsMutable();
-        this.endpoints_.add(value);
+        endpoints_.add(value);
         onChanged();
       } else {
-        this.endpointsBuilder_.addMessage(value);
+        endpointsBuilder_.addMessage(value);
       }
       return this;
     }
@@ -1067,15 +1067,15 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addEndpoints(
         int index, io.evitadb.externalApi.grpc.generated.GrpcEndpoint value) {
-      if (this.endpointsBuilder_ == null) {
+      if (endpointsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         ensureEndpointsIsMutable();
-        this.endpoints_.add(index, value);
+        endpoints_.add(index, value);
         onChanged();
       } else {
-        this.endpointsBuilder_.addMessage(index, value);
+        endpointsBuilder_.addMessage(index, value);
       }
       return this;
     }
@@ -1089,12 +1089,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addEndpoints(
         io.evitadb.externalApi.grpc.generated.GrpcEndpoint.Builder builderForValue) {
-      if (this.endpointsBuilder_ == null) {
+      if (endpointsBuilder_ == null) {
         ensureEndpointsIsMutable();
-        this.endpoints_.add(builderForValue.build());
+        endpoints_.add(builderForValue.build());
         onChanged();
       } else {
-        this.endpointsBuilder_.addMessage(builderForValue.build());
+        endpointsBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
@@ -1108,12 +1108,12 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addEndpoints(
         int index, io.evitadb.externalApi.grpc.generated.GrpcEndpoint.Builder builderForValue) {
-      if (this.endpointsBuilder_ == null) {
+      if (endpointsBuilder_ == null) {
         ensureEndpointsIsMutable();
-        this.endpoints_.add(index, builderForValue.build());
+        endpoints_.add(index, builderForValue.build());
         onChanged();
       } else {
-        this.endpointsBuilder_.addMessage(index, builderForValue.build());
+        endpointsBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
@@ -1127,13 +1127,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addAllEndpoints(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEndpoint> values) {
-      if (this.endpointsBuilder_ == null) {
+      if (endpointsBuilder_ == null) {
         ensureEndpointsIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, this.endpoints_);
+            values, endpoints_);
         onChanged();
       } else {
-        this.endpointsBuilder_.addAllMessages(values);
+        endpointsBuilder_.addAllMessages(values);
       }
       return this;
     }
@@ -1146,12 +1146,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
      */
     public Builder clearEndpoints() {
-      if (this.endpointsBuilder_ == null) {
-        this.endpoints_ = java.util.Collections.emptyList();
-        this.bitField0_ = (this.bitField0_ & ~0x00000002);
+      if (endpointsBuilder_ == null) {
+        endpoints_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000002);
         onChanged();
       } else {
-        this.endpointsBuilder_.clear();
+        endpointsBuilder_.clear();
       }
       return this;
     }
@@ -1164,12 +1164,12 @@ private static final long serialVersionUID = 0L;
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
      */
     public Builder removeEndpoints(int index) {
-      if (this.endpointsBuilder_ == null) {
+      if (endpointsBuilder_ == null) {
         ensureEndpointsIsMutable();
-        this.endpoints_.remove(index);
+        endpoints_.remove(index);
         onChanged();
       } else {
-        this.endpointsBuilder_.remove(index);
+        endpointsBuilder_.remove(index);
       }
       return this;
     }
@@ -1195,9 +1195,9 @@ private static final long serialVersionUID = 0L;
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEndpointOrBuilder getEndpointsOrBuilder(
         int index) {
-      if (this.endpointsBuilder_ == null) {
-        return this.endpoints_.get(index);  } else {
-        return this.endpointsBuilder_.getMessageOrBuilder(index);
+      if (endpointsBuilder_ == null) {
+        return endpoints_.get(index);  } else {
+        return endpointsBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -1210,10 +1210,10 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEndpointOrBuilder>
          getEndpointsOrBuilderList() {
-      if (this.endpointsBuilder_ != null) {
-        return this.endpointsBuilder_.getMessageOrBuilderList();
+      if (endpointsBuilder_ != null) {
+        return endpointsBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(this.endpoints_);
+        return java.util.Collections.unmodifiableList(endpoints_);
       }
     }
     /**
@@ -1256,16 +1256,16 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.RepeatedFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEndpoint, io.evitadb.externalApi.grpc.generated.GrpcEndpoint.Builder, io.evitadb.externalApi.grpc.generated.GrpcEndpointOrBuilder>
         getEndpointsFieldBuilder() {
-      if (this.endpointsBuilder_ == null) {
-        this.endpointsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+      if (endpointsBuilder_ == null) {
+        endpointsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcEndpoint, io.evitadb.externalApi.grpc.generated.GrpcEndpoint.Builder, io.evitadb.externalApi.grpc.generated.GrpcEndpointOrBuilder>(
-                this.endpoints_,
-                ((this.bitField0_ & 0x00000002) != 0),
+                endpoints_,
+                ((bitField0_ & 0x00000002) != 0),
                 getParentForChildren(),
                 isClean());
-        this.endpoints_ = null;
+        endpoints_ = null;
       }
-      return this.endpointsBuilder_;
+      return endpointsBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

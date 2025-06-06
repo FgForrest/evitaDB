@@ -77,7 +77,7 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            this.terminated_ = input.readBool();
+            terminated_ = input.readBool();
             break;
           }
           default: {
@@ -124,41 +124,41 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean getTerminated() {
-    return this.terminated_;
+    return terminated_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.terminated_ != false) {
-      output.writeBool(1, this.terminated_);
+    if (terminated_ != false) {
+      output.writeBool(1, terminated_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.terminated_ != false) {
+    if (terminated_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(1, this.terminated_);
+        .computeBoolSize(1, terminated_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -174,22 +174,22 @@ private static final long serialVersionUID = 0L;
 
     if (getTerminated()
         != other.getTerminated()) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + TERMINATED_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getTerminated());
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -325,7 +325,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.terminated_ = false;
+      terminated_ = false;
 
       return this;
     }
@@ -353,7 +353,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse result = new io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse(this);
-      result.terminated_ = this.terminated_;
+      result.terminated_ = terminated_;
       onBuilt();
       return result;
     }
@@ -445,7 +445,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean getTerminated() {
-      return this.terminated_;
+      return terminated_;
     }
     /**
      * <pre>
@@ -458,7 +458,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTerminated(boolean value) {
 
-      this.terminated_ = value;
+      terminated_ = value;
       onChanged();
       return this;
     }
@@ -472,7 +472,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearTerminated() {
 
-      this.terminated_ = false;
+      terminated_ = false;
       onChanged();
       return this;
     }

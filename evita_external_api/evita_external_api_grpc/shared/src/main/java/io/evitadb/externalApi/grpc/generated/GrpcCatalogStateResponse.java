@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcCatalogStateResponse() {
-    this.state_ = 0;
+    state_ = 0;
   }
 
   @java.lang.Override
@@ -79,7 +79,7 @@ private static final long serialVersionUID = 0L;
           case 8: {
             int rawValue = input.readEnum();
 
-            this.state_ = rawValue;
+            state_ = rawValue;
             break;
           }
           default: {
@@ -125,7 +125,7 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for state.
    */
   @java.lang.Override public int getStateValue() {
-    return this.state_;
+    return state_;
   }
   /**
    * <pre>
@@ -137,42 +137,42 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCatalogState getState() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcCatalogState result = io.evitadb.externalApi.grpc.generated.GrpcCatalogState.valueOf(this.state_);
+    io.evitadb.externalApi.grpc.generated.GrpcCatalogState result = io.evitadb.externalApi.grpc.generated.GrpcCatalogState.valueOf(state_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNRECOGNIZED : result;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.state_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
-      output.writeEnum(1, this.state_);
+    if (state_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
+      output.writeEnum(1, state_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.state_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
+    if (state_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(1, this.state_);
+        .computeEnumSize(1, state_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -186,22 +186,22 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse other = (io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse) obj;
 
-    if (this.state_ != other.state_) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (state_ != other.state_) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + STATE_FIELD_NUMBER;
-    hash = (53 * hash) + this.state_;
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (53 * hash) + state_;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -337,7 +337,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.state_ = 0;
+      state_ = 0;
 
       return this;
     }
@@ -365,7 +365,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse result = new io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse(this);
-      result.state_ = this.state_;
+      result.state_ = state_;
       onBuilt();
       return result;
     }
@@ -456,7 +456,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire for state.
      */
     @java.lang.Override public int getStateValue() {
-      return this.state_;
+      return state_;
     }
     /**
      * <pre>
@@ -469,7 +469,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setStateValue(int value) {
 
-      this.state_ = value;
+      state_ = value;
       onChanged();
       return this;
     }
@@ -484,7 +484,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogState getState() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcCatalogState result = io.evitadb.externalApi.grpc.generated.GrpcCatalogState.valueOf(this.state_);
+      io.evitadb.externalApi.grpc.generated.GrpcCatalogState result = io.evitadb.externalApi.grpc.generated.GrpcCatalogState.valueOf(state_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNRECOGNIZED : result;
     }
     /**
@@ -501,7 +501,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
 
-      this.state_ = value.getNumber();
+      state_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -515,7 +515,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearState() {
 
-      this.state_ = 0;
+      state_ = 0;
       onChanged();
       return this;
     }

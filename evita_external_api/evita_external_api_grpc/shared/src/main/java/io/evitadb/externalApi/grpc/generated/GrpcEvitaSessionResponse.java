@@ -43,11 +43,11 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcEvitaSessionResponse() {
-    this.sessionId_ = "";
-    this.sessionType_ = 0;
-    this.commitBehaviour_ = 0;
-    this.catalogState_ = 0;
-    this.catalogId_ = "";
+    sessionId_ = "";
+    sessionType_ = 0;
+    commitBehaviour_ = 0;
+    catalogState_ = 0;
+    catalogId_ = "";
   }
 
   @java.lang.Override
@@ -83,31 +83,31 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            this.sessionId_ = s;
+            sessionId_ = s;
             break;
           }
           case 16: {
             int rawValue = input.readEnum();
 
-            this.sessionType_ = rawValue;
+            sessionType_ = rawValue;
             break;
           }
           case 24: {
             int rawValue = input.readEnum();
 
-            this.commitBehaviour_ = rawValue;
+            commitBehaviour_ = rawValue;
             break;
           }
           case 32: {
             int rawValue = input.readEnum();
 
-            this.catalogState_ = rawValue;
+            catalogState_ = rawValue;
             break;
           }
           case 42: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            this.catalogId_ = s;
+            catalogId_ = s;
             break;
           }
           default: {
@@ -154,14 +154,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getSessionId() {
-    java.lang.Object ref = this.sessionId_;
+    java.lang.Object ref = sessionId_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      this.sessionId_ = s;
+      sessionId_ = s;
       return s;
     }
   }
@@ -176,12 +176,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getSessionIdBytes() {
-    java.lang.Object ref = this.sessionId_;
+    java.lang.Object ref = sessionId_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      this.sessionId_ = b;
+      sessionId_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -199,7 +199,7 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for sessionType.
    */
   @java.lang.Override public int getSessionTypeValue() {
-    return this.sessionType_;
+    return sessionType_;
   }
   /**
    * <pre>
@@ -211,7 +211,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcSessionType getSessionType() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcSessionType result = io.evitadb.externalApi.grpc.generated.GrpcSessionType.valueOf(this.sessionType_);
+    io.evitadb.externalApi.grpc.generated.GrpcSessionType result = io.evitadb.externalApi.grpc.generated.GrpcSessionType.valueOf(sessionType_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcSessionType.UNRECOGNIZED : result;
   }
 
@@ -226,7 +226,7 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for commitBehaviour.
    */
   @java.lang.Override public int getCommitBehaviourValue() {
-    return this.commitBehaviour_;
+    return commitBehaviour_;
   }
   /**
    * <pre>
@@ -238,7 +238,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior getCommitBehaviour() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior result = io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.valueOf(this.commitBehaviour_);
+    io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior result = io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.valueOf(commitBehaviour_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.UNRECOGNIZED : result;
   }
 
@@ -253,7 +253,7 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for catalogState.
    */
   @java.lang.Override public int getCatalogStateValue() {
-    return this.catalogState_;
+    return catalogState_;
   }
   /**
    * <pre>
@@ -265,7 +265,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCatalogState getCatalogState() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcCatalogState result = io.evitadb.externalApi.grpc.generated.GrpcCatalogState.valueOf(this.catalogState_);
+    io.evitadb.externalApi.grpc.generated.GrpcCatalogState result = io.evitadb.externalApi.grpc.generated.GrpcCatalogState.valueOf(catalogState_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNRECOGNIZED : result;
   }
 
@@ -281,14 +281,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getCatalogId() {
-    java.lang.Object ref = this.catalogId_;
+    java.lang.Object ref = catalogId_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      this.catalogId_ = s;
+      catalogId_ = s;
       return s;
     }
   }
@@ -303,12 +303,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getCatalogIdBytes() {
-    java.lang.Object ref = this.catalogId_;
+    java.lang.Object ref = catalogId_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      this.catalogId_ = b;
+      catalogId_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -318,61 +318,61 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.sessionId_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.sessionId_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(sessionId_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, sessionId_);
     }
-    if (this.sessionType_ != io.evitadb.externalApi.grpc.generated.GrpcSessionType.READ_ONLY.getNumber()) {
-      output.writeEnum(2, this.sessionType_);
+    if (sessionType_ != io.evitadb.externalApi.grpc.generated.GrpcSessionType.READ_ONLY.getNumber()) {
+      output.writeEnum(2, sessionType_);
     }
-    if (this.commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION.getNumber()) {
-      output.writeEnum(3, this.commitBehaviour_);
+    if (commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION.getNumber()) {
+      output.writeEnum(3, commitBehaviour_);
     }
-    if (this.catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
-      output.writeEnum(4, this.catalogState_);
+    if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
+      output.writeEnum(4, catalogState_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.catalogId_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 5, this.catalogId_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogId_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 5, catalogId_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.sessionId_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.sessionId_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(sessionId_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, sessionId_);
     }
-    if (this.sessionType_ != io.evitadb.externalApi.grpc.generated.GrpcSessionType.READ_ONLY.getNumber()) {
+    if (sessionType_ != io.evitadb.externalApi.grpc.generated.GrpcSessionType.READ_ONLY.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(2, this.sessionType_);
+        .computeEnumSize(2, sessionType_);
     }
-    if (this.commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION.getNumber()) {
+    if (commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(3, this.commitBehaviour_);
+        .computeEnumSize(3, commitBehaviour_);
     }
-    if (this.catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
+    if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(4, this.catalogState_);
+        .computeEnumSize(4, catalogState_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.catalogId_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(5, this.catalogId_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogId_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(5, catalogId_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -388,34 +388,34 @@ private static final long serialVersionUID = 0L;
 
     if (!getSessionId()
         .equals(other.getSessionId())) return false;
-    if (this.sessionType_ != other.sessionType_) return false;
-    if (this.commitBehaviour_ != other.commitBehaviour_) return false;
-    if (this.catalogState_ != other.catalogState_) return false;
+    if (sessionType_ != other.sessionType_) return false;
+    if (commitBehaviour_ != other.commitBehaviour_) return false;
+    if (catalogState_ != other.catalogState_) return false;
     if (!getCatalogId()
         .equals(other.getCatalogId())) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + SESSIONID_FIELD_NUMBER;
     hash = (53 * hash) + getSessionId().hashCode();
     hash = (37 * hash) + SESSIONTYPE_FIELD_NUMBER;
-    hash = (53 * hash) + this.sessionType_;
+    hash = (53 * hash) + sessionType_;
     hash = (37 * hash) + COMMITBEHAVIOUR_FIELD_NUMBER;
-    hash = (53 * hash) + this.commitBehaviour_;
+    hash = (53 * hash) + commitBehaviour_;
     hash = (37 * hash) + CATALOGSTATE_FIELD_NUMBER;
-    hash = (53 * hash) + this.catalogState_;
+    hash = (53 * hash) + catalogState_;
     hash = (37 * hash) + CATALOGID_FIELD_NUMBER;
     hash = (53 * hash) + getCatalogId().hashCode();
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -551,15 +551,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.sessionId_ = "";
+      sessionId_ = "";
 
-      this.sessionType_ = 0;
+      sessionType_ = 0;
 
-      this.commitBehaviour_ = 0;
+      commitBehaviour_ = 0;
 
-      this.catalogState_ = 0;
+      catalogState_ = 0;
 
-      this.catalogId_ = "";
+      catalogId_ = "";
 
       return this;
     }
@@ -587,11 +587,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse result = new io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse(this);
-      result.sessionId_ = this.sessionId_;
-      result.sessionType_ = this.sessionType_;
-      result.commitBehaviour_ = this.commitBehaviour_;
-      result.catalogState_ = this.catalogState_;
-      result.catalogId_ = this.catalogId_;
+      result.sessionId_ = sessionId_;
+      result.sessionType_ = sessionType_;
+      result.commitBehaviour_ = commitBehaviour_;
+      result.catalogState_ = catalogState_;
+      result.catalogId_ = catalogId_;
       onBuilt();
       return result;
     }
@@ -641,7 +641,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse.getDefaultInstance()) return this;
       if (!other.getSessionId().isEmpty()) {
-        this.sessionId_ = other.sessionId_;
+        sessionId_ = other.sessionId_;
         onChanged();
       }
       if (other.sessionType_ != 0) {
@@ -654,7 +654,7 @@ private static final long serialVersionUID = 0L;
         setCatalogStateValue(other.getCatalogStateValue());
       }
       if (!other.getCatalogId().isEmpty()) {
-        this.catalogId_ = other.catalogId_;
+        catalogId_ = other.catalogId_;
         onChanged();
       }
       this.mergeUnknownFields(other.unknownFields);
@@ -696,12 +696,12 @@ private static final long serialVersionUID = 0L;
      * @return The sessionId.
      */
     public java.lang.String getSessionId() {
-      java.lang.Object ref = this.sessionId_;
+      java.lang.Object ref = sessionId_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        this.sessionId_ = s;
+        sessionId_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -717,12 +717,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getSessionIdBytes() {
-      java.lang.Object ref = this.sessionId_;
+      java.lang.Object ref = sessionId_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        this.sessionId_ = b;
+        sessionId_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -743,7 +743,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.sessionId_ = value;
+      sessionId_ = value;
       onChanged();
       return this;
     }
@@ -757,7 +757,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearSessionId() {
 
-      this.sessionId_ = getDefaultInstance().getSessionId();
+      sessionId_ = getDefaultInstance().getSessionId();
       onChanged();
       return this;
     }
@@ -777,7 +777,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      this.sessionId_ = value;
+      sessionId_ = value;
       onChanged();
       return this;
     }
@@ -792,7 +792,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire for sessionType.
      */
     @java.lang.Override public int getSessionTypeValue() {
-      return this.sessionType_;
+      return sessionType_;
     }
     /**
      * <pre>
@@ -805,7 +805,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setSessionTypeValue(int value) {
 
-      this.sessionType_ = value;
+      sessionType_ = value;
       onChanged();
       return this;
     }
@@ -820,7 +820,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSessionType getSessionType() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcSessionType result = io.evitadb.externalApi.grpc.generated.GrpcSessionType.valueOf(this.sessionType_);
+      io.evitadb.externalApi.grpc.generated.GrpcSessionType result = io.evitadb.externalApi.grpc.generated.GrpcSessionType.valueOf(sessionType_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcSessionType.UNRECOGNIZED : result;
     }
     /**
@@ -837,7 +837,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
 
-      this.sessionType_ = value.getNumber();
+      sessionType_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -851,7 +851,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearSessionType() {
 
-      this.sessionType_ = 0;
+      sessionType_ = 0;
       onChanged();
       return this;
     }
@@ -866,7 +866,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire for commitBehaviour.
      */
     @java.lang.Override public int getCommitBehaviourValue() {
-      return this.commitBehaviour_;
+      return commitBehaviour_;
     }
     /**
      * <pre>
@@ -879,7 +879,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCommitBehaviourValue(int value) {
 
-      this.commitBehaviour_ = value;
+      commitBehaviour_ = value;
       onChanged();
       return this;
     }
@@ -894,7 +894,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior getCommitBehaviour() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior result = io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.valueOf(this.commitBehaviour_);
+      io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior result = io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.valueOf(commitBehaviour_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.UNRECOGNIZED : result;
     }
     /**
@@ -911,7 +911,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
 
-      this.commitBehaviour_ = value.getNumber();
+      commitBehaviour_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -925,7 +925,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearCommitBehaviour() {
 
-      this.commitBehaviour_ = 0;
+      commitBehaviour_ = 0;
       onChanged();
       return this;
     }
@@ -940,7 +940,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire for catalogState.
      */
     @java.lang.Override public int getCatalogStateValue() {
-      return this.catalogState_;
+      return catalogState_;
     }
     /**
      * <pre>
@@ -953,7 +953,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCatalogStateValue(int value) {
 
-      this.catalogState_ = value;
+      catalogState_ = value;
       onChanged();
       return this;
     }
@@ -968,7 +968,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCatalogState getCatalogState() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcCatalogState result = io.evitadb.externalApi.grpc.generated.GrpcCatalogState.valueOf(this.catalogState_);
+      io.evitadb.externalApi.grpc.generated.GrpcCatalogState result = io.evitadb.externalApi.grpc.generated.GrpcCatalogState.valueOf(catalogState_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogState.UNRECOGNIZED : result;
     }
     /**
@@ -985,7 +985,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
 
-      this.catalogState_ = value.getNumber();
+      catalogState_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -999,7 +999,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearCatalogState() {
 
-      this.catalogState_ = 0;
+      catalogState_ = 0;
       onChanged();
       return this;
     }
@@ -1014,12 +1014,12 @@ private static final long serialVersionUID = 0L;
      * @return The catalogId.
      */
     public java.lang.String getCatalogId() {
-      java.lang.Object ref = this.catalogId_;
+      java.lang.Object ref = catalogId_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        this.catalogId_ = s;
+        catalogId_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -1035,12 +1035,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getCatalogIdBytes() {
-      java.lang.Object ref = this.catalogId_;
+      java.lang.Object ref = catalogId_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        this.catalogId_ = b;
+        catalogId_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -1061,7 +1061,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.catalogId_ = value;
+      catalogId_ = value;
       onChanged();
       return this;
     }
@@ -1075,7 +1075,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearCatalogId() {
 
-      this.catalogId_ = getDefaultInstance().getCatalogId();
+      catalogId_ = getDefaultInstance().getCatalogId();
       onChanged();
       return this;
     }
@@ -1095,7 +1095,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      this.catalogId_ = value;
+      catalogId_ = value;
       onChanged();
       return this;
     }

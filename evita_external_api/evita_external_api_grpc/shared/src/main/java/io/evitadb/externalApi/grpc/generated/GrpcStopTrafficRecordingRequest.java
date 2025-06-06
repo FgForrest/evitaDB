@@ -77,13 +77,13 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder subBuilder = null;
-            if (this.taskStatusId_ != null) {
-              subBuilder = this.taskStatusId_.toBuilder();
+            if (taskStatusId_ != null) {
+              subBuilder = taskStatusId_.toBuilder();
             }
-            this.taskStatusId_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry);
+            taskStatusId_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.taskStatusId_);
-              this.taskStatusId_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(taskStatusId_);
+              taskStatusId_ = subBuilder.buildPartial();
             }
 
             break;
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasTaskStatusId() {
-    return this.taskStatusId_ != null;
+    return taskStatusId_ != null;
   }
   /**
    * <pre>
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcUuid getTaskStatusId() {
-    return this.taskStatusId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : this.taskStatusId_;
+    return taskStatusId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : taskStatusId_;
   }
   /**
    * <pre>
@@ -161,35 +161,35 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.taskStatusId_ != null) {
+    if (taskStatusId_ != null) {
       output.writeMessage(1, getTaskStatusId());
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.taskStatusId_ != null) {
+    if (taskStatusId_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getTaskStatusId());
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -208,14 +208,14 @@ private static final long serialVersionUID = 0L;
       if (!getTaskStatusId()
           .equals(other.getTaskStatusId())) return false;
     }
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -223,8 +223,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + TASKSTATUSID_FIELD_NUMBER;
       hash = (53 * hash) + getTaskStatusId().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -360,11 +360,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (this.taskStatusIdBuilder_ == null) {
-        this.taskStatusId_ = null;
+      if (taskStatusIdBuilder_ == null) {
+        taskStatusId_ = null;
       } else {
-        this.taskStatusId_ = null;
-        this.taskStatusIdBuilder_ = null;
+        taskStatusId_ = null;
+        taskStatusIdBuilder_ = null;
       }
       return this;
     }
@@ -392,10 +392,10 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcStopTrafficRecordingRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcStopTrafficRecordingRequest result = new io.evitadb.externalApi.grpc.generated.GrpcStopTrafficRecordingRequest(this);
-      if (this.taskStatusIdBuilder_ == null) {
-        result.taskStatusId_ = this.taskStatusId_;
+      if (taskStatusIdBuilder_ == null) {
+        result.taskStatusId_ = taskStatusId_;
       } else {
-        result.taskStatusId_ = this.taskStatusIdBuilder_.build();
+        result.taskStatusId_ = taskStatusIdBuilder_.build();
       }
       onBuilt();
       return result;
@@ -489,7 +489,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the taskStatusId field is set.
      */
     public boolean hasTaskStatusId() {
-      return this.taskStatusIdBuilder_ != null || this.taskStatusId_ != null;
+      return taskStatusIdBuilder_ != null || taskStatusId_ != null;
     }
     /**
      * <pre>
@@ -500,10 +500,10 @@ private static final long serialVersionUID = 0L;
      * @return The taskStatusId.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuid getTaskStatusId() {
-      if (this.taskStatusIdBuilder_ == null) {
-        return this.taskStatusId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : this.taskStatusId_;
+      if (taskStatusIdBuilder_ == null) {
+        return taskStatusId_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : taskStatusId_;
       } else {
-        return this.taskStatusIdBuilder_.getMessage();
+        return taskStatusIdBuilder_.getMessage();
       }
     }
     /**
@@ -514,14 +514,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskStatusId = 1;</code>
      */
     public Builder setTaskStatusId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
-      if (this.taskStatusIdBuilder_ == null) {
+      if (taskStatusIdBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.taskStatusId_ = value;
+        taskStatusId_ = value;
         onChanged();
       } else {
-        this.taskStatusIdBuilder_.setMessage(value);
+        taskStatusIdBuilder_.setMessage(value);
       }
 
       return this;
@@ -535,11 +535,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTaskStatusId(
         io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder builderForValue) {
-      if (this.taskStatusIdBuilder_ == null) {
-        this.taskStatusId_ = builderForValue.build();
+      if (taskStatusIdBuilder_ == null) {
+        taskStatusId_ = builderForValue.build();
         onChanged();
       } else {
-        this.taskStatusIdBuilder_.setMessage(builderForValue.build());
+        taskStatusIdBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -552,16 +552,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskStatusId = 1;</code>
      */
     public Builder mergeTaskStatusId(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
-      if (this.taskStatusIdBuilder_ == null) {
-        if (this.taskStatusId_ != null) {
-          this.taskStatusId_ =
-            io.evitadb.externalApi.grpc.generated.GrpcUuid.newBuilder(this.taskStatusId_).mergeFrom(value).buildPartial();
+      if (taskStatusIdBuilder_ == null) {
+        if (taskStatusId_ != null) {
+          taskStatusId_ =
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.newBuilder(taskStatusId_).mergeFrom(value).buildPartial();
         } else {
-          this.taskStatusId_ = value;
+          taskStatusId_ = value;
         }
         onChanged();
       } else {
-        this.taskStatusIdBuilder_.mergeFrom(value);
+        taskStatusIdBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -574,12 +574,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskStatusId = 1;</code>
      */
     public Builder clearTaskStatusId() {
-      if (this.taskStatusIdBuilder_ == null) {
-        this.taskStatusId_ = null;
+      if (taskStatusIdBuilder_ == null) {
+        taskStatusId_ = null;
         onChanged();
       } else {
-        this.taskStatusId_ = null;
-        this.taskStatusIdBuilder_ = null;
+        taskStatusId_ = null;
+        taskStatusIdBuilder_ = null;
       }
 
       return this;
@@ -604,11 +604,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskStatusId = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getTaskStatusIdOrBuilder() {
-      if (this.taskStatusIdBuilder_ != null) {
-        return this.taskStatusIdBuilder_.getMessageOrBuilder();
+      if (taskStatusIdBuilder_ != null) {
+        return taskStatusIdBuilder_.getMessageOrBuilder();
       } else {
-        return this.taskStatusId_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : this.taskStatusId_;
+        return taskStatusId_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : taskStatusId_;
       }
     }
     /**
@@ -621,15 +621,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
         getTaskStatusIdFieldBuilder() {
-      if (this.taskStatusIdBuilder_ == null) {
-        this.taskStatusIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (taskStatusIdBuilder_ == null) {
+        taskStatusIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>(
                 getTaskStatusId(),
                 getParentForChildren(),
                 isClean());
-        this.taskStatusId_ = null;
+        taskStatusId_ = null;
       }
-      return this.taskStatusIdBuilder_;
+      return taskStatusIdBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

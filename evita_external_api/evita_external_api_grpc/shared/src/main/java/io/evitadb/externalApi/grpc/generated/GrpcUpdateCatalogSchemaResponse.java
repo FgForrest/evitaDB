@@ -77,7 +77,7 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            this.version_ = input.readInt32();
+            version_ = input.readInt32();
             break;
           }
           default: {
@@ -124,41 +124,41 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getVersion() {
-    return this.version_;
+    return version_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.version_ != 0) {
-      output.writeInt32(1, this.version_);
+    if (version_ != 0) {
+      output.writeInt32(1, version_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.version_ != 0) {
+    if (version_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, this.version_);
+        .computeInt32Size(1, version_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -174,21 +174,21 @@ private static final long serialVersionUID = 0L;
 
     if (getVersion()
         != other.getVersion()) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + VERSION_FIELD_NUMBER;
     hash = (53 * hash) + getVersion();
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -324,7 +324,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.version_ = 0;
+      version_ = 0;
 
       return this;
     }
@@ -352,7 +352,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse result = new io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse(this);
-      result.version_ = this.version_;
+      result.version_ = version_;
       onBuilt();
       return result;
     }
@@ -444,7 +444,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getVersion() {
-      return this.version_;
+      return version_;
     }
     /**
      * <pre>
@@ -457,7 +457,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setVersion(int value) {
 
-      this.version_ = value;
+      version_ = value;
       onChanged();
       return this;
     }
@@ -471,7 +471,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearVersion() {
 
-      this.version_ = 0;
+      version_ = 0;
       onChanged();
       return this;
     }

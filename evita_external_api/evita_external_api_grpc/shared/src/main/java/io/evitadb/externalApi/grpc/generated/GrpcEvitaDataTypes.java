@@ -752,7 +752,7 @@ public final class GrpcEvitaDataTypes {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogStatistics_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcCatalogStatistics_descriptor,
-        new java.lang.String[] { "CatalogId", "CatalogName", "Corrupted", "CatalogState", "StoredVersion", "TotalRecords", "IndexCount", "SizeOnDiskInBytes", "EntityCollectionStatistics", });
+        new java.lang.String[] { "CatalogId", "CatalogName", "Corrupted", "CatalogState", "CatalogVersion", "TotalRecords", "IndexCount", "SizeOnDiskInBytes", "EntityCollectionStatistics", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionStatistics_descriptor =
       getDescriptor().getMessageTypes().get(41);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionStatistics_fieldAccessorTable = new

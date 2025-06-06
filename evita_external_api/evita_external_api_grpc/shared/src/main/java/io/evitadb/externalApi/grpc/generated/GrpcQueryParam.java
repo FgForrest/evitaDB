@@ -77,533 +77,533 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
-            this.queryParamCase_ = 1;
-            this.queryParam_ = s;
+            queryParamCase_ = 1;
+            queryParam_ = s;
             break;
           }
           case 16: {
-            this.queryParam_ = input.readInt32();
-            this.queryParamCase_ = 2;
+            queryParam_ = input.readInt32();
+            queryParamCase_ = 2;
             break;
           }
           case 24: {
-            this.queryParam_ = input.readInt64();
-            this.queryParamCase_ = 3;
+            queryParam_ = input.readInt64();
+            queryParamCase_ = 3;
             break;
           }
           case 32: {
-            this.queryParam_ = input.readBool();
-            this.queryParamCase_ = 4;
+            queryParam_ = input.readBool();
+            queryParamCase_ = 4;
             break;
           }
           case 42: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder subBuilder = null;
-            if (this.queryParamCase_ == 5) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 5) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 5;
+            queryParamCase_ = 5;
             break;
           }
           case 50: {
             io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder subBuilder = null;
-            if (this.queryParamCase_ == 6) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 6) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 6;
+            queryParamCase_ = 6;
             break;
           }
           case 58: {
             io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder subBuilder = null;
-            if (this.queryParamCase_ == 7) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 7) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 7;
+            queryParamCase_ = 7;
             break;
           }
           case 66: {
             io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder subBuilder = null;
-            if (this.queryParamCase_ == 8) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 8) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 8;
+            queryParamCase_ = 8;
             break;
           }
           case 74: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder subBuilder = null;
-            if (this.queryParamCase_ == 9) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 9) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 9;
+            queryParamCase_ = 9;
             break;
           }
           case 82: {
             io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder subBuilder = null;
-            if (this.queryParamCase_ == 10) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 10) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 10;
+            queryParamCase_ = 10;
             break;
           }
           case 90: {
             io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder subBuilder = null;
-            if (this.queryParamCase_ == 11) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLocale) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 11) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLocale) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcLocale.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLocale) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLocale) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 11;
+            queryParamCase_ = 11;
             break;
           }
           case 98: {
             io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder subBuilder = null;
-            if (this.queryParamCase_ == 12) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcCurrency) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 12) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcCurrency) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcCurrency.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcCurrency) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcCurrency) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 12;
+            queryParamCase_ = 12;
             break;
           }
           case 104: {
             int rawValue = input.readEnum();
-            this.queryParamCase_ = 13;
-            this.queryParam_ = rawValue;
+            queryParamCase_ = 13;
+            queryParam_ = rawValue;
             break;
           }
           case 112: {
             int rawValue = input.readEnum();
-            this.queryParamCase_ = 14;
-            this.queryParam_ = rawValue;
+            queryParamCase_ = 14;
+            queryParam_ = rawValue;
             break;
           }
           case 120: {
             int rawValue = input.readEnum();
-            this.queryParamCase_ = 15;
-            this.queryParam_ = rawValue;
+            queryParamCase_ = 15;
+            queryParam_ = rawValue;
             break;
           }
           case 128: {
             int rawValue = input.readEnum();
-            this.queryParamCase_ = 16;
-            this.queryParam_ = rawValue;
+            queryParamCase_ = 16;
+            queryParam_ = rawValue;
             break;
           }
           case 136: {
             int rawValue = input.readEnum();
-            this.queryParamCase_ = 17;
-            this.queryParam_ = rawValue;
+            queryParamCase_ = 17;
+            queryParam_ = rawValue;
             break;
           }
           case 144: {
             int rawValue = input.readEnum();
-            this.queryParamCase_ = 18;
-            this.queryParam_ = rawValue;
+            queryParamCase_ = 18;
+            queryParam_ = rawValue;
             break;
           }
           case 152: {
             int rawValue = input.readEnum();
-            this.queryParamCase_ = 19;
-            this.queryParam_ = rawValue;
+            queryParamCase_ = 19;
+            queryParam_ = rawValue;
             break;
           }
           case 160: {
             int rawValue = input.readEnum();
-            this.queryParamCase_ = 20;
-            this.queryParam_ = rawValue;
+            queryParamCase_ = 20;
+            queryParam_ = rawValue;
             break;
           }
           case 168: {
             int rawValue = input.readEnum();
-            this.queryParamCase_ = 21;
-            this.queryParam_ = rawValue;
+            queryParamCase_ = 21;
+            queryParam_ = rawValue;
             break;
           }
           case 176: {
             int rawValue = input.readEnum();
-            this.queryParamCase_ = 22;
-            this.queryParam_ = rawValue;
+            queryParamCase_ = 22;
+            queryParam_ = rawValue;
             break;
           }
           case 186: {
             java.lang.String s = input.readStringRequireUtf8();
-            this.queryParamCase_ = 23;
-            this.queryParam_ = s;
+            queryParamCase_ = 23;
+            queryParam_ = s;
             break;
           }
           case 192: {
             int rawValue = input.readEnum();
-            this.queryParamCase_ = 24;
-            this.queryParam_ = rawValue;
+            queryParamCase_ = 24;
+            queryParam_ = rawValue;
             break;
           }
           case 200: {
             int rawValue = input.readEnum();
-            this.queryParamCase_ = 25;
-            this.queryParam_ = rawValue;
+            queryParamCase_ = 25;
+            queryParam_ = rawValue;
             break;
           }
           case 208: {
             int rawValue = input.readEnum();
-            this.queryParamCase_ = 26;
-            this.queryParam_ = rawValue;
+            queryParamCase_ = 26;
+            queryParam_ = rawValue;
             break;
           }
           case 216: {
             int rawValue = input.readEnum();
-            this.queryParamCase_ = 27;
-            this.queryParam_ = rawValue;
+            queryParamCase_ = 27;
+            queryParam_ = rawValue;
             break;
           }
           case 810: {
             io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 101) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcStringArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 101) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcStringArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcStringArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 101;
+            queryParamCase_ = 101;
             break;
           }
           case 818: {
             io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 102) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 102) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 102;
+            queryParamCase_ = 102;
             break;
           }
           case 826: {
             io.evitadb.externalApi.grpc.generated.GrpcLongArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 103) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLongArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 103) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLongArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcLongArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLongArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLongArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 103;
+            queryParamCase_ = 103;
             break;
           }
           case 834: {
             io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 104) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 104) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 104;
+            queryParamCase_ = 104;
             break;
           }
           case 842: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 105) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 105) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 105;
+            queryParamCase_ = 105;
             break;
           }
           case 850: {
             io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 106) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 106) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 106;
+            queryParamCase_ = 106;
             break;
           }
           case 858: {
             io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 107) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 107) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 107;
+            queryParamCase_ = 107;
             break;
           }
           case 866: {
             io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 108) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 108) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 108;
+            queryParamCase_ = 108;
             break;
           }
           case 874: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 109) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 109) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 109;
+            queryParamCase_ = 109;
             break;
           }
           case 882: {
             io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 110) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 110) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 110;
+            queryParamCase_ = 110;
             break;
           }
           case 890: {
             io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 111) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 111) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 111;
+            queryParamCase_ = 111;
             break;
           }
           case 898: {
             io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 112) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 112) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 112;
+            queryParamCase_ = 112;
             break;
           }
           case 906: {
             io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 113) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 113) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 113;
+            queryParamCase_ = 113;
             break;
           }
           case 914: {
             io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 114) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 114) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 114;
+            queryParamCase_ = 114;
             break;
           }
           case 922: {
             io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 115) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 115) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 115;
+            queryParamCase_ = 115;
             break;
           }
           case 930: {
             io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 116) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 116) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 116;
+            queryParamCase_ = 116;
             break;
           }
           case 938: {
             io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 117) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 117) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 117;
+            queryParamCase_ = 117;
             break;
           }
           case 946: {
             io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 118) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 118) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 118;
+            queryParamCase_ = 118;
             break;
           }
           case 954: {
             io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 119) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 119) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 119;
+            queryParamCase_ = 119;
             break;
           }
           case 962: {
             io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 120) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 120) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 120;
+            queryParamCase_ = 120;
             break;
           }
           case 970: {
             io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 121) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 121) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 121;
+            queryParamCase_ = 121;
             break;
           }
           case 978: {
             io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.Builder subBuilder = null;
-            if (this.queryParamCase_ == 122) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) this.queryParam_).toBuilder();
+            if (queryParamCase_ == 122) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_).toBuilder();
             }
-            this.queryParam_ =
+            queryParam_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) this.queryParam_);
-              this.queryParam_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_);
+              queryParam_ = subBuilder.buildPartial();
             }
-            this.queryParamCase_ = 122;
+            queryParamCase_ = 122;
             break;
           }
           default: {
@@ -770,7 +770,7 @@ private static final long serialVersionUID = 0L;
   public QueryParamCase
   getQueryParamCase() {
     return QueryParamCase.forNumber(
-        this.queryParamCase_);
+        queryParamCase_);
   }
 
   public static final int STRINGVALUE_FIELD_NUMBER = 1;
@@ -783,7 +783,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the stringValue field is set.
    */
   public boolean hasStringValue() {
-    return this.queryParamCase_ == 1;
+    return queryParamCase_ == 1;
   }
   /**
    * <pre>
@@ -795,8 +795,8 @@ private static final long serialVersionUID = 0L;
    */
   public java.lang.String getStringValue() {
     java.lang.Object ref = "";
-    if (this.queryParamCase_ == 1) {
-      ref = this.queryParam_;
+    if (queryParamCase_ == 1) {
+      ref = queryParam_;
     }
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
@@ -804,8 +804,8 @@ private static final long serialVersionUID = 0L;
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      if (this.queryParamCase_ == 1) {
-        this.queryParam_ = s;
+      if (queryParamCase_ == 1) {
+        queryParam_ = s;
       }
       return s;
     }
@@ -821,15 +821,15 @@ private static final long serialVersionUID = 0L;
   public com.google.protobuf.ByteString
       getStringValueBytes() {
     java.lang.Object ref = "";
-    if (this.queryParamCase_ == 1) {
-      ref = this.queryParam_;
+    if (queryParamCase_ == 1) {
+      ref = queryParam_;
     }
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      if (this.queryParamCase_ == 1) {
-        this.queryParam_ = b;
+      if (queryParamCase_ == 1) {
+        queryParam_ = b;
       }
       return b;
     } else {
@@ -848,7 +848,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasIntegerValue() {
-    return this.queryParamCase_ == 2;
+    return queryParamCase_ == 2;
   }
   /**
    * <pre>
@@ -860,8 +860,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getIntegerValue() {
-    if (this.queryParamCase_ == 2) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 2) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -877,7 +877,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasLongValue() {
-    return this.queryParamCase_ == 3;
+    return queryParamCase_ == 3;
   }
   /**
    * <pre>
@@ -889,8 +889,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public long getLongValue() {
-    if (this.queryParamCase_ == 3) {
-      return (java.lang.Long) this.queryParam_;
+    if (queryParamCase_ == 3) {
+      return (java.lang.Long) queryParam_;
     }
     return 0L;
   }
@@ -906,7 +906,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasBooleanValue() {
-    return this.queryParamCase_ == 4;
+    return queryParamCase_ == 4;
   }
   /**
    * <pre>
@@ -918,8 +918,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean getBooleanValue() {
-    if (this.queryParamCase_ == 4) {
-      return (java.lang.Boolean) this.queryParam_;
+    if (queryParamCase_ == 4) {
+      return (java.lang.Boolean) queryParam_;
     }
     return false;
   }
@@ -935,7 +935,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasBigDecimalValue() {
-    return this.queryParamCase_ == 5;
+    return queryParamCase_ == 5;
   }
   /**
    * <pre>
@@ -947,8 +947,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getBigDecimalValue() {
-    if (this.queryParamCase_ == 5) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.queryParam_;
+    if (queryParamCase_ == 5) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
   }
@@ -961,8 +961,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getBigDecimalValueOrBuilder() {
-    if (this.queryParamCase_ == 5) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.queryParam_;
+    if (queryParamCase_ == 5) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
   }
@@ -978,7 +978,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasDateTimeRangeValue() {
-    return this.queryParamCase_ == 6;
+    return queryParamCase_ == 6;
   }
   /**
    * <pre>
@@ -990,8 +990,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange getDateTimeRangeValue() {
-    if (this.queryParamCase_ == 6) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) this.queryParam_;
+    if (queryParamCase_ == 6) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance();
   }
@@ -1004,8 +1004,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder getDateTimeRangeValueOrBuilder() {
-    if (this.queryParamCase_ == 6) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) this.queryParam_;
+    if (queryParamCase_ == 6) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance();
   }
@@ -1021,7 +1021,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasIntegerNumberRangeValue() {
-    return this.queryParamCase_ == 7;
+    return queryParamCase_ == 7;
   }
   /**
    * <pre>
@@ -1033,8 +1033,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange getIntegerNumberRangeValue() {
-    if (this.queryParamCase_ == 7) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.queryParam_;
+    if (queryParamCase_ == 7) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
   }
@@ -1047,8 +1047,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder getIntegerNumberRangeValueOrBuilder() {
-    if (this.queryParamCase_ == 7) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.queryParam_;
+    if (queryParamCase_ == 7) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
   }
@@ -1064,7 +1064,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasLongNumberRangeValue() {
-    return this.queryParamCase_ == 8;
+    return queryParamCase_ == 8;
   }
   /**
    * <pre>
@@ -1076,8 +1076,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange getLongNumberRangeValue() {
-    if (this.queryParamCase_ == 8) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.queryParam_;
+    if (queryParamCase_ == 8) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
   }
@@ -1090,8 +1090,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder getLongNumberRangeValueOrBuilder() {
-    if (this.queryParamCase_ == 8) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.queryParam_;
+    if (queryParamCase_ == 8) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
   }
@@ -1107,7 +1107,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasBigDecimalNumberRangeValue() {
-    return this.queryParamCase_ == 9;
+    return queryParamCase_ == 9;
   }
   /**
    * <pre>
@@ -1119,8 +1119,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange getBigDecimalNumberRangeValue() {
-    if (this.queryParamCase_ == 9) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.queryParam_;
+    if (queryParamCase_ == 9) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
   }
@@ -1133,8 +1133,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder getBigDecimalNumberRangeValueOrBuilder() {
-    if (this.queryParamCase_ == 9) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.queryParam_;
+    if (queryParamCase_ == 9) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
   }
@@ -1150,7 +1150,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasOffsetDateTimeValue() {
-    return this.queryParamCase_ == 10;
+    return queryParamCase_ == 10;
   }
   /**
    * <pre>
@@ -1162,8 +1162,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getOffsetDateTimeValue() {
-    if (this.queryParamCase_ == 10) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) this.queryParam_;
+    if (queryParamCase_ == 10) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance();
   }
@@ -1176,8 +1176,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getOffsetDateTimeValueOrBuilder() {
-    if (this.queryParamCase_ == 10) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) this.queryParam_;
+    if (queryParamCase_ == 10) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance();
   }
@@ -1193,7 +1193,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasLocaleValue() {
-    return this.queryParamCase_ == 11;
+    return queryParamCase_ == 11;
   }
   /**
    * <pre>
@@ -1205,8 +1205,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLocale getLocaleValue() {
-    if (this.queryParamCase_ == 11) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcLocale) this.queryParam_;
+    if (queryParamCase_ == 11) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcLocale) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance();
   }
@@ -1219,8 +1219,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getLocaleValueOrBuilder() {
-    if (this.queryParamCase_ == 11) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcLocale) this.queryParam_;
+    if (queryParamCase_ == 11) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcLocale) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance();
   }
@@ -1236,7 +1236,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasCurrencyValue() {
-    return this.queryParamCase_ == 12;
+    return queryParamCase_ == 12;
   }
   /**
    * <pre>
@@ -1248,8 +1248,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcCurrency getCurrencyValue() {
-    if (this.queryParamCase_ == 12) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcCurrency) this.queryParam_;
+    if (queryParamCase_ == 12) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCurrency) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance();
   }
@@ -1262,8 +1262,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder getCurrencyValueOrBuilder() {
-    if (this.queryParamCase_ == 12) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcCurrency) this.queryParam_;
+    if (queryParamCase_ == 12) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCurrency) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance();
   }
@@ -1278,7 +1278,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the facetStatisticsDepthValue field is set.
    */
   public boolean hasFacetStatisticsDepthValue() {
-    return this.queryParamCase_ == 13;
+    return queryParamCase_ == 13;
   }
   /**
    * <pre>
@@ -1289,8 +1289,8 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for facetStatisticsDepthValue.
    */
   public int getFacetStatisticsDepthValueValue() {
-    if (this.queryParamCase_ == 13) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 13) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -1303,10 +1303,10 @@ private static final long serialVersionUID = 0L;
    * @return The facetStatisticsDepthValue.
    */
   public io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth getFacetStatisticsDepthValue() {
-    if (this.queryParamCase_ == 13) {
+    if (queryParamCase_ == 13) {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth result = io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth.valueOf(
-          (java.lang.Integer) this.queryParam_);
+          (java.lang.Integer) queryParam_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth.COUNTS;
@@ -1322,7 +1322,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the queryPriceModelValue field is set.
    */
   public boolean hasQueryPriceModelValue() {
-    return this.queryParamCase_ == 14;
+    return queryParamCase_ == 14;
   }
   /**
    * <pre>
@@ -1333,8 +1333,8 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for queryPriceModelValue.
    */
   public int getQueryPriceModelValueValue() {
-    if (this.queryParamCase_ == 14) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 14) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -1347,10 +1347,10 @@ private static final long serialVersionUID = 0L;
    * @return The queryPriceModelValue.
    */
   public io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode getQueryPriceModelValue() {
-    if (this.queryParamCase_ == 14) {
+    if (queryParamCase_ == 14) {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode result = io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode.valueOf(
-          (java.lang.Integer) this.queryParam_);
+          (java.lang.Integer) queryParam_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode.WITH_TAX;
@@ -1366,7 +1366,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the priceContentModeValue field is set.
    */
   public boolean hasPriceContentModeValue() {
-    return this.queryParamCase_ == 15;
+    return queryParamCase_ == 15;
   }
   /**
    * <pre>
@@ -1377,8 +1377,8 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for priceContentModeValue.
    */
   public int getPriceContentModeValueValue() {
-    if (this.queryParamCase_ == 15) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 15) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -1391,10 +1391,10 @@ private static final long serialVersionUID = 0L;
    * @return The priceContentModeValue.
    */
   public io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode getPriceContentModeValue() {
-    if (this.queryParamCase_ == 15) {
+    if (queryParamCase_ == 15) {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode result = io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode.valueOf(
-          (java.lang.Integer) this.queryParam_);
+          (java.lang.Integer) queryParam_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode.FETCH_NONE;
@@ -1410,7 +1410,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the attributeSpecialValue field is set.
    */
   public boolean hasAttributeSpecialValue() {
-    return this.queryParamCase_ == 16;
+    return queryParamCase_ == 16;
   }
   /**
    * <pre>
@@ -1421,8 +1421,8 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for attributeSpecialValue.
    */
   public int getAttributeSpecialValueValue() {
-    if (this.queryParamCase_ == 16) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 16) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -1435,10 +1435,10 @@ private static final long serialVersionUID = 0L;
    * @return The attributeSpecialValue.
    */
   public io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue getAttributeSpecialValue() {
-    if (this.queryParamCase_ == 16) {
+    if (queryParamCase_ == 16) {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue result = io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue.valueOf(
-          (java.lang.Integer) this.queryParam_);
+          (java.lang.Integer) queryParam_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue.NULL;
@@ -1454,7 +1454,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the orderDirectionValue field is set.
    */
   public boolean hasOrderDirectionValue() {
-    return this.queryParamCase_ == 17;
+    return queryParamCase_ == 17;
   }
   /**
    * <pre>
@@ -1465,8 +1465,8 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for orderDirectionValue.
    */
   public int getOrderDirectionValueValue() {
-    if (this.queryParamCase_ == 17) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 17) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -1479,10 +1479,10 @@ private static final long serialVersionUID = 0L;
    * @return The orderDirectionValue.
    */
   public io.evitadb.externalApi.grpc.generated.GrpcOrderDirection getOrderDirectionValue() {
-    if (this.queryParamCase_ == 17) {
+    if (queryParamCase_ == 17) {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcOrderDirection result = io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.valueOf(
-          (java.lang.Integer) this.queryParam_);
+          (java.lang.Integer) queryParam_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.ASC;
@@ -1498,7 +1498,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the emptyHierarchicalEntityBehaviour field is set.
    */
   public boolean hasEmptyHierarchicalEntityBehaviour() {
-    return this.queryParamCase_ == 18;
+    return queryParamCase_ == 18;
   }
   /**
    * <pre>
@@ -1509,8 +1509,8 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for emptyHierarchicalEntityBehaviour.
    */
   public int getEmptyHierarchicalEntityBehaviourValue() {
-    if (this.queryParamCase_ == 18) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 18) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -1523,10 +1523,10 @@ private static final long serialVersionUID = 0L;
    * @return The emptyHierarchicalEntityBehaviour.
    */
   public io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour getEmptyHierarchicalEntityBehaviour() {
-    if (this.queryParamCase_ == 18) {
+    if (queryParamCase_ == 18) {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour.valueOf(
-          (java.lang.Integer) this.queryParam_);
+          (java.lang.Integer) queryParam_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour.LEAVE_EMPTY;
@@ -1542,7 +1542,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the statisticsBase field is set.
    */
   public boolean hasStatisticsBase() {
-    return this.queryParamCase_ == 19;
+    return queryParamCase_ == 19;
   }
   /**
    * <pre>
@@ -1553,8 +1553,8 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for statisticsBase.
    */
   public int getStatisticsBaseValue() {
-    if (this.queryParamCase_ == 19) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 19) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -1567,10 +1567,10 @@ private static final long serialVersionUID = 0L;
    * @return The statisticsBase.
    */
   public io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase getStatisticsBase() {
-    if (this.queryParamCase_ == 19) {
+    if (queryParamCase_ == 19) {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase result = io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase.valueOf(
-          (java.lang.Integer) this.queryParam_);
+          (java.lang.Integer) queryParam_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase.COMPLETE_FILTER;
@@ -1586,7 +1586,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the statisticsType field is set.
    */
   public boolean hasStatisticsType() {
-    return this.queryParamCase_ == 20;
+    return queryParamCase_ == 20;
   }
   /**
    * <pre>
@@ -1597,8 +1597,8 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for statisticsType.
    */
   public int getStatisticsTypeValue() {
-    if (this.queryParamCase_ == 20) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 20) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -1611,10 +1611,10 @@ private static final long serialVersionUID = 0L;
    * @return The statisticsType.
    */
   public io.evitadb.externalApi.grpc.generated.GrpcStatisticsType getStatisticsType() {
-    if (this.queryParamCase_ == 20) {
+    if (queryParamCase_ == 20) {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcStatisticsType result = io.evitadb.externalApi.grpc.generated.GrpcStatisticsType.valueOf(
-          (java.lang.Integer) this.queryParam_);
+          (java.lang.Integer) queryParam_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcStatisticsType.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcStatisticsType.CHILDREN_COUNT;
@@ -1630,7 +1630,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the histogramBehavior field is set.
    */
   public boolean hasHistogramBehavior() {
-    return this.queryParamCase_ == 21;
+    return queryParamCase_ == 21;
   }
   /**
    * <pre>
@@ -1641,8 +1641,8 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for histogramBehavior.
    */
   public int getHistogramBehaviorValue() {
-    if (this.queryParamCase_ == 21) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 21) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -1655,10 +1655,10 @@ private static final long serialVersionUID = 0L;
    * @return The histogramBehavior.
    */
   public io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior getHistogramBehavior() {
-    if (this.queryParamCase_ == 21) {
+    if (queryParamCase_ == 21) {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior result = io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior.valueOf(
-          (java.lang.Integer) this.queryParam_);
+          (java.lang.Integer) queryParam_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior.STANDARD;
@@ -1674,7 +1674,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the managedReferencesBehaviour field is set.
    */
   public boolean hasManagedReferencesBehaviour() {
-    return this.queryParamCase_ == 22;
+    return queryParamCase_ == 22;
   }
   /**
    * <pre>
@@ -1685,8 +1685,8 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for managedReferencesBehaviour.
    */
   public int getManagedReferencesBehaviourValue() {
-    if (this.queryParamCase_ == 22) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 22) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -1699,10 +1699,10 @@ private static final long serialVersionUID = 0L;
    * @return The managedReferencesBehaviour.
    */
   public io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour getManagedReferencesBehaviour() {
-    if (this.queryParamCase_ == 22) {
+    if (queryParamCase_ == 22) {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour.valueOf(
-          (java.lang.Integer) this.queryParam_);
+          (java.lang.Integer) queryParam_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour.ANY;
@@ -1718,7 +1718,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the expressionValue field is set.
    */
   public boolean hasExpressionValue() {
-    return this.queryParamCase_ == 23;
+    return queryParamCase_ == 23;
   }
   /**
    * <pre>
@@ -1730,8 +1730,8 @@ private static final long serialVersionUID = 0L;
    */
   public java.lang.String getExpressionValue() {
     java.lang.Object ref = "";
-    if (this.queryParamCase_ == 23) {
-      ref = this.queryParam_;
+    if (queryParamCase_ == 23) {
+      ref = queryParam_;
     }
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
@@ -1739,8 +1739,8 @@ private static final long serialVersionUID = 0L;
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      if (this.queryParamCase_ == 23) {
-        this.queryParam_ = s;
+      if (queryParamCase_ == 23) {
+        queryParam_ = s;
       }
       return s;
     }
@@ -1756,15 +1756,15 @@ private static final long serialVersionUID = 0L;
   public com.google.protobuf.ByteString
       getExpressionValueBytes() {
     java.lang.Object ref = "";
-    if (this.queryParamCase_ == 23) {
-      ref = this.queryParam_;
+    if (queryParamCase_ == 23) {
+      ref = queryParam_;
     }
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      if (this.queryParamCase_ == 23) {
-        this.queryParam_ = b;
+      if (queryParamCase_ == 23) {
+        queryParam_ = b;
       }
       return b;
     } else {
@@ -1782,7 +1782,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the scope field is set.
    */
   public boolean hasScope() {
-    return this.queryParamCase_ == 24;
+    return queryParamCase_ == 24;
   }
   /**
    * <pre>
@@ -1793,8 +1793,8 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for scope.
    */
   public int getScopeValue() {
-    if (this.queryParamCase_ == 24) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 24) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -1807,10 +1807,10 @@ private static final long serialVersionUID = 0L;
    * @return The scope.
    */
   public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getScope() {
-    if (this.queryParamCase_ == 24) {
+    if (queryParamCase_ == 24) {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(
-          (java.lang.Integer) this.queryParam_);
+          (java.lang.Integer) queryParam_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE;
@@ -1826,7 +1826,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the facetRelationType field is set.
    */
   public boolean hasFacetRelationType() {
-    return this.queryParamCase_ == 25;
+    return queryParamCase_ == 25;
   }
   /**
    * <pre>
@@ -1837,8 +1837,8 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for facetRelationType.
    */
   public int getFacetRelationTypeValue() {
-    if (this.queryParamCase_ == 25) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 25) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -1851,10 +1851,10 @@ private static final long serialVersionUID = 0L;
    * @return The facetRelationType.
    */
   public io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType getFacetRelationType() {
-    if (this.queryParamCase_ == 25) {
+    if (queryParamCase_ == 25) {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType result = io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.valueOf(
-          (java.lang.Integer) this.queryParam_);
+          (java.lang.Integer) queryParam_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.DISJUNCTION;
@@ -1870,7 +1870,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the facetGroupRelationLevel field is set.
    */
   public boolean hasFacetGroupRelationLevel() {
-    return this.queryParamCase_ == 26;
+    return queryParamCase_ == 26;
   }
   /**
    * <pre>
@@ -1881,8 +1881,8 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for facetGroupRelationLevel.
    */
   public int getFacetGroupRelationLevelValue() {
-    if (this.queryParamCase_ == 26) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 26) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -1895,10 +1895,10 @@ private static final long serialVersionUID = 0L;
    * @return The facetGroupRelationLevel.
    */
   public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel getFacetGroupRelationLevel() {
-    if (this.queryParamCase_ == 26) {
+    if (queryParamCase_ == 26) {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel result = io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.valueOf(
-          (java.lang.Integer) this.queryParam_);
+          (java.lang.Integer) queryParam_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
@@ -1914,7 +1914,7 @@ private static final long serialVersionUID = 0L;
    * @return Whether the traversalMode field is set.
    */
   public boolean hasTraversalMode() {
-    return this.queryParamCase_ == 27;
+    return queryParamCase_ == 27;
   }
   /**
    * <pre>
@@ -1925,8 +1925,8 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for traversalMode.
    */
   public int getTraversalModeValue() {
-    if (this.queryParamCase_ == 27) {
-      return (java.lang.Integer) this.queryParam_;
+    if (queryParamCase_ == 27) {
+      return (java.lang.Integer) queryParam_;
     }
     return 0;
   }
@@ -1939,10 +1939,10 @@ private static final long serialVersionUID = 0L;
    * @return The traversalMode.
    */
   public io.evitadb.externalApi.grpc.generated.GrpcTraversalMode getTraversalMode() {
-    if (this.queryParamCase_ == 27) {
+    if (queryParamCase_ == 27) {
       @SuppressWarnings("deprecation")
       io.evitadb.externalApi.grpc.generated.GrpcTraversalMode result = io.evitadb.externalApi.grpc.generated.GrpcTraversalMode.valueOf(
-          (java.lang.Integer) this.queryParam_);
+          (java.lang.Integer) queryParam_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTraversalMode.UNRECOGNIZED : result;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcTraversalMode.DEPTH_FIRST;
@@ -1959,7 +1959,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasStringArrayValue() {
-    return this.queryParamCase_ == 101;
+    return queryParamCase_ == 101;
   }
   /**
    * <pre>
@@ -1971,8 +1971,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcStringArray getStringArrayValue() {
-    if (this.queryParamCase_ == 101) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcStringArray) this.queryParam_;
+    if (queryParamCase_ == 101) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance();
   }
@@ -1985,8 +1985,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder getStringArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 101) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcStringArray) this.queryParam_;
+    if (queryParamCase_ == 101) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance();
   }
@@ -2002,7 +2002,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasIntegerArrayValue() {
-    return this.queryParamCase_ == 102;
+    return queryParamCase_ == 102;
   }
   /**
    * <pre>
@@ -2014,8 +2014,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcIntegerArray getIntegerArrayValue() {
-    if (this.queryParamCase_ == 102) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) this.queryParam_;
+    if (queryParamCase_ == 102) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance();
   }
@@ -2028,8 +2028,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder getIntegerArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 102) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) this.queryParam_;
+    if (queryParamCase_ == 102) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance();
   }
@@ -2045,7 +2045,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasLongArrayValue() {
-    return this.queryParamCase_ == 103;
+    return queryParamCase_ == 103;
   }
   /**
    * <pre>
@@ -2057,8 +2057,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLongArray getLongArrayValue() {
-    if (this.queryParamCase_ == 103) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcLongArray) this.queryParam_;
+    if (queryParamCase_ == 103) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcLongArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance();
   }
@@ -2071,8 +2071,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder getLongArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 103) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcLongArray) this.queryParam_;
+    if (queryParamCase_ == 103) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcLongArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance();
   }
@@ -2088,7 +2088,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasBooleanArrayValue() {
-    return this.queryParamCase_ == 104;
+    return queryParamCase_ == 104;
   }
   /**
    * <pre>
@@ -2100,8 +2100,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBooleanArray getBooleanArrayValue() {
-    if (this.queryParamCase_ == 104) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) this.queryParam_;
+    if (queryParamCase_ == 104) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance();
   }
@@ -2114,8 +2114,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder getBooleanArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 104) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) this.queryParam_;
+    if (queryParamCase_ == 104) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance();
   }
@@ -2131,7 +2131,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasBigDecimalArrayValue() {
-    return this.queryParamCase_ == 105;
+    return queryParamCase_ == 105;
   }
   /**
    * <pre>
@@ -2143,8 +2143,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray getBigDecimalArrayValue() {
-    if (this.queryParamCase_ == 105) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) this.queryParam_;
+    if (queryParamCase_ == 105) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance();
   }
@@ -2157,8 +2157,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder getBigDecimalArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 105) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) this.queryParam_;
+    if (queryParamCase_ == 105) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance();
   }
@@ -2174,7 +2174,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasDateTimeRangeArrayValue() {
-    return this.queryParamCase_ == 106;
+    return queryParamCase_ == 106;
   }
   /**
    * <pre>
@@ -2186,8 +2186,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray getDateTimeRangeArrayValue() {
-    if (this.queryParamCase_ == 106) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) this.queryParam_;
+    if (queryParamCase_ == 106) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance();
   }
@@ -2200,8 +2200,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder getDateTimeRangeArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 106) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) this.queryParam_;
+    if (queryParamCase_ == 106) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance();
   }
@@ -2217,7 +2217,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasIntegerNumberRangeArrayValue() {
-    return this.queryParamCase_ == 107;
+    return queryParamCase_ == 107;
   }
   /**
    * <pre>
@@ -2229,8 +2229,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray getIntegerNumberRangeArrayValue() {
-    if (this.queryParamCase_ == 107) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) this.queryParam_;
+    if (queryParamCase_ == 107) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance();
   }
@@ -2243,8 +2243,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder getIntegerNumberRangeArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 107) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) this.queryParam_;
+    if (queryParamCase_ == 107) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance();
   }
@@ -2260,7 +2260,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasLongNumberRangeArrayValue() {
-    return this.queryParamCase_ == 108;
+    return queryParamCase_ == 108;
   }
   /**
    * <pre>
@@ -2272,8 +2272,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray getLongNumberRangeArrayValue() {
-    if (this.queryParamCase_ == 108) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) this.queryParam_;
+    if (queryParamCase_ == 108) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance();
   }
@@ -2286,8 +2286,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder getLongNumberRangeArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 108) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) this.queryParam_;
+    if (queryParamCase_ == 108) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance();
   }
@@ -2303,7 +2303,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasBigDecimalNumberRangeArrayValue() {
-    return this.queryParamCase_ == 109;
+    return queryParamCase_ == 109;
   }
   /**
    * <pre>
@@ -2315,8 +2315,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray getBigDecimalNumberRangeArrayValue() {
-    if (this.queryParamCase_ == 109) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) this.queryParam_;
+    if (queryParamCase_ == 109) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance();
   }
@@ -2329,8 +2329,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder getBigDecimalNumberRangeArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 109) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) this.queryParam_;
+    if (queryParamCase_ == 109) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance();
   }
@@ -2346,7 +2346,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasOffsetDateTimeArrayValue() {
-    return this.queryParamCase_ == 110;
+    return queryParamCase_ == 110;
   }
   /**
    * <pre>
@@ -2358,8 +2358,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray getOffsetDateTimeArrayValue() {
-    if (this.queryParamCase_ == 110) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) this.queryParam_;
+    if (queryParamCase_ == 110) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance();
   }
@@ -2372,8 +2372,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder getOffsetDateTimeArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 110) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) this.queryParam_;
+    if (queryParamCase_ == 110) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance();
   }
@@ -2389,7 +2389,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasLocaleArrayValue() {
-    return this.queryParamCase_ == 111;
+    return queryParamCase_ == 111;
   }
   /**
    * <pre>
@@ -2401,8 +2401,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLocaleArray getLocaleArrayValue() {
-    if (this.queryParamCase_ == 111) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) this.queryParam_;
+    if (queryParamCase_ == 111) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance();
   }
@@ -2415,8 +2415,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder getLocaleArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 111) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) this.queryParam_;
+    if (queryParamCase_ == 111) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance();
   }
@@ -2432,7 +2432,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasCurrencyArrayValue() {
-    return this.queryParamCase_ == 112;
+    return queryParamCase_ == 112;
   }
   /**
    * <pre>
@@ -2444,8 +2444,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray getCurrencyArrayValue() {
-    if (this.queryParamCase_ == 112) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) this.queryParam_;
+    if (queryParamCase_ == 112) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance();
   }
@@ -2458,8 +2458,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder getCurrencyArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 112) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) this.queryParam_;
+    if (queryParamCase_ == 112) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance();
   }
@@ -2475,7 +2475,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasFacetStatisticsDepthArrayValue() {
-    return this.queryParamCase_ == 113;
+    return queryParamCase_ == 113;
   }
   /**
    * <pre>
@@ -2487,8 +2487,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray getFacetStatisticsDepthArrayValue() {
-    if (this.queryParamCase_ == 113) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) this.queryParam_;
+    if (queryParamCase_ == 113) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.getDefaultInstance();
   }
@@ -2501,8 +2501,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArrayOrBuilder getFacetStatisticsDepthArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 113) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) this.queryParam_;
+    if (queryParamCase_ == 113) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.getDefaultInstance();
   }
@@ -2518,7 +2518,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasQueryPriceModelArrayValue() {
-    return this.queryParamCase_ == 114;
+    return queryParamCase_ == 114;
   }
   /**
    * <pre>
@@ -2530,8 +2530,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray getQueryPriceModelArrayValue() {
-    if (this.queryParamCase_ == 114) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) this.queryParam_;
+    if (queryParamCase_ == 114) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.getDefaultInstance();
   }
@@ -2544,8 +2544,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArrayOrBuilder getQueryPriceModelArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 114) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) this.queryParam_;
+    if (queryParamCase_ == 114) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.getDefaultInstance();
   }
@@ -2561,7 +2561,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasPriceContentModeArrayValue() {
-    return this.queryParamCase_ == 115;
+    return queryParamCase_ == 115;
   }
   /**
    * <pre>
@@ -2573,8 +2573,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray getPriceContentModeArrayValue() {
-    if (this.queryParamCase_ == 115) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) this.queryParam_;
+    if (queryParamCase_ == 115) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.getDefaultInstance();
   }
@@ -2587,8 +2587,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArrayOrBuilder getPriceContentModeArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 115) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) this.queryParam_;
+    if (queryParamCase_ == 115) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.getDefaultInstance();
   }
@@ -2604,7 +2604,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasAttributeSpecialArrayValue() {
-    return this.queryParamCase_ == 116;
+    return queryParamCase_ == 116;
   }
   /**
    * <pre>
@@ -2616,8 +2616,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray getAttributeSpecialArrayValue() {
-    if (this.queryParamCase_ == 116) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) this.queryParam_;
+    if (queryParamCase_ == 116) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.getDefaultInstance();
   }
@@ -2630,8 +2630,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArrayOrBuilder getAttributeSpecialArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 116) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) this.queryParam_;
+    if (queryParamCase_ == 116) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.getDefaultInstance();
   }
@@ -2647,7 +2647,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasOrderDirectionArrayValue() {
-    return this.queryParamCase_ == 117;
+    return queryParamCase_ == 117;
   }
   /**
    * <pre>
@@ -2659,8 +2659,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray getOrderDirectionArrayValue() {
-    if (this.queryParamCase_ == 117) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) this.queryParam_;
+    if (queryParamCase_ == 117) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.getDefaultInstance();
   }
@@ -2673,8 +2673,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArrayOrBuilder getOrderDirectionArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 117) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) this.queryParam_;
+    if (queryParamCase_ == 117) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.getDefaultInstance();
   }
@@ -2690,7 +2690,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasEmptyHierarchicalEntityBehaviourArrayValue() {
-    return this.queryParamCase_ == 118;
+    return queryParamCase_ == 118;
   }
   /**
    * <pre>
@@ -2702,8 +2702,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray getEmptyHierarchicalEntityBehaviourArrayValue() {
-    if (this.queryParamCase_ == 118) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) this.queryParam_;
+    if (queryParamCase_ == 118) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.getDefaultInstance();
   }
@@ -2716,8 +2716,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder getEmptyHierarchicalEntityBehaviourArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 118) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) this.queryParam_;
+    if (queryParamCase_ == 118) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.getDefaultInstance();
   }
@@ -2733,7 +2733,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasStatisticsBaseArrayValue() {
-    return this.queryParamCase_ == 119;
+    return queryParamCase_ == 119;
   }
   /**
    * <pre>
@@ -2745,8 +2745,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray getStatisticsBaseArrayValue() {
-    if (this.queryParamCase_ == 119) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) this.queryParam_;
+    if (queryParamCase_ == 119) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.getDefaultInstance();
   }
@@ -2759,8 +2759,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArrayOrBuilder getStatisticsBaseArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 119) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) this.queryParam_;
+    if (queryParamCase_ == 119) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.getDefaultInstance();
   }
@@ -2776,7 +2776,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasStatisticsTypeArrayValue() {
-    return this.queryParamCase_ == 120;
+    return queryParamCase_ == 120;
   }
   /**
    * <pre>
@@ -2788,8 +2788,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray getStatisticsTypeArrayValue() {
-    if (this.queryParamCase_ == 120) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) this.queryParam_;
+    if (queryParamCase_ == 120) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.getDefaultInstance();
   }
@@ -2802,8 +2802,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArrayOrBuilder getStatisticsTypeArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 120) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) this.queryParam_;
+    if (queryParamCase_ == 120) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.getDefaultInstance();
   }
@@ -2819,7 +2819,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasHistogramBehaviorTypeArrayValue() {
-    return this.queryParamCase_ == 121;
+    return queryParamCase_ == 121;
   }
   /**
    * <pre>
@@ -2831,8 +2831,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray getHistogramBehaviorTypeArrayValue() {
-    if (this.queryParamCase_ == 121) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) this.queryParam_;
+    if (queryParamCase_ == 121) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.getDefaultInstance();
   }
@@ -2845,8 +2845,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArrayOrBuilder getHistogramBehaviorTypeArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 121) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) this.queryParam_;
+    if (queryParamCase_ == 121) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.getDefaultInstance();
   }
@@ -2862,7 +2862,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasScopeArrayValue() {
-    return this.queryParamCase_ == 122;
+    return queryParamCase_ == 122;
   }
   /**
    * <pre>
@@ -2874,8 +2874,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray getScopeArrayValue() {
-    if (this.queryParamCase_ == 122) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) this.queryParam_;
+    if (queryParamCase_ == 122) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance();
   }
@@ -2888,8 +2888,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArrayOrBuilder getScopeArrayValueOrBuilder() {
-    if (this.queryParamCase_ == 122) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) this.queryParam_;
+    if (queryParamCase_ == 122) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance();
   }
@@ -2897,375 +2897,375 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.queryParamCase_ == 1) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.queryParam_);
+    if (queryParamCase_ == 1) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, queryParam_);
     }
-    if (this.queryParamCase_ == 2) {
+    if (queryParamCase_ == 2) {
       output.writeInt32(
-          2, (int)((java.lang.Integer) this.queryParam_));
+          2, (int)((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 3) {
+    if (queryParamCase_ == 3) {
       output.writeInt64(
-          3, (long)((java.lang.Long) this.queryParam_));
+          3, (long)((java.lang.Long) queryParam_));
     }
-    if (this.queryParamCase_ == 4) {
+    if (queryParamCase_ == 4) {
       output.writeBool(
-          4, (boolean)((java.lang.Boolean) this.queryParam_));
+          4, (boolean)((java.lang.Boolean) queryParam_));
     }
-    if (this.queryParamCase_ == 5) {
-      output.writeMessage(5, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.queryParam_);
+    if (queryParamCase_ == 5) {
+      output.writeMessage(5, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) queryParam_);
     }
-    if (this.queryParamCase_ == 6) {
-      output.writeMessage(6, (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) this.queryParam_);
+    if (queryParamCase_ == 6) {
+      output.writeMessage(6, (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) queryParam_);
     }
-    if (this.queryParamCase_ == 7) {
-      output.writeMessage(7, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.queryParam_);
+    if (queryParamCase_ == 7) {
+      output.writeMessage(7, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) queryParam_);
     }
-    if (this.queryParamCase_ == 8) {
-      output.writeMessage(8, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.queryParam_);
+    if (queryParamCase_ == 8) {
+      output.writeMessage(8, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) queryParam_);
     }
-    if (this.queryParamCase_ == 9) {
-      output.writeMessage(9, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.queryParam_);
+    if (queryParamCase_ == 9) {
+      output.writeMessage(9, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) queryParam_);
     }
-    if (this.queryParamCase_ == 10) {
-      output.writeMessage(10, (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) this.queryParam_);
+    if (queryParamCase_ == 10) {
+      output.writeMessage(10, (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) queryParam_);
     }
-    if (this.queryParamCase_ == 11) {
-      output.writeMessage(11, (io.evitadb.externalApi.grpc.generated.GrpcLocale) this.queryParam_);
+    if (queryParamCase_ == 11) {
+      output.writeMessage(11, (io.evitadb.externalApi.grpc.generated.GrpcLocale) queryParam_);
     }
-    if (this.queryParamCase_ == 12) {
-      output.writeMessage(12, (io.evitadb.externalApi.grpc.generated.GrpcCurrency) this.queryParam_);
+    if (queryParamCase_ == 12) {
+      output.writeMessage(12, (io.evitadb.externalApi.grpc.generated.GrpcCurrency) queryParam_);
     }
-    if (this.queryParamCase_ == 13) {
-      output.writeEnum(13, ((java.lang.Integer) this.queryParam_));
+    if (queryParamCase_ == 13) {
+      output.writeEnum(13, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 14) {
-      output.writeEnum(14, ((java.lang.Integer) this.queryParam_));
+    if (queryParamCase_ == 14) {
+      output.writeEnum(14, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 15) {
-      output.writeEnum(15, ((java.lang.Integer) this.queryParam_));
+    if (queryParamCase_ == 15) {
+      output.writeEnum(15, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 16) {
-      output.writeEnum(16, ((java.lang.Integer) this.queryParam_));
+    if (queryParamCase_ == 16) {
+      output.writeEnum(16, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 17) {
-      output.writeEnum(17, ((java.lang.Integer) this.queryParam_));
+    if (queryParamCase_ == 17) {
+      output.writeEnum(17, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 18) {
-      output.writeEnum(18, ((java.lang.Integer) this.queryParam_));
+    if (queryParamCase_ == 18) {
+      output.writeEnum(18, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 19) {
-      output.writeEnum(19, ((java.lang.Integer) this.queryParam_));
+    if (queryParamCase_ == 19) {
+      output.writeEnum(19, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 20) {
-      output.writeEnum(20, ((java.lang.Integer) this.queryParam_));
+    if (queryParamCase_ == 20) {
+      output.writeEnum(20, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 21) {
-      output.writeEnum(21, ((java.lang.Integer) this.queryParam_));
+    if (queryParamCase_ == 21) {
+      output.writeEnum(21, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 22) {
-      output.writeEnum(22, ((java.lang.Integer) this.queryParam_));
+    if (queryParamCase_ == 22) {
+      output.writeEnum(22, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 23) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 23, this.queryParam_);
+    if (queryParamCase_ == 23) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 23, queryParam_);
     }
-    if (this.queryParamCase_ == 24) {
-      output.writeEnum(24, ((java.lang.Integer) this.queryParam_));
+    if (queryParamCase_ == 24) {
+      output.writeEnum(24, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 25) {
-      output.writeEnum(25, ((java.lang.Integer) this.queryParam_));
+    if (queryParamCase_ == 25) {
+      output.writeEnum(25, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 26) {
-      output.writeEnum(26, ((java.lang.Integer) this.queryParam_));
+    if (queryParamCase_ == 26) {
+      output.writeEnum(26, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 27) {
-      output.writeEnum(27, ((java.lang.Integer) this.queryParam_));
+    if (queryParamCase_ == 27) {
+      output.writeEnum(27, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 101) {
-      output.writeMessage(101, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) this.queryParam_);
+    if (queryParamCase_ == 101) {
+      output.writeMessage(101, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_);
     }
-    if (this.queryParamCase_ == 102) {
-      output.writeMessage(102, (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) this.queryParam_);
+    if (queryParamCase_ == 102) {
+      output.writeMessage(102, (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) queryParam_);
     }
-    if (this.queryParamCase_ == 103) {
-      output.writeMessage(103, (io.evitadb.externalApi.grpc.generated.GrpcLongArray) this.queryParam_);
+    if (queryParamCase_ == 103) {
+      output.writeMessage(103, (io.evitadb.externalApi.grpc.generated.GrpcLongArray) queryParam_);
     }
-    if (this.queryParamCase_ == 104) {
-      output.writeMessage(104, (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) this.queryParam_);
+    if (queryParamCase_ == 104) {
+      output.writeMessage(104, (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) queryParam_);
     }
-    if (this.queryParamCase_ == 105) {
-      output.writeMessage(105, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) this.queryParam_);
+    if (queryParamCase_ == 105) {
+      output.writeMessage(105, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) queryParam_);
     }
-    if (this.queryParamCase_ == 106) {
-      output.writeMessage(106, (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) this.queryParam_);
+    if (queryParamCase_ == 106) {
+      output.writeMessage(106, (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 107) {
-      output.writeMessage(107, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) this.queryParam_);
+    if (queryParamCase_ == 107) {
+      output.writeMessage(107, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 108) {
-      output.writeMessage(108, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) this.queryParam_);
+    if (queryParamCase_ == 108) {
+      output.writeMessage(108, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 109) {
-      output.writeMessage(109, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) this.queryParam_);
+    if (queryParamCase_ == 109) {
+      output.writeMessage(109, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 110) {
-      output.writeMessage(110, (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) this.queryParam_);
+    if (queryParamCase_ == 110) {
+      output.writeMessage(110, (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 111) {
-      output.writeMessage(111, (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) this.queryParam_);
+    if (queryParamCase_ == 111) {
+      output.writeMessage(111, (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) queryParam_);
     }
-    if (this.queryParamCase_ == 112) {
-      output.writeMessage(112, (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) this.queryParam_);
+    if (queryParamCase_ == 112) {
+      output.writeMessage(112, (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) queryParam_);
     }
-    if (this.queryParamCase_ == 113) {
-      output.writeMessage(113, (io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) this.queryParam_);
+    if (queryParamCase_ == 113) {
+      output.writeMessage(113, (io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) queryParam_);
     }
-    if (this.queryParamCase_ == 114) {
-      output.writeMessage(114, (io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) this.queryParam_);
+    if (queryParamCase_ == 114) {
+      output.writeMessage(114, (io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 115) {
-      output.writeMessage(115, (io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) this.queryParam_);
+    if (queryParamCase_ == 115) {
+      output.writeMessage(115, (io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 116) {
-      output.writeMessage(116, (io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) this.queryParam_);
+    if (queryParamCase_ == 116) {
+      output.writeMessage(116, (io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) queryParam_);
     }
-    if (this.queryParamCase_ == 117) {
-      output.writeMessage(117, (io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) this.queryParam_);
+    if (queryParamCase_ == 117) {
+      output.writeMessage(117, (io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) queryParam_);
     }
-    if (this.queryParamCase_ == 118) {
-      output.writeMessage(118, (io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) this.queryParam_);
+    if (queryParamCase_ == 118) {
+      output.writeMessage(118, (io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) queryParam_);
     }
-    if (this.queryParamCase_ == 119) {
-      output.writeMessage(119, (io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) this.queryParam_);
+    if (queryParamCase_ == 119) {
+      output.writeMessage(119, (io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) queryParam_);
     }
-    if (this.queryParamCase_ == 120) {
-      output.writeMessage(120, (io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) this.queryParam_);
+    if (queryParamCase_ == 120) {
+      output.writeMessage(120, (io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 121) {
-      output.writeMessage(121, (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) this.queryParam_);
+    if (queryParamCase_ == 121) {
+      output.writeMessage(121, (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 122) {
-      output.writeMessage(122, (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) this.queryParam_);
+    if (queryParamCase_ == 122) {
+      output.writeMessage(122, (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.queryParamCase_ == 1) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.queryParam_);
+    if (queryParamCase_ == 1) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, queryParam_);
     }
-    if (this.queryParamCase_ == 2) {
+    if (queryParamCase_ == 2) {
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(
-            2, (int)((java.lang.Integer) this.queryParam_));
+            2, (int)((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 3) {
+    if (queryParamCase_ == 3) {
       size += com.google.protobuf.CodedOutputStream
         .computeInt64Size(
-            3, (long)((java.lang.Long) this.queryParam_));
+            3, (long)((java.lang.Long) queryParam_));
     }
-    if (this.queryParamCase_ == 4) {
+    if (queryParamCase_ == 4) {
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(
-            4, (boolean)((java.lang.Boolean) this.queryParam_));
+            4, (boolean)((java.lang.Boolean) queryParam_));
     }
-    if (this.queryParamCase_ == 5) {
+    if (queryParamCase_ == 5) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(5, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.queryParam_);
+        .computeMessageSize(5, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) queryParam_);
     }
-    if (this.queryParamCase_ == 6) {
+    if (queryParamCase_ == 6) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(6, (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) this.queryParam_);
+        .computeMessageSize(6, (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) queryParam_);
     }
-    if (this.queryParamCase_ == 7) {
+    if (queryParamCase_ == 7) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(7, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.queryParam_);
+        .computeMessageSize(7, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) queryParam_);
     }
-    if (this.queryParamCase_ == 8) {
+    if (queryParamCase_ == 8) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(8, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.queryParam_);
+        .computeMessageSize(8, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) queryParam_);
     }
-    if (this.queryParamCase_ == 9) {
+    if (queryParamCase_ == 9) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(9, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.queryParam_);
+        .computeMessageSize(9, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) queryParam_);
     }
-    if (this.queryParamCase_ == 10) {
+    if (queryParamCase_ == 10) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(10, (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) this.queryParam_);
+        .computeMessageSize(10, (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) queryParam_);
     }
-    if (this.queryParamCase_ == 11) {
+    if (queryParamCase_ == 11) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(11, (io.evitadb.externalApi.grpc.generated.GrpcLocale) this.queryParam_);
+        .computeMessageSize(11, (io.evitadb.externalApi.grpc.generated.GrpcLocale) queryParam_);
     }
-    if (this.queryParamCase_ == 12) {
+    if (queryParamCase_ == 12) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(12, (io.evitadb.externalApi.grpc.generated.GrpcCurrency) this.queryParam_);
+        .computeMessageSize(12, (io.evitadb.externalApi.grpc.generated.GrpcCurrency) queryParam_);
     }
-    if (this.queryParamCase_ == 13) {
+    if (queryParamCase_ == 13) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(13, ((java.lang.Integer) this.queryParam_));
+        .computeEnumSize(13, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 14) {
+    if (queryParamCase_ == 14) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(14, ((java.lang.Integer) this.queryParam_));
+        .computeEnumSize(14, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 15) {
+    if (queryParamCase_ == 15) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(15, ((java.lang.Integer) this.queryParam_));
+        .computeEnumSize(15, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 16) {
+    if (queryParamCase_ == 16) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(16, ((java.lang.Integer) this.queryParam_));
+        .computeEnumSize(16, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 17) {
+    if (queryParamCase_ == 17) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(17, ((java.lang.Integer) this.queryParam_));
+        .computeEnumSize(17, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 18) {
+    if (queryParamCase_ == 18) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(18, ((java.lang.Integer) this.queryParam_));
+        .computeEnumSize(18, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 19) {
+    if (queryParamCase_ == 19) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(19, ((java.lang.Integer) this.queryParam_));
+        .computeEnumSize(19, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 20) {
+    if (queryParamCase_ == 20) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(20, ((java.lang.Integer) this.queryParam_));
+        .computeEnumSize(20, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 21) {
+    if (queryParamCase_ == 21) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(21, ((java.lang.Integer) this.queryParam_));
+        .computeEnumSize(21, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 22) {
+    if (queryParamCase_ == 22) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(22, ((java.lang.Integer) this.queryParam_));
+        .computeEnumSize(22, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 23) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(23, this.queryParam_);
+    if (queryParamCase_ == 23) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(23, queryParam_);
     }
-    if (this.queryParamCase_ == 24) {
+    if (queryParamCase_ == 24) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(24, ((java.lang.Integer) this.queryParam_));
+        .computeEnumSize(24, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 25) {
+    if (queryParamCase_ == 25) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(25, ((java.lang.Integer) this.queryParam_));
+        .computeEnumSize(25, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 26) {
+    if (queryParamCase_ == 26) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(26, ((java.lang.Integer) this.queryParam_));
+        .computeEnumSize(26, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 27) {
+    if (queryParamCase_ == 27) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(27, ((java.lang.Integer) this.queryParam_));
+        .computeEnumSize(27, ((java.lang.Integer) queryParam_));
     }
-    if (this.queryParamCase_ == 101) {
+    if (queryParamCase_ == 101) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(101, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) this.queryParam_);
+        .computeMessageSize(101, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_);
     }
-    if (this.queryParamCase_ == 102) {
+    if (queryParamCase_ == 102) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(102, (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) this.queryParam_);
+        .computeMessageSize(102, (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) queryParam_);
     }
-    if (this.queryParamCase_ == 103) {
+    if (queryParamCase_ == 103) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(103, (io.evitadb.externalApi.grpc.generated.GrpcLongArray) this.queryParam_);
+        .computeMessageSize(103, (io.evitadb.externalApi.grpc.generated.GrpcLongArray) queryParam_);
     }
-    if (this.queryParamCase_ == 104) {
+    if (queryParamCase_ == 104) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(104, (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) this.queryParam_);
+        .computeMessageSize(104, (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) queryParam_);
     }
-    if (this.queryParamCase_ == 105) {
+    if (queryParamCase_ == 105) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(105, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) this.queryParam_);
+        .computeMessageSize(105, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) queryParam_);
     }
-    if (this.queryParamCase_ == 106) {
+    if (queryParamCase_ == 106) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(106, (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) this.queryParam_);
+        .computeMessageSize(106, (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 107) {
+    if (queryParamCase_ == 107) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(107, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) this.queryParam_);
+        .computeMessageSize(107, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 108) {
+    if (queryParamCase_ == 108) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(108, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) this.queryParam_);
+        .computeMessageSize(108, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 109) {
+    if (queryParamCase_ == 109) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(109, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) this.queryParam_);
+        .computeMessageSize(109, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 110) {
+    if (queryParamCase_ == 110) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(110, (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) this.queryParam_);
+        .computeMessageSize(110, (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 111) {
+    if (queryParamCase_ == 111) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(111, (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) this.queryParam_);
+        .computeMessageSize(111, (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) queryParam_);
     }
-    if (this.queryParamCase_ == 112) {
+    if (queryParamCase_ == 112) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(112, (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) this.queryParam_);
+        .computeMessageSize(112, (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) queryParam_);
     }
-    if (this.queryParamCase_ == 113) {
+    if (queryParamCase_ == 113) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(113, (io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) this.queryParam_);
+        .computeMessageSize(113, (io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) queryParam_);
     }
-    if (this.queryParamCase_ == 114) {
+    if (queryParamCase_ == 114) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(114, (io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) this.queryParam_);
+        .computeMessageSize(114, (io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 115) {
+    if (queryParamCase_ == 115) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(115, (io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) this.queryParam_);
+        .computeMessageSize(115, (io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 116) {
+    if (queryParamCase_ == 116) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(116, (io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) this.queryParam_);
+        .computeMessageSize(116, (io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) queryParam_);
     }
-    if (this.queryParamCase_ == 117) {
+    if (queryParamCase_ == 117) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(117, (io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) this.queryParam_);
+        .computeMessageSize(117, (io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) queryParam_);
     }
-    if (this.queryParamCase_ == 118) {
+    if (queryParamCase_ == 118) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(118, (io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) this.queryParam_);
+        .computeMessageSize(118, (io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) queryParam_);
     }
-    if (this.queryParamCase_ == 119) {
+    if (queryParamCase_ == 119) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(119, (io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) this.queryParam_);
+        .computeMessageSize(119, (io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) queryParam_);
     }
-    if (this.queryParamCase_ == 120) {
+    if (queryParamCase_ == 120) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(120, (io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) this.queryParam_);
+        .computeMessageSize(120, (io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 121) {
+    if (queryParamCase_ == 121) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(121, (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) this.queryParam_);
+        .computeMessageSize(121, (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) queryParam_);
     }
-    if (this.queryParamCase_ == 122) {
+    if (queryParamCase_ == 122) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(122, (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) this.queryParam_);
+        .computeMessageSize(122, (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -3280,7 +3280,7 @@ private static final long serialVersionUID = 0L;
     io.evitadb.externalApi.grpc.generated.GrpcQueryParam other = (io.evitadb.externalApi.grpc.generated.GrpcQueryParam) obj;
 
     if (!getQueryParamCase().equals(other.getQueryParamCase())) return false;
-    switch (this.queryParamCase_) {
+    switch (queryParamCase_) {
       case 1:
         if (!getStringValue()
             .equals(other.getStringValue())) return false;
@@ -3480,18 +3480,18 @@ private static final long serialVersionUID = 0L;
       case 0:
       default:
     }
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    switch (this.queryParamCase_) {
+    switch (queryParamCase_) {
       case 1:
         hash = (37 * hash) + STRINGVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getStringValue().hashCode();
@@ -3693,8 +3693,8 @@ private static final long serialVersionUID = 0L;
       case 0:
       default:
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -3830,8 +3830,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.queryParamCase_ = 0;
-      this.queryParam_ = null;
+      queryParamCase_ = 0;
+      queryParam_ = null;
       return this;
     }
 
@@ -3858,274 +3858,274 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcQueryParam buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcQueryParam result = new io.evitadb.externalApi.grpc.generated.GrpcQueryParam(this);
-      if (this.queryParamCase_ == 1) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 1) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 2) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 2) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 3) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 3) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 4) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 4) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 5) {
-        if (this.bigDecimalValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 5) {
+        if (bigDecimalValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.bigDecimalValueBuilder_.build();
+          result.queryParam_ = bigDecimalValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 6) {
-        if (this.dateTimeRangeValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 6) {
+        if (dateTimeRangeValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.dateTimeRangeValueBuilder_.build();
+          result.queryParam_ = dateTimeRangeValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 7) {
-        if (this.integerNumberRangeValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 7) {
+        if (integerNumberRangeValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.integerNumberRangeValueBuilder_.build();
+          result.queryParam_ = integerNumberRangeValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 8) {
-        if (this.longNumberRangeValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 8) {
+        if (longNumberRangeValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.longNumberRangeValueBuilder_.build();
+          result.queryParam_ = longNumberRangeValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 9) {
-        if (this.bigDecimalNumberRangeValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 9) {
+        if (bigDecimalNumberRangeValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.bigDecimalNumberRangeValueBuilder_.build();
+          result.queryParam_ = bigDecimalNumberRangeValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 10) {
-        if (this.offsetDateTimeValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 10) {
+        if (offsetDateTimeValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.offsetDateTimeValueBuilder_.build();
+          result.queryParam_ = offsetDateTimeValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 11) {
-        if (this.localeValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 11) {
+        if (localeValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.localeValueBuilder_.build();
+          result.queryParam_ = localeValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 12) {
-        if (this.currencyValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 12) {
+        if (currencyValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.currencyValueBuilder_.build();
+          result.queryParam_ = currencyValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 13) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 13) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 14) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 14) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 15) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 15) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 16) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 16) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 17) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 17) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 18) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 18) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 19) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 19) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 20) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 20) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 21) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 21) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 22) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 22) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 23) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 23) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 24) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 24) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 25) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 25) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 26) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 26) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 27) {
-        result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 27) {
+        result.queryParam_ = queryParam_;
       }
-      if (this.queryParamCase_ == 101) {
-        if (this.stringArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 101) {
+        if (stringArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.stringArrayValueBuilder_.build();
+          result.queryParam_ = stringArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 102) {
-        if (this.integerArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 102) {
+        if (integerArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.integerArrayValueBuilder_.build();
+          result.queryParam_ = integerArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 103) {
-        if (this.longArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 103) {
+        if (longArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.longArrayValueBuilder_.build();
+          result.queryParam_ = longArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 104) {
-        if (this.booleanArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 104) {
+        if (booleanArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.booleanArrayValueBuilder_.build();
+          result.queryParam_ = booleanArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 105) {
-        if (this.bigDecimalArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 105) {
+        if (bigDecimalArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.bigDecimalArrayValueBuilder_.build();
+          result.queryParam_ = bigDecimalArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 106) {
-        if (this.dateTimeRangeArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 106) {
+        if (dateTimeRangeArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.dateTimeRangeArrayValueBuilder_.build();
+          result.queryParam_ = dateTimeRangeArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 107) {
-        if (this.integerNumberRangeArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 107) {
+        if (integerNumberRangeArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.integerNumberRangeArrayValueBuilder_.build();
+          result.queryParam_ = integerNumberRangeArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 108) {
-        if (this.longNumberRangeArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 108) {
+        if (longNumberRangeArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.longNumberRangeArrayValueBuilder_.build();
+          result.queryParam_ = longNumberRangeArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 109) {
-        if (this.bigDecimalNumberRangeArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 109) {
+        if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.bigDecimalNumberRangeArrayValueBuilder_.build();
+          result.queryParam_ = bigDecimalNumberRangeArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 110) {
-        if (this.offsetDateTimeArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 110) {
+        if (offsetDateTimeArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.offsetDateTimeArrayValueBuilder_.build();
+          result.queryParam_ = offsetDateTimeArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 111) {
-        if (this.localeArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 111) {
+        if (localeArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.localeArrayValueBuilder_.build();
+          result.queryParam_ = localeArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 112) {
-        if (this.currencyArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 112) {
+        if (currencyArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.currencyArrayValueBuilder_.build();
+          result.queryParam_ = currencyArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 113) {
-        if (this.facetStatisticsDepthArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 113) {
+        if (facetStatisticsDepthArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.facetStatisticsDepthArrayValueBuilder_.build();
+          result.queryParam_ = facetStatisticsDepthArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 114) {
-        if (this.queryPriceModelArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 114) {
+        if (queryPriceModelArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.queryPriceModelArrayValueBuilder_.build();
+          result.queryParam_ = queryPriceModelArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 115) {
-        if (this.priceContentModeArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 115) {
+        if (priceContentModeArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.priceContentModeArrayValueBuilder_.build();
+          result.queryParam_ = priceContentModeArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 116) {
-        if (this.attributeSpecialArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 116) {
+        if (attributeSpecialArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.attributeSpecialArrayValueBuilder_.build();
+          result.queryParam_ = attributeSpecialArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 117) {
-        if (this.orderDirectionArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 117) {
+        if (orderDirectionArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.orderDirectionArrayValueBuilder_.build();
+          result.queryParam_ = orderDirectionArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 118) {
-        if (this.emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 118) {
+        if (emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.emptyHierarchicalEntityBehaviourArrayValueBuilder_.build();
+          result.queryParam_ = emptyHierarchicalEntityBehaviourArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 119) {
-        if (this.statisticsBaseArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 119) {
+        if (statisticsBaseArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.statisticsBaseArrayValueBuilder_.build();
+          result.queryParam_ = statisticsBaseArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 120) {
-        if (this.statisticsTypeArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 120) {
+        if (statisticsTypeArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.statisticsTypeArrayValueBuilder_.build();
+          result.queryParam_ = statisticsTypeArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 121) {
-        if (this.histogramBehaviorTypeArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 121) {
+        if (histogramBehaviorTypeArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.histogramBehaviorTypeArrayValueBuilder_.build();
+          result.queryParam_ = histogramBehaviorTypeArrayValueBuilder_.build();
         }
       }
-      if (this.queryParamCase_ == 122) {
-        if (this.scopeArrayValueBuilder_ == null) {
-          result.queryParam_ = this.queryParam_;
+      if (queryParamCase_ == 122) {
+        if (scopeArrayValueBuilder_ == null) {
+          result.queryParam_ = queryParam_;
         } else {
-          result.queryParam_ = this.scopeArrayValueBuilder_.build();
+          result.queryParam_ = scopeArrayValueBuilder_.build();
         }
       }
-      result.queryParamCase_ = this.queryParamCase_;
+      result.queryParamCase_ = queryParamCase_;
       onBuilt();
       return result;
     }
@@ -4176,8 +4176,8 @@ private static final long serialVersionUID = 0L;
       if (other == io.evitadb.externalApi.grpc.generated.GrpcQueryParam.getDefaultInstance()) return this;
       switch (other.getQueryParamCase()) {
         case STRINGVALUE: {
-          this.queryParamCase_ = 1;
-          this.queryParam_ = other.queryParam_;
+          queryParamCase_ = 1;
+          queryParam_ = other.queryParam_;
           onChanged();
           break;
         }
@@ -4266,8 +4266,8 @@ private static final long serialVersionUID = 0L;
           break;
         }
         case EXPRESSIONVALUE: {
-          this.queryParamCase_ = 23;
-          this.queryParam_ = other.queryParam_;
+          queryParamCase_ = 23;
+          queryParam_ = other.queryParam_;
           onChanged();
           break;
         }
@@ -4412,12 +4412,12 @@ private static final long serialVersionUID = 0L;
     public QueryParamCase
         getQueryParamCase() {
       return QueryParamCase.forNumber(
-          this.queryParamCase_);
+          queryParamCase_);
     }
 
     public Builder clearQueryParam() {
-      this.queryParamCase_ = 0;
-      this.queryParam_ = null;
+      queryParamCase_ = 0;
+      queryParam_ = null;
       onChanged();
       return this;
     }
@@ -4433,7 +4433,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasStringValue() {
-      return this.queryParamCase_ == 1;
+      return queryParamCase_ == 1;
     }
     /**
      * <pre>
@@ -4446,15 +4446,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public java.lang.String getStringValue() {
       java.lang.Object ref = "";
-      if (this.queryParamCase_ == 1) {
-        ref = this.queryParam_;
+      if (queryParamCase_ == 1) {
+        ref = queryParam_;
       }
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        if (this.queryParamCase_ == 1) {
-          this.queryParam_ = s;
+        if (queryParamCase_ == 1) {
+          queryParam_ = s;
         }
         return s;
       } else {
@@ -4473,15 +4473,15 @@ private static final long serialVersionUID = 0L;
     public com.google.protobuf.ByteString
         getStringValueBytes() {
       java.lang.Object ref = "";
-      if (this.queryParamCase_ == 1) {
-        ref = this.queryParam_;
+      if (queryParamCase_ == 1) {
+        ref = queryParam_;
       }
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        if (this.queryParamCase_ == 1) {
-          this.queryParam_ = b;
+        if (queryParamCase_ == 1) {
+          queryParam_ = b;
         }
         return b;
       } else {
@@ -4502,8 +4502,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  this.queryParamCase_ = 1;
-      this.queryParam_ = value;
+  queryParamCase_ = 1;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -4516,9 +4516,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearStringValue() {
-      if (this.queryParamCase_ == 1) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 1) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -4538,8 +4538,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      this.queryParamCase_ = 1;
-      this.queryParam_ = value;
+      queryParamCase_ = 1;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -4553,7 +4553,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the integerValue field is set.
      */
     public boolean hasIntegerValue() {
-      return this.queryParamCase_ == 2;
+      return queryParamCase_ == 2;
     }
     /**
      * <pre>
@@ -4564,8 +4564,8 @@ private static final long serialVersionUID = 0L;
      * @return The integerValue.
      */
     public int getIntegerValue() {
-      if (this.queryParamCase_ == 2) {
-        return (java.lang.Integer) this.queryParam_;
+      if (queryParamCase_ == 2) {
+        return (java.lang.Integer) queryParam_;
       }
       return 0;
     }
@@ -4579,8 +4579,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setIntegerValue(int value) {
-      this.queryParamCase_ = 2;
-      this.queryParam_ = value;
+      queryParamCase_ = 2;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -4593,9 +4593,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIntegerValue() {
-      if (this.queryParamCase_ == 2) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 2) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -4610,7 +4610,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the longValue field is set.
      */
     public boolean hasLongValue() {
-      return this.queryParamCase_ == 3;
+      return queryParamCase_ == 3;
     }
     /**
      * <pre>
@@ -4621,8 +4621,8 @@ private static final long serialVersionUID = 0L;
      * @return The longValue.
      */
     public long getLongValue() {
-      if (this.queryParamCase_ == 3) {
-        return (java.lang.Long) this.queryParam_;
+      if (queryParamCase_ == 3) {
+        return (java.lang.Long) queryParam_;
       }
       return 0L;
     }
@@ -4636,8 +4636,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setLongValue(long value) {
-      this.queryParamCase_ = 3;
-      this.queryParam_ = value;
+      queryParamCase_ = 3;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -4650,9 +4650,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearLongValue() {
-      if (this.queryParamCase_ == 3) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 3) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -4667,7 +4667,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the booleanValue field is set.
      */
     public boolean hasBooleanValue() {
-      return this.queryParamCase_ == 4;
+      return queryParamCase_ == 4;
     }
     /**
      * <pre>
@@ -4678,8 +4678,8 @@ private static final long serialVersionUID = 0L;
      * @return The booleanValue.
      */
     public boolean getBooleanValue() {
-      if (this.queryParamCase_ == 4) {
-        return (java.lang.Boolean) this.queryParam_;
+      if (queryParamCase_ == 4) {
+        return (java.lang.Boolean) queryParam_;
       }
       return false;
     }
@@ -4693,8 +4693,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setBooleanValue(boolean value) {
-      this.queryParamCase_ = 4;
-      this.queryParam_ = value;
+      queryParamCase_ = 4;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -4707,9 +4707,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearBooleanValue() {
-      if (this.queryParamCase_ == 4) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 4) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -4727,7 +4727,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasBigDecimalValue() {
-      return this.queryParamCase_ == 5;
+      return queryParamCase_ == 5;
     }
     /**
      * <pre>
@@ -4739,14 +4739,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getBigDecimalValue() {
-      if (this.bigDecimalValueBuilder_ == null) {
-        if (this.queryParamCase_ == 5) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.queryParam_;
+      if (bigDecimalValueBuilder_ == null) {
+        if (queryParamCase_ == 5) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 5) {
-          return this.bigDecimalValueBuilder_.getMessage();
+        if (queryParamCase_ == 5) {
+          return bigDecimalValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
       }
@@ -4759,16 +4759,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
      */
     public Builder setBigDecimalValue(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (this.bigDecimalValueBuilder_ == null) {
+      if (bigDecimalValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.bigDecimalValueBuilder_.setMessage(value);
+        bigDecimalValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 5;
+      queryParamCase_ = 5;
       return this;
     }
     /**
@@ -4780,13 +4780,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setBigDecimalValue(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
-      if (this.bigDecimalValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (bigDecimalValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.bigDecimalValueBuilder_.setMessage(builderForValue.build());
+        bigDecimalValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 5;
+      queryParamCase_ = 5;
       return this;
     }
     /**
@@ -4797,22 +4797,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
      */
     public Builder mergeBigDecimalValue(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (this.bigDecimalValueBuilder_ == null) {
-        if (this.queryParamCase_ == 5 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.queryParam_)
+      if (bigDecimalValueBuilder_ == null) {
+        if (queryParamCase_ == 5 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 5) {
-          this.bigDecimalValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 5) {
+          bigDecimalValueBuilder_.mergeFrom(value);
         }
-        this.bigDecimalValueBuilder_.setMessage(value);
+        bigDecimalValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 5;
+      queryParamCase_ = 5;
       return this;
     }
     /**
@@ -4823,18 +4823,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
      */
     public Builder clearBigDecimalValue() {
-      if (this.bigDecimalValueBuilder_ == null) {
-        if (this.queryParamCase_ == 5) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (bigDecimalValueBuilder_ == null) {
+        if (queryParamCase_ == 5) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 5) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 5) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.bigDecimalValueBuilder_.clear();
+        bigDecimalValueBuilder_.clear();
       }
       return this;
     }
@@ -4857,11 +4857,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getBigDecimalValueOrBuilder() {
-      if ((this.queryParamCase_ == 5) && (this.bigDecimalValueBuilder_ != null)) {
-        return this.bigDecimalValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 5) && (bigDecimalValueBuilder_ != null)) {
+        return bigDecimalValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 5) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.queryParam_;
+        if (queryParamCase_ == 5) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
       }
@@ -4876,20 +4876,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
         getBigDecimalValueFieldBuilder() {
-      if (this.bigDecimalValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 5)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
+      if (bigDecimalValueBuilder_ == null) {
+        if (!(queryParamCase_ == 5)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance();
         }
-        this.bigDecimalValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        bigDecimalValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 5;
+      queryParamCase_ = 5;
       onChanged();;
-      return this.bigDecimalValueBuilder_;
+      return bigDecimalValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -4904,7 +4904,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasDateTimeRangeValue() {
-      return this.queryParamCase_ == 6;
+      return queryParamCase_ == 6;
     }
     /**
      * <pre>
@@ -4916,14 +4916,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange getDateTimeRangeValue() {
-      if (this.dateTimeRangeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 6) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) this.queryParam_;
+      if (dateTimeRangeValueBuilder_ == null) {
+        if (queryParamCase_ == 6) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 6) {
-          return this.dateTimeRangeValueBuilder_.getMessage();
+        if (queryParamCase_ == 6) {
+          return dateTimeRangeValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance();
       }
@@ -4936,16 +4936,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
      */
     public Builder setDateTimeRangeValue(io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value) {
-      if (this.dateTimeRangeValueBuilder_ == null) {
+      if (dateTimeRangeValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.dateTimeRangeValueBuilder_.setMessage(value);
+        dateTimeRangeValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 6;
+      queryParamCase_ = 6;
       return this;
     }
     /**
@@ -4957,13 +4957,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setDateTimeRangeValue(
         io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder builderForValue) {
-      if (this.dateTimeRangeValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (dateTimeRangeValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.dateTimeRangeValueBuilder_.setMessage(builderForValue.build());
+        dateTimeRangeValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 6;
+      queryParamCase_ = 6;
       return this;
     }
     /**
@@ -4974,22 +4974,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
      */
     public Builder mergeDateTimeRangeValue(io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value) {
-      if (this.dateTimeRangeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 6 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) this.queryParam_)
+      if (dateTimeRangeValueBuilder_ == null) {
+        if (queryParamCase_ == 6 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 6) {
-          this.dateTimeRangeValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 6) {
+          dateTimeRangeValueBuilder_.mergeFrom(value);
         }
-        this.dateTimeRangeValueBuilder_.setMessage(value);
+        dateTimeRangeValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 6;
+      queryParamCase_ = 6;
       return this;
     }
     /**
@@ -5000,18 +5000,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
      */
     public Builder clearDateTimeRangeValue() {
-      if (this.dateTimeRangeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 6) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (dateTimeRangeValueBuilder_ == null) {
+        if (queryParamCase_ == 6) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 6) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 6) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.dateTimeRangeValueBuilder_.clear();
+        dateTimeRangeValueBuilder_.clear();
       }
       return this;
     }
@@ -5034,11 +5034,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder getDateTimeRangeValueOrBuilder() {
-      if ((this.queryParamCase_ == 6) && (this.dateTimeRangeValueBuilder_ != null)) {
-        return this.dateTimeRangeValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 6) && (dateTimeRangeValueBuilder_ != null)) {
+        return dateTimeRangeValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 6) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) this.queryParam_;
+        if (queryParamCase_ == 6) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance();
       }
@@ -5053,20 +5053,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder>
         getDateTimeRangeValueFieldBuilder() {
-      if (this.dateTimeRangeValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 6)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance();
+      if (dateTimeRangeValueBuilder_ == null) {
+        if (!(queryParamCase_ == 6)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance();
         }
-        this.dateTimeRangeValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        dateTimeRangeValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 6;
+      queryParamCase_ = 6;
       onChanged();;
-      return this.dateTimeRangeValueBuilder_;
+      return dateTimeRangeValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -5081,7 +5081,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasIntegerNumberRangeValue() {
-      return this.queryParamCase_ == 7;
+      return queryParamCase_ == 7;
     }
     /**
      * <pre>
@@ -5093,14 +5093,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange getIntegerNumberRangeValue() {
-      if (this.integerNumberRangeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 7) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.queryParam_;
+      if (integerNumberRangeValueBuilder_ == null) {
+        if (queryParamCase_ == 7) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 7) {
-          return this.integerNumberRangeValueBuilder_.getMessage();
+        if (queryParamCase_ == 7) {
+          return integerNumberRangeValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
       }
@@ -5113,16 +5113,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
      */
     public Builder setIntegerNumberRangeValue(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value) {
-      if (this.integerNumberRangeValueBuilder_ == null) {
+      if (integerNumberRangeValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.integerNumberRangeValueBuilder_.setMessage(value);
+        integerNumberRangeValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 7;
+      queryParamCase_ = 7;
       return this;
     }
     /**
@@ -5134,13 +5134,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setIntegerNumberRangeValue(
         io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder builderForValue) {
-      if (this.integerNumberRangeValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (integerNumberRangeValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.integerNumberRangeValueBuilder_.setMessage(builderForValue.build());
+        integerNumberRangeValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 7;
+      queryParamCase_ = 7;
       return this;
     }
     /**
@@ -5151,22 +5151,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
      */
     public Builder mergeIntegerNumberRangeValue(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value) {
-      if (this.integerNumberRangeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 7 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.queryParam_)
+      if (integerNumberRangeValueBuilder_ == null) {
+        if (queryParamCase_ == 7 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 7) {
-          this.integerNumberRangeValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 7) {
+          integerNumberRangeValueBuilder_.mergeFrom(value);
         }
-        this.integerNumberRangeValueBuilder_.setMessage(value);
+        integerNumberRangeValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 7;
+      queryParamCase_ = 7;
       return this;
     }
     /**
@@ -5177,18 +5177,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
      */
     public Builder clearIntegerNumberRangeValue() {
-      if (this.integerNumberRangeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 7) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (integerNumberRangeValueBuilder_ == null) {
+        if (queryParamCase_ == 7) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 7) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 7) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.integerNumberRangeValueBuilder_.clear();
+        integerNumberRangeValueBuilder_.clear();
       }
       return this;
     }
@@ -5211,11 +5211,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder getIntegerNumberRangeValueOrBuilder() {
-      if ((this.queryParamCase_ == 7) && (this.integerNumberRangeValueBuilder_ != null)) {
-        return this.integerNumberRangeValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 7) && (integerNumberRangeValueBuilder_ != null)) {
+        return integerNumberRangeValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 7) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.queryParam_;
+        if (queryParamCase_ == 7) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
       }
@@ -5230,20 +5230,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder>
         getIntegerNumberRangeValueFieldBuilder() {
-      if (this.integerNumberRangeValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 7)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
+      if (integerNumberRangeValueBuilder_ == null) {
+        if (!(queryParamCase_ == 7)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.getDefaultInstance();
         }
-        this.integerNumberRangeValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        integerNumberRangeValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 7;
+      queryParamCase_ = 7;
       onChanged();;
-      return this.integerNumberRangeValueBuilder_;
+      return integerNumberRangeValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -5258,7 +5258,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasLongNumberRangeValue() {
-      return this.queryParamCase_ == 8;
+      return queryParamCase_ == 8;
     }
     /**
      * <pre>
@@ -5270,14 +5270,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange getLongNumberRangeValue() {
-      if (this.longNumberRangeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 8) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.queryParam_;
+      if (longNumberRangeValueBuilder_ == null) {
+        if (queryParamCase_ == 8) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 8) {
-          return this.longNumberRangeValueBuilder_.getMessage();
+        if (queryParamCase_ == 8) {
+          return longNumberRangeValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
       }
@@ -5290,16 +5290,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
      */
     public Builder setLongNumberRangeValue(io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value) {
-      if (this.longNumberRangeValueBuilder_ == null) {
+      if (longNumberRangeValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.longNumberRangeValueBuilder_.setMessage(value);
+        longNumberRangeValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 8;
+      queryParamCase_ = 8;
       return this;
     }
     /**
@@ -5311,13 +5311,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setLongNumberRangeValue(
         io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder builderForValue) {
-      if (this.longNumberRangeValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (longNumberRangeValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.longNumberRangeValueBuilder_.setMessage(builderForValue.build());
+        longNumberRangeValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 8;
+      queryParamCase_ = 8;
       return this;
     }
     /**
@@ -5328,22 +5328,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
      */
     public Builder mergeLongNumberRangeValue(io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value) {
-      if (this.longNumberRangeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 8 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.queryParam_)
+      if (longNumberRangeValueBuilder_ == null) {
+        if (queryParamCase_ == 8 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 8) {
-          this.longNumberRangeValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 8) {
+          longNumberRangeValueBuilder_.mergeFrom(value);
         }
-        this.longNumberRangeValueBuilder_.setMessage(value);
+        longNumberRangeValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 8;
+      queryParamCase_ = 8;
       return this;
     }
     /**
@@ -5354,18 +5354,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
      */
     public Builder clearLongNumberRangeValue() {
-      if (this.longNumberRangeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 8) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (longNumberRangeValueBuilder_ == null) {
+        if (queryParamCase_ == 8) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 8) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 8) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.longNumberRangeValueBuilder_.clear();
+        longNumberRangeValueBuilder_.clear();
       }
       return this;
     }
@@ -5388,11 +5388,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder getLongNumberRangeValueOrBuilder() {
-      if ((this.queryParamCase_ == 8) && (this.longNumberRangeValueBuilder_ != null)) {
-        return this.longNumberRangeValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 8) && (longNumberRangeValueBuilder_ != null)) {
+        return longNumberRangeValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 8) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.queryParam_;
+        if (queryParamCase_ == 8) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
       }
@@ -5407,20 +5407,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder>
         getLongNumberRangeValueFieldBuilder() {
-      if (this.longNumberRangeValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 8)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
+      if (longNumberRangeValueBuilder_ == null) {
+        if (!(queryParamCase_ == 8)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.getDefaultInstance();
         }
-        this.longNumberRangeValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        longNumberRangeValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 8;
+      queryParamCase_ = 8;
       onChanged();;
-      return this.longNumberRangeValueBuilder_;
+      return longNumberRangeValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -5435,7 +5435,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasBigDecimalNumberRangeValue() {
-      return this.queryParamCase_ == 9;
+      return queryParamCase_ == 9;
     }
     /**
      * <pre>
@@ -5447,14 +5447,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange getBigDecimalNumberRangeValue() {
-      if (this.bigDecimalNumberRangeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 9) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.queryParam_;
+      if (bigDecimalNumberRangeValueBuilder_ == null) {
+        if (queryParamCase_ == 9) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 9) {
-          return this.bigDecimalNumberRangeValueBuilder_.getMessage();
+        if (queryParamCase_ == 9) {
+          return bigDecimalNumberRangeValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
       }
@@ -5467,16 +5467,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
      */
     public Builder setBigDecimalNumberRangeValue(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value) {
-      if (this.bigDecimalNumberRangeValueBuilder_ == null) {
+      if (bigDecimalNumberRangeValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.bigDecimalNumberRangeValueBuilder_.setMessage(value);
+        bigDecimalNumberRangeValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 9;
+      queryParamCase_ = 9;
       return this;
     }
     /**
@@ -5488,13 +5488,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setBigDecimalNumberRangeValue(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder builderForValue) {
-      if (this.bigDecimalNumberRangeValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (bigDecimalNumberRangeValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.bigDecimalNumberRangeValueBuilder_.setMessage(builderForValue.build());
+        bigDecimalNumberRangeValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 9;
+      queryParamCase_ = 9;
       return this;
     }
     /**
@@ -5505,22 +5505,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
      */
     public Builder mergeBigDecimalNumberRangeValue(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value) {
-      if (this.bigDecimalNumberRangeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 9 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.queryParam_)
+      if (bigDecimalNumberRangeValueBuilder_ == null) {
+        if (queryParamCase_ == 9 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 9) {
-          this.bigDecimalNumberRangeValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 9) {
+          bigDecimalNumberRangeValueBuilder_.mergeFrom(value);
         }
-        this.bigDecimalNumberRangeValueBuilder_.setMessage(value);
+        bigDecimalNumberRangeValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 9;
+      queryParamCase_ = 9;
       return this;
     }
     /**
@@ -5531,18 +5531,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
      */
     public Builder clearBigDecimalNumberRangeValue() {
-      if (this.bigDecimalNumberRangeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 9) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (bigDecimalNumberRangeValueBuilder_ == null) {
+        if (queryParamCase_ == 9) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 9) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 9) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.bigDecimalNumberRangeValueBuilder_.clear();
+        bigDecimalNumberRangeValueBuilder_.clear();
       }
       return this;
     }
@@ -5565,11 +5565,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder getBigDecimalNumberRangeValueOrBuilder() {
-      if ((this.queryParamCase_ == 9) && (this.bigDecimalNumberRangeValueBuilder_ != null)) {
-        return this.bigDecimalNumberRangeValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 9) && (bigDecimalNumberRangeValueBuilder_ != null)) {
+        return bigDecimalNumberRangeValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 9) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.queryParam_;
+        if (queryParamCase_ == 9) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
       }
@@ -5584,20 +5584,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder>
         getBigDecimalNumberRangeValueFieldBuilder() {
-      if (this.bigDecimalNumberRangeValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 9)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
+      if (bigDecimalNumberRangeValueBuilder_ == null) {
+        if (!(queryParamCase_ == 9)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.getDefaultInstance();
         }
-        this.bigDecimalNumberRangeValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        bigDecimalNumberRangeValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 9;
+      queryParamCase_ = 9;
       onChanged();;
-      return this.bigDecimalNumberRangeValueBuilder_;
+      return bigDecimalNumberRangeValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -5612,7 +5612,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasOffsetDateTimeValue() {
-      return this.queryParamCase_ == 10;
+      return queryParamCase_ == 10;
     }
     /**
      * <pre>
@@ -5624,14 +5624,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getOffsetDateTimeValue() {
-      if (this.offsetDateTimeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 10) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) this.queryParam_;
+      if (offsetDateTimeValueBuilder_ == null) {
+        if (queryParamCase_ == 10) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 10) {
-          return this.offsetDateTimeValueBuilder_.getMessage();
+        if (queryParamCase_ == 10) {
+          return offsetDateTimeValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance();
       }
@@ -5644,16 +5644,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
      */
     public Builder setOffsetDateTimeValue(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
-      if (this.offsetDateTimeValueBuilder_ == null) {
+      if (offsetDateTimeValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.offsetDateTimeValueBuilder_.setMessage(value);
+        offsetDateTimeValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 10;
+      queryParamCase_ = 10;
       return this;
     }
     /**
@@ -5665,13 +5665,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setOffsetDateTimeValue(
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
-      if (this.offsetDateTimeValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (offsetDateTimeValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.offsetDateTimeValueBuilder_.setMessage(builderForValue.build());
+        offsetDateTimeValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 10;
+      queryParamCase_ = 10;
       return this;
     }
     /**
@@ -5682,22 +5682,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
      */
     public Builder mergeOffsetDateTimeValue(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
-      if (this.offsetDateTimeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 10 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) this.queryParam_)
+      if (offsetDateTimeValueBuilder_ == null) {
+        if (queryParamCase_ == 10 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 10) {
-          this.offsetDateTimeValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 10) {
+          offsetDateTimeValueBuilder_.mergeFrom(value);
         }
-        this.offsetDateTimeValueBuilder_.setMessage(value);
+        offsetDateTimeValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 10;
+      queryParamCase_ = 10;
       return this;
     }
     /**
@@ -5708,18 +5708,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
      */
     public Builder clearOffsetDateTimeValue() {
-      if (this.offsetDateTimeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 10) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (offsetDateTimeValueBuilder_ == null) {
+        if (queryParamCase_ == 10) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 10) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 10) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.offsetDateTimeValueBuilder_.clear();
+        offsetDateTimeValueBuilder_.clear();
       }
       return this;
     }
@@ -5742,11 +5742,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getOffsetDateTimeValueOrBuilder() {
-      if ((this.queryParamCase_ == 10) && (this.offsetDateTimeValueBuilder_ != null)) {
-        return this.offsetDateTimeValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 10) && (offsetDateTimeValueBuilder_ != null)) {
+        return offsetDateTimeValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 10) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) this.queryParam_;
+        if (queryParamCase_ == 10) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance();
       }
@@ -5761,20 +5761,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
         getOffsetDateTimeValueFieldBuilder() {
-      if (this.offsetDateTimeValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 10)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance();
+      if (offsetDateTimeValueBuilder_ == null) {
+        if (!(queryParamCase_ == 10)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance();
         }
-        this.offsetDateTimeValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        offsetDateTimeValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 10;
+      queryParamCase_ = 10;
       onChanged();;
-      return this.offsetDateTimeValueBuilder_;
+      return offsetDateTimeValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -5789,7 +5789,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasLocaleValue() {
-      return this.queryParamCase_ == 11;
+      return queryParamCase_ == 11;
     }
     /**
      * <pre>
@@ -5801,14 +5801,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLocale getLocaleValue() {
-      if (this.localeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 11) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcLocale) this.queryParam_;
+      if (localeValueBuilder_ == null) {
+        if (queryParamCase_ == 11) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcLocale) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 11) {
-          return this.localeValueBuilder_.getMessage();
+        if (queryParamCase_ == 11) {
+          return localeValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance();
       }
@@ -5821,16 +5821,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
      */
     public Builder setLocaleValue(io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
-      if (this.localeValueBuilder_ == null) {
+      if (localeValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.localeValueBuilder_.setMessage(value);
+        localeValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 11;
+      queryParamCase_ = 11;
       return this;
     }
     /**
@@ -5842,13 +5842,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setLocaleValue(
         io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder builderForValue) {
-      if (this.localeValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (localeValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.localeValueBuilder_.setMessage(builderForValue.build());
+        localeValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 11;
+      queryParamCase_ = 11;
       return this;
     }
     /**
@@ -5859,22 +5859,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
      */
     public Builder mergeLocaleValue(io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
-      if (this.localeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 11 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLocale.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLocale) this.queryParam_)
+      if (localeValueBuilder_ == null) {
+        if (queryParamCase_ == 11 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLocale.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLocale) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 11) {
-          this.localeValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 11) {
+          localeValueBuilder_.mergeFrom(value);
         }
-        this.localeValueBuilder_.setMessage(value);
+        localeValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 11;
+      queryParamCase_ = 11;
       return this;
     }
     /**
@@ -5885,18 +5885,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
      */
     public Builder clearLocaleValue() {
-      if (this.localeValueBuilder_ == null) {
-        if (this.queryParamCase_ == 11) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (localeValueBuilder_ == null) {
+        if (queryParamCase_ == 11) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 11) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 11) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.localeValueBuilder_.clear();
+        localeValueBuilder_.clear();
       }
       return this;
     }
@@ -5919,11 +5919,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getLocaleValueOrBuilder() {
-      if ((this.queryParamCase_ == 11) && (this.localeValueBuilder_ != null)) {
-        return this.localeValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 11) && (localeValueBuilder_ != null)) {
+        return localeValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 11) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcLocale) this.queryParam_;
+        if (queryParamCase_ == 11) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcLocale) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance();
       }
@@ -5938,20 +5938,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
         getLocaleValueFieldBuilder() {
-      if (this.localeValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 11)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance();
+      if (localeValueBuilder_ == null) {
+        if (!(queryParamCase_ == 11)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance();
         }
-        this.localeValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        localeValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcLocale) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcLocale) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 11;
+      queryParamCase_ = 11;
       onChanged();;
-      return this.localeValueBuilder_;
+      return localeValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -5966,7 +5966,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasCurrencyValue() {
-      return this.queryParamCase_ == 12;
+      return queryParamCase_ == 12;
     }
     /**
      * <pre>
@@ -5978,14 +5978,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCurrency getCurrencyValue() {
-      if (this.currencyValueBuilder_ == null) {
-        if (this.queryParamCase_ == 12) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcCurrency) this.queryParam_;
+      if (currencyValueBuilder_ == null) {
+        if (queryParamCase_ == 12) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCurrency) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 12) {
-          return this.currencyValueBuilder_.getMessage();
+        if (queryParamCase_ == 12) {
+          return currencyValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance();
       }
@@ -5998,16 +5998,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
      */
     public Builder setCurrencyValue(io.evitadb.externalApi.grpc.generated.GrpcCurrency value) {
-      if (this.currencyValueBuilder_ == null) {
+      if (currencyValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.currencyValueBuilder_.setMessage(value);
+        currencyValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 12;
+      queryParamCase_ = 12;
       return this;
     }
     /**
@@ -6019,13 +6019,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCurrencyValue(
         io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder builderForValue) {
-      if (this.currencyValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (currencyValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.currencyValueBuilder_.setMessage(builderForValue.build());
+        currencyValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 12;
+      queryParamCase_ = 12;
       return this;
     }
     /**
@@ -6036,22 +6036,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
      */
     public Builder mergeCurrencyValue(io.evitadb.externalApi.grpc.generated.GrpcCurrency value) {
-      if (this.currencyValueBuilder_ == null) {
-        if (this.queryParamCase_ == 12 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcCurrency.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcCurrency) this.queryParam_)
+      if (currencyValueBuilder_ == null) {
+        if (queryParamCase_ == 12 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcCurrency.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcCurrency) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 12) {
-          this.currencyValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 12) {
+          currencyValueBuilder_.mergeFrom(value);
         }
-        this.currencyValueBuilder_.setMessage(value);
+        currencyValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 12;
+      queryParamCase_ = 12;
       return this;
     }
     /**
@@ -6062,18 +6062,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
      */
     public Builder clearCurrencyValue() {
-      if (this.currencyValueBuilder_ == null) {
-        if (this.queryParamCase_ == 12) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (currencyValueBuilder_ == null) {
+        if (queryParamCase_ == 12) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 12) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 12) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.currencyValueBuilder_.clear();
+        currencyValueBuilder_.clear();
       }
       return this;
     }
@@ -6096,11 +6096,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder getCurrencyValueOrBuilder() {
-      if ((this.queryParamCase_ == 12) && (this.currencyValueBuilder_ != null)) {
-        return this.currencyValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 12) && (currencyValueBuilder_ != null)) {
+        return currencyValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 12) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcCurrency) this.queryParam_;
+        if (queryParamCase_ == 12) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCurrency) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance();
       }
@@ -6115,20 +6115,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
         getCurrencyValueFieldBuilder() {
-      if (this.currencyValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 12)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance();
+      if (currencyValueBuilder_ == null) {
+        if (!(queryParamCase_ == 12)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance();
         }
-        this.currencyValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        currencyValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcCurrency) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcCurrency) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 12;
+      queryParamCase_ = 12;
       onChanged();;
-      return this.currencyValueBuilder_;
+      return currencyValueBuilder_;
     }
 
     /**
@@ -6141,7 +6141,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasFacetStatisticsDepthValue() {
-      return this.queryParamCase_ == 13;
+      return queryParamCase_ == 13;
     }
     /**
      * <pre>
@@ -6153,8 +6153,8 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getFacetStatisticsDepthValueValue() {
-      if (this.queryParamCase_ == 13) {
-        return ((java.lang.Integer) this.queryParam_).intValue();
+      if (queryParamCase_ == 13) {
+        return ((java.lang.Integer) queryParam_).intValue();
       }
       return 0;
     }
@@ -6168,8 +6168,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setFacetStatisticsDepthValueValue(int value) {
-      this.queryParamCase_ = 13;
-      this.queryParam_ = value;
+      queryParamCase_ = 13;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -6183,10 +6183,10 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth getFacetStatisticsDepthValue() {
-      if (this.queryParamCase_ == 13) {
+      if (queryParamCase_ == 13) {
         @SuppressWarnings("deprecation")
         io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth result = io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth.valueOf(
-            (java.lang.Integer) this.queryParam_);
+            (java.lang.Integer) queryParam_);
         return result == null ? io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth.UNRECOGNIZED : result;
       }
       return io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth.COUNTS;
@@ -6204,8 +6204,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      this.queryParamCase_ = 13;
-      this.queryParam_ = value.getNumber();
+      queryParamCase_ = 13;
+      queryParam_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -6218,9 +6218,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearFacetStatisticsDepthValue() {
-      if (this.queryParamCase_ == 13) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 13) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -6236,7 +6236,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasQueryPriceModelValue() {
-      return this.queryParamCase_ == 14;
+      return queryParamCase_ == 14;
     }
     /**
      * <pre>
@@ -6248,8 +6248,8 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getQueryPriceModelValueValue() {
-      if (this.queryParamCase_ == 14) {
-        return ((java.lang.Integer) this.queryParam_).intValue();
+      if (queryParamCase_ == 14) {
+        return ((java.lang.Integer) queryParam_).intValue();
       }
       return 0;
     }
@@ -6263,8 +6263,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setQueryPriceModelValueValue(int value) {
-      this.queryParamCase_ = 14;
-      this.queryParam_ = value;
+      queryParamCase_ = 14;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -6278,10 +6278,10 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode getQueryPriceModelValue() {
-      if (this.queryParamCase_ == 14) {
+      if (queryParamCase_ == 14) {
         @SuppressWarnings("deprecation")
         io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode result = io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode.valueOf(
-            (java.lang.Integer) this.queryParam_);
+            (java.lang.Integer) queryParam_);
         return result == null ? io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode.UNRECOGNIZED : result;
       }
       return io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode.WITH_TAX;
@@ -6299,8 +6299,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      this.queryParamCase_ = 14;
-      this.queryParam_ = value.getNumber();
+      queryParamCase_ = 14;
+      queryParam_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -6313,9 +6313,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearQueryPriceModelValue() {
-      if (this.queryParamCase_ == 14) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 14) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -6331,7 +6331,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasPriceContentModeValue() {
-      return this.queryParamCase_ == 15;
+      return queryParamCase_ == 15;
     }
     /**
      * <pre>
@@ -6343,8 +6343,8 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getPriceContentModeValueValue() {
-      if (this.queryParamCase_ == 15) {
-        return ((java.lang.Integer) this.queryParam_).intValue();
+      if (queryParamCase_ == 15) {
+        return ((java.lang.Integer) queryParam_).intValue();
       }
       return 0;
     }
@@ -6358,8 +6358,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPriceContentModeValueValue(int value) {
-      this.queryParamCase_ = 15;
-      this.queryParam_ = value;
+      queryParamCase_ = 15;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -6373,10 +6373,10 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode getPriceContentModeValue() {
-      if (this.queryParamCase_ == 15) {
+      if (queryParamCase_ == 15) {
         @SuppressWarnings("deprecation")
         io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode result = io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode.valueOf(
-            (java.lang.Integer) this.queryParam_);
+            (java.lang.Integer) queryParam_);
         return result == null ? io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode.UNRECOGNIZED : result;
       }
       return io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode.FETCH_NONE;
@@ -6394,8 +6394,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      this.queryParamCase_ = 15;
-      this.queryParam_ = value.getNumber();
+      queryParamCase_ = 15;
+      queryParam_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -6408,9 +6408,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPriceContentModeValue() {
-      if (this.queryParamCase_ == 15) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 15) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -6426,7 +6426,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasAttributeSpecialValue() {
-      return this.queryParamCase_ == 16;
+      return queryParamCase_ == 16;
     }
     /**
      * <pre>
@@ -6438,8 +6438,8 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getAttributeSpecialValueValue() {
-      if (this.queryParamCase_ == 16) {
-        return ((java.lang.Integer) this.queryParam_).intValue();
+      if (queryParamCase_ == 16) {
+        return ((java.lang.Integer) queryParam_).intValue();
       }
       return 0;
     }
@@ -6453,8 +6453,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setAttributeSpecialValueValue(int value) {
-      this.queryParamCase_ = 16;
-      this.queryParam_ = value;
+      queryParamCase_ = 16;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -6468,10 +6468,10 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue getAttributeSpecialValue() {
-      if (this.queryParamCase_ == 16) {
+      if (queryParamCase_ == 16) {
         @SuppressWarnings("deprecation")
         io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue result = io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue.valueOf(
-            (java.lang.Integer) this.queryParam_);
+            (java.lang.Integer) queryParam_);
         return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue.UNRECOGNIZED : result;
       }
       return io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue.NULL;
@@ -6489,8 +6489,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      this.queryParamCase_ = 16;
-      this.queryParam_ = value.getNumber();
+      queryParamCase_ = 16;
+      queryParam_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -6503,9 +6503,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearAttributeSpecialValue() {
-      if (this.queryParamCase_ == 16) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 16) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -6521,7 +6521,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasOrderDirectionValue() {
-      return this.queryParamCase_ == 17;
+      return queryParamCase_ == 17;
     }
     /**
      * <pre>
@@ -6533,8 +6533,8 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getOrderDirectionValueValue() {
-      if (this.queryParamCase_ == 17) {
-        return ((java.lang.Integer) this.queryParam_).intValue();
+      if (queryParamCase_ == 17) {
+        return ((java.lang.Integer) queryParam_).intValue();
       }
       return 0;
     }
@@ -6548,8 +6548,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setOrderDirectionValueValue(int value) {
-      this.queryParamCase_ = 17;
-      this.queryParam_ = value;
+      queryParamCase_ = 17;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -6563,10 +6563,10 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcOrderDirection getOrderDirectionValue() {
-      if (this.queryParamCase_ == 17) {
+      if (queryParamCase_ == 17) {
         @SuppressWarnings("deprecation")
         io.evitadb.externalApi.grpc.generated.GrpcOrderDirection result = io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.valueOf(
-            (java.lang.Integer) this.queryParam_);
+            (java.lang.Integer) queryParam_);
         return result == null ? io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.UNRECOGNIZED : result;
       }
       return io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.ASC;
@@ -6584,8 +6584,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      this.queryParamCase_ = 17;
-      this.queryParam_ = value.getNumber();
+      queryParamCase_ = 17;
+      queryParam_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -6598,9 +6598,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearOrderDirectionValue() {
-      if (this.queryParamCase_ == 17) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 17) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -6616,7 +6616,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasEmptyHierarchicalEntityBehaviour() {
-      return this.queryParamCase_ == 18;
+      return queryParamCase_ == 18;
     }
     /**
      * <pre>
@@ -6628,8 +6628,8 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getEmptyHierarchicalEntityBehaviourValue() {
-      if (this.queryParamCase_ == 18) {
-        return ((java.lang.Integer) this.queryParam_).intValue();
+      if (queryParamCase_ == 18) {
+        return ((java.lang.Integer) queryParam_).intValue();
       }
       return 0;
     }
@@ -6643,8 +6643,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setEmptyHierarchicalEntityBehaviourValue(int value) {
-      this.queryParamCase_ = 18;
-      this.queryParam_ = value;
+      queryParamCase_ = 18;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -6658,10 +6658,10 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour getEmptyHierarchicalEntityBehaviour() {
-      if (this.queryParamCase_ == 18) {
+      if (queryParamCase_ == 18) {
         @SuppressWarnings("deprecation")
         io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour.valueOf(
-            (java.lang.Integer) this.queryParam_);
+            (java.lang.Integer) queryParam_);
         return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour.UNRECOGNIZED : result;
       }
       return io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour.LEAVE_EMPTY;
@@ -6679,8 +6679,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      this.queryParamCase_ = 18;
-      this.queryParam_ = value.getNumber();
+      queryParamCase_ = 18;
+      queryParam_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -6693,9 +6693,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEmptyHierarchicalEntityBehaviour() {
-      if (this.queryParamCase_ == 18) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 18) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -6711,7 +6711,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasStatisticsBase() {
-      return this.queryParamCase_ == 19;
+      return queryParamCase_ == 19;
     }
     /**
      * <pre>
@@ -6723,8 +6723,8 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getStatisticsBaseValue() {
-      if (this.queryParamCase_ == 19) {
-        return ((java.lang.Integer) this.queryParam_).intValue();
+      if (queryParamCase_ == 19) {
+        return ((java.lang.Integer) queryParam_).intValue();
       }
       return 0;
     }
@@ -6738,8 +6738,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setStatisticsBaseValue(int value) {
-      this.queryParamCase_ = 19;
-      this.queryParam_ = value;
+      queryParamCase_ = 19;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -6753,10 +6753,10 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase getStatisticsBase() {
-      if (this.queryParamCase_ == 19) {
+      if (queryParamCase_ == 19) {
         @SuppressWarnings("deprecation")
         io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase result = io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase.valueOf(
-            (java.lang.Integer) this.queryParam_);
+            (java.lang.Integer) queryParam_);
         return result == null ? io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase.UNRECOGNIZED : result;
       }
       return io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase.COMPLETE_FILTER;
@@ -6774,8 +6774,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      this.queryParamCase_ = 19;
-      this.queryParam_ = value.getNumber();
+      queryParamCase_ = 19;
+      queryParam_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -6788,9 +6788,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearStatisticsBase() {
-      if (this.queryParamCase_ == 19) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 19) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -6806,7 +6806,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasStatisticsType() {
-      return this.queryParamCase_ == 20;
+      return queryParamCase_ == 20;
     }
     /**
      * <pre>
@@ -6818,8 +6818,8 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getStatisticsTypeValue() {
-      if (this.queryParamCase_ == 20) {
-        return ((java.lang.Integer) this.queryParam_).intValue();
+      if (queryParamCase_ == 20) {
+        return ((java.lang.Integer) queryParam_).intValue();
       }
       return 0;
     }
@@ -6833,8 +6833,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setStatisticsTypeValue(int value) {
-      this.queryParamCase_ = 20;
-      this.queryParam_ = value;
+      queryParamCase_ = 20;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -6848,10 +6848,10 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcStatisticsType getStatisticsType() {
-      if (this.queryParamCase_ == 20) {
+      if (queryParamCase_ == 20) {
         @SuppressWarnings("deprecation")
         io.evitadb.externalApi.grpc.generated.GrpcStatisticsType result = io.evitadb.externalApi.grpc.generated.GrpcStatisticsType.valueOf(
-            (java.lang.Integer) this.queryParam_);
+            (java.lang.Integer) queryParam_);
         return result == null ? io.evitadb.externalApi.grpc.generated.GrpcStatisticsType.UNRECOGNIZED : result;
       }
       return io.evitadb.externalApi.grpc.generated.GrpcStatisticsType.CHILDREN_COUNT;
@@ -6869,8 +6869,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      this.queryParamCase_ = 20;
-      this.queryParam_ = value.getNumber();
+      queryParamCase_ = 20;
+      queryParam_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -6883,9 +6883,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearStatisticsType() {
-      if (this.queryParamCase_ == 20) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 20) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -6901,7 +6901,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasHistogramBehavior() {
-      return this.queryParamCase_ == 21;
+      return queryParamCase_ == 21;
     }
     /**
      * <pre>
@@ -6913,8 +6913,8 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getHistogramBehaviorValue() {
-      if (this.queryParamCase_ == 21) {
-        return ((java.lang.Integer) this.queryParam_).intValue();
+      if (queryParamCase_ == 21) {
+        return ((java.lang.Integer) queryParam_).intValue();
       }
       return 0;
     }
@@ -6928,8 +6928,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setHistogramBehaviorValue(int value) {
-      this.queryParamCase_ = 21;
-      this.queryParam_ = value;
+      queryParamCase_ = 21;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -6943,10 +6943,10 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior getHistogramBehavior() {
-      if (this.queryParamCase_ == 21) {
+      if (queryParamCase_ == 21) {
         @SuppressWarnings("deprecation")
         io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior result = io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior.valueOf(
-            (java.lang.Integer) this.queryParam_);
+            (java.lang.Integer) queryParam_);
         return result == null ? io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior.UNRECOGNIZED : result;
       }
       return io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior.STANDARD;
@@ -6964,8 +6964,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      this.queryParamCase_ = 21;
-      this.queryParam_ = value.getNumber();
+      queryParamCase_ = 21;
+      queryParam_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -6978,9 +6978,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearHistogramBehavior() {
-      if (this.queryParamCase_ == 21) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 21) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -6996,7 +6996,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasManagedReferencesBehaviour() {
-      return this.queryParamCase_ == 22;
+      return queryParamCase_ == 22;
     }
     /**
      * <pre>
@@ -7008,8 +7008,8 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getManagedReferencesBehaviourValue() {
-      if (this.queryParamCase_ == 22) {
-        return ((java.lang.Integer) this.queryParam_).intValue();
+      if (queryParamCase_ == 22) {
+        return ((java.lang.Integer) queryParam_).intValue();
       }
       return 0;
     }
@@ -7023,8 +7023,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setManagedReferencesBehaviourValue(int value) {
-      this.queryParamCase_ = 22;
-      this.queryParam_ = value;
+      queryParamCase_ = 22;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -7038,10 +7038,10 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour getManagedReferencesBehaviour() {
-      if (this.queryParamCase_ == 22) {
+      if (queryParamCase_ == 22) {
         @SuppressWarnings("deprecation")
         io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour.valueOf(
-            (java.lang.Integer) this.queryParam_);
+            (java.lang.Integer) queryParam_);
         return result == null ? io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour.UNRECOGNIZED : result;
       }
       return io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour.ANY;
@@ -7059,8 +7059,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      this.queryParamCase_ = 22;
-      this.queryParam_ = value.getNumber();
+      queryParamCase_ = 22;
+      queryParam_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -7073,9 +7073,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearManagedReferencesBehaviour() {
-      if (this.queryParamCase_ == 22) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 22) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -7091,7 +7091,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasExpressionValue() {
-      return this.queryParamCase_ == 23;
+      return queryParamCase_ == 23;
     }
     /**
      * <pre>
@@ -7104,15 +7104,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public java.lang.String getExpressionValue() {
       java.lang.Object ref = "";
-      if (this.queryParamCase_ == 23) {
-        ref = this.queryParam_;
+      if (queryParamCase_ == 23) {
+        ref = queryParam_;
       }
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        if (this.queryParamCase_ == 23) {
-          this.queryParam_ = s;
+        if (queryParamCase_ == 23) {
+          queryParam_ = s;
         }
         return s;
       } else {
@@ -7131,15 +7131,15 @@ private static final long serialVersionUID = 0L;
     public com.google.protobuf.ByteString
         getExpressionValueBytes() {
       java.lang.Object ref = "";
-      if (this.queryParamCase_ == 23) {
-        ref = this.queryParam_;
+      if (queryParamCase_ == 23) {
+        ref = queryParam_;
       }
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        if (this.queryParamCase_ == 23) {
-          this.queryParam_ = b;
+        if (queryParamCase_ == 23) {
+          queryParam_ = b;
         }
         return b;
       } else {
@@ -7160,8 +7160,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  this.queryParamCase_ = 23;
-      this.queryParam_ = value;
+  queryParamCase_ = 23;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -7174,9 +7174,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearExpressionValue() {
-      if (this.queryParamCase_ == 23) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 23) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -7196,8 +7196,8 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      this.queryParamCase_ = 23;
-      this.queryParam_ = value;
+      queryParamCase_ = 23;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -7212,7 +7212,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasScope() {
-      return this.queryParamCase_ == 24;
+      return queryParamCase_ == 24;
     }
     /**
      * <pre>
@@ -7224,8 +7224,8 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getScopeValue() {
-      if (this.queryParamCase_ == 24) {
-        return ((java.lang.Integer) this.queryParam_).intValue();
+      if (queryParamCase_ == 24) {
+        return ((java.lang.Integer) queryParam_).intValue();
       }
       return 0;
     }
@@ -7239,8 +7239,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setScopeValue(int value) {
-      this.queryParamCase_ = 24;
-      this.queryParam_ = value;
+      queryParamCase_ = 24;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -7254,10 +7254,10 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getScope() {
-      if (this.queryParamCase_ == 24) {
+      if (queryParamCase_ == 24) {
         @SuppressWarnings("deprecation")
         io.evitadb.externalApi.grpc.generated.GrpcEntityScope result = io.evitadb.externalApi.grpc.generated.GrpcEntityScope.valueOf(
-            (java.lang.Integer) this.queryParam_);
+            (java.lang.Integer) queryParam_);
         return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityScope.UNRECOGNIZED : result;
       }
       return io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE;
@@ -7275,8 +7275,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      this.queryParamCase_ = 24;
-      this.queryParam_ = value.getNumber();
+      queryParamCase_ = 24;
+      queryParam_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -7289,9 +7289,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearScope() {
-      if (this.queryParamCase_ == 24) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 24) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -7307,7 +7307,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasFacetRelationType() {
-      return this.queryParamCase_ == 25;
+      return queryParamCase_ == 25;
     }
     /**
      * <pre>
@@ -7319,8 +7319,8 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getFacetRelationTypeValue() {
-      if (this.queryParamCase_ == 25) {
-        return ((java.lang.Integer) this.queryParam_).intValue();
+      if (queryParamCase_ == 25) {
+        return ((java.lang.Integer) queryParam_).intValue();
       }
       return 0;
     }
@@ -7334,8 +7334,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setFacetRelationTypeValue(int value) {
-      this.queryParamCase_ = 25;
-      this.queryParam_ = value;
+      queryParamCase_ = 25;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -7349,10 +7349,10 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType getFacetRelationType() {
-      if (this.queryParamCase_ == 25) {
+      if (queryParamCase_ == 25) {
         @SuppressWarnings("deprecation")
         io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType result = io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.valueOf(
-            (java.lang.Integer) this.queryParam_);
+            (java.lang.Integer) queryParam_);
         return result == null ? io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.UNRECOGNIZED : result;
       }
       return io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType.DISJUNCTION;
@@ -7370,8 +7370,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      this.queryParamCase_ = 25;
-      this.queryParam_ = value.getNumber();
+      queryParamCase_ = 25;
+      queryParam_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -7384,9 +7384,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearFacetRelationType() {
-      if (this.queryParamCase_ == 25) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 25) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -7402,7 +7402,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasFacetGroupRelationLevel() {
-      return this.queryParamCase_ == 26;
+      return queryParamCase_ == 26;
     }
     /**
      * <pre>
@@ -7414,8 +7414,8 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getFacetGroupRelationLevelValue() {
-      if (this.queryParamCase_ == 26) {
-        return ((java.lang.Integer) this.queryParam_).intValue();
+      if (queryParamCase_ == 26) {
+        return ((java.lang.Integer) queryParam_).intValue();
       }
       return 0;
     }
@@ -7429,8 +7429,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setFacetGroupRelationLevelValue(int value) {
-      this.queryParamCase_ = 26;
-      this.queryParam_ = value;
+      queryParamCase_ = 26;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -7444,10 +7444,10 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel getFacetGroupRelationLevel() {
-      if (this.queryParamCase_ == 26) {
+      if (queryParamCase_ == 26) {
         @SuppressWarnings("deprecation")
         io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel result = io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.valueOf(
-            (java.lang.Integer) this.queryParam_);
+            (java.lang.Integer) queryParam_);
         return result == null ? io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.UNRECOGNIZED : result;
       }
       return io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
@@ -7465,8 +7465,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      this.queryParamCase_ = 26;
-      this.queryParam_ = value.getNumber();
+      queryParamCase_ = 26;
+      queryParam_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -7479,9 +7479,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearFacetGroupRelationLevel() {
-      if (this.queryParamCase_ == 26) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 26) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -7497,7 +7497,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasTraversalMode() {
-      return this.queryParamCase_ == 27;
+      return queryParamCase_ == 27;
     }
     /**
      * <pre>
@@ -7509,8 +7509,8 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getTraversalModeValue() {
-      if (this.queryParamCase_ == 27) {
-        return ((java.lang.Integer) this.queryParam_).intValue();
+      if (queryParamCase_ == 27) {
+        return ((java.lang.Integer) queryParam_).intValue();
       }
       return 0;
     }
@@ -7524,8 +7524,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setTraversalModeValue(int value) {
-      this.queryParamCase_ = 27;
-      this.queryParam_ = value;
+      queryParamCase_ = 27;
+      queryParam_ = value;
       onChanged();
       return this;
     }
@@ -7539,10 +7539,10 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcTraversalMode getTraversalMode() {
-      if (this.queryParamCase_ == 27) {
+      if (queryParamCase_ == 27) {
         @SuppressWarnings("deprecation")
         io.evitadb.externalApi.grpc.generated.GrpcTraversalMode result = io.evitadb.externalApi.grpc.generated.GrpcTraversalMode.valueOf(
-            (java.lang.Integer) this.queryParam_);
+            (java.lang.Integer) queryParam_);
         return result == null ? io.evitadb.externalApi.grpc.generated.GrpcTraversalMode.UNRECOGNIZED : result;
       }
       return io.evitadb.externalApi.grpc.generated.GrpcTraversalMode.DEPTH_FIRST;
@@ -7560,8 +7560,8 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      this.queryParamCase_ = 27;
-      this.queryParam_ = value.getNumber();
+      queryParamCase_ = 27;
+      queryParam_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -7574,9 +7574,9 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearTraversalMode() {
-      if (this.queryParamCase_ == 27) {
-        this.queryParamCase_ = 0;
-        this.queryParam_ = null;
+      if (queryParamCase_ == 27) {
+        queryParamCase_ = 0;
+        queryParam_ = null;
         onChanged();
       }
       return this;
@@ -7594,7 +7594,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasStringArrayValue() {
-      return this.queryParamCase_ == 101;
+      return queryParamCase_ == 101;
     }
     /**
      * <pre>
@@ -7606,14 +7606,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcStringArray getStringArrayValue() {
-      if (this.stringArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 101) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcStringArray) this.queryParam_;
+      if (stringArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 101) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 101) {
-          return this.stringArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 101) {
+          return stringArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance();
       }
@@ -7626,16 +7626,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
      */
     public Builder setStringArrayValue(io.evitadb.externalApi.grpc.generated.GrpcStringArray value) {
-      if (this.stringArrayValueBuilder_ == null) {
+      if (stringArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.stringArrayValueBuilder_.setMessage(value);
+        stringArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 101;
+      queryParamCase_ = 101;
       return this;
     }
     /**
@@ -7647,13 +7647,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setStringArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder builderForValue) {
-      if (this.stringArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (stringArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.stringArrayValueBuilder_.setMessage(builderForValue.build());
+        stringArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 101;
+      queryParamCase_ = 101;
       return this;
     }
     /**
@@ -7664,22 +7664,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
      */
     public Builder mergeStringArrayValue(io.evitadb.externalApi.grpc.generated.GrpcStringArray value) {
-      if (this.stringArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 101 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcStringArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcStringArray) this.queryParam_)
+      if (stringArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 101 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcStringArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 101) {
-          this.stringArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 101) {
+          stringArrayValueBuilder_.mergeFrom(value);
         }
-        this.stringArrayValueBuilder_.setMessage(value);
+        stringArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 101;
+      queryParamCase_ = 101;
       return this;
     }
     /**
@@ -7690,18 +7690,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
      */
     public Builder clearStringArrayValue() {
-      if (this.stringArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 101) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (stringArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 101) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 101) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 101) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.stringArrayValueBuilder_.clear();
+        stringArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -7724,11 +7724,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder getStringArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 101) && (this.stringArrayValueBuilder_ != null)) {
-        return this.stringArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 101) && (stringArrayValueBuilder_ != null)) {
+        return stringArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 101) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcStringArray) this.queryParam_;
+        if (queryParamCase_ == 101) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance();
       }
@@ -7743,20 +7743,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcStringArray, io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder>
         getStringArrayValueFieldBuilder() {
-      if (this.stringArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 101)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance();
+      if (stringArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 101)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance();
         }
-        this.stringArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        stringArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcStringArray, io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcStringArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcStringArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 101;
+      queryParamCase_ = 101;
       onChanged();;
-      return this.stringArrayValueBuilder_;
+      return stringArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -7771,7 +7771,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasIntegerArrayValue() {
-      return this.queryParamCase_ == 102;
+      return queryParamCase_ == 102;
     }
     /**
      * <pre>
@@ -7783,14 +7783,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerArray getIntegerArrayValue() {
-      if (this.integerArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 102) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) this.queryParam_;
+      if (integerArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 102) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 102) {
-          return this.integerArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 102) {
+          return integerArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance();
       }
@@ -7803,16 +7803,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
      */
     public Builder setIntegerArrayValue(io.evitadb.externalApi.grpc.generated.GrpcIntegerArray value) {
-      if (this.integerArrayValueBuilder_ == null) {
+      if (integerArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.integerArrayValueBuilder_.setMessage(value);
+        integerArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 102;
+      queryParamCase_ = 102;
       return this;
     }
     /**
@@ -7824,13 +7824,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setIntegerArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.Builder builderForValue) {
-      if (this.integerArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (integerArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.integerArrayValueBuilder_.setMessage(builderForValue.build());
+        integerArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 102;
+      queryParamCase_ = 102;
       return this;
     }
     /**
@@ -7841,22 +7841,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
      */
     public Builder mergeIntegerArrayValue(io.evitadb.externalApi.grpc.generated.GrpcIntegerArray value) {
-      if (this.integerArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 102 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) this.queryParam_)
+      if (integerArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 102 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 102) {
-          this.integerArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 102) {
+          integerArrayValueBuilder_.mergeFrom(value);
         }
-        this.integerArrayValueBuilder_.setMessage(value);
+        integerArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 102;
+      queryParamCase_ = 102;
       return this;
     }
     /**
@@ -7867,18 +7867,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
      */
     public Builder clearIntegerArrayValue() {
-      if (this.integerArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 102) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (integerArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 102) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 102) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 102) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.integerArrayValueBuilder_.clear();
+        integerArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -7901,11 +7901,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder getIntegerArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 102) && (this.integerArrayValueBuilder_ != null)) {
-        return this.integerArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 102) && (integerArrayValueBuilder_ != null)) {
+        return integerArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 102) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) this.queryParam_;
+        if (queryParamCase_ == 102) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance();
       }
@@ -7920,20 +7920,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcIntegerArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder>
         getIntegerArrayValueFieldBuilder() {
-      if (this.integerArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 102)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance();
+      if (integerArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 102)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance();
         }
-        this.integerArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        integerArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcIntegerArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 102;
+      queryParamCase_ = 102;
       onChanged();;
-      return this.integerArrayValueBuilder_;
+      return integerArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -7948,7 +7948,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasLongArrayValue() {
-      return this.queryParamCase_ == 103;
+      return queryParamCase_ == 103;
     }
     /**
      * <pre>
@@ -7960,14 +7960,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLongArray getLongArrayValue() {
-      if (this.longArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 103) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcLongArray) this.queryParam_;
+      if (longArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 103) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcLongArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 103) {
-          return this.longArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 103) {
+          return longArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance();
       }
@@ -7980,16 +7980,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
      */
     public Builder setLongArrayValue(io.evitadb.externalApi.grpc.generated.GrpcLongArray value) {
-      if (this.longArrayValueBuilder_ == null) {
+      if (longArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.longArrayValueBuilder_.setMessage(value);
+        longArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 103;
+      queryParamCase_ = 103;
       return this;
     }
     /**
@@ -8001,13 +8001,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setLongArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcLongArray.Builder builderForValue) {
-      if (this.longArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (longArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.longArrayValueBuilder_.setMessage(builderForValue.build());
+        longArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 103;
+      queryParamCase_ = 103;
       return this;
     }
     /**
@@ -8018,22 +8018,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
      */
     public Builder mergeLongArrayValue(io.evitadb.externalApi.grpc.generated.GrpcLongArray value) {
-      if (this.longArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 103 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLongArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLongArray) this.queryParam_)
+      if (longArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 103 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLongArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLongArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 103) {
-          this.longArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 103) {
+          longArrayValueBuilder_.mergeFrom(value);
         }
-        this.longArrayValueBuilder_.setMessage(value);
+        longArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 103;
+      queryParamCase_ = 103;
       return this;
     }
     /**
@@ -8044,18 +8044,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
      */
     public Builder clearLongArrayValue() {
-      if (this.longArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 103) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (longArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 103) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 103) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 103) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.longArrayValueBuilder_.clear();
+        longArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -8078,11 +8078,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder getLongArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 103) && (this.longArrayValueBuilder_ != null)) {
-        return this.longArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 103) && (longArrayValueBuilder_ != null)) {
+        return longArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 103) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcLongArray) this.queryParam_;
+        if (queryParamCase_ == 103) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcLongArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance();
       }
@@ -8097,20 +8097,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLongArray, io.evitadb.externalApi.grpc.generated.GrpcLongArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder>
         getLongArrayValueFieldBuilder() {
-      if (this.longArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 103)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance();
+      if (longArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 103)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance();
         }
-        this.longArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        longArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcLongArray, io.evitadb.externalApi.grpc.generated.GrpcLongArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcLongArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcLongArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 103;
+      queryParamCase_ = 103;
       onChanged();;
-      return this.longArrayValueBuilder_;
+      return longArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -8125,7 +8125,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasBooleanArrayValue() {
-      return this.queryParamCase_ == 104;
+      return queryParamCase_ == 104;
     }
     /**
      * <pre>
@@ -8137,14 +8137,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBooleanArray getBooleanArrayValue() {
-      if (this.booleanArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 104) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) this.queryParam_;
+      if (booleanArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 104) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 104) {
-          return this.booleanArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 104) {
+          return booleanArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance();
       }
@@ -8157,16 +8157,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
      */
     public Builder setBooleanArrayValue(io.evitadb.externalApi.grpc.generated.GrpcBooleanArray value) {
-      if (this.booleanArrayValueBuilder_ == null) {
+      if (booleanArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.booleanArrayValueBuilder_.setMessage(value);
+        booleanArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 104;
+      queryParamCase_ = 104;
       return this;
     }
     /**
@@ -8178,13 +8178,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setBooleanArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.Builder builderForValue) {
-      if (this.booleanArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (booleanArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.booleanArrayValueBuilder_.setMessage(builderForValue.build());
+        booleanArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 104;
+      queryParamCase_ = 104;
       return this;
     }
     /**
@@ -8195,22 +8195,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
      */
     public Builder mergeBooleanArrayValue(io.evitadb.externalApi.grpc.generated.GrpcBooleanArray value) {
-      if (this.booleanArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 104 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) this.queryParam_)
+      if (booleanArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 104 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 104) {
-          this.booleanArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 104) {
+          booleanArrayValueBuilder_.mergeFrom(value);
         }
-        this.booleanArrayValueBuilder_.setMessage(value);
+        booleanArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 104;
+      queryParamCase_ = 104;
       return this;
     }
     /**
@@ -8221,18 +8221,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
      */
     public Builder clearBooleanArrayValue() {
-      if (this.booleanArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 104) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (booleanArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 104) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 104) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 104) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.booleanArrayValueBuilder_.clear();
+        booleanArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -8255,11 +8255,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder getBooleanArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 104) && (this.booleanArrayValueBuilder_ != null)) {
-        return this.booleanArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 104) && (booleanArrayValueBuilder_ != null)) {
+        return booleanArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 104) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) this.queryParam_;
+        if (queryParamCase_ == 104) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance();
       }
@@ -8274,20 +8274,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBooleanArray, io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder>
         getBooleanArrayValueFieldBuilder() {
-      if (this.booleanArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 104)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance();
+      if (booleanArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 104)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance();
         }
-        this.booleanArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        booleanArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBooleanArray, io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 104;
+      queryParamCase_ = 104;
       onChanged();;
-      return this.booleanArrayValueBuilder_;
+      return booleanArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -8302,7 +8302,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasBigDecimalArrayValue() {
-      return this.queryParamCase_ == 105;
+      return queryParamCase_ == 105;
     }
     /**
      * <pre>
@@ -8314,14 +8314,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray getBigDecimalArrayValue() {
-      if (this.bigDecimalArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 105) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) this.queryParam_;
+      if (bigDecimalArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 105) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 105) {
-          return this.bigDecimalArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 105) {
+          return bigDecimalArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance();
       }
@@ -8334,16 +8334,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
      */
     public Builder setBigDecimalArrayValue(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray value) {
-      if (this.bigDecimalArrayValueBuilder_ == null) {
+      if (bigDecimalArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.bigDecimalArrayValueBuilder_.setMessage(value);
+        bigDecimalArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 105;
+      queryParamCase_ = 105;
       return this;
     }
     /**
@@ -8355,13 +8355,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setBigDecimalArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.Builder builderForValue) {
-      if (this.bigDecimalArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (bigDecimalArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.bigDecimalArrayValueBuilder_.setMessage(builderForValue.build());
+        bigDecimalArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 105;
+      queryParamCase_ = 105;
       return this;
     }
     /**
@@ -8372,22 +8372,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
      */
     public Builder mergeBigDecimalArrayValue(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray value) {
-      if (this.bigDecimalArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 105 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) this.queryParam_)
+      if (bigDecimalArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 105 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 105) {
-          this.bigDecimalArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 105) {
+          bigDecimalArrayValueBuilder_.mergeFrom(value);
         }
-        this.bigDecimalArrayValueBuilder_.setMessage(value);
+        bigDecimalArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 105;
+      queryParamCase_ = 105;
       return this;
     }
     /**
@@ -8398,18 +8398,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
      */
     public Builder clearBigDecimalArrayValue() {
-      if (this.bigDecimalArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 105) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (bigDecimalArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 105) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 105) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 105) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.bigDecimalArrayValueBuilder_.clear();
+        bigDecimalArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -8432,11 +8432,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder getBigDecimalArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 105) && (this.bigDecimalArrayValueBuilder_ != null)) {
-        return this.bigDecimalArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 105) && (bigDecimalArrayValueBuilder_ != null)) {
+        return bigDecimalArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 105) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) this.queryParam_;
+        if (queryParamCase_ == 105) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance();
       }
@@ -8451,20 +8451,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder>
         getBigDecimalArrayValueFieldBuilder() {
-      if (this.bigDecimalArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 105)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance();
+      if (bigDecimalArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 105)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance();
         }
-        this.bigDecimalArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        bigDecimalArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 105;
+      queryParamCase_ = 105;
       onChanged();;
-      return this.bigDecimalArrayValueBuilder_;
+      return bigDecimalArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -8479,7 +8479,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasDateTimeRangeArrayValue() {
-      return this.queryParamCase_ == 106;
+      return queryParamCase_ == 106;
     }
     /**
      * <pre>
@@ -8491,14 +8491,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray getDateTimeRangeArrayValue() {
-      if (this.dateTimeRangeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 106) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) this.queryParam_;
+      if (dateTimeRangeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 106) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 106) {
-          return this.dateTimeRangeArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 106) {
+          return dateTimeRangeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance();
       }
@@ -8511,16 +8511,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
      */
     public Builder setDateTimeRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray value) {
-      if (this.dateTimeRangeArrayValueBuilder_ == null) {
+      if (dateTimeRangeArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.dateTimeRangeArrayValueBuilder_.setMessage(value);
+        dateTimeRangeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 106;
+      queryParamCase_ = 106;
       return this;
     }
     /**
@@ -8532,13 +8532,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setDateTimeRangeArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.Builder builderForValue) {
-      if (this.dateTimeRangeArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (dateTimeRangeArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.dateTimeRangeArrayValueBuilder_.setMessage(builderForValue.build());
+        dateTimeRangeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 106;
+      queryParamCase_ = 106;
       return this;
     }
     /**
@@ -8549,22 +8549,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
      */
     public Builder mergeDateTimeRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray value) {
-      if (this.dateTimeRangeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 106 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) this.queryParam_)
+      if (dateTimeRangeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 106 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 106) {
-          this.dateTimeRangeArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 106) {
+          dateTimeRangeArrayValueBuilder_.mergeFrom(value);
         }
-        this.dateTimeRangeArrayValueBuilder_.setMessage(value);
+        dateTimeRangeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 106;
+      queryParamCase_ = 106;
       return this;
     }
     /**
@@ -8575,18 +8575,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
      */
     public Builder clearDateTimeRangeArrayValue() {
-      if (this.dateTimeRangeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 106) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (dateTimeRangeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 106) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 106) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 106) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.dateTimeRangeArrayValueBuilder_.clear();
+        dateTimeRangeArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -8609,11 +8609,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder getDateTimeRangeArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 106) && (this.dateTimeRangeArrayValueBuilder_ != null)) {
-        return this.dateTimeRangeArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 106) && (dateTimeRangeArrayValueBuilder_ != null)) {
+        return dateTimeRangeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 106) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) this.queryParam_;
+        if (queryParamCase_ == 106) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance();
       }
@@ -8628,20 +8628,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder>
         getDateTimeRangeArrayValueFieldBuilder() {
-      if (this.dateTimeRangeArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 106)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance();
+      if (dateTimeRangeArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 106)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance();
         }
-        this.dateTimeRangeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        dateTimeRangeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 106;
+      queryParamCase_ = 106;
       onChanged();;
-      return this.dateTimeRangeArrayValueBuilder_;
+      return dateTimeRangeArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -8656,7 +8656,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasIntegerNumberRangeArrayValue() {
-      return this.queryParamCase_ == 107;
+      return queryParamCase_ == 107;
     }
     /**
      * <pre>
@@ -8668,14 +8668,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray getIntegerNumberRangeArrayValue() {
-      if (this.integerNumberRangeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 107) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) this.queryParam_;
+      if (integerNumberRangeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 107) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 107) {
-          return this.integerNumberRangeArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 107) {
+          return integerNumberRangeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance();
       }
@@ -8688,16 +8688,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
      */
     public Builder setIntegerNumberRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray value) {
-      if (this.integerNumberRangeArrayValueBuilder_ == null) {
+      if (integerNumberRangeArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.integerNumberRangeArrayValueBuilder_.setMessage(value);
+        integerNumberRangeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 107;
+      queryParamCase_ = 107;
       return this;
     }
     /**
@@ -8709,13 +8709,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setIntegerNumberRangeArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.Builder builderForValue) {
-      if (this.integerNumberRangeArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (integerNumberRangeArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.integerNumberRangeArrayValueBuilder_.setMessage(builderForValue.build());
+        integerNumberRangeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 107;
+      queryParamCase_ = 107;
       return this;
     }
     /**
@@ -8726,22 +8726,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
      */
     public Builder mergeIntegerNumberRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray value) {
-      if (this.integerNumberRangeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 107 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) this.queryParam_)
+      if (integerNumberRangeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 107 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 107) {
-          this.integerNumberRangeArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 107) {
+          integerNumberRangeArrayValueBuilder_.mergeFrom(value);
         }
-        this.integerNumberRangeArrayValueBuilder_.setMessage(value);
+        integerNumberRangeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 107;
+      queryParamCase_ = 107;
       return this;
     }
     /**
@@ -8752,18 +8752,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
      */
     public Builder clearIntegerNumberRangeArrayValue() {
-      if (this.integerNumberRangeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 107) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (integerNumberRangeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 107) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 107) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 107) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.integerNumberRangeArrayValueBuilder_.clear();
+        integerNumberRangeArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -8786,11 +8786,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder getIntegerNumberRangeArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 107) && (this.integerNumberRangeArrayValueBuilder_ != null)) {
-        return this.integerNumberRangeArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 107) && (integerNumberRangeArrayValueBuilder_ != null)) {
+        return integerNumberRangeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 107) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) this.queryParam_;
+        if (queryParamCase_ == 107) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance();
       }
@@ -8805,20 +8805,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder>
         getIntegerNumberRangeArrayValueFieldBuilder() {
-      if (this.integerNumberRangeArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 107)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance();
+      if (integerNumberRangeArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 107)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance();
         }
-        this.integerNumberRangeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        integerNumberRangeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 107;
+      queryParamCase_ = 107;
       onChanged();;
-      return this.integerNumberRangeArrayValueBuilder_;
+      return integerNumberRangeArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -8833,7 +8833,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasLongNumberRangeArrayValue() {
-      return this.queryParamCase_ == 108;
+      return queryParamCase_ == 108;
     }
     /**
      * <pre>
@@ -8845,14 +8845,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray getLongNumberRangeArrayValue() {
-      if (this.longNumberRangeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 108) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) this.queryParam_;
+      if (longNumberRangeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 108) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 108) {
-          return this.longNumberRangeArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 108) {
+          return longNumberRangeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance();
       }
@@ -8865,16 +8865,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
      */
     public Builder setLongNumberRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray value) {
-      if (this.longNumberRangeArrayValueBuilder_ == null) {
+      if (longNumberRangeArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.longNumberRangeArrayValueBuilder_.setMessage(value);
+        longNumberRangeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 108;
+      queryParamCase_ = 108;
       return this;
     }
     /**
@@ -8886,13 +8886,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setLongNumberRangeArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.Builder builderForValue) {
-      if (this.longNumberRangeArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (longNumberRangeArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.longNumberRangeArrayValueBuilder_.setMessage(builderForValue.build());
+        longNumberRangeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 108;
+      queryParamCase_ = 108;
       return this;
     }
     /**
@@ -8903,22 +8903,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
      */
     public Builder mergeLongNumberRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray value) {
-      if (this.longNumberRangeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 108 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) this.queryParam_)
+      if (longNumberRangeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 108 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 108) {
-          this.longNumberRangeArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 108) {
+          longNumberRangeArrayValueBuilder_.mergeFrom(value);
         }
-        this.longNumberRangeArrayValueBuilder_.setMessage(value);
+        longNumberRangeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 108;
+      queryParamCase_ = 108;
       return this;
     }
     /**
@@ -8929,18 +8929,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
      */
     public Builder clearLongNumberRangeArrayValue() {
-      if (this.longNumberRangeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 108) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (longNumberRangeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 108) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 108) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 108) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.longNumberRangeArrayValueBuilder_.clear();
+        longNumberRangeArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -8963,11 +8963,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder getLongNumberRangeArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 108) && (this.longNumberRangeArrayValueBuilder_ != null)) {
-        return this.longNumberRangeArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 108) && (longNumberRangeArrayValueBuilder_ != null)) {
+        return longNumberRangeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 108) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) this.queryParam_;
+        if (queryParamCase_ == 108) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance();
       }
@@ -8982,20 +8982,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder>
         getLongNumberRangeArrayValueFieldBuilder() {
-      if (this.longNumberRangeArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 108)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance();
+      if (longNumberRangeArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 108)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance();
         }
-        this.longNumberRangeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        longNumberRangeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 108;
+      queryParamCase_ = 108;
       onChanged();;
-      return this.longNumberRangeArrayValueBuilder_;
+      return longNumberRangeArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -9010,7 +9010,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasBigDecimalNumberRangeArrayValue() {
-      return this.queryParamCase_ == 109;
+      return queryParamCase_ == 109;
     }
     /**
      * <pre>
@@ -9022,14 +9022,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray getBigDecimalNumberRangeArrayValue() {
-      if (this.bigDecimalNumberRangeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 109) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) this.queryParam_;
+      if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 109) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 109) {
-          return this.bigDecimalNumberRangeArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 109) {
+          return bigDecimalNumberRangeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance();
       }
@@ -9042,16 +9042,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
      */
     public Builder setBigDecimalNumberRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray value) {
-      if (this.bigDecimalNumberRangeArrayValueBuilder_ == null) {
+      if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.bigDecimalNumberRangeArrayValueBuilder_.setMessage(value);
+        bigDecimalNumberRangeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 109;
+      queryParamCase_ = 109;
       return this;
     }
     /**
@@ -9063,13 +9063,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setBigDecimalNumberRangeArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.Builder builderForValue) {
-      if (this.bigDecimalNumberRangeArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.bigDecimalNumberRangeArrayValueBuilder_.setMessage(builderForValue.build());
+        bigDecimalNumberRangeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 109;
+      queryParamCase_ = 109;
       return this;
     }
     /**
@@ -9080,22 +9080,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
      */
     public Builder mergeBigDecimalNumberRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray value) {
-      if (this.bigDecimalNumberRangeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 109 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) this.queryParam_)
+      if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 109 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 109) {
-          this.bigDecimalNumberRangeArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 109) {
+          bigDecimalNumberRangeArrayValueBuilder_.mergeFrom(value);
         }
-        this.bigDecimalNumberRangeArrayValueBuilder_.setMessage(value);
+        bigDecimalNumberRangeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 109;
+      queryParamCase_ = 109;
       return this;
     }
     /**
@@ -9106,18 +9106,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
      */
     public Builder clearBigDecimalNumberRangeArrayValue() {
-      if (this.bigDecimalNumberRangeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 109) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 109) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 109) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 109) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.bigDecimalNumberRangeArrayValueBuilder_.clear();
+        bigDecimalNumberRangeArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -9140,11 +9140,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder getBigDecimalNumberRangeArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 109) && (this.bigDecimalNumberRangeArrayValueBuilder_ != null)) {
-        return this.bigDecimalNumberRangeArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 109) && (bigDecimalNumberRangeArrayValueBuilder_ != null)) {
+        return bigDecimalNumberRangeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 109) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) this.queryParam_;
+        if (queryParamCase_ == 109) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance();
       }
@@ -9159,20 +9159,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder>
         getBigDecimalNumberRangeArrayValueFieldBuilder() {
-      if (this.bigDecimalNumberRangeArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 109)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance();
+      if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 109)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance();
         }
-        this.bigDecimalNumberRangeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        bigDecimalNumberRangeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 109;
+      queryParamCase_ = 109;
       onChanged();;
-      return this.bigDecimalNumberRangeArrayValueBuilder_;
+      return bigDecimalNumberRangeArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -9187,7 +9187,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasOffsetDateTimeArrayValue() {
-      return this.queryParamCase_ == 110;
+      return queryParamCase_ == 110;
     }
     /**
      * <pre>
@@ -9199,14 +9199,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray getOffsetDateTimeArrayValue() {
-      if (this.offsetDateTimeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 110) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) this.queryParam_;
+      if (offsetDateTimeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 110) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 110) {
-          return this.offsetDateTimeArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 110) {
+          return offsetDateTimeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance();
       }
@@ -9219,16 +9219,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
      */
     public Builder setOffsetDateTimeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray value) {
-      if (this.offsetDateTimeArrayValueBuilder_ == null) {
+      if (offsetDateTimeArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.offsetDateTimeArrayValueBuilder_.setMessage(value);
+        offsetDateTimeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 110;
+      queryParamCase_ = 110;
       return this;
     }
     /**
@@ -9240,13 +9240,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setOffsetDateTimeArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.Builder builderForValue) {
-      if (this.offsetDateTimeArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (offsetDateTimeArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.offsetDateTimeArrayValueBuilder_.setMessage(builderForValue.build());
+        offsetDateTimeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 110;
+      queryParamCase_ = 110;
       return this;
     }
     /**
@@ -9257,22 +9257,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
      */
     public Builder mergeOffsetDateTimeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray value) {
-      if (this.offsetDateTimeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 110 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) this.queryParam_)
+      if (offsetDateTimeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 110 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 110) {
-          this.offsetDateTimeArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 110) {
+          offsetDateTimeArrayValueBuilder_.mergeFrom(value);
         }
-        this.offsetDateTimeArrayValueBuilder_.setMessage(value);
+        offsetDateTimeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 110;
+      queryParamCase_ = 110;
       return this;
     }
     /**
@@ -9283,18 +9283,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
      */
     public Builder clearOffsetDateTimeArrayValue() {
-      if (this.offsetDateTimeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 110) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (offsetDateTimeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 110) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 110) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 110) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.offsetDateTimeArrayValueBuilder_.clear();
+        offsetDateTimeArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -9317,11 +9317,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder getOffsetDateTimeArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 110) && (this.offsetDateTimeArrayValueBuilder_ != null)) {
-        return this.offsetDateTimeArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 110) && (offsetDateTimeArrayValueBuilder_ != null)) {
+        return offsetDateTimeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 110) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) this.queryParam_;
+        if (queryParamCase_ == 110) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance();
       }
@@ -9336,20 +9336,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder>
         getOffsetDateTimeArrayValueFieldBuilder() {
-      if (this.offsetDateTimeArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 110)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance();
+      if (offsetDateTimeArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 110)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance();
         }
-        this.offsetDateTimeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        offsetDateTimeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 110;
+      queryParamCase_ = 110;
       onChanged();;
-      return this.offsetDateTimeArrayValueBuilder_;
+      return offsetDateTimeArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -9364,7 +9364,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasLocaleArrayValue() {
-      return this.queryParamCase_ == 111;
+      return queryParamCase_ == 111;
     }
     /**
      * <pre>
@@ -9376,14 +9376,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLocaleArray getLocaleArrayValue() {
-      if (this.localeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 111) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) this.queryParam_;
+      if (localeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 111) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 111) {
-          return this.localeArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 111) {
+          return localeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance();
       }
@@ -9396,16 +9396,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
      */
     public Builder setLocaleArrayValue(io.evitadb.externalApi.grpc.generated.GrpcLocaleArray value) {
-      if (this.localeArrayValueBuilder_ == null) {
+      if (localeArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.localeArrayValueBuilder_.setMessage(value);
+        localeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 111;
+      queryParamCase_ = 111;
       return this;
     }
     /**
@@ -9417,13 +9417,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setLocaleArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.Builder builderForValue) {
-      if (this.localeArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (localeArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.localeArrayValueBuilder_.setMessage(builderForValue.build());
+        localeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 111;
+      queryParamCase_ = 111;
       return this;
     }
     /**
@@ -9434,22 +9434,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
      */
     public Builder mergeLocaleArrayValue(io.evitadb.externalApi.grpc.generated.GrpcLocaleArray value) {
-      if (this.localeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 111 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) this.queryParam_)
+      if (localeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 111 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 111) {
-          this.localeArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 111) {
+          localeArrayValueBuilder_.mergeFrom(value);
         }
-        this.localeArrayValueBuilder_.setMessage(value);
+        localeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 111;
+      queryParamCase_ = 111;
       return this;
     }
     /**
@@ -9460,18 +9460,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
      */
     public Builder clearLocaleArrayValue() {
-      if (this.localeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 111) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (localeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 111) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 111) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 111) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.localeArrayValueBuilder_.clear();
+        localeArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -9494,11 +9494,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder getLocaleArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 111) && (this.localeArrayValueBuilder_ != null)) {
-        return this.localeArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 111) && (localeArrayValueBuilder_ != null)) {
+        return localeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 111) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) this.queryParam_;
+        if (queryParamCase_ == 111) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance();
       }
@@ -9513,20 +9513,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLocaleArray, io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder>
         getLocaleArrayValueFieldBuilder() {
-      if (this.localeArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 111)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance();
+      if (localeArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 111)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance();
         }
-        this.localeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        localeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcLocaleArray, io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 111;
+      queryParamCase_ = 111;
       onChanged();;
-      return this.localeArrayValueBuilder_;
+      return localeArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -9541,7 +9541,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasCurrencyArrayValue() {
-      return this.queryParamCase_ == 112;
+      return queryParamCase_ == 112;
     }
     /**
      * <pre>
@@ -9553,14 +9553,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray getCurrencyArrayValue() {
-      if (this.currencyArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 112) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) this.queryParam_;
+      if (currencyArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 112) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 112) {
-          return this.currencyArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 112) {
+          return currencyArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance();
       }
@@ -9573,16 +9573,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
      */
     public Builder setCurrencyArrayValue(io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray value) {
-      if (this.currencyArrayValueBuilder_ == null) {
+      if (currencyArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.currencyArrayValueBuilder_.setMessage(value);
+        currencyArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 112;
+      queryParamCase_ = 112;
       return this;
     }
     /**
@@ -9594,13 +9594,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCurrencyArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.Builder builderForValue) {
-      if (this.currencyArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (currencyArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.currencyArrayValueBuilder_.setMessage(builderForValue.build());
+        currencyArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 112;
+      queryParamCase_ = 112;
       return this;
     }
     /**
@@ -9611,22 +9611,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
      */
     public Builder mergeCurrencyArrayValue(io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray value) {
-      if (this.currencyArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 112 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) this.queryParam_)
+      if (currencyArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 112 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 112) {
-          this.currencyArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 112) {
+          currencyArrayValueBuilder_.mergeFrom(value);
         }
-        this.currencyArrayValueBuilder_.setMessage(value);
+        currencyArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 112;
+      queryParamCase_ = 112;
       return this;
     }
     /**
@@ -9637,18 +9637,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
      */
     public Builder clearCurrencyArrayValue() {
-      if (this.currencyArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 112) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (currencyArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 112) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 112) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 112) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.currencyArrayValueBuilder_.clear();
+        currencyArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -9671,11 +9671,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder getCurrencyArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 112) && (this.currencyArrayValueBuilder_ != null)) {
-        return this.currencyArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 112) && (currencyArrayValueBuilder_ != null)) {
+        return currencyArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 112) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) this.queryParam_;
+        if (queryParamCase_ == 112) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance();
       }
@@ -9690,20 +9690,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder>
         getCurrencyArrayValueFieldBuilder() {
-      if (this.currencyArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 112)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance();
+      if (currencyArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 112)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance();
         }
-        this.currencyArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        currencyArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 112;
+      queryParamCase_ = 112;
       onChanged();;
-      return this.currencyArrayValueBuilder_;
+      return currencyArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -9718,7 +9718,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasFacetStatisticsDepthArrayValue() {
-      return this.queryParamCase_ == 113;
+      return queryParamCase_ == 113;
     }
     /**
      * <pre>
@@ -9730,14 +9730,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray getFacetStatisticsDepthArrayValue() {
-      if (this.facetStatisticsDepthArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 113) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) this.queryParam_;
+      if (facetStatisticsDepthArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 113) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 113) {
-          return this.facetStatisticsDepthArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 113) {
+          return facetStatisticsDepthArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.getDefaultInstance();
       }
@@ -9750,16 +9750,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
      */
     public Builder setFacetStatisticsDepthArrayValue(io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray value) {
-      if (this.facetStatisticsDepthArrayValueBuilder_ == null) {
+      if (facetStatisticsDepthArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.facetStatisticsDepthArrayValueBuilder_.setMessage(value);
+        facetStatisticsDepthArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 113;
+      queryParamCase_ = 113;
       return this;
     }
     /**
@@ -9771,13 +9771,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setFacetStatisticsDepthArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.Builder builderForValue) {
-      if (this.facetStatisticsDepthArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (facetStatisticsDepthArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.facetStatisticsDepthArrayValueBuilder_.setMessage(builderForValue.build());
+        facetStatisticsDepthArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 113;
+      queryParamCase_ = 113;
       return this;
     }
     /**
@@ -9788,22 +9788,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
      */
     public Builder mergeFacetStatisticsDepthArrayValue(io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray value) {
-      if (this.facetStatisticsDepthArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 113 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) this.queryParam_)
+      if (facetStatisticsDepthArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 113 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 113) {
-          this.facetStatisticsDepthArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 113) {
+          facetStatisticsDepthArrayValueBuilder_.mergeFrom(value);
         }
-        this.facetStatisticsDepthArrayValueBuilder_.setMessage(value);
+        facetStatisticsDepthArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 113;
+      queryParamCase_ = 113;
       return this;
     }
     /**
@@ -9814,18 +9814,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
      */
     public Builder clearFacetStatisticsDepthArrayValue() {
-      if (this.facetStatisticsDepthArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 113) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (facetStatisticsDepthArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 113) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 113) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 113) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.facetStatisticsDepthArrayValueBuilder_.clear();
+        facetStatisticsDepthArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -9848,11 +9848,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArrayOrBuilder getFacetStatisticsDepthArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 113) && (this.facetStatisticsDepthArrayValueBuilder_ != null)) {
-        return this.facetStatisticsDepthArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 113) && (facetStatisticsDepthArrayValueBuilder_ != null)) {
+        return facetStatisticsDepthArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 113) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) this.queryParam_;
+        if (queryParamCase_ == 113) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.getDefaultInstance();
       }
@@ -9867,20 +9867,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArrayOrBuilder>
         getFacetStatisticsDepthArrayValueFieldBuilder() {
-      if (this.facetStatisticsDepthArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 113)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.getDefaultInstance();
+      if (facetStatisticsDepthArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 113)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.getDefaultInstance();
         }
-        this.facetStatisticsDepthArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        facetStatisticsDepthArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 113;
+      queryParamCase_ = 113;
       onChanged();;
-      return this.facetStatisticsDepthArrayValueBuilder_;
+      return facetStatisticsDepthArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -9895,7 +9895,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasQueryPriceModelArrayValue() {
-      return this.queryParamCase_ == 114;
+      return queryParamCase_ == 114;
     }
     /**
      * <pre>
@@ -9907,14 +9907,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray getQueryPriceModelArrayValue() {
-      if (this.queryPriceModelArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 114) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) this.queryParam_;
+      if (queryPriceModelArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 114) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 114) {
-          return this.queryPriceModelArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 114) {
+          return queryPriceModelArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.getDefaultInstance();
       }
@@ -9927,16 +9927,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
      */
     public Builder setQueryPriceModelArrayValue(io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray value) {
-      if (this.queryPriceModelArrayValueBuilder_ == null) {
+      if (queryPriceModelArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.queryPriceModelArrayValueBuilder_.setMessage(value);
+        queryPriceModelArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 114;
+      queryParamCase_ = 114;
       return this;
     }
     /**
@@ -9948,13 +9948,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setQueryPriceModelArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.Builder builderForValue) {
-      if (this.queryPriceModelArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (queryPriceModelArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.queryPriceModelArrayValueBuilder_.setMessage(builderForValue.build());
+        queryPriceModelArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 114;
+      queryParamCase_ = 114;
       return this;
     }
     /**
@@ -9965,22 +9965,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
      */
     public Builder mergeQueryPriceModelArrayValue(io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray value) {
-      if (this.queryPriceModelArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 114 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) this.queryParam_)
+      if (queryPriceModelArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 114 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 114) {
-          this.queryPriceModelArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 114) {
+          queryPriceModelArrayValueBuilder_.mergeFrom(value);
         }
-        this.queryPriceModelArrayValueBuilder_.setMessage(value);
+        queryPriceModelArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 114;
+      queryParamCase_ = 114;
       return this;
     }
     /**
@@ -9991,18 +9991,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
      */
     public Builder clearQueryPriceModelArrayValue() {
-      if (this.queryPriceModelArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 114) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (queryPriceModelArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 114) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 114) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 114) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.queryPriceModelArrayValueBuilder_.clear();
+        queryPriceModelArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -10025,11 +10025,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArrayOrBuilder getQueryPriceModelArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 114) && (this.queryPriceModelArrayValueBuilder_ != null)) {
-        return this.queryPriceModelArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 114) && (queryPriceModelArrayValueBuilder_ != null)) {
+        return queryPriceModelArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 114) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) this.queryParam_;
+        if (queryParamCase_ == 114) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.getDefaultInstance();
       }
@@ -10044,20 +10044,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray, io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArrayOrBuilder>
         getQueryPriceModelArrayValueFieldBuilder() {
-      if (this.queryPriceModelArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 114)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.getDefaultInstance();
+      if (queryPriceModelArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 114)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.getDefaultInstance();
         }
-        this.queryPriceModelArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        queryPriceModelArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray, io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 114;
+      queryParamCase_ = 114;
       onChanged();;
-      return this.queryPriceModelArrayValueBuilder_;
+      return queryPriceModelArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -10072,7 +10072,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasPriceContentModeArrayValue() {
-      return this.queryParamCase_ == 115;
+      return queryParamCase_ == 115;
     }
     /**
      * <pre>
@@ -10084,14 +10084,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray getPriceContentModeArrayValue() {
-      if (this.priceContentModeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 115) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) this.queryParam_;
+      if (priceContentModeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 115) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 115) {
-          return this.priceContentModeArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 115) {
+          return priceContentModeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.getDefaultInstance();
       }
@@ -10104,16 +10104,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
      */
     public Builder setPriceContentModeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray value) {
-      if (this.priceContentModeArrayValueBuilder_ == null) {
+      if (priceContentModeArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.priceContentModeArrayValueBuilder_.setMessage(value);
+        priceContentModeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 115;
+      queryParamCase_ = 115;
       return this;
     }
     /**
@@ -10125,13 +10125,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setPriceContentModeArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.Builder builderForValue) {
-      if (this.priceContentModeArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (priceContentModeArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.priceContentModeArrayValueBuilder_.setMessage(builderForValue.build());
+        priceContentModeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 115;
+      queryParamCase_ = 115;
       return this;
     }
     /**
@@ -10142,22 +10142,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
      */
     public Builder mergePriceContentModeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray value) {
-      if (this.priceContentModeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 115 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) this.queryParam_)
+      if (priceContentModeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 115 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 115) {
-          this.priceContentModeArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 115) {
+          priceContentModeArrayValueBuilder_.mergeFrom(value);
         }
-        this.priceContentModeArrayValueBuilder_.setMessage(value);
+        priceContentModeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 115;
+      queryParamCase_ = 115;
       return this;
     }
     /**
@@ -10168,18 +10168,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
      */
     public Builder clearPriceContentModeArrayValue() {
-      if (this.priceContentModeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 115) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (priceContentModeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 115) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 115) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 115) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.priceContentModeArrayValueBuilder_.clear();
+        priceContentModeArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -10202,11 +10202,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArrayOrBuilder getPriceContentModeArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 115) && (this.priceContentModeArrayValueBuilder_ != null)) {
-        return this.priceContentModeArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 115) && (priceContentModeArrayValueBuilder_ != null)) {
+        return priceContentModeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 115) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) this.queryParam_;
+        if (queryParamCase_ == 115) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.getDefaultInstance();
       }
@@ -10221,20 +10221,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray, io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArrayOrBuilder>
         getPriceContentModeArrayValueFieldBuilder() {
-      if (this.priceContentModeArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 115)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.getDefaultInstance();
+      if (priceContentModeArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 115)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.getDefaultInstance();
         }
-        this.priceContentModeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        priceContentModeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray, io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 115;
+      queryParamCase_ = 115;
       onChanged();;
-      return this.priceContentModeArrayValueBuilder_;
+      return priceContentModeArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -10249,7 +10249,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasAttributeSpecialArrayValue() {
-      return this.queryParamCase_ == 116;
+      return queryParamCase_ == 116;
     }
     /**
      * <pre>
@@ -10261,14 +10261,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray getAttributeSpecialArrayValue() {
-      if (this.attributeSpecialArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 116) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) this.queryParam_;
+      if (attributeSpecialArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 116) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 116) {
-          return this.attributeSpecialArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 116) {
+          return attributeSpecialArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.getDefaultInstance();
       }
@@ -10281,16 +10281,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
      */
     public Builder setAttributeSpecialArrayValue(io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray value) {
-      if (this.attributeSpecialArrayValueBuilder_ == null) {
+      if (attributeSpecialArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.attributeSpecialArrayValueBuilder_.setMessage(value);
+        attributeSpecialArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 116;
+      queryParamCase_ = 116;
       return this;
     }
     /**
@@ -10302,13 +10302,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setAttributeSpecialArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.Builder builderForValue) {
-      if (this.attributeSpecialArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (attributeSpecialArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.attributeSpecialArrayValueBuilder_.setMessage(builderForValue.build());
+        attributeSpecialArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 116;
+      queryParamCase_ = 116;
       return this;
     }
     /**
@@ -10319,22 +10319,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
      */
     public Builder mergeAttributeSpecialArrayValue(io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray value) {
-      if (this.attributeSpecialArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 116 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) this.queryParam_)
+      if (attributeSpecialArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 116 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 116) {
-          this.attributeSpecialArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 116) {
+          attributeSpecialArrayValueBuilder_.mergeFrom(value);
         }
-        this.attributeSpecialArrayValueBuilder_.setMessage(value);
+        attributeSpecialArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 116;
+      queryParamCase_ = 116;
       return this;
     }
     /**
@@ -10345,18 +10345,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
      */
     public Builder clearAttributeSpecialArrayValue() {
-      if (this.attributeSpecialArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 116) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (attributeSpecialArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 116) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 116) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 116) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.attributeSpecialArrayValueBuilder_.clear();
+        attributeSpecialArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -10379,11 +10379,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArrayOrBuilder getAttributeSpecialArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 116) && (this.attributeSpecialArrayValueBuilder_ != null)) {
-        return this.attributeSpecialArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 116) && (attributeSpecialArrayValueBuilder_ != null)) {
+        return attributeSpecialArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 116) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) this.queryParam_;
+        if (queryParamCase_ == 116) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.getDefaultInstance();
       }
@@ -10398,20 +10398,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray, io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArrayOrBuilder>
         getAttributeSpecialArrayValueFieldBuilder() {
-      if (this.attributeSpecialArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 116)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.getDefaultInstance();
+      if (attributeSpecialArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 116)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.getDefaultInstance();
         }
-        this.attributeSpecialArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        attributeSpecialArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray, io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 116;
+      queryParamCase_ = 116;
       onChanged();;
-      return this.attributeSpecialArrayValueBuilder_;
+      return attributeSpecialArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -10426,7 +10426,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasOrderDirectionArrayValue() {
-      return this.queryParamCase_ == 117;
+      return queryParamCase_ == 117;
     }
     /**
      * <pre>
@@ -10438,14 +10438,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray getOrderDirectionArrayValue() {
-      if (this.orderDirectionArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 117) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) this.queryParam_;
+      if (orderDirectionArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 117) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 117) {
-          return this.orderDirectionArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 117) {
+          return orderDirectionArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.getDefaultInstance();
       }
@@ -10458,16 +10458,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
      */
     public Builder setOrderDirectionArrayValue(io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray value) {
-      if (this.orderDirectionArrayValueBuilder_ == null) {
+      if (orderDirectionArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.orderDirectionArrayValueBuilder_.setMessage(value);
+        orderDirectionArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 117;
+      queryParamCase_ = 117;
       return this;
     }
     /**
@@ -10479,13 +10479,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setOrderDirectionArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.Builder builderForValue) {
-      if (this.orderDirectionArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (orderDirectionArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.orderDirectionArrayValueBuilder_.setMessage(builderForValue.build());
+        orderDirectionArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 117;
+      queryParamCase_ = 117;
       return this;
     }
     /**
@@ -10496,22 +10496,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
      */
     public Builder mergeOrderDirectionArrayValue(io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray value) {
-      if (this.orderDirectionArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 117 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) this.queryParam_)
+      if (orderDirectionArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 117 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 117) {
-          this.orderDirectionArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 117) {
+          orderDirectionArrayValueBuilder_.mergeFrom(value);
         }
-        this.orderDirectionArrayValueBuilder_.setMessage(value);
+        orderDirectionArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 117;
+      queryParamCase_ = 117;
       return this;
     }
     /**
@@ -10522,18 +10522,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
      */
     public Builder clearOrderDirectionArrayValue() {
-      if (this.orderDirectionArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 117) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (orderDirectionArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 117) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 117) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 117) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.orderDirectionArrayValueBuilder_.clear();
+        orderDirectionArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -10556,11 +10556,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArrayOrBuilder getOrderDirectionArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 117) && (this.orderDirectionArrayValueBuilder_ != null)) {
-        return this.orderDirectionArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 117) && (orderDirectionArrayValueBuilder_ != null)) {
+        return orderDirectionArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 117) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) this.queryParam_;
+        if (queryParamCase_ == 117) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.getDefaultInstance();
       }
@@ -10575,20 +10575,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray, io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArrayOrBuilder>
         getOrderDirectionArrayValueFieldBuilder() {
-      if (this.orderDirectionArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 117)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.getDefaultInstance();
+      if (orderDirectionArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 117)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.getDefaultInstance();
         }
-        this.orderDirectionArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        orderDirectionArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray, io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 117;
+      queryParamCase_ = 117;
       onChanged();;
-      return this.orderDirectionArrayValueBuilder_;
+      return orderDirectionArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -10603,7 +10603,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasEmptyHierarchicalEntityBehaviourArrayValue() {
-      return this.queryParamCase_ == 118;
+      return queryParamCase_ == 118;
     }
     /**
      * <pre>
@@ -10615,14 +10615,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray getEmptyHierarchicalEntityBehaviourArrayValue() {
-      if (this.emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 118) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) this.queryParam_;
+      if (emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 118) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 118) {
-          return this.emptyHierarchicalEntityBehaviourArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 118) {
+          return emptyHierarchicalEntityBehaviourArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.getDefaultInstance();
       }
@@ -10635,16 +10635,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
      */
     public Builder setEmptyHierarchicalEntityBehaviourArrayValue(io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray value) {
-      if (this.emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
+      if (emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.emptyHierarchicalEntityBehaviourArrayValueBuilder_.setMessage(value);
+        emptyHierarchicalEntityBehaviourArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 118;
+      queryParamCase_ = 118;
       return this;
     }
     /**
@@ -10656,13 +10656,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setEmptyHierarchicalEntityBehaviourArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.Builder builderForValue) {
-      if (this.emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.emptyHierarchicalEntityBehaviourArrayValueBuilder_.setMessage(builderForValue.build());
+        emptyHierarchicalEntityBehaviourArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 118;
+      queryParamCase_ = 118;
       return this;
     }
     /**
@@ -10673,22 +10673,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
      */
     public Builder mergeEmptyHierarchicalEntityBehaviourArrayValue(io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray value) {
-      if (this.emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 118 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) this.queryParam_)
+      if (emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 118 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 118) {
-          this.emptyHierarchicalEntityBehaviourArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 118) {
+          emptyHierarchicalEntityBehaviourArrayValueBuilder_.mergeFrom(value);
         }
-        this.emptyHierarchicalEntityBehaviourArrayValueBuilder_.setMessage(value);
+        emptyHierarchicalEntityBehaviourArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 118;
+      queryParamCase_ = 118;
       return this;
     }
     /**
@@ -10699,18 +10699,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
      */
     public Builder clearEmptyHierarchicalEntityBehaviourArrayValue() {
-      if (this.emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 118) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 118) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 118) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 118) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.emptyHierarchicalEntityBehaviourArrayValueBuilder_.clear();
+        emptyHierarchicalEntityBehaviourArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -10733,11 +10733,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder getEmptyHierarchicalEntityBehaviourArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 118) && (this.emptyHierarchicalEntityBehaviourArrayValueBuilder_ != null)) {
-        return this.emptyHierarchicalEntityBehaviourArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 118) && (emptyHierarchicalEntityBehaviourArrayValueBuilder_ != null)) {
+        return emptyHierarchicalEntityBehaviourArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 118) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) this.queryParam_;
+        if (queryParamCase_ == 118) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.getDefaultInstance();
       }
@@ -10752,20 +10752,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray, io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder>
         getEmptyHierarchicalEntityBehaviourArrayValueFieldBuilder() {
-      if (this.emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 118)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.getDefaultInstance();
+      if (emptyHierarchicalEntityBehaviourArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 118)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.getDefaultInstance();
         }
-        this.emptyHierarchicalEntityBehaviourArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        emptyHierarchicalEntityBehaviourArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray, io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 118;
+      queryParamCase_ = 118;
       onChanged();;
-      return this.emptyHierarchicalEntityBehaviourArrayValueBuilder_;
+      return emptyHierarchicalEntityBehaviourArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -10780,7 +10780,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasStatisticsBaseArrayValue() {
-      return this.queryParamCase_ == 119;
+      return queryParamCase_ == 119;
     }
     /**
      * <pre>
@@ -10792,14 +10792,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray getStatisticsBaseArrayValue() {
-      if (this.statisticsBaseArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 119) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) this.queryParam_;
+      if (statisticsBaseArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 119) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 119) {
-          return this.statisticsBaseArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 119) {
+          return statisticsBaseArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.getDefaultInstance();
       }
@@ -10812,16 +10812,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
      */
     public Builder setStatisticsBaseArrayValue(io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray value) {
-      if (this.statisticsBaseArrayValueBuilder_ == null) {
+      if (statisticsBaseArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.statisticsBaseArrayValueBuilder_.setMessage(value);
+        statisticsBaseArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 119;
+      queryParamCase_ = 119;
       return this;
     }
     /**
@@ -10833,13 +10833,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setStatisticsBaseArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.Builder builderForValue) {
-      if (this.statisticsBaseArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (statisticsBaseArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.statisticsBaseArrayValueBuilder_.setMessage(builderForValue.build());
+        statisticsBaseArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 119;
+      queryParamCase_ = 119;
       return this;
     }
     /**
@@ -10850,22 +10850,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
      */
     public Builder mergeStatisticsBaseArrayValue(io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray value) {
-      if (this.statisticsBaseArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 119 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) this.queryParam_)
+      if (statisticsBaseArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 119 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 119) {
-          this.statisticsBaseArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 119) {
+          statisticsBaseArrayValueBuilder_.mergeFrom(value);
         }
-        this.statisticsBaseArrayValueBuilder_.setMessage(value);
+        statisticsBaseArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 119;
+      queryParamCase_ = 119;
       return this;
     }
     /**
@@ -10876,18 +10876,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
      */
     public Builder clearStatisticsBaseArrayValue() {
-      if (this.statisticsBaseArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 119) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (statisticsBaseArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 119) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 119) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 119) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.statisticsBaseArrayValueBuilder_.clear();
+        statisticsBaseArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -10910,11 +10910,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArrayOrBuilder getStatisticsBaseArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 119) && (this.statisticsBaseArrayValueBuilder_ != null)) {
-        return this.statisticsBaseArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 119) && (statisticsBaseArrayValueBuilder_ != null)) {
+        return statisticsBaseArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 119) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) this.queryParam_;
+        if (queryParamCase_ == 119) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.getDefaultInstance();
       }
@@ -10929,20 +10929,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray, io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArrayOrBuilder>
         getStatisticsBaseArrayValueFieldBuilder() {
-      if (this.statisticsBaseArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 119)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.getDefaultInstance();
+      if (statisticsBaseArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 119)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.getDefaultInstance();
         }
-        this.statisticsBaseArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        statisticsBaseArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray, io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 119;
+      queryParamCase_ = 119;
       onChanged();;
-      return this.statisticsBaseArrayValueBuilder_;
+      return statisticsBaseArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -10957,7 +10957,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasStatisticsTypeArrayValue() {
-      return this.queryParamCase_ == 120;
+      return queryParamCase_ == 120;
     }
     /**
      * <pre>
@@ -10969,14 +10969,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray getStatisticsTypeArrayValue() {
-      if (this.statisticsTypeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 120) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) this.queryParam_;
+      if (statisticsTypeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 120) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 120) {
-          return this.statisticsTypeArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 120) {
+          return statisticsTypeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.getDefaultInstance();
       }
@@ -10989,16 +10989,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
      */
     public Builder setStatisticsTypeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray value) {
-      if (this.statisticsTypeArrayValueBuilder_ == null) {
+      if (statisticsTypeArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.statisticsTypeArrayValueBuilder_.setMessage(value);
+        statisticsTypeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 120;
+      queryParamCase_ = 120;
       return this;
     }
     /**
@@ -11010,13 +11010,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setStatisticsTypeArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.Builder builderForValue) {
-      if (this.statisticsTypeArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (statisticsTypeArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.statisticsTypeArrayValueBuilder_.setMessage(builderForValue.build());
+        statisticsTypeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 120;
+      queryParamCase_ = 120;
       return this;
     }
     /**
@@ -11027,22 +11027,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
      */
     public Builder mergeStatisticsTypeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray value) {
-      if (this.statisticsTypeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 120 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) this.queryParam_)
+      if (statisticsTypeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 120 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 120) {
-          this.statisticsTypeArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 120) {
+          statisticsTypeArrayValueBuilder_.mergeFrom(value);
         }
-        this.statisticsTypeArrayValueBuilder_.setMessage(value);
+        statisticsTypeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 120;
+      queryParamCase_ = 120;
       return this;
     }
     /**
@@ -11053,18 +11053,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
      */
     public Builder clearStatisticsTypeArrayValue() {
-      if (this.statisticsTypeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 120) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (statisticsTypeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 120) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 120) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 120) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.statisticsTypeArrayValueBuilder_.clear();
+        statisticsTypeArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -11087,11 +11087,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArrayOrBuilder getStatisticsTypeArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 120) && (this.statisticsTypeArrayValueBuilder_ != null)) {
-        return this.statisticsTypeArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 120) && (statisticsTypeArrayValueBuilder_ != null)) {
+        return statisticsTypeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 120) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) this.queryParam_;
+        if (queryParamCase_ == 120) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.getDefaultInstance();
       }
@@ -11106,20 +11106,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray, io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArrayOrBuilder>
         getStatisticsTypeArrayValueFieldBuilder() {
-      if (this.statisticsTypeArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 120)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.getDefaultInstance();
+      if (statisticsTypeArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 120)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.getDefaultInstance();
         }
-        this.statisticsTypeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        statisticsTypeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray, io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 120;
+      queryParamCase_ = 120;
       onChanged();;
-      return this.statisticsTypeArrayValueBuilder_;
+      return statisticsTypeArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -11134,7 +11134,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasHistogramBehaviorTypeArrayValue() {
-      return this.queryParamCase_ == 121;
+      return queryParamCase_ == 121;
     }
     /**
      * <pre>
@@ -11146,14 +11146,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray getHistogramBehaviorTypeArrayValue() {
-      if (this.histogramBehaviorTypeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 121) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) this.queryParam_;
+      if (histogramBehaviorTypeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 121) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 121) {
-          return this.histogramBehaviorTypeArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 121) {
+          return histogramBehaviorTypeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.getDefaultInstance();
       }
@@ -11166,16 +11166,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
      */
     public Builder setHistogramBehaviorTypeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray value) {
-      if (this.histogramBehaviorTypeArrayValueBuilder_ == null) {
+      if (histogramBehaviorTypeArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.histogramBehaviorTypeArrayValueBuilder_.setMessage(value);
+        histogramBehaviorTypeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 121;
+      queryParamCase_ = 121;
       return this;
     }
     /**
@@ -11187,13 +11187,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setHistogramBehaviorTypeArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.Builder builderForValue) {
-      if (this.histogramBehaviorTypeArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (histogramBehaviorTypeArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.histogramBehaviorTypeArrayValueBuilder_.setMessage(builderForValue.build());
+        histogramBehaviorTypeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 121;
+      queryParamCase_ = 121;
       return this;
     }
     /**
@@ -11204,22 +11204,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
      */
     public Builder mergeHistogramBehaviorTypeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray value) {
-      if (this.histogramBehaviorTypeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 121 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) this.queryParam_)
+      if (histogramBehaviorTypeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 121 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 121) {
-          this.histogramBehaviorTypeArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 121) {
+          histogramBehaviorTypeArrayValueBuilder_.mergeFrom(value);
         }
-        this.histogramBehaviorTypeArrayValueBuilder_.setMessage(value);
+        histogramBehaviorTypeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 121;
+      queryParamCase_ = 121;
       return this;
     }
     /**
@@ -11230,18 +11230,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
      */
     public Builder clearHistogramBehaviorTypeArrayValue() {
-      if (this.histogramBehaviorTypeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 121) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (histogramBehaviorTypeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 121) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 121) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 121) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.histogramBehaviorTypeArrayValueBuilder_.clear();
+        histogramBehaviorTypeArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -11264,11 +11264,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArrayOrBuilder getHistogramBehaviorTypeArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 121) && (this.histogramBehaviorTypeArrayValueBuilder_ != null)) {
-        return this.histogramBehaviorTypeArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 121) && (histogramBehaviorTypeArrayValueBuilder_ != null)) {
+        return histogramBehaviorTypeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 121) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) this.queryParam_;
+        if (queryParamCase_ == 121) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.getDefaultInstance();
       }
@@ -11283,20 +11283,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray, io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArrayOrBuilder>
         getHistogramBehaviorTypeArrayValueFieldBuilder() {
-      if (this.histogramBehaviorTypeArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 121)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.getDefaultInstance();
+      if (histogramBehaviorTypeArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 121)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.getDefaultInstance();
         }
-        this.histogramBehaviorTypeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        histogramBehaviorTypeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray, io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 121;
+      queryParamCase_ = 121;
       onChanged();;
-      return this.histogramBehaviorTypeArrayValueBuilder_;
+      return histogramBehaviorTypeArrayValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -11311,7 +11311,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasScopeArrayValue() {
-      return this.queryParamCase_ == 122;
+      return queryParamCase_ == 122;
     }
     /**
      * <pre>
@@ -11323,14 +11323,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray getScopeArrayValue() {
-      if (this.scopeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 122) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) this.queryParam_;
+      if (scopeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 122) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance();
       } else {
-        if (this.queryParamCase_ == 122) {
-          return this.scopeArrayValueBuilder_.getMessage();
+        if (queryParamCase_ == 122) {
+          return scopeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance();
       }
@@ -11343,16 +11343,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
      */
     public Builder setScopeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray value) {
-      if (this.scopeArrayValueBuilder_ == null) {
+      if (scopeArrayValueBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.queryParam_ = value;
+        queryParam_ = value;
         onChanged();
       } else {
-        this.scopeArrayValueBuilder_.setMessage(value);
+        scopeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 122;
+      queryParamCase_ = 122;
       return this;
     }
     /**
@@ -11364,13 +11364,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setScopeArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.Builder builderForValue) {
-      if (this.scopeArrayValueBuilder_ == null) {
-        this.queryParam_ = builderForValue.build();
+      if (scopeArrayValueBuilder_ == null) {
+        queryParam_ = builderForValue.build();
         onChanged();
       } else {
-        this.scopeArrayValueBuilder_.setMessage(builderForValue.build());
+        scopeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      this.queryParamCase_ = 122;
+      queryParamCase_ = 122;
       return this;
     }
     /**
@@ -11381,22 +11381,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
      */
     public Builder mergeScopeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray value) {
-      if (this.scopeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 122 &&
-            this.queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance()) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) this.queryParam_)
+      if (scopeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 122 &&
+            queryParam_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance()) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.queryParam_ = value;
+          queryParam_ = value;
         }
         onChanged();
       } else {
-        if (this.queryParamCase_ == 122) {
-          this.scopeArrayValueBuilder_.mergeFrom(value);
+        if (queryParamCase_ == 122) {
+          scopeArrayValueBuilder_.mergeFrom(value);
         }
-        this.scopeArrayValueBuilder_.setMessage(value);
+        scopeArrayValueBuilder_.setMessage(value);
       }
-      this.queryParamCase_ = 122;
+      queryParamCase_ = 122;
       return this;
     }
     /**
@@ -11407,18 +11407,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
      */
     public Builder clearScopeArrayValue() {
-      if (this.scopeArrayValueBuilder_ == null) {
-        if (this.queryParamCase_ == 122) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+      if (scopeArrayValueBuilder_ == null) {
+        if (queryParamCase_ == 122) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
           onChanged();
         }
       } else {
-        if (this.queryParamCase_ == 122) {
-          this.queryParamCase_ = 0;
-          this.queryParam_ = null;
+        if (queryParamCase_ == 122) {
+          queryParamCase_ = 0;
+          queryParam_ = null;
         }
-        this.scopeArrayValueBuilder_.clear();
+        scopeArrayValueBuilder_.clear();
       }
       return this;
     }
@@ -11441,11 +11441,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArrayOrBuilder getScopeArrayValueOrBuilder() {
-      if ((this.queryParamCase_ == 122) && (this.scopeArrayValueBuilder_ != null)) {
-        return this.scopeArrayValueBuilder_.getMessageOrBuilder();
+      if ((queryParamCase_ == 122) && (scopeArrayValueBuilder_ != null)) {
+        return scopeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (this.queryParamCase_ == 122) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) this.queryParam_;
+        if (queryParamCase_ == 122) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance();
       }
@@ -11460,20 +11460,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArrayOrBuilder>
         getScopeArrayValueFieldBuilder() {
-      if (this.scopeArrayValueBuilder_ == null) {
-        if (!(this.queryParamCase_ == 122)) {
-          this.queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance();
+      if (scopeArrayValueBuilder_ == null) {
+        if (!(queryParamCase_ == 122)) {
+          queryParam_ = io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.getDefaultInstance();
         }
-        this.scopeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        scopeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArrayOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) this.queryParam_,
+                (io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray) queryParam_,
                 getParentForChildren(),
                 isClean());
-        this.queryParam_ = null;
+        queryParam_ = null;
       }
-      this.queryParamCase_ = 122;
+      queryParamCase_ = 122;
       onChanged();;
-      return this.scopeArrayValueBuilder_;
+      return scopeArrayValueBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

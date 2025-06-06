@@ -77,31 +77,31 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder subBuilder = null;
-            if (this.pastMoment_ != null) {
-              subBuilder = this.pastMoment_.toBuilder();
+            if (pastMoment_ != null) {
+              subBuilder = pastMoment_.toBuilder();
             }
-            this.pastMoment_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.parser(), extensionRegistry);
+            pastMoment_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.pastMoment_);
-              this.pastMoment_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(pastMoment_);
+              pastMoment_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 16: {
 
-            this.includingWAL_ = input.readBool();
+            includingWAL_ = input.readBool();
             break;
           }
           case 26: {
             com.google.protobuf.Int64Value.Builder subBuilder = null;
-            if (this.catalogVersion_ != null) {
-              subBuilder = this.catalogVersion_.toBuilder();
+            if (catalogVersion_ != null) {
+              subBuilder = catalogVersion_.toBuilder();
             }
-            this.catalogVersion_ = input.readMessage(com.google.protobuf.Int64Value.parser(), extensionRegistry);
+            catalogVersion_ = input.readMessage(com.google.protobuf.Int64Value.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.catalogVersion_);
-              this.catalogVersion_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(catalogVersion_);
+              catalogVersion_ = subBuilder.buildPartial();
             }
 
             break;
@@ -150,7 +150,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasPastMoment() {
-    return this.pastMoment_ != null;
+    return pastMoment_ != null;
   }
   /**
    * <pre>
@@ -162,7 +162,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getPastMoment() {
-    return this.pastMoment_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : this.pastMoment_;
+    return pastMoment_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : pastMoment_;
   }
   /**
    * <pre>
@@ -189,7 +189,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean getIncludingWAL() {
-    return this.includingWAL_;
+    return includingWAL_;
   }
 
   public static final int CATALOGVERSION_FIELD_NUMBER = 3;
@@ -205,7 +205,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasCatalogVersion() {
-    return this.catalogVersion_ != null;
+    return catalogVersion_ != null;
   }
   /**
    * <pre>
@@ -218,7 +218,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.Int64Value getCatalogVersion() {
-    return this.catalogVersion_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : this.catalogVersion_;
+    return catalogVersion_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : catalogVersion_;
   }
   /**
    * <pre>
@@ -236,49 +236,49 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.pastMoment_ != null) {
+    if (pastMoment_ != null) {
       output.writeMessage(1, getPastMoment());
     }
-    if (this.includingWAL_ != false) {
-      output.writeBool(2, this.includingWAL_);
+    if (includingWAL_ != false) {
+      output.writeBool(2, includingWAL_);
     }
-    if (this.catalogVersion_ != null) {
+    if (catalogVersion_ != null) {
       output.writeMessage(3, getCatalogVersion());
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.pastMoment_ != null) {
+    if (pastMoment_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getPastMoment());
     }
-    if (this.includingWAL_ != false) {
+    if (includingWAL_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(2, this.includingWAL_);
+        .computeBoolSize(2, includingWAL_);
     }
-    if (this.catalogVersion_ != null) {
+    if (catalogVersion_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getCatalogVersion());
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -304,14 +304,14 @@ private static final long serialVersionUID = 0L;
       if (!getCatalogVersion()
           .equals(other.getCatalogVersion())) return false;
     }
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -326,8 +326,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CATALOGVERSION_FIELD_NUMBER;
       hash = (53 * hash) + getCatalogVersion().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -463,19 +463,19 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (this.pastMomentBuilder_ == null) {
-        this.pastMoment_ = null;
+      if (pastMomentBuilder_ == null) {
+        pastMoment_ = null;
       } else {
-        this.pastMoment_ = null;
-        this.pastMomentBuilder_ = null;
+        pastMoment_ = null;
+        pastMomentBuilder_ = null;
       }
-      this.includingWAL_ = false;
+      includingWAL_ = false;
 
-      if (this.catalogVersionBuilder_ == null) {
-        this.catalogVersion_ = null;
+      if (catalogVersionBuilder_ == null) {
+        catalogVersion_ = null;
       } else {
-        this.catalogVersion_ = null;
-        this.catalogVersionBuilder_ = null;
+        catalogVersion_ = null;
+        catalogVersionBuilder_ = null;
       }
       return this;
     }
@@ -503,16 +503,16 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest result = new io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest(this);
-      if (this.pastMomentBuilder_ == null) {
-        result.pastMoment_ = this.pastMoment_;
+      if (pastMomentBuilder_ == null) {
+        result.pastMoment_ = pastMoment_;
       } else {
-        result.pastMoment_ = this.pastMomentBuilder_.build();
+        result.pastMoment_ = pastMomentBuilder_.build();
       }
-      result.includingWAL_ = this.includingWAL_;
-      if (this.catalogVersionBuilder_ == null) {
-        result.catalogVersion_ = this.catalogVersion_;
+      result.includingWAL_ = includingWAL_;
+      if (catalogVersionBuilder_ == null) {
+        result.catalogVersion_ = catalogVersion_;
       } else {
-        result.catalogVersion_ = this.catalogVersionBuilder_.build();
+        result.catalogVersion_ = catalogVersionBuilder_.build();
       }
       onBuilt();
       return result;
@@ -612,7 +612,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the pastMoment field is set.
      */
     public boolean hasPastMoment() {
-      return this.pastMomentBuilder_ != null || this.pastMoment_ != null;
+      return pastMomentBuilder_ != null || pastMoment_ != null;
     }
     /**
      * <pre>
@@ -623,10 +623,10 @@ private static final long serialVersionUID = 0L;
      * @return The pastMoment.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getPastMoment() {
-      if (this.pastMomentBuilder_ == null) {
-        return this.pastMoment_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : this.pastMoment_;
+      if (pastMomentBuilder_ == null) {
+        return pastMoment_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : pastMoment_;
       } else {
-        return this.pastMomentBuilder_.getMessage();
+        return pastMomentBuilder_.getMessage();
       }
     }
     /**
@@ -637,14 +637,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
      */
     public Builder setPastMoment(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
-      if (this.pastMomentBuilder_ == null) {
+      if (pastMomentBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.pastMoment_ = value;
+        pastMoment_ = value;
         onChanged();
       } else {
-        this.pastMomentBuilder_.setMessage(value);
+        pastMomentBuilder_.setMessage(value);
       }
 
       return this;
@@ -658,11 +658,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setPastMoment(
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
-      if (this.pastMomentBuilder_ == null) {
-        this.pastMoment_ = builderForValue.build();
+      if (pastMomentBuilder_ == null) {
+        pastMoment_ = builderForValue.build();
         onChanged();
       } else {
-        this.pastMomentBuilder_.setMessage(builderForValue.build());
+        pastMomentBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -675,16 +675,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
      */
     public Builder mergePastMoment(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
-      if (this.pastMomentBuilder_ == null) {
-        if (this.pastMoment_ != null) {
-          this.pastMoment_ =
-            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.newBuilder(this.pastMoment_).mergeFrom(value).buildPartial();
+      if (pastMomentBuilder_ == null) {
+        if (pastMoment_ != null) {
+          pastMoment_ =
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.newBuilder(pastMoment_).mergeFrom(value).buildPartial();
         } else {
-          this.pastMoment_ = value;
+          pastMoment_ = value;
         }
         onChanged();
       } else {
-        this.pastMomentBuilder_.mergeFrom(value);
+        pastMomentBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -697,12 +697,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
      */
     public Builder clearPastMoment() {
-      if (this.pastMomentBuilder_ == null) {
-        this.pastMoment_ = null;
+      if (pastMomentBuilder_ == null) {
+        pastMoment_ = null;
         onChanged();
       } else {
-        this.pastMoment_ = null;
-        this.pastMomentBuilder_ = null;
+        pastMoment_ = null;
+        pastMomentBuilder_ = null;
       }
 
       return this;
@@ -727,11 +727,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getPastMomentOrBuilder() {
-      if (this.pastMomentBuilder_ != null) {
-        return this.pastMomentBuilder_.getMessageOrBuilder();
+      if (pastMomentBuilder_ != null) {
+        return pastMomentBuilder_.getMessageOrBuilder();
       } else {
-        return this.pastMoment_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : this.pastMoment_;
+        return pastMoment_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : pastMoment_;
       }
     }
     /**
@@ -744,15 +744,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
         getPastMomentFieldBuilder() {
-      if (this.pastMomentBuilder_ == null) {
-        this.pastMomentBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (pastMomentBuilder_ == null) {
+        pastMomentBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>(
                 getPastMoment(),
                 getParentForChildren(),
                 isClean());
-        this.pastMoment_ = null;
+        pastMoment_ = null;
       }
-      return this.pastMomentBuilder_;
+      return pastMomentBuilder_;
     }
 
     private boolean includingWAL_ ;
@@ -767,7 +767,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean getIncludingWAL() {
-      return this.includingWAL_;
+      return includingWAL_;
     }
     /**
      * <pre>
@@ -781,7 +781,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setIncludingWAL(boolean value) {
 
-      this.includingWAL_ = value;
+      includingWAL_ = value;
       onChanged();
       return this;
     }
@@ -796,7 +796,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearIncludingWAL() {
 
-      this.includingWAL_ = false;
+      includingWAL_ = false;
       onChanged();
       return this;
     }
@@ -814,7 +814,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the catalogVersion field is set.
      */
     public boolean hasCatalogVersion() {
-      return this.catalogVersionBuilder_ != null || this.catalogVersion_ != null;
+      return catalogVersionBuilder_ != null || catalogVersion_ != null;
     }
     /**
      * <pre>
@@ -826,10 +826,10 @@ private static final long serialVersionUID = 0L;
      * @return The catalogVersion.
      */
     public com.google.protobuf.Int64Value getCatalogVersion() {
-      if (this.catalogVersionBuilder_ == null) {
-        return this.catalogVersion_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : this.catalogVersion_;
+      if (catalogVersionBuilder_ == null) {
+        return catalogVersion_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : catalogVersion_;
       } else {
-        return this.catalogVersionBuilder_.getMessage();
+        return catalogVersionBuilder_.getMessage();
       }
     }
     /**
@@ -841,14 +841,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
      */
     public Builder setCatalogVersion(com.google.protobuf.Int64Value value) {
-      if (this.catalogVersionBuilder_ == null) {
+      if (catalogVersionBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.catalogVersion_ = value;
+        catalogVersion_ = value;
         onChanged();
       } else {
-        this.catalogVersionBuilder_.setMessage(value);
+        catalogVersionBuilder_.setMessage(value);
       }
 
       return this;
@@ -863,11 +863,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCatalogVersion(
         com.google.protobuf.Int64Value.Builder builderForValue) {
-      if (this.catalogVersionBuilder_ == null) {
-        this.catalogVersion_ = builderForValue.build();
+      if (catalogVersionBuilder_ == null) {
+        catalogVersion_ = builderForValue.build();
         onChanged();
       } else {
-        this.catalogVersionBuilder_.setMessage(builderForValue.build());
+        catalogVersionBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -881,16 +881,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
      */
     public Builder mergeCatalogVersion(com.google.protobuf.Int64Value value) {
-      if (this.catalogVersionBuilder_ == null) {
-        if (this.catalogVersion_ != null) {
-          this.catalogVersion_ =
-            com.google.protobuf.Int64Value.newBuilder(this.catalogVersion_).mergeFrom(value).buildPartial();
+      if (catalogVersionBuilder_ == null) {
+        if (catalogVersion_ != null) {
+          catalogVersion_ =
+            com.google.protobuf.Int64Value.newBuilder(catalogVersion_).mergeFrom(value).buildPartial();
         } else {
-          this.catalogVersion_ = value;
+          catalogVersion_ = value;
         }
         onChanged();
       } else {
-        this.catalogVersionBuilder_.mergeFrom(value);
+        catalogVersionBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -904,12 +904,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
      */
     public Builder clearCatalogVersion() {
-      if (this.catalogVersionBuilder_ == null) {
-        this.catalogVersion_ = null;
+      if (catalogVersionBuilder_ == null) {
+        catalogVersion_ = null;
         onChanged();
       } else {
-        this.catalogVersion_ = null;
-        this.catalogVersionBuilder_ = null;
+        catalogVersion_ = null;
+        catalogVersionBuilder_ = null;
       }
 
       return this;
@@ -936,11 +936,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
      */
     public com.google.protobuf.Int64ValueOrBuilder getCatalogVersionOrBuilder() {
-      if (this.catalogVersionBuilder_ != null) {
-        return this.catalogVersionBuilder_.getMessageOrBuilder();
+      if (catalogVersionBuilder_ != null) {
+        return catalogVersionBuilder_.getMessageOrBuilder();
       } else {
-        return this.catalogVersion_ == null ?
-            com.google.protobuf.Int64Value.getDefaultInstance() : this.catalogVersion_;
+        return catalogVersion_ == null ?
+            com.google.protobuf.Int64Value.getDefaultInstance() : catalogVersion_;
       }
     }
     /**
@@ -954,15 +954,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
         getCatalogVersionFieldBuilder() {
-      if (this.catalogVersionBuilder_ == null) {
-        this.catalogVersionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (catalogVersionBuilder_ == null) {
+        catalogVersionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>(
                 getCatalogVersion(),
                 getParentForChildren(),
                 isClean());
-        this.catalogVersion_ = null;
+        catalogVersion_ = null;
       }
-      return this.catalogVersionBuilder_;
+      return catalogVersionBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

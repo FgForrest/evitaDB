@@ -45,9 +45,9 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcAttributeElement() {
-    this.attributeName_ = "";
-    this.direction_ = 0;
-    this.behaviour_ = 0;
+    attributeName_ = "";
+    direction_ = 0;
+    behaviour_ = 0;
   }
 
   @java.lang.Override
@@ -83,19 +83,19 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            this.attributeName_ = s;
+            attributeName_ = s;
             break;
           }
           case 16: {
             int rawValue = input.readEnum();
 
-            this.direction_ = rawValue;
+            direction_ = rawValue;
             break;
           }
           case 24: {
             int rawValue = input.readEnum();
 
-            this.behaviour_ = rawValue;
+            behaviour_ = rawValue;
             break;
           }
           default: {
@@ -142,14 +142,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getAttributeName() {
-    java.lang.Object ref = this.attributeName_;
+    java.lang.Object ref = attributeName_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      this.attributeName_ = s;
+      attributeName_ = s;
       return s;
     }
   }
@@ -164,12 +164,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getAttributeNameBytes() {
-    java.lang.Object ref = this.attributeName_;
+    java.lang.Object ref = attributeName_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      this.attributeName_ = b;
+      attributeName_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -187,7 +187,7 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for direction.
    */
   @java.lang.Override public int getDirectionValue() {
-    return this.direction_;
+    return direction_;
   }
   /**
    * <pre>
@@ -199,7 +199,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcOrderDirection getDirection() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcOrderDirection result = io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.valueOf(this.direction_);
+    io.evitadb.externalApi.grpc.generated.GrpcOrderDirection result = io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.valueOf(direction_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.UNRECOGNIZED : result;
   }
 
@@ -214,7 +214,7 @@ private static final long serialVersionUID = 0L;
    * @return The enum numeric value on the wire for behaviour.
    */
   @java.lang.Override public int getBehaviourValue() {
-    return this.behaviour_;
+    return behaviour_;
   }
   /**
    * <pre>
@@ -226,55 +226,55 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour getBehaviour() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour.valueOf(this.behaviour_);
+    io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour.valueOf(behaviour_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour.UNRECOGNIZED : result;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.attributeName_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.attributeName_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(attributeName_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, attributeName_);
     }
-    if (this.direction_ != io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.ASC.getNumber()) {
-      output.writeEnum(2, this.direction_);
+    if (direction_ != io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.ASC.getNumber()) {
+      output.writeEnum(2, direction_);
     }
-    if (this.behaviour_ != io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour.NULLS_FIRST.getNumber()) {
-      output.writeEnum(3, this.behaviour_);
+    if (behaviour_ != io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour.NULLS_FIRST.getNumber()) {
+      output.writeEnum(3, behaviour_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.attributeName_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.attributeName_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(attributeName_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, attributeName_);
     }
-    if (this.direction_ != io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.ASC.getNumber()) {
+    if (direction_ != io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.ASC.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(2, this.direction_);
+        .computeEnumSize(2, direction_);
     }
-    if (this.behaviour_ != io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour.NULLS_FIRST.getNumber()) {
+    if (behaviour_ != io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour.NULLS_FIRST.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(3, this.behaviour_);
+        .computeEnumSize(3, behaviour_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -290,27 +290,27 @@ private static final long serialVersionUID = 0L;
 
     if (!getAttributeName()
         .equals(other.getAttributeName())) return false;
-    if (this.direction_ != other.direction_) return false;
-    if (this.behaviour_ != other.behaviour_) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (direction_ != other.direction_) return false;
+    if (behaviour_ != other.behaviour_) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + ATTRIBUTENAME_FIELD_NUMBER;
     hash = (53 * hash) + getAttributeName().hashCode();
     hash = (37 * hash) + DIRECTION_FIELD_NUMBER;
-    hash = (53 * hash) + this.direction_;
+    hash = (53 * hash) + direction_;
     hash = (37 * hash) + BEHAVIOUR_FIELD_NUMBER;
-    hash = (53 * hash) + this.behaviour_;
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (53 * hash) + behaviour_;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -448,11 +448,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.attributeName_ = "";
+      attributeName_ = "";
 
-      this.direction_ = 0;
+      direction_ = 0;
 
-      this.behaviour_ = 0;
+      behaviour_ = 0;
 
       return this;
     }
@@ -480,9 +480,9 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcAttributeElement buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcAttributeElement result = new io.evitadb.externalApi.grpc.generated.GrpcAttributeElement(this);
-      result.attributeName_ = this.attributeName_;
-      result.direction_ = this.direction_;
-      result.behaviour_ = this.behaviour_;
+      result.attributeName_ = attributeName_;
+      result.direction_ = direction_;
+      result.behaviour_ = behaviour_;
       onBuilt();
       return result;
     }
@@ -532,7 +532,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcAttributeElement other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcAttributeElement.getDefaultInstance()) return this;
       if (!other.getAttributeName().isEmpty()) {
-        this.attributeName_ = other.attributeName_;
+        attributeName_ = other.attributeName_;
         onChanged();
       }
       if (other.direction_ != 0) {
@@ -580,12 +580,12 @@ private static final long serialVersionUID = 0L;
      * @return The attributeName.
      */
     public java.lang.String getAttributeName() {
-      java.lang.Object ref = this.attributeName_;
+      java.lang.Object ref = attributeName_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        this.attributeName_ = s;
+        attributeName_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -601,12 +601,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getAttributeNameBytes() {
-      java.lang.Object ref = this.attributeName_;
+      java.lang.Object ref = attributeName_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        this.attributeName_ = b;
+        attributeName_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -627,7 +627,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.attributeName_ = value;
+      attributeName_ = value;
       onChanged();
       return this;
     }
@@ -641,7 +641,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearAttributeName() {
 
-      this.attributeName_ = getDefaultInstance().getAttributeName();
+      attributeName_ = getDefaultInstance().getAttributeName();
       onChanged();
       return this;
     }
@@ -661,7 +661,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      this.attributeName_ = value;
+      attributeName_ = value;
       onChanged();
       return this;
     }
@@ -676,7 +676,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire for direction.
      */
     @java.lang.Override public int getDirectionValue() {
-      return this.direction_;
+      return direction_;
     }
     /**
      * <pre>
@@ -689,7 +689,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setDirectionValue(int value) {
 
-      this.direction_ = value;
+      direction_ = value;
       onChanged();
       return this;
     }
@@ -704,7 +704,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcOrderDirection getDirection() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcOrderDirection result = io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.valueOf(this.direction_);
+      io.evitadb.externalApi.grpc.generated.GrpcOrderDirection result = io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.valueOf(direction_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.UNRECOGNIZED : result;
     }
     /**
@@ -721,7 +721,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
 
-      this.direction_ = value.getNumber();
+      direction_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -735,7 +735,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearDirection() {
 
-      this.direction_ = 0;
+      direction_ = 0;
       onChanged();
       return this;
     }
@@ -750,7 +750,7 @@ private static final long serialVersionUID = 0L;
      * @return The enum numeric value on the wire for behaviour.
      */
     @java.lang.Override public int getBehaviourValue() {
-      return this.behaviour_;
+      return behaviour_;
     }
     /**
      * <pre>
@@ -763,7 +763,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setBehaviourValue(int value) {
 
-      this.behaviour_ = value;
+      behaviour_ = value;
       onChanged();
       return this;
     }
@@ -778,7 +778,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour getBehaviour() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour.valueOf(this.behaviour_);
+      io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour.valueOf(behaviour_);
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcOrderBehaviour.UNRECOGNIZED : result;
     }
     /**
@@ -795,7 +795,7 @@ private static final long serialVersionUID = 0L;
         throw new NullPointerException();
       }
 
-      this.behaviour_ = value.getNumber();
+      behaviour_ = value.getNumber();
       onChanged();
       return this;
     }
@@ -809,7 +809,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearBehaviour() {
 
-      this.behaviour_ = 0;
+      behaviour_ = 0;
       onChanged();
       return this;
     }

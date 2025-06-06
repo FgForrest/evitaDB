@@ -804,33 +804,33 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
     @java.lang.Override
     @java.lang.SuppressWarnings("unchecked")
     public void invoke(Req request, io.grpc.stub.StreamObserver<Resp> responseObserver) {
-      switch (this.methodId) {
+      switch (methodId) {
         case METHODID_GET_TRAFFIC_RECORDING_HISTORY_LIST:
-          this.serviceImpl.getTrafficRecordingHistoryList((io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest) request,
+          serviceImpl.getTrafficRecordingHistoryList((io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse>) responseObserver);
           break;
         case METHODID_GET_TRAFFIC_RECORDING_HISTORY_LIST_REVERSED:
-          this.serviceImpl.getTrafficRecordingHistoryListReversed((io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest) request,
+          serviceImpl.getTrafficRecordingHistoryListReversed((io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse>) responseObserver);
           break;
         case METHODID_GET_TRAFFIC_RECORDING_HISTORY:
-          this.serviceImpl.getTrafficRecordingHistory((io.evitadb.externalApi.grpc.generated.GetTrafficHistoryRequest) request,
+          serviceImpl.getTrafficRecordingHistory((io.evitadb.externalApi.grpc.generated.GetTrafficHistoryRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficHistoryResponse>) responseObserver);
           break;
         case METHODID_GET_TRAFFIC_RECORDING_LABELS_NAMES_ORDERED_BY_CARDINALITY:
-          this.serviceImpl.getTrafficRecordingLabelsNamesOrderedByCardinality((io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest) request,
+          serviceImpl.getTrafficRecordingLabelsNamesOrderedByCardinality((io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse>) responseObserver);
           break;
         case METHODID_GET_TRAFFIC_RECORDING_LABEL_VALUES_ORDERED_BY_CARDINALITY:
-          this.serviceImpl.getTrafficRecordingLabelValuesOrderedByCardinality((io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest) request,
+          serviceImpl.getTrafficRecordingLabelValuesOrderedByCardinality((io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse>) responseObserver);
           break;
         case METHODID_START_TRAFFIC_RECORDING:
-          this.serviceImpl.startTrafficRecording((io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest) request,
+          serviceImpl.startTrafficRecording((io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse>) responseObserver);
           break;
         case METHODID_STOP_TRAFFIC_RECORDING:
-          this.serviceImpl.stopTrafficRecording((io.evitadb.externalApi.grpc.generated.GrpcStopTrafficRecordingRequest) request,
+          serviceImpl.stopTrafficRecording((io.evitadb.externalApi.grpc.generated.GrpcStopTrafficRecordingRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse>) responseObserver);
           break;
         default:
@@ -842,7 +842,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
     @java.lang.SuppressWarnings("unchecked")
     public io.grpc.stub.StreamObserver<Req> invoke(
         io.grpc.stub.StreamObserver<Resp> responseObserver) {
-      switch (this.methodId) {
+      switch (methodId) {
         default:
           throw new AssertionError();
       }
@@ -934,7 +934,7 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
     @java.lang.Override
     public com.google.protobuf.Descriptors.MethodDescriptor getMethodDescriptor() {
-      return getServiceDescriptor().findMethodByName(this.methodName);
+      return getServiceDescriptor().findMethodByName(methodName);
     }
   }
 

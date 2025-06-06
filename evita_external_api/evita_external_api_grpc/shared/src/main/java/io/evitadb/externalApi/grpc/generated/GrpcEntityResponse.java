@@ -77,13 +77,13 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder subBuilder = null;
-            if (this.entity_ != null) {
-              subBuilder = this.entity_.toBuilder();
+            if (entity_ != null) {
+              subBuilder = entity_.toBuilder();
             }
-            this.entity_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.parser(), extensionRegistry);
+            entity_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.entity_);
-              this.entity_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(entity_);
+              entity_ = subBuilder.buildPartial();
             }
 
             break;
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasEntity() {
-    return this.entity_ != null;
+    return entity_ != null;
   }
   /**
    * <pre>
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getEntity() {
-    return this.entity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : this.entity_;
+    return entity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : entity_;
   }
   /**
    * <pre>
@@ -161,35 +161,35 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.entity_ != null) {
+    if (entity_ != null) {
       output.writeMessage(1, getEntity());
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.entity_ != null) {
+    if (entity_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getEntity());
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -208,14 +208,14 @@ private static final long serialVersionUID = 0L;
       if (!getEntity()
           .equals(other.getEntity())) return false;
     }
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -223,8 +223,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + ENTITY_FIELD_NUMBER;
       hash = (53 * hash) + getEntity().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -360,11 +360,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (this.entityBuilder_ == null) {
-        this.entity_ = null;
+      if (entityBuilder_ == null) {
+        entity_ = null;
       } else {
-        this.entity_ = null;
-        this.entityBuilder_ = null;
+        entity_ = null;
+        entityBuilder_ = null;
       }
       return this;
     }
@@ -392,10 +392,10 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEntityResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcEntityResponse result = new io.evitadb.externalApi.grpc.generated.GrpcEntityResponse(this);
-      if (this.entityBuilder_ == null) {
-        result.entity_ = this.entity_;
+      if (entityBuilder_ == null) {
+        result.entity_ = entity_;
       } else {
-        result.entity_ = this.entityBuilder_.build();
+        result.entity_ = entityBuilder_.build();
       }
       onBuilt();
       return result;
@@ -489,7 +489,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the entity field is set.
      */
     public boolean hasEntity() {
-      return this.entityBuilder_ != null || this.entity_ != null;
+      return entityBuilder_ != null || entity_ != null;
     }
     /**
      * <pre>
@@ -500,10 +500,10 @@ private static final long serialVersionUID = 0L;
      * @return The entity.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getEntity() {
-      if (this.entityBuilder_ == null) {
-        return this.entity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : this.entity_;
+      if (entityBuilder_ == null) {
+        return entity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : entity_;
       } else {
-        return this.entityBuilder_.getMessage();
+        return entityBuilder_.getMessage();
       }
     }
     /**
@@ -514,14 +514,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
      */
     public Builder setEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
-      if (this.entityBuilder_ == null) {
+      if (entityBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.entity_ = value;
+        entity_ = value;
         onChanged();
       } else {
-        this.entityBuilder_.setMessage(value);
+        entityBuilder_.setMessage(value);
       }
 
       return this;
@@ -535,11 +535,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setEntity(
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
-      if (this.entityBuilder_ == null) {
-        this.entity_ = builderForValue.build();
+      if (entityBuilder_ == null) {
+        entity_ = builderForValue.build();
         onChanged();
       } else {
-        this.entityBuilder_.setMessage(builderForValue.build());
+        entityBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -552,16 +552,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
      */
     public Builder mergeEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
-      if (this.entityBuilder_ == null) {
-        if (this.entity_ != null) {
-          this.entity_ =
-            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.newBuilder(this.entity_).mergeFrom(value).buildPartial();
+      if (entityBuilder_ == null) {
+        if (entity_ != null) {
+          entity_ =
+            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.newBuilder(entity_).mergeFrom(value).buildPartial();
         } else {
-          this.entity_ = value;
+          entity_ = value;
         }
         onChanged();
       } else {
-        this.entityBuilder_.mergeFrom(value);
+        entityBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -574,12 +574,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
      */
     public Builder clearEntity() {
-      if (this.entityBuilder_ == null) {
-        this.entity_ = null;
+      if (entityBuilder_ == null) {
+        entity_ = null;
         onChanged();
       } else {
-        this.entity_ = null;
-        this.entityBuilder_ = null;
+        entity_ = null;
+        entityBuilder_ = null;
       }
 
       return this;
@@ -604,11 +604,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getEntityOrBuilder() {
-      if (this.entityBuilder_ != null) {
-        return this.entityBuilder_.getMessageOrBuilder();
+      if (entityBuilder_ != null) {
+        return entityBuilder_.getMessageOrBuilder();
       } else {
-        return this.entity_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : this.entity_;
+        return entity_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance() : entity_;
       }
     }
     /**
@@ -621,15 +621,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getEntityFieldBuilder() {
-      if (this.entityBuilder_ == null) {
-        this.entityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (entityBuilder_ == null) {
+        entityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>(
                 getEntity(),
                 getParentForChildren(),
                 isClean());
-        this.entity_ = null;
+        entity_ = null;
       }
-      return this.entityBuilder_;
+      return entityBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

@@ -77,30 +77,30 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.Builder subBuilder = null;
-            if (this.mutationCase_ == 1) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) this.mutation_).toBuilder();
+            if (mutationCase_ == 1) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) mutation_).toBuilder();
             }
-            this.mutation_ =
+            mutation_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) this.mutation_);
-              this.mutation_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
             }
-            this.mutationCase_ = 1;
+            mutationCase_ = 1;
             break;
           }
           case 18: {
             io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.Builder subBuilder = null;
-            if (this.mutationCase_ == 2) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) this.mutation_).toBuilder();
+            if (mutationCase_ == 2) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) mutation_).toBuilder();
             }
-            this.mutation_ =
+            mutation_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) this.mutation_);
-              this.mutation_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
             }
-            this.mutationCase_ = 2;
+            mutationCase_ = 2;
             break;
           }
           default: {
@@ -173,7 +173,7 @@ private static final long serialVersionUID = 0L;
   public MutationCase
   getMutationCase() {
     return MutationCase.forNumber(
-        this.mutationCase_);
+        mutationCase_);
   }
 
   public static final int ENTITYUPSERTMUTATION_FIELD_NUMBER = 1;
@@ -187,7 +187,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasEntityUpsertMutation() {
-    return this.mutationCase_ == 1;
+    return mutationCase_ == 1;
   }
   /**
    * <pre>
@@ -199,8 +199,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation getEntityUpsertMutation() {
-    if (this.mutationCase_ == 1) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) this.mutation_;
+    if (mutationCase_ == 1) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) mutation_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.getDefaultInstance();
   }
@@ -213,8 +213,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutationOrBuilder getEntityUpsertMutationOrBuilder() {
-    if (this.mutationCase_ == 1) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) this.mutation_;
+    if (mutationCase_ == 1) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) mutation_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.getDefaultInstance();
   }
@@ -230,7 +230,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasEntityRemoveMutation() {
-    return this.mutationCase_ == 2;
+    return mutationCase_ == 2;
   }
   /**
    * <pre>
@@ -242,8 +242,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation getEntityRemoveMutation() {
-    if (this.mutationCase_ == 2) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) this.mutation_;
+    if (mutationCase_ == 2) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) mutation_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.getDefaultInstance();
   }
@@ -256,8 +256,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutationOrBuilder getEntityRemoveMutationOrBuilder() {
-    if (this.mutationCase_ == 2) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) this.mutation_;
+    if (mutationCase_ == 2) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) mutation_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.getDefaultInstance();
   }
@@ -265,42 +265,42 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.mutationCase_ == 1) {
-      output.writeMessage(1, (io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) this.mutation_);
+    if (mutationCase_ == 1) {
+      output.writeMessage(1, (io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) mutation_);
     }
-    if (this.mutationCase_ == 2) {
-      output.writeMessage(2, (io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) this.mutation_);
+    if (mutationCase_ == 2) {
+      output.writeMessage(2, (io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) mutation_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.mutationCase_ == 1) {
+    if (mutationCase_ == 1) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(1, (io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) this.mutation_);
+        .computeMessageSize(1, (io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) mutation_);
     }
-    if (this.mutationCase_ == 2) {
+    if (mutationCase_ == 2) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(2, (io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) this.mutation_);
+        .computeMessageSize(2, (io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) mutation_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -315,7 +315,7 @@ private static final long serialVersionUID = 0L;
     io.evitadb.externalApi.grpc.generated.GrpcEntityMutation other = (io.evitadb.externalApi.grpc.generated.GrpcEntityMutation) obj;
 
     if (!getMutationCase().equals(other.getMutationCase())) return false;
-    switch (this.mutationCase_) {
+    switch (mutationCase_) {
       case 1:
         if (!getEntityUpsertMutation()
             .equals(other.getEntityUpsertMutation())) return false;
@@ -327,18 +327,18 @@ private static final long serialVersionUID = 0L;
       case 0:
       default:
     }
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    switch (this.mutationCase_) {
+    switch (mutationCase_) {
       case 1:
         hash = (37 * hash) + ENTITYUPSERTMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getEntityUpsertMutation().hashCode();
@@ -350,8 +350,8 @@ private static final long serialVersionUID = 0L;
       case 0:
       default:
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -487,8 +487,8 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.mutationCase_ = 0;
-      this.mutation_ = null;
+      mutationCase_ = 0;
+      mutation_ = null;
       return this;
     }
 
@@ -515,21 +515,21 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEntityMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcEntityMutation result = new io.evitadb.externalApi.grpc.generated.GrpcEntityMutation(this);
-      if (this.mutationCase_ == 1) {
-        if (this.entityUpsertMutationBuilder_ == null) {
-          result.mutation_ = this.mutation_;
+      if (mutationCase_ == 1) {
+        if (entityUpsertMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
         } else {
-          result.mutation_ = this.entityUpsertMutationBuilder_.build();
+          result.mutation_ = entityUpsertMutationBuilder_.build();
         }
       }
-      if (this.mutationCase_ == 2) {
-        if (this.entityRemoveMutationBuilder_ == null) {
-          result.mutation_ = this.mutation_;
+      if (mutationCase_ == 2) {
+        if (entityRemoveMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
         } else {
-          result.mutation_ = this.entityRemoveMutationBuilder_.build();
+          result.mutation_ = entityRemoveMutationBuilder_.build();
         }
       }
-      result.mutationCase_ = this.mutationCase_;
+      result.mutationCase_ = mutationCase_;
       onBuilt();
       return result;
     }
@@ -624,12 +624,12 @@ private static final long serialVersionUID = 0L;
     public MutationCase
         getMutationCase() {
       return MutationCase.forNumber(
-          this.mutationCase_);
+          mutationCase_);
     }
 
     public Builder clearMutation() {
-      this.mutationCase_ = 0;
-      this.mutation_ = null;
+      mutationCase_ = 0;
+      mutation_ = null;
       onChanged();
       return this;
     }
@@ -647,7 +647,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasEntityUpsertMutation() {
-      return this.mutationCase_ == 1;
+      return mutationCase_ == 1;
     }
     /**
      * <pre>
@@ -659,14 +659,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation getEntityUpsertMutation() {
-      if (this.entityUpsertMutationBuilder_ == null) {
-        if (this.mutationCase_ == 1) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) this.mutation_;
+      if (entityUpsertMutationBuilder_ == null) {
+        if (mutationCase_ == 1) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) mutation_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.getDefaultInstance();
       } else {
-        if (this.mutationCase_ == 1) {
-          return this.entityUpsertMutationBuilder_.getMessage();
+        if (mutationCase_ == 1) {
+          return entityUpsertMutationBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.getDefaultInstance();
       }
@@ -679,16 +679,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
      */
     public Builder setEntityUpsertMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation value) {
-      if (this.entityUpsertMutationBuilder_ == null) {
+      if (entityUpsertMutationBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.mutation_ = value;
+        mutation_ = value;
         onChanged();
       } else {
-        this.entityUpsertMutationBuilder_.setMessage(value);
+        entityUpsertMutationBuilder_.setMessage(value);
       }
-      this.mutationCase_ = 1;
+      mutationCase_ = 1;
       return this;
     }
     /**
@@ -700,13 +700,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setEntityUpsertMutation(
         io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.Builder builderForValue) {
-      if (this.entityUpsertMutationBuilder_ == null) {
-        this.mutation_ = builderForValue.build();
+      if (entityUpsertMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
         onChanged();
       } else {
-        this.entityUpsertMutationBuilder_.setMessage(builderForValue.build());
+        entityUpsertMutationBuilder_.setMessage(builderForValue.build());
       }
-      this.mutationCase_ = 1;
+      mutationCase_ = 1;
       return this;
     }
     /**
@@ -717,22 +717,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
      */
     public Builder mergeEntityUpsertMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation value) {
-      if (this.entityUpsertMutationBuilder_ == null) {
-        if (this.mutationCase_ == 1 &&
-            this.mutation_ != io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.getDefaultInstance()) {
-          this.mutation_ = io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) this.mutation_)
+      if (entityUpsertMutationBuilder_ == null) {
+        if (mutationCase_ == 1 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) mutation_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.mutation_ = value;
+          mutation_ = value;
         }
         onChanged();
       } else {
-        if (this.mutationCase_ == 1) {
-          this.entityUpsertMutationBuilder_.mergeFrom(value);
+        if (mutationCase_ == 1) {
+          entityUpsertMutationBuilder_.mergeFrom(value);
         }
-        this.entityUpsertMutationBuilder_.setMessage(value);
+        entityUpsertMutationBuilder_.setMessage(value);
       }
-      this.mutationCase_ = 1;
+      mutationCase_ = 1;
       return this;
     }
     /**
@@ -743,18 +743,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation entityUpsertMutation = 1;</code>
      */
     public Builder clearEntityUpsertMutation() {
-      if (this.entityUpsertMutationBuilder_ == null) {
-        if (this.mutationCase_ == 1) {
-          this.mutationCase_ = 0;
-          this.mutation_ = null;
+      if (entityUpsertMutationBuilder_ == null) {
+        if (mutationCase_ == 1) {
+          mutationCase_ = 0;
+          mutation_ = null;
           onChanged();
         }
       } else {
-        if (this.mutationCase_ == 1) {
-          this.mutationCase_ = 0;
-          this.mutation_ = null;
+        if (mutationCase_ == 1) {
+          mutationCase_ = 0;
+          mutation_ = null;
         }
-        this.entityUpsertMutationBuilder_.clear();
+        entityUpsertMutationBuilder_.clear();
       }
       return this;
     }
@@ -777,11 +777,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutationOrBuilder getEntityUpsertMutationOrBuilder() {
-      if ((this.mutationCase_ == 1) && (this.entityUpsertMutationBuilder_ != null)) {
-        return this.entityUpsertMutationBuilder_.getMessageOrBuilder();
+      if ((mutationCase_ == 1) && (entityUpsertMutationBuilder_ != null)) {
+        return entityUpsertMutationBuilder_.getMessageOrBuilder();
       } else {
-        if (this.mutationCase_ == 1) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) this.mutation_;
+        if (mutationCase_ == 1) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) mutation_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.getDefaultInstance();
       }
@@ -796,20 +796,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutationOrBuilder>
         getEntityUpsertMutationFieldBuilder() {
-      if (this.entityUpsertMutationBuilder_ == null) {
-        if (!(this.mutationCase_ == 1)) {
-          this.mutation_ = io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.getDefaultInstance();
+      if (entityUpsertMutationBuilder_ == null) {
+        if (!(mutationCase_ == 1)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.getDefaultInstance();
         }
-        this.entityUpsertMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        entityUpsertMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutationOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) this.mutation_,
+                (io.evitadb.externalApi.grpc.generated.GrpcEntityUpsertMutation) mutation_,
                 getParentForChildren(),
                 isClean());
-        this.mutation_ = null;
+        mutation_ = null;
       }
-      this.mutationCase_ = 1;
+      mutationCase_ = 1;
       onChanged();;
-      return this.entityUpsertMutationBuilder_;
+      return entityUpsertMutationBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -824,7 +824,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasEntityRemoveMutation() {
-      return this.mutationCase_ == 2;
+      return mutationCase_ == 2;
     }
     /**
      * <pre>
@@ -836,14 +836,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation getEntityRemoveMutation() {
-      if (this.entityRemoveMutationBuilder_ == null) {
-        if (this.mutationCase_ == 2) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) this.mutation_;
+      if (entityRemoveMutationBuilder_ == null) {
+        if (mutationCase_ == 2) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) mutation_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.getDefaultInstance();
       } else {
-        if (this.mutationCase_ == 2) {
-          return this.entityRemoveMutationBuilder_.getMessage();
+        if (mutationCase_ == 2) {
+          return entityRemoveMutationBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.getDefaultInstance();
       }
@@ -856,16 +856,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
      */
     public Builder setEntityRemoveMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation value) {
-      if (this.entityRemoveMutationBuilder_ == null) {
+      if (entityRemoveMutationBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.mutation_ = value;
+        mutation_ = value;
         onChanged();
       } else {
-        this.entityRemoveMutationBuilder_.setMessage(value);
+        entityRemoveMutationBuilder_.setMessage(value);
       }
-      this.mutationCase_ = 2;
+      mutationCase_ = 2;
       return this;
     }
     /**
@@ -877,13 +877,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setEntityRemoveMutation(
         io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.Builder builderForValue) {
-      if (this.entityRemoveMutationBuilder_ == null) {
-        this.mutation_ = builderForValue.build();
+      if (entityRemoveMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
         onChanged();
       } else {
-        this.entityRemoveMutationBuilder_.setMessage(builderForValue.build());
+        entityRemoveMutationBuilder_.setMessage(builderForValue.build());
       }
-      this.mutationCase_ = 2;
+      mutationCase_ = 2;
       return this;
     }
     /**
@@ -894,22 +894,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
      */
     public Builder mergeEntityRemoveMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation value) {
-      if (this.entityRemoveMutationBuilder_ == null) {
-        if (this.mutationCase_ == 2 &&
-            this.mutation_ != io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.getDefaultInstance()) {
-          this.mutation_ = io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) this.mutation_)
+      if (entityRemoveMutationBuilder_ == null) {
+        if (mutationCase_ == 2 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) mutation_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.mutation_ = value;
+          mutation_ = value;
         }
         onChanged();
       } else {
-        if (this.mutationCase_ == 2) {
-          this.entityRemoveMutationBuilder_.mergeFrom(value);
+        if (mutationCase_ == 2) {
+          entityRemoveMutationBuilder_.mergeFrom(value);
         }
-        this.entityRemoveMutationBuilder_.setMessage(value);
+        entityRemoveMutationBuilder_.setMessage(value);
       }
-      this.mutationCase_ = 2;
+      mutationCase_ = 2;
       return this;
     }
     /**
@@ -920,18 +920,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation entityRemoveMutation = 2;</code>
      */
     public Builder clearEntityRemoveMutation() {
-      if (this.entityRemoveMutationBuilder_ == null) {
-        if (this.mutationCase_ == 2) {
-          this.mutationCase_ = 0;
-          this.mutation_ = null;
+      if (entityRemoveMutationBuilder_ == null) {
+        if (mutationCase_ == 2) {
+          mutationCase_ = 0;
+          mutation_ = null;
           onChanged();
         }
       } else {
-        if (this.mutationCase_ == 2) {
-          this.mutationCase_ = 0;
-          this.mutation_ = null;
+        if (mutationCase_ == 2) {
+          mutationCase_ = 0;
+          mutation_ = null;
         }
-        this.entityRemoveMutationBuilder_.clear();
+        entityRemoveMutationBuilder_.clear();
       }
       return this;
     }
@@ -954,11 +954,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutationOrBuilder getEntityRemoveMutationOrBuilder() {
-      if ((this.mutationCase_ == 2) && (this.entityRemoveMutationBuilder_ != null)) {
-        return this.entityRemoveMutationBuilder_.getMessageOrBuilder();
+      if ((mutationCase_ == 2) && (entityRemoveMutationBuilder_ != null)) {
+        return entityRemoveMutationBuilder_.getMessageOrBuilder();
       } else {
-        if (this.mutationCase_ == 2) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) this.mutation_;
+        if (mutationCase_ == 2) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) mutation_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.getDefaultInstance();
       }
@@ -973,20 +973,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutationOrBuilder>
         getEntityRemoveMutationFieldBuilder() {
-      if (this.entityRemoveMutationBuilder_ == null) {
-        if (!(this.mutationCase_ == 2)) {
-          this.mutation_ = io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.getDefaultInstance();
+      if (entityRemoveMutationBuilder_ == null) {
+        if (!(mutationCase_ == 2)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.getDefaultInstance();
         }
-        this.entityRemoveMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        entityRemoveMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutationOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) this.mutation_,
+                (io.evitadb.externalApi.grpc.generated.GrpcEntityRemoveMutation) mutation_,
                 getParentForChildren(),
                 isClean());
-        this.mutation_ = null;
+        mutation_ = null;
       }
-      this.mutationCase_ = 2;
+      mutationCase_ = 2;
       onChanged();;
-      return this.entityRemoveMutationBuilder_;
+      return entityRemoveMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

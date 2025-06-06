@@ -46,12 +46,12 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcBinaryEntity() {
-    this.entityType_ = "";
-    this.entityStoragePart_ = com.google.protobuf.ByteString.EMPTY;
-    this.attributeStorageParts_ = java.util.Collections.emptyList();
-    this.associatedDataStorageParts_ = java.util.Collections.emptyList();
-    this.priceStoragePart_ = com.google.protobuf.ByteString.EMPTY;
-    this.referenceStoragePart_ = com.google.protobuf.ByteString.EMPTY;
+    entityType_ = "";
+    entityStoragePart_ = com.google.protobuf.ByteString.EMPTY;
+    attributeStorageParts_ = java.util.Collections.emptyList();
+    associatedDataStorageParts_ = java.util.Collections.emptyList();
+    priceStoragePart_ = com.google.protobuf.ByteString.EMPTY;
+    referenceStoragePart_ = com.google.protobuf.ByteString.EMPTY;
   }
 
   @java.lang.Override
@@ -88,48 +88,48 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            this.entityType_ = s;
+            entityType_ = s;
             break;
           }
           case 16: {
 
-            this.primaryKey_ = input.readInt32();
+            primaryKey_ = input.readInt32();
             break;
           }
           case 24: {
 
-            this.schemaVersion_ = input.readInt32();
+            schemaVersion_ = input.readInt32();
             break;
           }
           case 34: {
 
-            this.entityStoragePart_ = input.readBytes();
+            entityStoragePart_ = input.readBytes();
             break;
           }
           case 42: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              this.attributeStorageParts_ = new java.util.ArrayList<com.google.protobuf.ByteString>();
+              attributeStorageParts_ = new java.util.ArrayList<com.google.protobuf.ByteString>();
               mutable_bitField0_ |= 0x00000001;
             }
-            this.attributeStorageParts_.add(input.readBytes());
+            attributeStorageParts_.add(input.readBytes());
             break;
           }
           case 50: {
             if (!((mutable_bitField0_ & 0x00000002) != 0)) {
-              this.associatedDataStorageParts_ = new java.util.ArrayList<com.google.protobuf.ByteString>();
+              associatedDataStorageParts_ = new java.util.ArrayList<com.google.protobuf.ByteString>();
               mutable_bitField0_ |= 0x00000002;
             }
-            this.associatedDataStorageParts_.add(input.readBytes());
+            associatedDataStorageParts_.add(input.readBytes());
             break;
           }
           case 58: {
 
-            this.priceStoragePart_ = input.readBytes();
+            priceStoragePart_ = input.readBytes();
             break;
           }
           case 66: {
 
-            this.referenceStoragePart_ = input.readBytes();
+            referenceStoragePart_ = input.readBytes();
             break;
           }
           default: {
@@ -148,10 +148,10 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        this.attributeStorageParts_ = java.util.Collections.unmodifiableList(this.attributeStorageParts_); // C
+        attributeStorageParts_ = java.util.Collections.unmodifiableList(attributeStorageParts_); // C
       }
       if (((mutable_bitField0_ & 0x00000002) != 0)) {
-        this.associatedDataStorageParts_ = java.util.Collections.unmodifiableList(this.associatedDataStorageParts_); // C
+        associatedDataStorageParts_ = java.util.Collections.unmodifiableList(associatedDataStorageParts_); // C
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -184,14 +184,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getEntityType() {
-    java.lang.Object ref = this.entityType_;
+    java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      this.entityType_ = s;
+      entityType_ = s;
       return s;
     }
   }
@@ -208,12 +208,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getEntityTypeBytes() {
-    java.lang.Object ref = this.entityType_;
+    java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      this.entityType_ = b;
+      entityType_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -233,7 +233,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getPrimaryKey() {
-    return this.primaryKey_;
+    return primaryKey_;
   }
 
   public static final int SCHEMAVERSION_FIELD_NUMBER = 3;
@@ -249,7 +249,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getSchemaVersion() {
-    return this.schemaVersion_;
+    return schemaVersion_;
   }
 
   public static final int ENTITYSTORAGEPART_FIELD_NUMBER = 4;
@@ -264,7 +264,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.ByteString getEntityStoragePart() {
-    return this.entityStoragePart_;
+    return entityStoragePart_;
   }
 
   public static final int ATTRIBUTESTORAGEPARTS_FIELD_NUMBER = 5;
@@ -280,7 +280,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<com.google.protobuf.ByteString>
       getAttributeStoragePartsList() {
-    return this.attributeStorageParts_;
+    return attributeStorageParts_;
   }
   /**
    * <pre>
@@ -291,7 +291,7 @@ private static final long serialVersionUID = 0L;
    * @return The count of attributeStorageParts.
    */
   public int getAttributeStoragePartsCount() {
-    return this.attributeStorageParts_.size();
+    return attributeStorageParts_.size();
   }
   /**
    * <pre>
@@ -303,7 +303,7 @@ private static final long serialVersionUID = 0L;
    * @return The attributeStorageParts at the given index.
    */
   public com.google.protobuf.ByteString getAttributeStorageParts(int index) {
-    return this.attributeStorageParts_.get(index);
+    return attributeStorageParts_.get(index);
   }
 
   public static final int ASSOCIATEDDATASTORAGEPARTS_FIELD_NUMBER = 6;
@@ -319,7 +319,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<com.google.protobuf.ByteString>
       getAssociatedDataStoragePartsList() {
-    return this.associatedDataStorageParts_;
+    return associatedDataStorageParts_;
   }
   /**
    * <pre>
@@ -330,7 +330,7 @@ private static final long serialVersionUID = 0L;
    * @return The count of associatedDataStorageParts.
    */
   public int getAssociatedDataStoragePartsCount() {
-    return this.associatedDataStorageParts_.size();
+    return associatedDataStorageParts_.size();
   }
   /**
    * <pre>
@@ -342,7 +342,7 @@ private static final long serialVersionUID = 0L;
    * @return The associatedDataStorageParts at the given index.
    */
   public com.google.protobuf.ByteString getAssociatedDataStorageParts(int index) {
-    return this.associatedDataStorageParts_.get(index);
+    return associatedDataStorageParts_.get(index);
   }
 
   public static final int PRICESTORAGEPART_FIELD_NUMBER = 7;
@@ -357,7 +357,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.ByteString getPriceStoragePart() {
-    return this.priceStoragePart_;
+    return priceStoragePart_;
   }
 
   public static final int REFERENCESTORAGEPART_FIELD_NUMBER = 8;
@@ -372,99 +372,99 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.ByteString getReferenceStoragePart() {
-    return this.referenceStoragePart_;
+    return referenceStoragePart_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.entityType_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.entityType_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, entityType_);
     }
-    if (this.primaryKey_ != 0) {
-      output.writeInt32(2, this.primaryKey_);
+    if (primaryKey_ != 0) {
+      output.writeInt32(2, primaryKey_);
     }
-    if (this.schemaVersion_ != 0) {
-      output.writeInt32(3, this.schemaVersion_);
+    if (schemaVersion_ != 0) {
+      output.writeInt32(3, schemaVersion_);
     }
-    if (!this.entityStoragePart_.isEmpty()) {
-      output.writeBytes(4, this.entityStoragePart_);
+    if (!entityStoragePart_.isEmpty()) {
+      output.writeBytes(4, entityStoragePart_);
     }
-    for (int i = 0; i < this.attributeStorageParts_.size(); i++) {
-      output.writeBytes(5, this.attributeStorageParts_.get(i));
+    for (int i = 0; i < attributeStorageParts_.size(); i++) {
+      output.writeBytes(5, attributeStorageParts_.get(i));
     }
-    for (int i = 0; i < this.associatedDataStorageParts_.size(); i++) {
-      output.writeBytes(6, this.associatedDataStorageParts_.get(i));
+    for (int i = 0; i < associatedDataStorageParts_.size(); i++) {
+      output.writeBytes(6, associatedDataStorageParts_.get(i));
     }
-    if (!this.priceStoragePart_.isEmpty()) {
-      output.writeBytes(7, this.priceStoragePart_);
+    if (!priceStoragePart_.isEmpty()) {
+      output.writeBytes(7, priceStoragePart_);
     }
-    if (!this.referenceStoragePart_.isEmpty()) {
-      output.writeBytes(8, this.referenceStoragePart_);
+    if (!referenceStoragePart_.isEmpty()) {
+      output.writeBytes(8, referenceStoragePart_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.entityType_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.entityType_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, entityType_);
     }
-    if (this.primaryKey_ != 0) {
+    if (primaryKey_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, this.primaryKey_);
+        .computeInt32Size(2, primaryKey_);
     }
-    if (this.schemaVersion_ != 0) {
+    if (schemaVersion_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(3, this.schemaVersion_);
+        .computeInt32Size(3, schemaVersion_);
     }
-    if (!this.entityStoragePart_.isEmpty()) {
+    if (!entityStoragePart_.isEmpty()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBytesSize(4, this.entityStoragePart_);
+        .computeBytesSize(4, entityStoragePart_);
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < this.attributeStorageParts_.size(); i++) {
+      for (int i = 0; i < attributeStorageParts_.size(); i++) {
         dataSize += com.google.protobuf.CodedOutputStream
-          .computeBytesSizeNoTag(this.attributeStorageParts_.get(i));
+          .computeBytesSizeNoTag(attributeStorageParts_.get(i));
       }
       size += dataSize;
       size += 1 * getAttributeStoragePartsList().size();
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < this.associatedDataStorageParts_.size(); i++) {
+      for (int i = 0; i < associatedDataStorageParts_.size(); i++) {
         dataSize += com.google.protobuf.CodedOutputStream
-          .computeBytesSizeNoTag(this.associatedDataStorageParts_.get(i));
+          .computeBytesSizeNoTag(associatedDataStorageParts_.get(i));
       }
       size += dataSize;
       size += 1 * getAssociatedDataStoragePartsList().size();
     }
-    if (!this.priceStoragePart_.isEmpty()) {
+    if (!priceStoragePart_.isEmpty()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBytesSize(7, this.priceStoragePart_);
+        .computeBytesSize(7, priceStoragePart_);
     }
-    if (!this.referenceStoragePart_.isEmpty()) {
+    if (!referenceStoragePart_.isEmpty()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBytesSize(8, this.referenceStoragePart_);
+        .computeBytesSize(8, referenceStoragePart_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -494,14 +494,14 @@ private static final long serialVersionUID = 0L;
         .equals(other.getPriceStoragePart())) return false;
     if (!getReferenceStoragePart()
         .equals(other.getReferenceStoragePart())) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -525,8 +525,8 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getPriceStoragePart().hashCode();
     hash = (37 * hash) + REFERENCESTORAGEPART_FIELD_NUMBER;
     hash = (53 * hash) + getReferenceStoragePart().hashCode();
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -665,21 +665,21 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.entityType_ = "";
+      entityType_ = "";
 
-      this.primaryKey_ = 0;
+      primaryKey_ = 0;
 
-      this.schemaVersion_ = 0;
+      schemaVersion_ = 0;
 
-      this.entityStoragePart_ = com.google.protobuf.ByteString.EMPTY;
+      entityStoragePart_ = com.google.protobuf.ByteString.EMPTY;
 
-      this.attributeStorageParts_ = java.util.Collections.emptyList();
-      this.bitField0_ = (this.bitField0_ & ~0x00000001);
-      this.associatedDataStorageParts_ = java.util.Collections.emptyList();
-      this.bitField0_ = (this.bitField0_ & ~0x00000002);
-      this.priceStoragePart_ = com.google.protobuf.ByteString.EMPTY;
+      attributeStorageParts_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
+      associatedDataStorageParts_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000002);
+      priceStoragePart_ = com.google.protobuf.ByteString.EMPTY;
 
-      this.referenceStoragePart_ = com.google.protobuf.ByteString.EMPTY;
+      referenceStoragePart_ = com.google.protobuf.ByteString.EMPTY;
 
       return this;
     }
@@ -707,23 +707,23 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity result = new io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity(this);
-      int from_bitField0_ = this.bitField0_;
-      result.entityType_ = this.entityType_;
-      result.primaryKey_ = this.primaryKey_;
-      result.schemaVersion_ = this.schemaVersion_;
-      result.entityStoragePart_ = this.entityStoragePart_;
-      if (((this.bitField0_ & 0x00000001) != 0)) {
-        this.attributeStorageParts_ = java.util.Collections.unmodifiableList(this.attributeStorageParts_);
-        this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      int from_bitField0_ = bitField0_;
+      result.entityType_ = entityType_;
+      result.primaryKey_ = primaryKey_;
+      result.schemaVersion_ = schemaVersion_;
+      result.entityStoragePart_ = entityStoragePart_;
+      if (((bitField0_ & 0x00000001) != 0)) {
+        attributeStorageParts_ = java.util.Collections.unmodifiableList(attributeStorageParts_);
+        bitField0_ = (bitField0_ & ~0x00000001);
       }
-      result.attributeStorageParts_ = this.attributeStorageParts_;
-      if (((this.bitField0_ & 0x00000002) != 0)) {
-        this.associatedDataStorageParts_ = java.util.Collections.unmodifiableList(this.associatedDataStorageParts_);
-        this.bitField0_ = (this.bitField0_ & ~0x00000002);
+      result.attributeStorageParts_ = attributeStorageParts_;
+      if (((bitField0_ & 0x00000002) != 0)) {
+        associatedDataStorageParts_ = java.util.Collections.unmodifiableList(associatedDataStorageParts_);
+        bitField0_ = (bitField0_ & ~0x00000002);
       }
-      result.associatedDataStorageParts_ = this.associatedDataStorageParts_;
-      result.priceStoragePart_ = this.priceStoragePart_;
-      result.referenceStoragePart_ = this.referenceStoragePart_;
+      result.associatedDataStorageParts_ = associatedDataStorageParts_;
+      result.priceStoragePart_ = priceStoragePart_;
+      result.referenceStoragePart_ = referenceStoragePart_;
       onBuilt();
       return result;
     }
@@ -773,7 +773,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity.getDefaultInstance()) return this;
       if (!other.getEntityType().isEmpty()) {
-        this.entityType_ = other.entityType_;
+        entityType_ = other.entityType_;
         onChanged();
       }
       if (other.getPrimaryKey() != 0) {
@@ -786,22 +786,22 @@ private static final long serialVersionUID = 0L;
         setEntityStoragePart(other.getEntityStoragePart());
       }
       if (!other.attributeStorageParts_.isEmpty()) {
-        if (this.attributeStorageParts_.isEmpty()) {
-          this.attributeStorageParts_ = other.attributeStorageParts_;
-          this.bitField0_ = (this.bitField0_ & ~0x00000001);
+        if (attributeStorageParts_.isEmpty()) {
+          attributeStorageParts_ = other.attributeStorageParts_;
+          bitField0_ = (bitField0_ & ~0x00000001);
         } else {
           ensureAttributeStoragePartsIsMutable();
-          this.attributeStorageParts_.addAll(other.attributeStorageParts_);
+          attributeStorageParts_.addAll(other.attributeStorageParts_);
         }
         onChanged();
       }
       if (!other.associatedDataStorageParts_.isEmpty()) {
-        if (this.associatedDataStorageParts_.isEmpty()) {
-          this.associatedDataStorageParts_ = other.associatedDataStorageParts_;
-          this.bitField0_ = (this.bitField0_ & ~0x00000002);
+        if (associatedDataStorageParts_.isEmpty()) {
+          associatedDataStorageParts_ = other.associatedDataStorageParts_;
+          bitField0_ = (bitField0_ & ~0x00000002);
         } else {
           ensureAssociatedDataStoragePartsIsMutable();
-          this.associatedDataStorageParts_.addAll(other.associatedDataStorageParts_);
+          associatedDataStorageParts_.addAll(other.associatedDataStorageParts_);
         }
         onChanged();
       }
@@ -853,12 +853,12 @@ private static final long serialVersionUID = 0L;
      * @return The entityType.
      */
     public java.lang.String getEntityType() {
-      java.lang.Object ref = this.entityType_;
+      java.lang.Object ref = entityType_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        this.entityType_ = s;
+        entityType_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -876,12 +876,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getEntityTypeBytes() {
-      java.lang.Object ref = this.entityType_;
+      java.lang.Object ref = entityType_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        this.entityType_ = b;
+        entityType_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -904,7 +904,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.entityType_ = value;
+      entityType_ = value;
       onChanged();
       return this;
     }
@@ -920,7 +920,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearEntityType() {
 
-      this.entityType_ = getDefaultInstance().getEntityType();
+      entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
     }
@@ -942,7 +942,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      this.entityType_ = value;
+      entityType_ = value;
       onChanged();
       return this;
     }
@@ -959,7 +959,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getPrimaryKey() {
-      return this.primaryKey_;
+      return primaryKey_;
     }
     /**
      * <pre>
@@ -973,7 +973,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setPrimaryKey(int value) {
 
-      this.primaryKey_ = value;
+      primaryKey_ = value;
       onChanged();
       return this;
     }
@@ -988,7 +988,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearPrimaryKey() {
 
-      this.primaryKey_ = 0;
+      primaryKey_ = 0;
       onChanged();
       return this;
     }
@@ -1005,7 +1005,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getSchemaVersion() {
-      return this.schemaVersion_;
+      return schemaVersion_;
     }
     /**
      * <pre>
@@ -1019,7 +1019,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setSchemaVersion(int value) {
 
-      this.schemaVersion_ = value;
+      schemaVersion_ = value;
       onChanged();
       return this;
     }
@@ -1034,7 +1034,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearSchemaVersion() {
 
-      this.schemaVersion_ = 0;
+      schemaVersion_ = 0;
       onChanged();
       return this;
     }
@@ -1050,7 +1050,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public com.google.protobuf.ByteString getEntityStoragePart() {
-      return this.entityStoragePart_;
+      return entityStoragePart_;
     }
     /**
      * <pre>
@@ -1066,7 +1066,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.entityStoragePart_ = value;
+      entityStoragePart_ = value;
       onChanged();
       return this;
     }
@@ -1080,16 +1080,16 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearEntityStoragePart() {
 
-      this.entityStoragePart_ = getDefaultInstance().getEntityStoragePart();
+      entityStoragePart_ = getDefaultInstance().getEntityStoragePart();
       onChanged();
       return this;
     }
 
     private java.util.List<com.google.protobuf.ByteString> attributeStorageParts_ = java.util.Collections.emptyList();
     private void ensureAttributeStoragePartsIsMutable() {
-      if (!((this.bitField0_ & 0x00000001) != 0)) {
-        this.attributeStorageParts_ = new java.util.ArrayList<com.google.protobuf.ByteString>(this.attributeStorageParts_);
-        this.bitField0_ |= 0x00000001;
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        attributeStorageParts_ = new java.util.ArrayList<com.google.protobuf.ByteString>(attributeStorageParts_);
+        bitField0_ |= 0x00000001;
        }
     }
     /**
@@ -1102,8 +1102,8 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<com.google.protobuf.ByteString>
         getAttributeStoragePartsList() {
-      return ((this.bitField0_ & 0x00000001) != 0) ?
-               java.util.Collections.unmodifiableList(this.attributeStorageParts_) : this.attributeStorageParts_;
+      return ((bitField0_ & 0x00000001) != 0) ?
+               java.util.Collections.unmodifiableList(attributeStorageParts_) : attributeStorageParts_;
     }
     /**
      * <pre>
@@ -1114,7 +1114,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of attributeStorageParts.
      */
     public int getAttributeStoragePartsCount() {
-      return this.attributeStorageParts_.size();
+      return attributeStorageParts_.size();
     }
     /**
      * <pre>
@@ -1126,7 +1126,7 @@ private static final long serialVersionUID = 0L;
      * @return The attributeStorageParts at the given index.
      */
     public com.google.protobuf.ByteString getAttributeStorageParts(int index) {
-      return this.attributeStorageParts_.get(index);
+      return attributeStorageParts_.get(index);
     }
     /**
      * <pre>
@@ -1144,7 +1144,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   ensureAttributeStoragePartsIsMutable();
-      this.attributeStorageParts_.set(index, value);
+      attributeStorageParts_.set(index, value);
       onChanged();
       return this;
     }
@@ -1162,7 +1162,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   ensureAttributeStoragePartsIsMutable();
-      this.attributeStorageParts_.add(value);
+      attributeStorageParts_.add(value);
       onChanged();
       return this;
     }
@@ -1179,7 +1179,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<? extends com.google.protobuf.ByteString> values) {
       ensureAttributeStoragePartsIsMutable();
       com.google.protobuf.AbstractMessageLite.Builder.addAll(
-          values, this.attributeStorageParts_);
+          values, attributeStorageParts_);
       onChanged();
       return this;
     }
@@ -1192,17 +1192,17 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearAttributeStorageParts() {
-      this.attributeStorageParts_ = java.util.Collections.emptyList();
-      this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      attributeStorageParts_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }
 
     private java.util.List<com.google.protobuf.ByteString> associatedDataStorageParts_ = java.util.Collections.emptyList();
     private void ensureAssociatedDataStoragePartsIsMutable() {
-      if (!((this.bitField0_ & 0x00000002) != 0)) {
-        this.associatedDataStorageParts_ = new java.util.ArrayList<com.google.protobuf.ByteString>(this.associatedDataStorageParts_);
-        this.bitField0_ |= 0x00000002;
+      if (!((bitField0_ & 0x00000002) != 0)) {
+        associatedDataStorageParts_ = new java.util.ArrayList<com.google.protobuf.ByteString>(associatedDataStorageParts_);
+        bitField0_ |= 0x00000002;
        }
     }
     /**
@@ -1215,8 +1215,8 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<com.google.protobuf.ByteString>
         getAssociatedDataStoragePartsList() {
-      return ((this.bitField0_ & 0x00000002) != 0) ?
-               java.util.Collections.unmodifiableList(this.associatedDataStorageParts_) : this.associatedDataStorageParts_;
+      return ((bitField0_ & 0x00000002) != 0) ?
+               java.util.Collections.unmodifiableList(associatedDataStorageParts_) : associatedDataStorageParts_;
     }
     /**
      * <pre>
@@ -1227,7 +1227,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of associatedDataStorageParts.
      */
     public int getAssociatedDataStoragePartsCount() {
-      return this.associatedDataStorageParts_.size();
+      return associatedDataStorageParts_.size();
     }
     /**
      * <pre>
@@ -1239,7 +1239,7 @@ private static final long serialVersionUID = 0L;
      * @return The associatedDataStorageParts at the given index.
      */
     public com.google.protobuf.ByteString getAssociatedDataStorageParts(int index) {
-      return this.associatedDataStorageParts_.get(index);
+      return associatedDataStorageParts_.get(index);
     }
     /**
      * <pre>
@@ -1257,7 +1257,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   ensureAssociatedDataStoragePartsIsMutable();
-      this.associatedDataStorageParts_.set(index, value);
+      associatedDataStorageParts_.set(index, value);
       onChanged();
       return this;
     }
@@ -1275,7 +1275,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   ensureAssociatedDataStoragePartsIsMutable();
-      this.associatedDataStorageParts_.add(value);
+      associatedDataStorageParts_.add(value);
       onChanged();
       return this;
     }
@@ -1292,7 +1292,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<? extends com.google.protobuf.ByteString> values) {
       ensureAssociatedDataStoragePartsIsMutable();
       com.google.protobuf.AbstractMessageLite.Builder.addAll(
-          values, this.associatedDataStorageParts_);
+          values, associatedDataStorageParts_);
       onChanged();
       return this;
     }
@@ -1305,8 +1305,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearAssociatedDataStorageParts() {
-      this.associatedDataStorageParts_ = java.util.Collections.emptyList();
-      this.bitField0_ = (this.bitField0_ & ~0x00000002);
+      associatedDataStorageParts_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000002);
       onChanged();
       return this;
     }
@@ -1322,7 +1322,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public com.google.protobuf.ByteString getPriceStoragePart() {
-      return this.priceStoragePart_;
+      return priceStoragePart_;
     }
     /**
      * <pre>
@@ -1338,7 +1338,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.priceStoragePart_ = value;
+      priceStoragePart_ = value;
       onChanged();
       return this;
     }
@@ -1352,7 +1352,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearPriceStoragePart() {
 
-      this.priceStoragePart_ = getDefaultInstance().getPriceStoragePart();
+      priceStoragePart_ = getDefaultInstance().getPriceStoragePart();
       onChanged();
       return this;
     }
@@ -1368,7 +1368,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public com.google.protobuf.ByteString getReferenceStoragePart() {
-      return this.referenceStoragePart_;
+      return referenceStoragePart_;
     }
     /**
      * <pre>
@@ -1384,7 +1384,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.referenceStoragePart_ = value;
+      referenceStoragePart_ = value;
       onChanged();
       return this;
     }
@@ -1398,7 +1398,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearReferenceStoragePart() {
 
-      this.referenceStoragePart_ = getDefaultInstance().getReferenceStoragePart();
+      referenceStoragePart_ = getDefaultInstance().getReferenceStoragePart();
       onChanged();
       return this;
     }

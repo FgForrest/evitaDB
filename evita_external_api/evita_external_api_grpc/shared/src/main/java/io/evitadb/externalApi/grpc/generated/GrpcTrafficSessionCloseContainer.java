@@ -77,27 +77,27 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            this.catalogVersion_ = input.readInt64();
+            catalogVersion_ = input.readInt64();
             break;
           }
           case 16: {
 
-            this.trafficRecordCount_ = input.readInt32();
+            trafficRecordCount_ = input.readInt32();
             break;
           }
           case 24: {
 
-            this.queryCount_ = input.readInt32();
+            queryCount_ = input.readInt32();
             break;
           }
           case 32: {
 
-            this.entityFetchCount_ = input.readInt32();
+            entityFetchCount_ = input.readInt32();
             break;
           }
           case 40: {
 
-            this.mutationCount_ = input.readInt32();
+            mutationCount_ = input.readInt32();
             break;
           }
           default: {
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public long getCatalogVersion() {
-    return this.catalogVersion_;
+    return catalogVersion_;
   }
 
   public static final int TRAFFICRECORDCOUNT_FIELD_NUMBER = 2;
@@ -159,7 +159,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getTrafficRecordCount() {
-    return this.trafficRecordCount_;
+    return trafficRecordCount_;
   }
 
   public static final int QUERYCOUNT_FIELD_NUMBER = 3;
@@ -174,7 +174,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getQueryCount() {
-    return this.queryCount_;
+    return queryCount_;
   }
 
   public static final int ENTITYFETCHCOUNT_FIELD_NUMBER = 4;
@@ -189,7 +189,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getEntityFetchCount() {
-    return this.entityFetchCount_;
+    return entityFetchCount_;
   }
 
   public static final int MUTATIONCOUNT_FIELD_NUMBER = 5;
@@ -204,69 +204,69 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getMutationCount() {
-    return this.mutationCount_;
+    return mutationCount_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.catalogVersion_ != 0L) {
-      output.writeInt64(1, this.catalogVersion_);
+    if (catalogVersion_ != 0L) {
+      output.writeInt64(1, catalogVersion_);
     }
-    if (this.trafficRecordCount_ != 0) {
-      output.writeInt32(2, this.trafficRecordCount_);
+    if (trafficRecordCount_ != 0) {
+      output.writeInt32(2, trafficRecordCount_);
     }
-    if (this.queryCount_ != 0) {
-      output.writeInt32(3, this.queryCount_);
+    if (queryCount_ != 0) {
+      output.writeInt32(3, queryCount_);
     }
-    if (this.entityFetchCount_ != 0) {
-      output.writeInt32(4, this.entityFetchCount_);
+    if (entityFetchCount_ != 0) {
+      output.writeInt32(4, entityFetchCount_);
     }
-    if (this.mutationCount_ != 0) {
-      output.writeInt32(5, this.mutationCount_);
+    if (mutationCount_ != 0) {
+      output.writeInt32(5, mutationCount_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.catalogVersion_ != 0L) {
+    if (catalogVersion_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(1, this.catalogVersion_);
+        .computeInt64Size(1, catalogVersion_);
     }
-    if (this.trafficRecordCount_ != 0) {
+    if (trafficRecordCount_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, this.trafficRecordCount_);
+        .computeInt32Size(2, trafficRecordCount_);
     }
-    if (this.queryCount_ != 0) {
+    if (queryCount_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(3, this.queryCount_);
+        .computeInt32Size(3, queryCount_);
     }
-    if (this.entityFetchCount_ != 0) {
+    if (entityFetchCount_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(4, this.entityFetchCount_);
+        .computeInt32Size(4, entityFetchCount_);
     }
-    if (this.mutationCount_ != 0) {
+    if (mutationCount_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(5, this.mutationCount_);
+        .computeInt32Size(5, mutationCount_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -290,14 +290,14 @@ private static final long serialVersionUID = 0L;
         != other.getEntityFetchCount()) return false;
     if (getMutationCount()
         != other.getMutationCount()) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -312,8 +312,8 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getEntityFetchCount();
     hash = (37 * hash) + MUTATIONCOUNT_FIELD_NUMBER;
     hash = (53 * hash) + getMutationCount();
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -449,15 +449,15 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.catalogVersion_ = 0L;
+      catalogVersion_ = 0L;
 
-      this.trafficRecordCount_ = 0;
+      trafficRecordCount_ = 0;
 
-      this.queryCount_ = 0;
+      queryCount_ = 0;
 
-      this.entityFetchCount_ = 0;
+      entityFetchCount_ = 0;
 
-      this.mutationCount_ = 0;
+      mutationCount_ = 0;
 
       return this;
     }
@@ -485,11 +485,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer result = new io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer(this);
-      result.catalogVersion_ = this.catalogVersion_;
-      result.trafficRecordCount_ = this.trafficRecordCount_;
-      result.queryCount_ = this.queryCount_;
-      result.entityFetchCount_ = this.entityFetchCount_;
-      result.mutationCount_ = this.mutationCount_;
+      result.catalogVersion_ = catalogVersion_;
+      result.trafficRecordCount_ = trafficRecordCount_;
+      result.queryCount_ = queryCount_;
+      result.entityFetchCount_ = entityFetchCount_;
+      result.mutationCount_ = mutationCount_;
       onBuilt();
       return result;
     }
@@ -593,7 +593,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public long getCatalogVersion() {
-      return this.catalogVersion_;
+      return catalogVersion_;
     }
     /**
      * <pre>
@@ -606,7 +606,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCatalogVersion(long value) {
 
-      this.catalogVersion_ = value;
+      catalogVersion_ = value;
       onChanged();
       return this;
     }
@@ -620,7 +620,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearCatalogVersion() {
 
-      this.catalogVersion_ = 0L;
+      catalogVersion_ = 0L;
       onChanged();
       return this;
     }
@@ -636,7 +636,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getTrafficRecordCount() {
-      return this.trafficRecordCount_;
+      return trafficRecordCount_;
     }
     /**
      * <pre>
@@ -649,7 +649,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTrafficRecordCount(int value) {
 
-      this.trafficRecordCount_ = value;
+      trafficRecordCount_ = value;
       onChanged();
       return this;
     }
@@ -663,7 +663,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearTrafficRecordCount() {
 
-      this.trafficRecordCount_ = 0;
+      trafficRecordCount_ = 0;
       onChanged();
       return this;
     }
@@ -679,7 +679,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getQueryCount() {
-      return this.queryCount_;
+      return queryCount_;
     }
     /**
      * <pre>
@@ -692,7 +692,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setQueryCount(int value) {
 
-      this.queryCount_ = value;
+      queryCount_ = value;
       onChanged();
       return this;
     }
@@ -706,7 +706,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearQueryCount() {
 
-      this.queryCount_ = 0;
+      queryCount_ = 0;
       onChanged();
       return this;
     }
@@ -722,7 +722,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getEntityFetchCount() {
-      return this.entityFetchCount_;
+      return entityFetchCount_;
     }
     /**
      * <pre>
@@ -735,7 +735,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setEntityFetchCount(int value) {
 
-      this.entityFetchCount_ = value;
+      entityFetchCount_ = value;
       onChanged();
       return this;
     }
@@ -749,7 +749,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearEntityFetchCount() {
 
-      this.entityFetchCount_ = 0;
+      entityFetchCount_ = 0;
       onChanged();
       return this;
     }
@@ -765,7 +765,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getMutationCount() {
-      return this.mutationCount_;
+      return mutationCount_;
     }
     /**
      * <pre>
@@ -778,7 +778,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setMutationCount(int value) {
 
-      this.mutationCount_ = value;
+      mutationCount_ = value;
       onChanged();
       return this;
     }
@@ -792,7 +792,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearMutationCount() {
 
-      this.mutationCount_ = 0;
+      mutationCount_ = 0;
       onChanged();
       return this;
     }

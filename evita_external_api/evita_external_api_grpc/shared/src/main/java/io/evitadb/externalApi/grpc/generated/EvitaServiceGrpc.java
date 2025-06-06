@@ -1392,61 +1392,61 @@ public final class EvitaServiceGrpc {
     @java.lang.Override
     @java.lang.SuppressWarnings("unchecked")
     public void invoke(Req request, io.grpc.stub.StreamObserver<Resp> responseObserver) {
-      switch (this.methodId) {
+      switch (methodId) {
         case METHODID_IS_READY:
-          this.serviceImpl.isReady((com.google.protobuf.Empty) request,
+          serviceImpl.isReady((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReadyResponse>) responseObserver);
           break;
         case METHODID_CREATE_READ_ONLY_SESSION:
-          this.serviceImpl.createReadOnlySession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest) request,
+          serviceImpl.createReadOnlySession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse>) responseObserver);
           break;
         case METHODID_CREATE_READ_WRITE_SESSION:
-          this.serviceImpl.createReadWriteSession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest) request,
+          serviceImpl.createReadWriteSession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse>) responseObserver);
           break;
         case METHODID_CREATE_BINARY_READ_ONLY_SESSION:
-          this.serviceImpl.createBinaryReadOnlySession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest) request,
+          serviceImpl.createBinaryReadOnlySession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse>) responseObserver);
           break;
         case METHODID_CREATE_BINARY_READ_WRITE_SESSION:
-          this.serviceImpl.createBinaryReadWriteSession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest) request,
+          serviceImpl.createBinaryReadWriteSession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse>) responseObserver);
           break;
         case METHODID_TERMINATE_SESSION:
-          this.serviceImpl.terminateSession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest) request,
+          serviceImpl.terminateSession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse>) responseObserver);
           break;
         case METHODID_GET_CATALOG_NAMES:
-          this.serviceImpl.getCatalogNames((com.google.protobuf.Empty) request,
+          serviceImpl.getCatalogNames((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse>) responseObserver);
           break;
         case METHODID_GET_CATALOG_STATE:
-          this.serviceImpl.getCatalogState((io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest) request,
+          serviceImpl.getCatalogState((io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse>) responseObserver);
           break;
         case METHODID_DEFINE_CATALOG:
-          this.serviceImpl.defineCatalog((io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogRequest) request,
+          serviceImpl.defineCatalog((io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogResponse>) responseObserver);
           break;
         case METHODID_DELETE_CATALOG_IF_EXISTS:
-          this.serviceImpl.deleteCatalogIfExists((io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsRequest) request,
+          serviceImpl.deleteCatalogIfExists((io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsResponse>) responseObserver);
           break;
         case METHODID_UPDATE:
-          this.serviceImpl.update((io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest) request,
+          serviceImpl.update((io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest) request,
               (io.grpc.stub.StreamObserver<com.google.protobuf.Empty>) responseObserver);
           break;
         case METHODID_RENAME_CATALOG:
-          this.serviceImpl.renameCatalog((io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest) request,
+          serviceImpl.renameCatalog((io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse>) responseObserver);
           break;
         case METHODID_REPLACE_CATALOG:
-          this.serviceImpl.replaceCatalog((io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest) request,
+          serviceImpl.replaceCatalog((io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse>) responseObserver);
           break;
         case METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE:
-          this.serviceImpl.registerSystemChangeCapture((io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest) request,
+          serviceImpl.registerSystemChangeCapture((io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse>) responseObserver);
           break;
         default:
@@ -1458,7 +1458,7 @@ public final class EvitaServiceGrpc {
     @java.lang.SuppressWarnings("unchecked")
     public io.grpc.stub.StreamObserver<Req> invoke(
         io.grpc.stub.StreamObserver<Resp> responseObserver) {
-      switch (this.methodId) {
+      switch (methodId) {
         default:
           throw new AssertionError();
       }
@@ -1599,7 +1599,7 @@ public final class EvitaServiceGrpc {
 
     @java.lang.Override
     public com.google.protobuf.Descriptors.MethodDescriptor getMethodDescriptor() {
-      return getServiceDescriptor().findMethodByName(this.methodName);
+      return getServiceDescriptor().findMethodByName(methodName);
     }
   }
 

@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcSetReferenceGroupMutation() {
-    this.referenceName_ = "";
+    referenceName_ = "";
   }
 
   @java.lang.Override
@@ -79,30 +79,30 @@ private static final long serialVersionUID = 0L;
           case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            this.referenceName_ = s;
+            referenceName_ = s;
             break;
           }
           case 16: {
 
-            this.referencePrimaryKey_ = input.readInt32();
+            referencePrimaryKey_ = input.readInt32();
             break;
           }
           case 26: {
             com.google.protobuf.StringValue.Builder subBuilder = null;
-            if (this.groupType_ != null) {
-              subBuilder = this.groupType_.toBuilder();
+            if (groupType_ != null) {
+              subBuilder = groupType_.toBuilder();
             }
-            this.groupType_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
+            groupType_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.groupType_);
-              this.groupType_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(groupType_);
+              groupType_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 32: {
 
-            this.groupPrimaryKey_ = input.readInt32();
+            groupPrimaryKey_ = input.readInt32();
             break;
           }
           default: {
@@ -149,14 +149,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getReferenceName() {
-    java.lang.Object ref = this.referenceName_;
+    java.lang.Object ref = referenceName_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      this.referenceName_ = s;
+      referenceName_ = s;
       return s;
     }
   }
@@ -171,12 +171,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getReferenceNameBytes() {
-    java.lang.Object ref = this.referenceName_;
+    java.lang.Object ref = referenceName_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      this.referenceName_ = b;
+      referenceName_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -196,7 +196,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getReferencePrimaryKey() {
-    return this.referencePrimaryKey_;
+    return referencePrimaryKey_;
   }
 
   public static final int GROUPTYPE_FIELD_NUMBER = 3;
@@ -212,7 +212,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasGroupType() {
-    return this.groupType_ != null;
+    return groupType_ != null;
   }
   /**
    * <pre>
@@ -225,7 +225,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.StringValue getGroupType() {
-    return this.groupType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : this.groupType_;
+    return groupType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : groupType_;
   }
   /**
    * <pre>
@@ -253,61 +253,61 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getGroupPrimaryKey() {
-    return this.groupPrimaryKey_;
+    return groupPrimaryKey_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.referenceName_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, this.referenceName_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(referenceName_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, referenceName_);
     }
-    if (this.referencePrimaryKey_ != 0) {
-      output.writeInt32(2, this.referencePrimaryKey_);
+    if (referencePrimaryKey_ != 0) {
+      output.writeInt32(2, referencePrimaryKey_);
     }
-    if (this.groupType_ != null) {
+    if (groupType_ != null) {
       output.writeMessage(3, getGroupType());
     }
-    if (this.groupPrimaryKey_ != 0) {
-      output.writeInt32(4, this.groupPrimaryKey_);
+    if (groupPrimaryKey_ != 0) {
+      output.writeInt32(4, groupPrimaryKey_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.referenceName_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, this.referenceName_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(referenceName_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, referenceName_);
     }
-    if (this.referencePrimaryKey_ != 0) {
+    if (referencePrimaryKey_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, this.referencePrimaryKey_);
+        .computeInt32Size(2, referencePrimaryKey_);
     }
-    if (this.groupType_ != null) {
+    if (groupType_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getGroupType());
     }
-    if (this.groupPrimaryKey_ != 0) {
+    if (groupPrimaryKey_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(4, this.groupPrimaryKey_);
+        .computeInt32Size(4, groupPrimaryKey_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -332,14 +332,14 @@ private static final long serialVersionUID = 0L;
     }
     if (getGroupPrimaryKey()
         != other.getGroupPrimaryKey()) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -353,8 +353,8 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + GROUPPRIMARYKEY_FIELD_NUMBER;
     hash = (53 * hash) + getGroupPrimaryKey();
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -490,17 +490,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.referenceName_ = "";
+      referenceName_ = "";
 
-      this.referencePrimaryKey_ = 0;
+      referencePrimaryKey_ = 0;
 
-      if (this.groupTypeBuilder_ == null) {
-        this.groupType_ = null;
+      if (groupTypeBuilder_ == null) {
+        groupType_ = null;
       } else {
-        this.groupType_ = null;
-        this.groupTypeBuilder_ = null;
+        groupType_ = null;
+        groupTypeBuilder_ = null;
       }
-      this.groupPrimaryKey_ = 0;
+      groupPrimaryKey_ = 0;
 
       return this;
     }
@@ -528,14 +528,14 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation result = new io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation(this);
-      result.referenceName_ = this.referenceName_;
-      result.referencePrimaryKey_ = this.referencePrimaryKey_;
-      if (this.groupTypeBuilder_ == null) {
-        result.groupType_ = this.groupType_;
+      result.referenceName_ = referenceName_;
+      result.referencePrimaryKey_ = referencePrimaryKey_;
+      if (groupTypeBuilder_ == null) {
+        result.groupType_ = groupType_;
       } else {
-        result.groupType_ = this.groupTypeBuilder_.build();
+        result.groupType_ = groupTypeBuilder_.build();
       }
-      result.groupPrimaryKey_ = this.groupPrimaryKey_;
+      result.groupPrimaryKey_ = groupPrimaryKey_;
       onBuilt();
       return result;
     }
@@ -585,7 +585,7 @@ private static final long serialVersionUID = 0L;
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcSetReferenceGroupMutation.getDefaultInstance()) return this;
       if (!other.getReferenceName().isEmpty()) {
-        this.referenceName_ = other.referenceName_;
+        referenceName_ = other.referenceName_;
         onChanged();
       }
       if (other.getReferencePrimaryKey() != 0) {
@@ -636,12 +636,12 @@ private static final long serialVersionUID = 0L;
      * @return The referenceName.
      */
     public java.lang.String getReferenceName() {
-      java.lang.Object ref = this.referenceName_;
+      java.lang.Object ref = referenceName_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        this.referenceName_ = s;
+        referenceName_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -657,12 +657,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getReferenceNameBytes() {
-      java.lang.Object ref = this.referenceName_;
+      java.lang.Object ref = referenceName_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        this.referenceName_ = b;
+        referenceName_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -683,7 +683,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.referenceName_ = value;
+      referenceName_ = value;
       onChanged();
       return this;
     }
@@ -697,7 +697,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearReferenceName() {
 
-      this.referenceName_ = getDefaultInstance().getReferenceName();
+      referenceName_ = getDefaultInstance().getReferenceName();
       onChanged();
       return this;
     }
@@ -717,7 +717,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      this.referenceName_ = value;
+      referenceName_ = value;
       onChanged();
       return this;
     }
@@ -734,7 +734,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getReferencePrimaryKey() {
-      return this.referencePrimaryKey_;
+      return referencePrimaryKey_;
     }
     /**
      * <pre>
@@ -748,7 +748,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setReferencePrimaryKey(int value) {
 
-      this.referencePrimaryKey_ = value;
+      referencePrimaryKey_ = value;
       onChanged();
       return this;
     }
@@ -763,7 +763,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearReferencePrimaryKey() {
 
-      this.referencePrimaryKey_ = 0;
+      referencePrimaryKey_ = 0;
       onChanged();
       return this;
     }
@@ -781,7 +781,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the groupType field is set.
      */
     public boolean hasGroupType() {
-      return this.groupTypeBuilder_ != null || this.groupType_ != null;
+      return groupTypeBuilder_ != null || groupType_ != null;
     }
     /**
      * <pre>
@@ -793,10 +793,10 @@ private static final long serialVersionUID = 0L;
      * @return The groupType.
      */
     public com.google.protobuf.StringValue getGroupType() {
-      if (this.groupTypeBuilder_ == null) {
-        return this.groupType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : this.groupType_;
+      if (groupTypeBuilder_ == null) {
+        return groupType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : groupType_;
       } else {
-        return this.groupTypeBuilder_.getMessage();
+        return groupTypeBuilder_.getMessage();
       }
     }
     /**
@@ -808,14 +808,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue groupType = 3;</code>
      */
     public Builder setGroupType(com.google.protobuf.StringValue value) {
-      if (this.groupTypeBuilder_ == null) {
+      if (groupTypeBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.groupType_ = value;
+        groupType_ = value;
         onChanged();
       } else {
-        this.groupTypeBuilder_.setMessage(value);
+        groupTypeBuilder_.setMessage(value);
       }
 
       return this;
@@ -830,11 +830,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setGroupType(
         com.google.protobuf.StringValue.Builder builderForValue) {
-      if (this.groupTypeBuilder_ == null) {
-        this.groupType_ = builderForValue.build();
+      if (groupTypeBuilder_ == null) {
+        groupType_ = builderForValue.build();
         onChanged();
       } else {
-        this.groupTypeBuilder_.setMessage(builderForValue.build());
+        groupTypeBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -848,16 +848,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue groupType = 3;</code>
      */
     public Builder mergeGroupType(com.google.protobuf.StringValue value) {
-      if (this.groupTypeBuilder_ == null) {
-        if (this.groupType_ != null) {
-          this.groupType_ =
-            com.google.protobuf.StringValue.newBuilder(this.groupType_).mergeFrom(value).buildPartial();
+      if (groupTypeBuilder_ == null) {
+        if (groupType_ != null) {
+          groupType_ =
+            com.google.protobuf.StringValue.newBuilder(groupType_).mergeFrom(value).buildPartial();
         } else {
-          this.groupType_ = value;
+          groupType_ = value;
         }
         onChanged();
       } else {
-        this.groupTypeBuilder_.mergeFrom(value);
+        groupTypeBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -871,12 +871,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue groupType = 3;</code>
      */
     public Builder clearGroupType() {
-      if (this.groupTypeBuilder_ == null) {
-        this.groupType_ = null;
+      if (groupTypeBuilder_ == null) {
+        groupType_ = null;
         onChanged();
       } else {
-        this.groupType_ = null;
-        this.groupTypeBuilder_ = null;
+        groupType_ = null;
+        groupTypeBuilder_ = null;
       }
 
       return this;
@@ -903,11 +903,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue groupType = 3;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getGroupTypeOrBuilder() {
-      if (this.groupTypeBuilder_ != null) {
-        return this.groupTypeBuilder_.getMessageOrBuilder();
+      if (groupTypeBuilder_ != null) {
+        return groupTypeBuilder_.getMessageOrBuilder();
       } else {
-        return this.groupType_ == null ?
-            com.google.protobuf.StringValue.getDefaultInstance() : this.groupType_;
+        return groupType_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : groupType_;
       }
     }
     /**
@@ -921,15 +921,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getGroupTypeFieldBuilder() {
-      if (this.groupTypeBuilder_ == null) {
-        this.groupTypeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (groupTypeBuilder_ == null) {
+        groupTypeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
                 getGroupType(),
                 getParentForChildren(),
                 isClean());
-        this.groupType_ = null;
+        groupType_ = null;
       }
-      return this.groupTypeBuilder_;
+      return groupTypeBuilder_;
     }
 
     private int groupPrimaryKey_ ;
@@ -944,7 +944,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getGroupPrimaryKey() {
-      return this.groupPrimaryKey_;
+      return groupPrimaryKey_;
     }
     /**
      * <pre>
@@ -958,7 +958,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setGroupPrimaryKey(int value) {
 
-      this.groupPrimaryKey_ = value;
+      groupPrimaryKey_ = value;
       onChanged();
       return this;
     }
@@ -973,7 +973,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearGroupPrimaryKey() {
 
-      this.groupPrimaryKey_ = 0;
+      groupPrimaryKey_ = 0;
       onChanged();
       return this;
     }

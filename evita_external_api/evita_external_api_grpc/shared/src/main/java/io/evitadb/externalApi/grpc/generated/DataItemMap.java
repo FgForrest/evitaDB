@@ -78,14 +78,14 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              this.data_ = com.google.protobuf.MapField.newMapField(
+              data_ = com.google.protobuf.MapField.newMapField(
                   DataDefaultEntryHolder.defaultEntry);
               mutable_bitField0_ |= 0x00000001;
             }
             com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcDataItem>
             data__ = input.readMessage(
                 DataDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
-            this.data_.getMutableMap().put(
+            data_.getMutableMap().put(
                 data__.getKey(), data__.getValue());
             break;
           }
@@ -149,11 +149,11 @@ private static final long serialVersionUID = 0L;
       java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcDataItem> data_;
   private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcDataItem>
   internalGetData() {
-    if (this.data_ == null) {
+    if (data_ == null) {
       return com.google.protobuf.MapField.emptyMapField(
           DataDefaultEntryHolder.defaultEntry);
     }
-    return this.data_;
+    return data_;
   }
 
   public int getDataCount() {
@@ -233,11 +233,11 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
@@ -250,12 +250,12 @@ private static final long serialVersionUID = 0L;
         internalGetData(),
         DataDefaultEntryHolder.defaultEntry,
         1);
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
@@ -269,8 +269,8 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(1, data__);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -286,14 +286,14 @@ private static final long serialVersionUID = 0L;
 
     if (!internalGetData().equals(
         other.internalGetData())) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -301,8 +301,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + DATA_FIELD_NUMBER;
       hash = (53 * hash) + internalGetData().hashCode();
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -487,7 +487,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.DataItemMap buildPartial() {
       io.evitadb.externalApi.grpc.generated.DataItemMap result = new io.evitadb.externalApi.grpc.generated.DataItemMap(this);
-      int from_bitField0_ = this.bitField0_;
+      int from_bitField0_ = bitField0_;
       result.data_ = internalGetData();
       result.data_.makeImmutable();
       onBuilt();
@@ -574,23 +574,23 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcDataItem> data_;
     private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcDataItem>
     internalGetData() {
-      if (this.data_ == null) {
+      if (data_ == null) {
         return com.google.protobuf.MapField.emptyMapField(
             DataDefaultEntryHolder.defaultEntry);
       }
-      return this.data_;
+      return data_;
     }
     private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcDataItem>
     internalGetMutableData() {
       onChanged();;
-      if (this.data_ == null) {
-        this.data_ = com.google.protobuf.MapField.newMapField(
+      if (data_ == null) {
+        data_ = com.google.protobuf.MapField.newMapField(
             DataDefaultEntryHolder.defaultEntry);
       }
-      if (!this.data_.isMutable()) {
-        this.data_ = this.data_.copy();
+      if (!data_.isMutable()) {
+        data_ = data_.copy();
       }
-      return this.data_;
+      return data_;
     }
 
     public int getDataCount() {

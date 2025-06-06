@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcOffsetDateTime() {
-    this.offset_ = "";
+    offset_ = "";
   }
 
   @java.lang.Override
@@ -78,13 +78,13 @@ private static final long serialVersionUID = 0L;
             break;
           case 10: {
             com.google.protobuf.Timestamp.Builder subBuilder = null;
-            if (this.timestamp_ != null) {
-              subBuilder = this.timestamp_.toBuilder();
+            if (timestamp_ != null) {
+              subBuilder = timestamp_.toBuilder();
             }
-            this.timestamp_ = input.readMessage(com.google.protobuf.Timestamp.parser(), extensionRegistry);
+            timestamp_ = input.readMessage(com.google.protobuf.Timestamp.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.timestamp_);
-              this.timestamp_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(timestamp_);
+              timestamp_ = subBuilder.buildPartial();
             }
 
             break;
@@ -92,7 +92,7 @@ private static final long serialVersionUID = 0L;
           case 18: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            this.offset_ = s;
+            offset_ = s;
             break;
           }
           default: {
@@ -139,7 +139,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasTimestamp() {
-    return this.timestamp_ != null;
+    return timestamp_ != null;
   }
   /**
    * <pre>
@@ -151,7 +151,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.Timestamp getTimestamp() {
-    return this.timestamp_ == null ? com.google.protobuf.Timestamp.getDefaultInstance() : this.timestamp_;
+    return timestamp_ == null ? com.google.protobuf.Timestamp.getDefaultInstance() : timestamp_;
   }
   /**
    * <pre>
@@ -189,14 +189,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getOffset() {
-    java.lang.Object ref = this.offset_;
+    java.lang.Object ref = offset_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      this.offset_ = s;
+      offset_ = s;
       return s;
     }
   }
@@ -223,12 +223,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getOffsetBytes() {
-    java.lang.Object ref = this.offset_;
+    java.lang.Object ref = offset_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      this.offset_ = b;
+      offset_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -238,41 +238,41 @@ private static final long serialVersionUID = 0L;
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.timestamp_ != null) {
+    if (timestamp_ != null) {
       output.writeMessage(1, getTimestamp());
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.offset_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, this.offset_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(offset_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, offset_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.timestamp_ != null) {
+    if (timestamp_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getTimestamp());
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.offset_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, this.offset_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(offset_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, offset_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -293,14 +293,14 @@ private static final long serialVersionUID = 0L;
     }
     if (!getOffset()
         .equals(other.getOffset())) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -310,8 +310,8 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + OFFSET_FIELD_NUMBER;
     hash = (53 * hash) + getOffset().hashCode();
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -447,13 +447,13 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (this.timestampBuilder_ == null) {
-        this.timestamp_ = null;
+      if (timestampBuilder_ == null) {
+        timestamp_ = null;
       } else {
-        this.timestamp_ = null;
-        this.timestampBuilder_ = null;
+        timestamp_ = null;
+        timestampBuilder_ = null;
       }
-      this.offset_ = "";
+      offset_ = "";
 
       return this;
     }
@@ -481,12 +481,12 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime result = new io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime(this);
-      if (this.timestampBuilder_ == null) {
-        result.timestamp_ = this.timestamp_;
+      if (timestampBuilder_ == null) {
+        result.timestamp_ = timestamp_;
       } else {
-        result.timestamp_ = this.timestampBuilder_.build();
+        result.timestamp_ = timestampBuilder_.build();
       }
-      result.offset_ = this.offset_;
+      result.offset_ = offset_;
       onBuilt();
       return result;
     }
@@ -539,7 +539,7 @@ private static final long serialVersionUID = 0L;
         mergeTimestamp(other.getTimestamp());
       }
       if (!other.getOffset().isEmpty()) {
-        this.offset_ = other.offset_;
+        offset_ = other.offset_;
         onChanged();
       }
       this.mergeUnknownFields(other.unknownFields);
@@ -583,7 +583,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the timestamp field is set.
      */
     public boolean hasTimestamp() {
-      return this.timestampBuilder_ != null || this.timestamp_ != null;
+      return timestampBuilder_ != null || timestamp_ != null;
     }
     /**
      * <pre>
@@ -594,10 +594,10 @@ private static final long serialVersionUID = 0L;
      * @return The timestamp.
      */
     public com.google.protobuf.Timestamp getTimestamp() {
-      if (this.timestampBuilder_ == null) {
-        return this.timestamp_ == null ? com.google.protobuf.Timestamp.getDefaultInstance() : this.timestamp_;
+      if (timestampBuilder_ == null) {
+        return timestamp_ == null ? com.google.protobuf.Timestamp.getDefaultInstance() : timestamp_;
       } else {
-        return this.timestampBuilder_.getMessage();
+        return timestampBuilder_.getMessage();
       }
     }
     /**
@@ -608,14 +608,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Timestamp timestamp = 1;</code>
      */
     public Builder setTimestamp(com.google.protobuf.Timestamp value) {
-      if (this.timestampBuilder_ == null) {
+      if (timestampBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.timestamp_ = value;
+        timestamp_ = value;
         onChanged();
       } else {
-        this.timestampBuilder_.setMessage(value);
+        timestampBuilder_.setMessage(value);
       }
 
       return this;
@@ -629,11 +629,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTimestamp(
         com.google.protobuf.Timestamp.Builder builderForValue) {
-      if (this.timestampBuilder_ == null) {
-        this.timestamp_ = builderForValue.build();
+      if (timestampBuilder_ == null) {
+        timestamp_ = builderForValue.build();
         onChanged();
       } else {
-        this.timestampBuilder_.setMessage(builderForValue.build());
+        timestampBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -646,16 +646,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Timestamp timestamp = 1;</code>
      */
     public Builder mergeTimestamp(com.google.protobuf.Timestamp value) {
-      if (this.timestampBuilder_ == null) {
-        if (this.timestamp_ != null) {
-          this.timestamp_ =
-            com.google.protobuf.Timestamp.newBuilder(this.timestamp_).mergeFrom(value).buildPartial();
+      if (timestampBuilder_ == null) {
+        if (timestamp_ != null) {
+          timestamp_ =
+            com.google.protobuf.Timestamp.newBuilder(timestamp_).mergeFrom(value).buildPartial();
         } else {
-          this.timestamp_ = value;
+          timestamp_ = value;
         }
         onChanged();
       } else {
-        this.timestampBuilder_.mergeFrom(value);
+        timestampBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -668,12 +668,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Timestamp timestamp = 1;</code>
      */
     public Builder clearTimestamp() {
-      if (this.timestampBuilder_ == null) {
-        this.timestamp_ = null;
+      if (timestampBuilder_ == null) {
+        timestamp_ = null;
         onChanged();
       } else {
-        this.timestamp_ = null;
-        this.timestampBuilder_ = null;
+        timestamp_ = null;
+        timestampBuilder_ = null;
       }
 
       return this;
@@ -698,11 +698,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Timestamp timestamp = 1;</code>
      */
     public com.google.protobuf.TimestampOrBuilder getTimestampOrBuilder() {
-      if (this.timestampBuilder_ != null) {
-        return this.timestampBuilder_.getMessageOrBuilder();
+      if (timestampBuilder_ != null) {
+        return timestampBuilder_.getMessageOrBuilder();
       } else {
-        return this.timestamp_ == null ?
-            com.google.protobuf.Timestamp.getDefaultInstance() : this.timestamp_;
+        return timestamp_ == null ?
+            com.google.protobuf.Timestamp.getDefaultInstance() : timestamp_;
       }
     }
     /**
@@ -715,15 +715,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Timestamp, com.google.protobuf.Timestamp.Builder, com.google.protobuf.TimestampOrBuilder>
         getTimestampFieldBuilder() {
-      if (this.timestampBuilder_ == null) {
-        this.timestampBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (timestampBuilder_ == null) {
+        timestampBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.Timestamp, com.google.protobuf.Timestamp.Builder, com.google.protobuf.TimestampOrBuilder>(
                 getTimestamp(),
                 getParentForChildren(),
                 isClean());
-        this.timestamp_ = null;
+        timestamp_ = null;
       }
-      return this.timestampBuilder_;
+      return timestampBuilder_;
     }
 
     private java.lang.Object offset_ = "";
@@ -748,12 +748,12 @@ private static final long serialVersionUID = 0L;
      * @return The offset.
      */
     public java.lang.String getOffset() {
-      java.lang.Object ref = this.offset_;
+      java.lang.Object ref = offset_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        this.offset_ = s;
+        offset_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -781,12 +781,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getOffsetBytes() {
-      java.lang.Object ref = this.offset_;
+      java.lang.Object ref = offset_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        this.offset_ = b;
+        offset_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -819,7 +819,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.offset_ = value;
+      offset_ = value;
       onChanged();
       return this;
     }
@@ -845,7 +845,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearOffset() {
 
-      this.offset_ = getDefaultInstance().getOffset();
+      offset_ = getDefaultInstance().getOffset();
       onChanged();
       return this;
     }
@@ -877,7 +877,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      this.offset_ = value;
+      offset_ = value;
       onChanged();
       return this;
     }

@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcUpsertPriceMutation() {
-    this.priceList_ = "";
+    priceList_ = "";
   }
 
   @java.lang.Override
@@ -78,101 +78,101 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            this.priceId_ = input.readInt32();
+            priceId_ = input.readInt32();
             break;
           }
           case 18: {
             java.lang.String s = input.readStringRequireUtf8();
 
-            this.priceList_ = s;
+            priceList_ = s;
             break;
           }
           case 26: {
             io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder subBuilder = null;
-            if (this.currency_ != null) {
-              subBuilder = this.currency_.toBuilder();
+            if (currency_ != null) {
+              subBuilder = currency_.toBuilder();
             }
-            this.currency_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcCurrency.parser(), extensionRegistry);
+            currency_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcCurrency.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.currency_);
-              this.currency_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(currency_);
+              currency_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 34: {
             com.google.protobuf.Int32Value.Builder subBuilder = null;
-            if (this.innerRecordId_ != null) {
-              subBuilder = this.innerRecordId_.toBuilder();
+            if (innerRecordId_ != null) {
+              subBuilder = innerRecordId_.toBuilder();
             }
-            this.innerRecordId_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            innerRecordId_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.innerRecordId_);
-              this.innerRecordId_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(innerRecordId_);
+              innerRecordId_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 42: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder subBuilder = null;
-            if (this.priceWithoutTax_ != null) {
-              subBuilder = this.priceWithoutTax_.toBuilder();
+            if (priceWithoutTax_ != null) {
+              subBuilder = priceWithoutTax_.toBuilder();
             }
-            this.priceWithoutTax_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
+            priceWithoutTax_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.priceWithoutTax_);
-              this.priceWithoutTax_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(priceWithoutTax_);
+              priceWithoutTax_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 50: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder subBuilder = null;
-            if (this.taxRate_ != null) {
-              subBuilder = this.taxRate_.toBuilder();
+            if (taxRate_ != null) {
+              subBuilder = taxRate_.toBuilder();
             }
-            this.taxRate_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
+            taxRate_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.taxRate_);
-              this.taxRate_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(taxRate_);
+              taxRate_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 58: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder subBuilder = null;
-            if (this.priceWithTax_ != null) {
-              subBuilder = this.priceWithTax_.toBuilder();
+            if (priceWithTax_ != null) {
+              subBuilder = priceWithTax_.toBuilder();
             }
-            this.priceWithTax_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
+            priceWithTax_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.priceWithTax_);
-              this.priceWithTax_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(priceWithTax_);
+              priceWithTax_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 66: {
             io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder subBuilder = null;
-            if (this.validity_ != null) {
-              subBuilder = this.validity_.toBuilder();
+            if (validity_ != null) {
+              subBuilder = validity_.toBuilder();
             }
-            this.validity_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.parser(), extensionRegistry);
+            validity_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(this.validity_);
-              this.validity_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(validity_);
+              validity_ = subBuilder.buildPartial();
             }
 
             break;
           }
           case 72: {
 
-            this.sellable_ = input.readBool();
+            sellable_ = input.readBool();
             break;
           }
           case 80: {
 
-            this.indexed_ = input.readBool();
+            indexed_ = input.readBool();
             break;
           }
           default: {
@@ -221,7 +221,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getPriceId() {
-    return this.priceId_;
+    return priceId_;
   }
 
   public static final int PRICELIST_FIELD_NUMBER = 2;
@@ -241,14 +241,14 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public java.lang.String getPriceList() {
-    java.lang.Object ref = this.priceList_;
+    java.lang.Object ref = priceList_;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
       com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
-      this.priceList_ = s;
+      priceList_ = s;
       return s;
     }
   }
@@ -268,12 +268,12 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.ByteString
       getPriceListBytes() {
-    java.lang.Object ref = this.priceList_;
+    java.lang.Object ref = priceList_;
     if (ref instanceof java.lang.String) {
       com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
-      this.priceList_ = b;
+      priceList_ = b;
       return b;
     } else {
       return (com.google.protobuf.ByteString) ref;
@@ -292,7 +292,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasCurrency() {
-    return this.currency_ != null;
+    return currency_ != null;
   }
   /**
    * <pre>
@@ -304,7 +304,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcCurrency getCurrency() {
-    return this.currency_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance() : this.currency_;
+    return currency_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance() : currency_;
   }
   /**
    * <pre>
@@ -333,7 +333,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasInnerRecordId() {
-    return this.innerRecordId_ != null;
+    return innerRecordId_ != null;
   }
   /**
    * <pre>
@@ -348,7 +348,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public com.google.protobuf.Int32Value getInnerRecordId() {
-    return this.innerRecordId_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : this.innerRecordId_;
+    return innerRecordId_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : innerRecordId_;
   }
   /**
    * <pre>
@@ -377,7 +377,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasPriceWithoutTax() {
-    return this.priceWithoutTax_ != null;
+    return priceWithoutTax_ != null;
   }
   /**
    * <pre>
@@ -389,7 +389,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getPriceWithoutTax() {
-    return this.priceWithoutTax_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.priceWithoutTax_;
+    return priceWithoutTax_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : priceWithoutTax_;
   }
   /**
    * <pre>
@@ -415,7 +415,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasTaxRate() {
-    return this.taxRate_ != null;
+    return taxRate_ != null;
   }
   /**
    * <pre>
@@ -427,7 +427,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getTaxRate() {
-    return this.taxRate_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.taxRate_;
+    return taxRate_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : taxRate_;
   }
   /**
    * <pre>
@@ -453,7 +453,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasPriceWithTax() {
-    return this.priceWithTax_ != null;
+    return priceWithTax_ != null;
   }
   /**
    * <pre>
@@ -465,7 +465,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getPriceWithTax() {
-    return this.priceWithTax_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.priceWithTax_;
+    return priceWithTax_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : priceWithTax_;
   }
   /**
    * <pre>
@@ -491,7 +491,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasValidity() {
-    return this.validity_ != null;
+    return validity_ != null;
   }
   /**
    * <pre>
@@ -503,7 +503,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange getValidity() {
-    return this.validity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance() : this.validity_;
+    return validity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance() : validity_;
   }
   /**
    * <pre>
@@ -533,7 +533,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   @java.lang.Deprecated public boolean getSellable() {
-    return this.sellable_;
+    return sellable_;
   }
 
   public static final int INDEXED_FIELD_NUMBER = 10;
@@ -551,103 +551,103 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean getIndexed() {
-    return this.indexed_;
+    return indexed_;
   }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (this.priceId_ != 0) {
-      output.writeInt32(1, this.priceId_);
+    if (priceId_ != 0) {
+      output.writeInt32(1, priceId_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.priceList_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, this.priceList_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(priceList_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, priceList_);
     }
-    if (this.currency_ != null) {
+    if (currency_ != null) {
       output.writeMessage(3, getCurrency());
     }
-    if (this.innerRecordId_ != null) {
+    if (innerRecordId_ != null) {
       output.writeMessage(4, getInnerRecordId());
     }
-    if (this.priceWithoutTax_ != null) {
+    if (priceWithoutTax_ != null) {
       output.writeMessage(5, getPriceWithoutTax());
     }
-    if (this.taxRate_ != null) {
+    if (taxRate_ != null) {
       output.writeMessage(6, getTaxRate());
     }
-    if (this.priceWithTax_ != null) {
+    if (priceWithTax_ != null) {
       output.writeMessage(7, getPriceWithTax());
     }
-    if (this.validity_ != null) {
+    if (validity_ != null) {
       output.writeMessage(8, getValidity());
     }
-    if (this.sellable_ != false) {
-      output.writeBool(9, this.sellable_);
+    if (sellable_ != false) {
+      output.writeBool(9, sellable_);
     }
-    if (this.indexed_ != false) {
-      output.writeBool(10, this.indexed_);
+    if (indexed_ != false) {
+      output.writeBool(10, indexed_);
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.priceId_ != 0) {
+    if (priceId_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, this.priceId_);
+        .computeInt32Size(1, priceId_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(this.priceList_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, this.priceList_);
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(priceList_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, priceList_);
     }
-    if (this.currency_ != null) {
+    if (currency_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getCurrency());
     }
-    if (this.innerRecordId_ != null) {
+    if (innerRecordId_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(4, getInnerRecordId());
     }
-    if (this.priceWithoutTax_ != null) {
+    if (priceWithoutTax_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(5, getPriceWithoutTax());
     }
-    if (this.taxRate_ != null) {
+    if (taxRate_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(6, getTaxRate());
     }
-    if (this.priceWithTax_ != null) {
+    if (priceWithTax_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(7, getPriceWithTax());
     }
-    if (this.validity_ != null) {
+    if (validity_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(8, getValidity());
     }
-    if (this.sellable_ != false) {
+    if (sellable_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(9, this.sellable_);
+        .computeBoolSize(9, sellable_);
     }
-    if (this.indexed_ != false) {
+    if (indexed_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(10, this.indexed_);
+        .computeBoolSize(10, indexed_);
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -699,14 +699,14 @@ private static final long serialVersionUID = 0L;
         != other.getSellable()) return false;
     if (getIndexed()
         != other.getIndexed()) return false;
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -744,8 +744,8 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + INDEXED_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getIndexed());
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -881,49 +881,49 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.priceId_ = 0;
+      priceId_ = 0;
 
-      this.priceList_ = "";
+      priceList_ = "";
 
-      if (this.currencyBuilder_ == null) {
-        this.currency_ = null;
+      if (currencyBuilder_ == null) {
+        currency_ = null;
       } else {
-        this.currency_ = null;
-        this.currencyBuilder_ = null;
+        currency_ = null;
+        currencyBuilder_ = null;
       }
-      if (this.innerRecordIdBuilder_ == null) {
-        this.innerRecordId_ = null;
+      if (innerRecordIdBuilder_ == null) {
+        innerRecordId_ = null;
       } else {
-        this.innerRecordId_ = null;
-        this.innerRecordIdBuilder_ = null;
+        innerRecordId_ = null;
+        innerRecordIdBuilder_ = null;
       }
-      if (this.priceWithoutTaxBuilder_ == null) {
-        this.priceWithoutTax_ = null;
+      if (priceWithoutTaxBuilder_ == null) {
+        priceWithoutTax_ = null;
       } else {
-        this.priceWithoutTax_ = null;
-        this.priceWithoutTaxBuilder_ = null;
+        priceWithoutTax_ = null;
+        priceWithoutTaxBuilder_ = null;
       }
-      if (this.taxRateBuilder_ == null) {
-        this.taxRate_ = null;
+      if (taxRateBuilder_ == null) {
+        taxRate_ = null;
       } else {
-        this.taxRate_ = null;
-        this.taxRateBuilder_ = null;
+        taxRate_ = null;
+        taxRateBuilder_ = null;
       }
-      if (this.priceWithTaxBuilder_ == null) {
-        this.priceWithTax_ = null;
+      if (priceWithTaxBuilder_ == null) {
+        priceWithTax_ = null;
       } else {
-        this.priceWithTax_ = null;
-        this.priceWithTaxBuilder_ = null;
+        priceWithTax_ = null;
+        priceWithTaxBuilder_ = null;
       }
-      if (this.validityBuilder_ == null) {
-        this.validity_ = null;
+      if (validityBuilder_ == null) {
+        validity_ = null;
       } else {
-        this.validity_ = null;
-        this.validityBuilder_ = null;
+        validity_ = null;
+        validityBuilder_ = null;
       }
-      this.sellable_ = false;
+      sellable_ = false;
 
-      this.indexed_ = false;
+      indexed_ = false;
 
       return this;
     }
@@ -951,40 +951,40 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation result = new io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation(this);
-      result.priceId_ = this.priceId_;
-      result.priceList_ = this.priceList_;
-      if (this.currencyBuilder_ == null) {
-        result.currency_ = this.currency_;
+      result.priceId_ = priceId_;
+      result.priceList_ = priceList_;
+      if (currencyBuilder_ == null) {
+        result.currency_ = currency_;
       } else {
-        result.currency_ = this.currencyBuilder_.build();
+        result.currency_ = currencyBuilder_.build();
       }
-      if (this.innerRecordIdBuilder_ == null) {
-        result.innerRecordId_ = this.innerRecordId_;
+      if (innerRecordIdBuilder_ == null) {
+        result.innerRecordId_ = innerRecordId_;
       } else {
-        result.innerRecordId_ = this.innerRecordIdBuilder_.build();
+        result.innerRecordId_ = innerRecordIdBuilder_.build();
       }
-      if (this.priceWithoutTaxBuilder_ == null) {
-        result.priceWithoutTax_ = this.priceWithoutTax_;
+      if (priceWithoutTaxBuilder_ == null) {
+        result.priceWithoutTax_ = priceWithoutTax_;
       } else {
-        result.priceWithoutTax_ = this.priceWithoutTaxBuilder_.build();
+        result.priceWithoutTax_ = priceWithoutTaxBuilder_.build();
       }
-      if (this.taxRateBuilder_ == null) {
-        result.taxRate_ = this.taxRate_;
+      if (taxRateBuilder_ == null) {
+        result.taxRate_ = taxRate_;
       } else {
-        result.taxRate_ = this.taxRateBuilder_.build();
+        result.taxRate_ = taxRateBuilder_.build();
       }
-      if (this.priceWithTaxBuilder_ == null) {
-        result.priceWithTax_ = this.priceWithTax_;
+      if (priceWithTaxBuilder_ == null) {
+        result.priceWithTax_ = priceWithTax_;
       } else {
-        result.priceWithTax_ = this.priceWithTaxBuilder_.build();
+        result.priceWithTax_ = priceWithTaxBuilder_.build();
       }
-      if (this.validityBuilder_ == null) {
-        result.validity_ = this.validity_;
+      if (validityBuilder_ == null) {
+        result.validity_ = validity_;
       } else {
-        result.validity_ = this.validityBuilder_.build();
+        result.validity_ = validityBuilder_.build();
       }
-      result.sellable_ = this.sellable_;
-      result.indexed_ = this.indexed_;
+      result.sellable_ = sellable_;
+      result.indexed_ = indexed_;
       onBuilt();
       return result;
     }
@@ -1037,7 +1037,7 @@ private static final long serialVersionUID = 0L;
         setPriceId(other.getPriceId());
       }
       if (!other.getPriceList().isEmpty()) {
-        this.priceList_ = other.priceList_;
+        priceList_ = other.priceList_;
         onChanged();
       }
       if (other.hasCurrency()) {
@@ -1106,7 +1106,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getPriceId() {
-      return this.priceId_;
+      return priceId_;
     }
     /**
      * <pre>
@@ -1121,7 +1121,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setPriceId(int value) {
 
-      this.priceId_ = value;
+      priceId_ = value;
       onChanged();
       return this;
     }
@@ -1137,7 +1137,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearPriceId() {
 
-      this.priceId_ = 0;
+      priceId_ = 0;
       onChanged();
       return this;
     }
@@ -1157,12 +1157,12 @@ private static final long serialVersionUID = 0L;
      * @return The priceList.
      */
     public java.lang.String getPriceList() {
-      java.lang.Object ref = this.priceList_;
+      java.lang.Object ref = priceList_;
       if (!(ref instanceof java.lang.String)) {
         com.google.protobuf.ByteString bs =
             (com.google.protobuf.ByteString) ref;
         java.lang.String s = bs.toStringUtf8();
-        this.priceList_ = s;
+        priceList_ = s;
         return s;
       } else {
         return (java.lang.String) ref;
@@ -1183,12 +1183,12 @@ private static final long serialVersionUID = 0L;
      */
     public com.google.protobuf.ByteString
         getPriceListBytes() {
-      java.lang.Object ref = this.priceList_;
+      java.lang.Object ref = priceList_;
       if (ref instanceof String) {
         com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
-        this.priceList_ = b;
+        priceList_ = b;
         return b;
       } else {
         return (com.google.protobuf.ByteString) ref;
@@ -1214,7 +1214,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
 
-      this.priceList_ = value;
+      priceList_ = value;
       onChanged();
       return this;
     }
@@ -1233,7 +1233,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearPriceList() {
 
-      this.priceList_ = getDefaultInstance().getPriceList();
+      priceList_ = getDefaultInstance().getPriceList();
       onChanged();
       return this;
     }
@@ -1258,7 +1258,7 @@ private static final long serialVersionUID = 0L;
   }
   checkByteStringIsUtf8(value);
 
-      this.priceList_ = value;
+      priceList_ = value;
       onChanged();
       return this;
     }
@@ -1275,7 +1275,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the currency field is set.
      */
     public boolean hasCurrency() {
-      return this.currencyBuilder_ != null || this.currency_ != null;
+      return currencyBuilder_ != null || currency_ != null;
     }
     /**
      * <pre>
@@ -1286,10 +1286,10 @@ private static final long serialVersionUID = 0L;
      * @return The currency.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrency getCurrency() {
-      if (this.currencyBuilder_ == null) {
-        return this.currency_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance() : this.currency_;
+      if (currencyBuilder_ == null) {
+        return currency_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance() : currency_;
       } else {
-        return this.currencyBuilder_.getMessage();
+        return currencyBuilder_.getMessage();
       }
     }
     /**
@@ -1300,14 +1300,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public Builder setCurrency(io.evitadb.externalApi.grpc.generated.GrpcCurrency value) {
-      if (this.currencyBuilder_ == null) {
+      if (currencyBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.currency_ = value;
+        currency_ = value;
         onChanged();
       } else {
-        this.currencyBuilder_.setMessage(value);
+        currencyBuilder_.setMessage(value);
       }
 
       return this;
@@ -1321,11 +1321,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setCurrency(
         io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder builderForValue) {
-      if (this.currencyBuilder_ == null) {
-        this.currency_ = builderForValue.build();
+      if (currencyBuilder_ == null) {
+        currency_ = builderForValue.build();
         onChanged();
       } else {
-        this.currencyBuilder_.setMessage(builderForValue.build());
+        currencyBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1338,16 +1338,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public Builder mergeCurrency(io.evitadb.externalApi.grpc.generated.GrpcCurrency value) {
-      if (this.currencyBuilder_ == null) {
-        if (this.currency_ != null) {
-          this.currency_ =
-            io.evitadb.externalApi.grpc.generated.GrpcCurrency.newBuilder(this.currency_).mergeFrom(value).buildPartial();
+      if (currencyBuilder_ == null) {
+        if (currency_ != null) {
+          currency_ =
+            io.evitadb.externalApi.grpc.generated.GrpcCurrency.newBuilder(currency_).mergeFrom(value).buildPartial();
         } else {
-          this.currency_ = value;
+          currency_ = value;
         }
         onChanged();
       } else {
-        this.currencyBuilder_.mergeFrom(value);
+        currencyBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1360,12 +1360,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public Builder clearCurrency() {
-      if (this.currencyBuilder_ == null) {
-        this.currency_ = null;
+      if (currencyBuilder_ == null) {
+        currency_ = null;
         onChanged();
       } else {
-        this.currency_ = null;
-        this.currencyBuilder_ = null;
+        currency_ = null;
+        currencyBuilder_ = null;
       }
 
       return this;
@@ -1390,11 +1390,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currency = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder getCurrencyOrBuilder() {
-      if (this.currencyBuilder_ != null) {
-        return this.currencyBuilder_.getMessageOrBuilder();
+      if (currencyBuilder_ != null) {
+        return currencyBuilder_.getMessageOrBuilder();
       } else {
-        return this.currency_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance() : this.currency_;
+        return currency_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance() : currency_;
       }
     }
     /**
@@ -1407,15 +1407,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
         getCurrencyFieldBuilder() {
-      if (this.currencyBuilder_ == null) {
-        this.currencyBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (currencyBuilder_ == null) {
+        currencyBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>(
                 getCurrency(),
                 getParentForChildren(),
                 isClean());
-        this.currency_ = null;
+        currency_ = null;
       }
-      return this.currencyBuilder_;
+      return currencyBuilder_;
     }
 
     private com.google.protobuf.Int32Value innerRecordId_;
@@ -1433,7 +1433,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the innerRecordId field is set.
      */
     public boolean hasInnerRecordId() {
-      return this.innerRecordIdBuilder_ != null || this.innerRecordId_ != null;
+      return innerRecordIdBuilder_ != null || innerRecordId_ != null;
     }
     /**
      * <pre>
@@ -1447,10 +1447,10 @@ private static final long serialVersionUID = 0L;
      * @return The innerRecordId.
      */
     public com.google.protobuf.Int32Value getInnerRecordId() {
-      if (this.innerRecordIdBuilder_ == null) {
-        return this.innerRecordId_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : this.innerRecordId_;
+      if (innerRecordIdBuilder_ == null) {
+        return innerRecordId_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : innerRecordId_;
       } else {
-        return this.innerRecordIdBuilder_.getMessage();
+        return innerRecordIdBuilder_.getMessage();
       }
     }
     /**
@@ -1464,14 +1464,14 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     public Builder setInnerRecordId(com.google.protobuf.Int32Value value) {
-      if (this.innerRecordIdBuilder_ == null) {
+      if (innerRecordIdBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.innerRecordId_ = value;
+        innerRecordId_ = value;
         onChanged();
       } else {
-        this.innerRecordIdBuilder_.setMessage(value);
+        innerRecordIdBuilder_.setMessage(value);
       }
 
       return this;
@@ -1488,11 +1488,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setInnerRecordId(
         com.google.protobuf.Int32Value.Builder builderForValue) {
-      if (this.innerRecordIdBuilder_ == null) {
-        this.innerRecordId_ = builderForValue.build();
+      if (innerRecordIdBuilder_ == null) {
+        innerRecordId_ = builderForValue.build();
         onChanged();
       } else {
-        this.innerRecordIdBuilder_.setMessage(builderForValue.build());
+        innerRecordIdBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1508,16 +1508,16 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     public Builder mergeInnerRecordId(com.google.protobuf.Int32Value value) {
-      if (this.innerRecordIdBuilder_ == null) {
-        if (this.innerRecordId_ != null) {
-          this.innerRecordId_ =
-            com.google.protobuf.Int32Value.newBuilder(this.innerRecordId_).mergeFrom(value).buildPartial();
+      if (innerRecordIdBuilder_ == null) {
+        if (innerRecordId_ != null) {
+          innerRecordId_ =
+            com.google.protobuf.Int32Value.newBuilder(innerRecordId_).mergeFrom(value).buildPartial();
         } else {
-          this.innerRecordId_ = value;
+          innerRecordId_ = value;
         }
         onChanged();
       } else {
-        this.innerRecordIdBuilder_.mergeFrom(value);
+        innerRecordIdBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1533,12 +1533,12 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     public Builder clearInnerRecordId() {
-      if (this.innerRecordIdBuilder_ == null) {
-        this.innerRecordId_ = null;
+      if (innerRecordIdBuilder_ == null) {
+        innerRecordId_ = null;
         onChanged();
       } else {
-        this.innerRecordId_ = null;
-        this.innerRecordIdBuilder_ = null;
+        innerRecordId_ = null;
+        innerRecordIdBuilder_ = null;
       }
 
       return this;
@@ -1569,11 +1569,11 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value innerRecordId = 4;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getInnerRecordIdOrBuilder() {
-      if (this.innerRecordIdBuilder_ != null) {
-        return this.innerRecordIdBuilder_.getMessageOrBuilder();
+      if (innerRecordIdBuilder_ != null) {
+        return innerRecordIdBuilder_.getMessageOrBuilder();
       } else {
-        return this.innerRecordId_ == null ?
-            com.google.protobuf.Int32Value.getDefaultInstance() : this.innerRecordId_;
+        return innerRecordId_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : innerRecordId_;
       }
     }
     /**
@@ -1589,15 +1589,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getInnerRecordIdFieldBuilder() {
-      if (this.innerRecordIdBuilder_ == null) {
-        this.innerRecordIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (innerRecordIdBuilder_ == null) {
+        innerRecordIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
                 getInnerRecordId(),
                 getParentForChildren(),
                 isClean());
-        this.innerRecordId_ = null;
+        innerRecordId_ = null;
       }
-      return this.innerRecordIdBuilder_;
+      return innerRecordIdBuilder_;
     }
 
     private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax_;
@@ -1612,7 +1612,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the priceWithoutTax field is set.
      */
     public boolean hasPriceWithoutTax() {
-      return this.priceWithoutTaxBuilder_ != null || this.priceWithoutTax_ != null;
+      return priceWithoutTaxBuilder_ != null || priceWithoutTax_ != null;
     }
     /**
      * <pre>
@@ -1623,10 +1623,10 @@ private static final long serialVersionUID = 0L;
      * @return The priceWithoutTax.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getPriceWithoutTax() {
-      if (this.priceWithoutTaxBuilder_ == null) {
-        return this.priceWithoutTax_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.priceWithoutTax_;
+      if (priceWithoutTaxBuilder_ == null) {
+        return priceWithoutTax_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : priceWithoutTax_;
       } else {
-        return this.priceWithoutTaxBuilder_.getMessage();
+        return priceWithoutTaxBuilder_.getMessage();
       }
     }
     /**
@@ -1637,14 +1637,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     public Builder setPriceWithoutTax(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (this.priceWithoutTaxBuilder_ == null) {
+      if (priceWithoutTaxBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.priceWithoutTax_ = value;
+        priceWithoutTax_ = value;
         onChanged();
       } else {
-        this.priceWithoutTaxBuilder_.setMessage(value);
+        priceWithoutTaxBuilder_.setMessage(value);
       }
 
       return this;
@@ -1658,11 +1658,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setPriceWithoutTax(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
-      if (this.priceWithoutTaxBuilder_ == null) {
-        this.priceWithoutTax_ = builderForValue.build();
+      if (priceWithoutTaxBuilder_ == null) {
+        priceWithoutTax_ = builderForValue.build();
         onChanged();
       } else {
-        this.priceWithoutTaxBuilder_.setMessage(builderForValue.build());
+        priceWithoutTaxBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1675,16 +1675,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     public Builder mergePriceWithoutTax(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (this.priceWithoutTaxBuilder_ == null) {
-        if (this.priceWithoutTax_ != null) {
-          this.priceWithoutTax_ =
-            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(this.priceWithoutTax_).mergeFrom(value).buildPartial();
+      if (priceWithoutTaxBuilder_ == null) {
+        if (priceWithoutTax_ != null) {
+          priceWithoutTax_ =
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(priceWithoutTax_).mergeFrom(value).buildPartial();
         } else {
-          this.priceWithoutTax_ = value;
+          priceWithoutTax_ = value;
         }
         onChanged();
       } else {
-        this.priceWithoutTaxBuilder_.mergeFrom(value);
+        priceWithoutTaxBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1697,12 +1697,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     public Builder clearPriceWithoutTax() {
-      if (this.priceWithoutTaxBuilder_ == null) {
-        this.priceWithoutTax_ = null;
+      if (priceWithoutTaxBuilder_ == null) {
+        priceWithoutTax_ = null;
         onChanged();
       } else {
-        this.priceWithoutTax_ = null;
-        this.priceWithoutTaxBuilder_ = null;
+        priceWithoutTax_ = null;
+        priceWithoutTaxBuilder_ = null;
       }
 
       return this;
@@ -1727,11 +1727,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithoutTax = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getPriceWithoutTaxOrBuilder() {
-      if (this.priceWithoutTaxBuilder_ != null) {
-        return this.priceWithoutTaxBuilder_.getMessageOrBuilder();
+      if (priceWithoutTaxBuilder_ != null) {
+        return priceWithoutTaxBuilder_.getMessageOrBuilder();
       } else {
-        return this.priceWithoutTax_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.priceWithoutTax_;
+        return priceWithoutTax_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : priceWithoutTax_;
       }
     }
     /**
@@ -1744,15 +1744,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
         getPriceWithoutTaxFieldBuilder() {
-      if (this.priceWithoutTaxBuilder_ == null) {
-        this.priceWithoutTaxBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (priceWithoutTaxBuilder_ == null) {
+        priceWithoutTaxBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
                 getPriceWithoutTax(),
                 getParentForChildren(),
                 isClean());
-        this.priceWithoutTax_ = null;
+        priceWithoutTax_ = null;
       }
-      return this.priceWithoutTaxBuilder_;
+      return priceWithoutTaxBuilder_;
     }
 
     private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate_;
@@ -1767,7 +1767,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the taxRate field is set.
      */
     public boolean hasTaxRate() {
-      return this.taxRateBuilder_ != null || this.taxRate_ != null;
+      return taxRateBuilder_ != null || taxRate_ != null;
     }
     /**
      * <pre>
@@ -1778,10 +1778,10 @@ private static final long serialVersionUID = 0L;
      * @return The taxRate.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getTaxRate() {
-      if (this.taxRateBuilder_ == null) {
-        return this.taxRate_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.taxRate_;
+      if (taxRateBuilder_ == null) {
+        return taxRate_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : taxRate_;
       } else {
-        return this.taxRateBuilder_.getMessage();
+        return taxRateBuilder_.getMessage();
       }
     }
     /**
@@ -1792,14 +1792,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     public Builder setTaxRate(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (this.taxRateBuilder_ == null) {
+      if (taxRateBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.taxRate_ = value;
+        taxRate_ = value;
         onChanged();
       } else {
-        this.taxRateBuilder_.setMessage(value);
+        taxRateBuilder_.setMessage(value);
       }
 
       return this;
@@ -1813,11 +1813,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setTaxRate(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
-      if (this.taxRateBuilder_ == null) {
-        this.taxRate_ = builderForValue.build();
+      if (taxRateBuilder_ == null) {
+        taxRate_ = builderForValue.build();
         onChanged();
       } else {
-        this.taxRateBuilder_.setMessage(builderForValue.build());
+        taxRateBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1830,16 +1830,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     public Builder mergeTaxRate(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (this.taxRateBuilder_ == null) {
-        if (this.taxRate_ != null) {
-          this.taxRate_ =
-            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(this.taxRate_).mergeFrom(value).buildPartial();
+      if (taxRateBuilder_ == null) {
+        if (taxRate_ != null) {
+          taxRate_ =
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(taxRate_).mergeFrom(value).buildPartial();
         } else {
-          this.taxRate_ = value;
+          taxRate_ = value;
         }
         onChanged();
       } else {
-        this.taxRateBuilder_.mergeFrom(value);
+        taxRateBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -1852,12 +1852,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     public Builder clearTaxRate() {
-      if (this.taxRateBuilder_ == null) {
-        this.taxRate_ = null;
+      if (taxRateBuilder_ == null) {
+        taxRate_ = null;
         onChanged();
       } else {
-        this.taxRate_ = null;
-        this.taxRateBuilder_ = null;
+        taxRate_ = null;
+        taxRateBuilder_ = null;
       }
 
       return this;
@@ -1882,11 +1882,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getTaxRateOrBuilder() {
-      if (this.taxRateBuilder_ != null) {
-        return this.taxRateBuilder_.getMessageOrBuilder();
+      if (taxRateBuilder_ != null) {
+        return taxRateBuilder_.getMessageOrBuilder();
       } else {
-        return this.taxRate_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.taxRate_;
+        return taxRate_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : taxRate_;
       }
     }
     /**
@@ -1899,15 +1899,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
         getTaxRateFieldBuilder() {
-      if (this.taxRateBuilder_ == null) {
-        this.taxRateBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (taxRateBuilder_ == null) {
+        taxRateBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
                 getTaxRate(),
                 getParentForChildren(),
                 isClean());
-        this.taxRate_ = null;
+        taxRate_ = null;
       }
-      return this.taxRateBuilder_;
+      return taxRateBuilder_;
     }
 
     private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax_;
@@ -1922,7 +1922,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the priceWithTax field is set.
      */
     public boolean hasPriceWithTax() {
-      return this.priceWithTaxBuilder_ != null || this.priceWithTax_ != null;
+      return priceWithTaxBuilder_ != null || priceWithTax_ != null;
     }
     /**
      * <pre>
@@ -1933,10 +1933,10 @@ private static final long serialVersionUID = 0L;
      * @return The priceWithTax.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getPriceWithTax() {
-      if (this.priceWithTaxBuilder_ == null) {
-        return this.priceWithTax_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.priceWithTax_;
+      if (priceWithTaxBuilder_ == null) {
+        return priceWithTax_ == null ? io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : priceWithTax_;
       } else {
-        return this.priceWithTaxBuilder_.getMessage();
+        return priceWithTaxBuilder_.getMessage();
       }
     }
     /**
@@ -1947,14 +1947,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     public Builder setPriceWithTax(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (this.priceWithTaxBuilder_ == null) {
+      if (priceWithTaxBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.priceWithTax_ = value;
+        priceWithTax_ = value;
         onChanged();
       } else {
-        this.priceWithTaxBuilder_.setMessage(value);
+        priceWithTaxBuilder_.setMessage(value);
       }
 
       return this;
@@ -1968,11 +1968,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setPriceWithTax(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder builderForValue) {
-      if (this.priceWithTaxBuilder_ == null) {
-        this.priceWithTax_ = builderForValue.build();
+      if (priceWithTaxBuilder_ == null) {
+        priceWithTax_ = builderForValue.build();
         onChanged();
       } else {
-        this.priceWithTaxBuilder_.setMessage(builderForValue.build());
+        priceWithTaxBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -1985,16 +1985,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     public Builder mergePriceWithTax(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal value) {
-      if (this.priceWithTaxBuilder_ == null) {
-        if (this.priceWithTax_ != null) {
-          this.priceWithTax_ =
-            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(this.priceWithTax_).mergeFrom(value).buildPartial();
+      if (priceWithTaxBuilder_ == null) {
+        if (priceWithTax_ != null) {
+          priceWithTax_ =
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.newBuilder(priceWithTax_).mergeFrom(value).buildPartial();
         } else {
-          this.priceWithTax_ = value;
+          priceWithTax_ = value;
         }
         onChanged();
       } else {
-        this.priceWithTaxBuilder_.mergeFrom(value);
+        priceWithTaxBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -2007,12 +2007,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     public Builder clearPriceWithTax() {
-      if (this.priceWithTaxBuilder_ == null) {
-        this.priceWithTax_ = null;
+      if (priceWithTaxBuilder_ == null) {
+        priceWithTax_ = null;
         onChanged();
       } else {
-        this.priceWithTax_ = null;
-        this.priceWithTaxBuilder_ = null;
+        priceWithTax_ = null;
+        priceWithTaxBuilder_ = null;
       }
 
       return this;
@@ -2037,11 +2037,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder getPriceWithTaxOrBuilder() {
-      if (this.priceWithTaxBuilder_ != null) {
-        return this.priceWithTaxBuilder_.getMessageOrBuilder();
+      if (priceWithTaxBuilder_ != null) {
+        return priceWithTaxBuilder_.getMessageOrBuilder();
       } else {
-        return this.priceWithTax_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : this.priceWithTax_;
+        return priceWithTax_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance() : priceWithTax_;
       }
     }
     /**
@@ -2054,15 +2054,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>
         getPriceWithTaxFieldBuilder() {
-      if (this.priceWithTaxBuilder_ == null) {
-        this.priceWithTaxBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (priceWithTaxBuilder_ == null) {
+        priceWithTaxBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder>(
                 getPriceWithTax(),
                 getParentForChildren(),
                 isClean());
-        this.priceWithTax_ = null;
+        priceWithTax_ = null;
       }
-      return this.priceWithTaxBuilder_;
+      return priceWithTaxBuilder_;
     }
 
     private io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity_;
@@ -2077,7 +2077,7 @@ private static final long serialVersionUID = 0L;
      * @return Whether the validity field is set.
      */
     public boolean hasValidity() {
-      return this.validityBuilder_ != null || this.validity_ != null;
+      return validityBuilder_ != null || validity_ != null;
     }
     /**
      * <pre>
@@ -2088,10 +2088,10 @@ private static final long serialVersionUID = 0L;
      * @return The validity.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange getValidity() {
-      if (this.validityBuilder_ == null) {
-        return this.validity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance() : this.validity_;
+      if (validityBuilder_ == null) {
+        return validity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance() : validity_;
       } else {
-        return this.validityBuilder_.getMessage();
+        return validityBuilder_.getMessage();
       }
     }
     /**
@@ -2102,14 +2102,14 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     public Builder setValidity(io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value) {
-      if (this.validityBuilder_ == null) {
+      if (validityBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.validity_ = value;
+        validity_ = value;
         onChanged();
       } else {
-        this.validityBuilder_.setMessage(value);
+        validityBuilder_.setMessage(value);
       }
 
       return this;
@@ -2123,11 +2123,11 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setValidity(
         io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder builderForValue) {
-      if (this.validityBuilder_ == null) {
-        this.validity_ = builderForValue.build();
+      if (validityBuilder_ == null) {
+        validity_ = builderForValue.build();
         onChanged();
       } else {
-        this.validityBuilder_.setMessage(builderForValue.build());
+        validityBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
@@ -2140,16 +2140,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     public Builder mergeValidity(io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value) {
-      if (this.validityBuilder_ == null) {
-        if (this.validity_ != null) {
-          this.validity_ =
-            io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.newBuilder(this.validity_).mergeFrom(value).buildPartial();
+      if (validityBuilder_ == null) {
+        if (validity_ != null) {
+          validity_ =
+            io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.newBuilder(validity_).mergeFrom(value).buildPartial();
         } else {
-          this.validity_ = value;
+          validity_ = value;
         }
         onChanged();
       } else {
-        this.validityBuilder_.mergeFrom(value);
+        validityBuilder_.mergeFrom(value);
       }
 
       return this;
@@ -2162,12 +2162,12 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     public Builder clearValidity() {
-      if (this.validityBuilder_ == null) {
-        this.validity_ = null;
+      if (validityBuilder_ == null) {
+        validity_ = null;
         onChanged();
       } else {
-        this.validity_ = null;
-        this.validityBuilder_ = null;
+        validity_ = null;
+        validityBuilder_ = null;
       }
 
       return this;
@@ -2192,11 +2192,11 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange validity = 8;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder getValidityOrBuilder() {
-      if (this.validityBuilder_ != null) {
-        return this.validityBuilder_.getMessageOrBuilder();
+      if (validityBuilder_ != null) {
+        return validityBuilder_.getMessageOrBuilder();
       } else {
-        return this.validity_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance() : this.validity_;
+        return validity_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.getDefaultInstance() : validity_;
       }
     }
     /**
@@ -2209,15 +2209,15 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder>
         getValidityFieldBuilder() {
-      if (this.validityBuilder_ == null) {
-        this.validityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+      if (validityBuilder_ == null) {
+        validityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder>(
                 getValidity(),
                 getParentForChildren(),
                 isClean());
-        this.validity_ = null;
+        validity_ = null;
       }
-      return this.validityBuilder_;
+      return validityBuilder_;
     }
 
     private boolean sellable_ ;
@@ -2235,7 +2235,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     @java.lang.Deprecated public boolean getSellable() {
-      return this.sellable_;
+      return sellable_;
     }
     /**
      * <pre>
@@ -2252,7 +2252,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Deprecated public Builder setSellable(boolean value) {
 
-      this.sellable_ = value;
+      sellable_ = value;
       onChanged();
       return this;
     }
@@ -2270,7 +2270,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Deprecated public Builder clearSellable() {
 
-      this.sellable_ = false;
+      sellable_ = false;
       onChanged();
       return this;
     }
@@ -2289,7 +2289,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean getIndexed() {
-      return this.indexed_;
+      return indexed_;
     }
     /**
      * <pre>
@@ -2305,7 +2305,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setIndexed(boolean value) {
 
-      this.indexed_ = value;
+      indexed_ = value;
       onChanged();
       return this;
     }
@@ -2322,7 +2322,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearIndexed() {
 
-      this.indexed_ = false;
+      indexed_ = false;
       onChanged();
       return this;
     }

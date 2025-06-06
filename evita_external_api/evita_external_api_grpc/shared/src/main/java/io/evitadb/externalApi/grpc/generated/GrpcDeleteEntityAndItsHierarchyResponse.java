@@ -43,7 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcDeleteEntityAndItsHierarchyResponse() {
-    this.deletedEntityPrimaryKeys_ = emptyIntList();
+    deletedEntityPrimaryKeys_ = emptyIntList();
   }
 
   @java.lang.Override
@@ -79,54 +79,54 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            this.deletedEntities_ = input.readInt32();
+            deletedEntities_ = input.readInt32();
             break;
           }
           case 18: {
             io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder subBuilder = null;
-            if (this.responseCase_ == 2) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcEntityReference) this.response_).toBuilder();
+            if (responseCase_ == 2) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcEntityReference) response_).toBuilder();
             }
-            this.response_ =
+            response_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEntityReference.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcEntityReference) this.response_);
-              this.response_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcEntityReference) response_);
+              response_ = subBuilder.buildPartial();
             }
-            this.responseCase_ = 2;
+            responseCase_ = 2;
             break;
           }
           case 26: {
             io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder subBuilder = null;
-            if (this.responseCase_ == 3) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) this.response_).toBuilder();
+            if (responseCase_ == 3) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) response_).toBuilder();
             }
-            this.response_ =
+            response_ =
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) this.response_);
-              this.response_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) response_);
+              response_ = subBuilder.buildPartial();
             }
-            this.responseCase_ = 3;
+            responseCase_ = 3;
             break;
           }
           case 32: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              this.deletedEntityPrimaryKeys_ = newIntList();
+              deletedEntityPrimaryKeys_ = newIntList();
               mutable_bitField0_ |= 0x00000001;
             }
-            this.deletedEntityPrimaryKeys_.addInt(input.readInt32());
+            deletedEntityPrimaryKeys_.addInt(input.readInt32());
             break;
           }
           case 34: {
             int length = input.readRawVarint32();
             int limit = input.pushLimit(length);
             if (!((mutable_bitField0_ & 0x00000001) != 0) && input.getBytesUntilLimit() > 0) {
-              this.deletedEntityPrimaryKeys_ = newIntList();
+              deletedEntityPrimaryKeys_ = newIntList();
               mutable_bitField0_ |= 0x00000001;
             }
             while (input.getBytesUntilLimit() > 0) {
-              this.deletedEntityPrimaryKeys_.addInt(input.readInt32());
+              deletedEntityPrimaryKeys_.addInt(input.readInt32());
             }
             input.popLimit(limit);
             break;
@@ -147,7 +147,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        this.deletedEntityPrimaryKeys_.makeImmutable(); // C
+        deletedEntityPrimaryKeys_.makeImmutable(); // C
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -204,7 +204,7 @@ private static final long serialVersionUID = 0L;
   public ResponseCase
   getResponseCase() {
     return ResponseCase.forNumber(
-        this.responseCase_);
+        responseCase_);
   }
 
   public static final int DELETEDENTITIES_FIELD_NUMBER = 1;
@@ -219,7 +219,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public int getDeletedEntities() {
-    return this.deletedEntities_;
+    return deletedEntities_;
   }
 
   public static final int DELETEDROOTENTITYREFERENCE_FIELD_NUMBER = 2;
@@ -233,7 +233,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasDeletedRootEntityReference() {
-    return this.responseCase_ == 2;
+    return responseCase_ == 2;
   }
   /**
    * <pre>
@@ -245,8 +245,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityReference getDeletedRootEntityReference() {
-    if (this.responseCase_ == 2) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcEntityReference) this.response_;
+    if (responseCase_ == 2) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEntityReference) response_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance();
   }
@@ -259,8 +259,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getDeletedRootEntityReferenceOrBuilder() {
-    if (this.responseCase_ == 2) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcEntityReference) this.response_;
+    if (responseCase_ == 2) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEntityReference) response_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance();
   }
@@ -276,7 +276,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasDeletedRootEntity() {
-    return this.responseCase_ == 3;
+    return responseCase_ == 3;
   }
   /**
    * <pre>
@@ -288,8 +288,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getDeletedRootEntity() {
-    if (this.responseCase_ == 3) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) this.response_;
+    if (responseCase_ == 3) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) response_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance();
   }
@@ -302,8 +302,8 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getDeletedRootEntityOrBuilder() {
-    if (this.responseCase_ == 3) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) this.response_;
+    if (responseCase_ == 3) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) response_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance();
   }
@@ -321,7 +321,7 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public java.util.List<java.lang.Integer>
       getDeletedEntityPrimaryKeysList() {
-    return this.deletedEntityPrimaryKeys_;
+    return deletedEntityPrimaryKeys_;
   }
   /**
    * <pre>
@@ -332,7 +332,7 @@ private static final long serialVersionUID = 0L;
    * @return The count of deletedEntityPrimaryKeys.
    */
   public int getDeletedEntityPrimaryKeysCount() {
-    return this.deletedEntityPrimaryKeys_.size();
+    return deletedEntityPrimaryKeys_.size();
   }
   /**
    * <pre>
@@ -344,18 +344,18 @@ private static final long serialVersionUID = 0L;
    * @return The deletedEntityPrimaryKeys at the given index.
    */
   public int getDeletedEntityPrimaryKeys(int index) {
-    return this.deletedEntityPrimaryKeys_.getInt(index);
+    return deletedEntityPrimaryKeys_.getInt(index);
   }
   private int deletedEntityPrimaryKeysMemoizedSerializedSize = -1;
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
-    byte isInitialized = this.memoizedIsInitialized;
+    byte isInitialized = memoizedIsInitialized;
     if (isInitialized == 1) return true;
     if (isInitialized == 0) return false;
 
-    this.memoizedIsInitialized = 1;
+    memoizedIsInitialized = 1;
     return true;
   }
 
@@ -363,48 +363,48 @@ private static final long serialVersionUID = 0L;
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
     getSerializedSize();
-    if (this.deletedEntities_ != 0) {
-      output.writeInt32(1, this.deletedEntities_);
+    if (deletedEntities_ != 0) {
+      output.writeInt32(1, deletedEntities_);
     }
-    if (this.responseCase_ == 2) {
-      output.writeMessage(2, (io.evitadb.externalApi.grpc.generated.GrpcEntityReference) this.response_);
+    if (responseCase_ == 2) {
+      output.writeMessage(2, (io.evitadb.externalApi.grpc.generated.GrpcEntityReference) response_);
     }
-    if (this.responseCase_ == 3) {
-      output.writeMessage(3, (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) this.response_);
+    if (responseCase_ == 3) {
+      output.writeMessage(3, (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) response_);
     }
     if (getDeletedEntityPrimaryKeysList().size() > 0) {
       output.writeUInt32NoTag(34);
-      output.writeUInt32NoTag(this.deletedEntityPrimaryKeysMemoizedSerializedSize);
+      output.writeUInt32NoTag(deletedEntityPrimaryKeysMemoizedSerializedSize);
     }
-    for (int i = 0; i < this.deletedEntityPrimaryKeys_.size(); i++) {
-      output.writeInt32NoTag(this.deletedEntityPrimaryKeys_.getInt(i));
+    for (int i = 0; i < deletedEntityPrimaryKeys_.size(); i++) {
+      output.writeInt32NoTag(deletedEntityPrimaryKeys_.getInt(i));
     }
-    this.unknownFields.writeTo(output);
+    unknownFields.writeTo(output);
   }
 
   @java.lang.Override
   public int getSerializedSize() {
-    int size = this.memoizedSize;
+    int size = memoizedSize;
     if (size != -1) return size;
 
     size = 0;
-    if (this.deletedEntities_ != 0) {
+    if (deletedEntities_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, this.deletedEntities_);
+        .computeInt32Size(1, deletedEntities_);
     }
-    if (this.responseCase_ == 2) {
+    if (responseCase_ == 2) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(2, (io.evitadb.externalApi.grpc.generated.GrpcEntityReference) this.response_);
+        .computeMessageSize(2, (io.evitadb.externalApi.grpc.generated.GrpcEntityReference) response_);
     }
-    if (this.responseCase_ == 3) {
+    if (responseCase_ == 3) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(3, (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) this.response_);
+        .computeMessageSize(3, (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) response_);
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < this.deletedEntityPrimaryKeys_.size(); i++) {
+      for (int i = 0; i < deletedEntityPrimaryKeys_.size(); i++) {
         dataSize += com.google.protobuf.CodedOutputStream
-          .computeInt32SizeNoTag(this.deletedEntityPrimaryKeys_.getInt(i));
+          .computeInt32SizeNoTag(deletedEntityPrimaryKeys_.getInt(i));
       }
       size += dataSize;
       if (!getDeletedEntityPrimaryKeysList().isEmpty()) {
@@ -412,10 +412,10 @@ private static final long serialVersionUID = 0L;
         size += com.google.protobuf.CodedOutputStream
             .computeInt32SizeNoTag(dataSize);
       }
-      this.deletedEntityPrimaryKeysMemoizedSerializedSize = dataSize;
+      deletedEntityPrimaryKeysMemoizedSerializedSize = dataSize;
     }
-    size += this.unknownFields.getSerializedSize();
-    this.memoizedSize = size;
+    size += unknownFields.getSerializedSize();
+    memoizedSize = size;
     return size;
   }
 
@@ -434,7 +434,7 @@ private static final long serialVersionUID = 0L;
     if (!getDeletedEntityPrimaryKeysList()
         .equals(other.getDeletedEntityPrimaryKeysList())) return false;
     if (!getResponseCase().equals(other.getResponseCase())) return false;
-    switch (this.responseCase_) {
+    switch (responseCase_) {
       case 2:
         if (!getDeletedRootEntityReference()
             .equals(other.getDeletedRootEntityReference())) return false;
@@ -446,14 +446,14 @@ private static final long serialVersionUID = 0L;
       case 0:
       default:
     }
-    if (!this.unknownFields.equals(other.unknownFields)) return false;
+    if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
 
   @java.lang.Override
   public int hashCode() {
-    if (this.memoizedHashCode != 0) {
-      return this.memoizedHashCode;
+    if (memoizedHashCode != 0) {
+      return memoizedHashCode;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
@@ -463,7 +463,7 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + DELETEDENTITYPRIMARYKEYS_FIELD_NUMBER;
       hash = (53 * hash) + getDeletedEntityPrimaryKeysList().hashCode();
     }
-    switch (this.responseCase_) {
+    switch (responseCase_) {
       case 2:
         hash = (37 * hash) + DELETEDROOTENTITYREFERENCE_FIELD_NUMBER;
         hash = (53 * hash) + getDeletedRootEntityReference().hashCode();
@@ -475,8 +475,8 @@ private static final long serialVersionUID = 0L;
       case 0:
       default:
     }
-    hash = (29 * hash) + this.unknownFields.hashCode();
-    this.memoizedHashCode = hash;
+    hash = (29 * hash) + unknownFields.hashCode();
+    memoizedHashCode = hash;
     return hash;
   }
 
@@ -612,12 +612,12 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      this.deletedEntities_ = 0;
+      deletedEntities_ = 0;
 
-      this.deletedEntityPrimaryKeys_ = emptyIntList();
-      this.bitField0_ = (this.bitField0_ & ~0x00000001);
-      this.responseCase_ = 0;
-      this.response_ = null;
+      deletedEntityPrimaryKeys_ = emptyIntList();
+      bitField0_ = (bitField0_ & ~0x00000001);
+      responseCase_ = 0;
+      response_ = null;
       return this;
     }
 
@@ -644,28 +644,28 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse result = new io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse(this);
-      int from_bitField0_ = this.bitField0_;
-      result.deletedEntities_ = this.deletedEntities_;
-      if (this.responseCase_ == 2) {
-        if (this.deletedRootEntityReferenceBuilder_ == null) {
-          result.response_ = this.response_;
+      int from_bitField0_ = bitField0_;
+      result.deletedEntities_ = deletedEntities_;
+      if (responseCase_ == 2) {
+        if (deletedRootEntityReferenceBuilder_ == null) {
+          result.response_ = response_;
         } else {
-          result.response_ = this.deletedRootEntityReferenceBuilder_.build();
+          result.response_ = deletedRootEntityReferenceBuilder_.build();
         }
       }
-      if (this.responseCase_ == 3) {
-        if (this.deletedRootEntityBuilder_ == null) {
-          result.response_ = this.response_;
+      if (responseCase_ == 3) {
+        if (deletedRootEntityBuilder_ == null) {
+          result.response_ = response_;
         } else {
-          result.response_ = this.deletedRootEntityBuilder_.build();
+          result.response_ = deletedRootEntityBuilder_.build();
         }
       }
-      if (((this.bitField0_ & 0x00000001) != 0)) {
-        this.deletedEntityPrimaryKeys_.makeImmutable();
-        this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      if (((bitField0_ & 0x00000001) != 0)) {
+        deletedEntityPrimaryKeys_.makeImmutable();
+        bitField0_ = (bitField0_ & ~0x00000001);
       }
-      result.deletedEntityPrimaryKeys_ = this.deletedEntityPrimaryKeys_;
-      result.responseCase_ = this.responseCase_;
+      result.deletedEntityPrimaryKeys_ = deletedEntityPrimaryKeys_;
+      result.responseCase_ = responseCase_;
       onBuilt();
       return result;
     }
@@ -718,12 +718,12 @@ private static final long serialVersionUID = 0L;
         setDeletedEntities(other.getDeletedEntities());
       }
       if (!other.deletedEntityPrimaryKeys_.isEmpty()) {
-        if (this.deletedEntityPrimaryKeys_.isEmpty()) {
-          this.deletedEntityPrimaryKeys_ = other.deletedEntityPrimaryKeys_;
-          this.bitField0_ = (this.bitField0_ & ~0x00000001);
+        if (deletedEntityPrimaryKeys_.isEmpty()) {
+          deletedEntityPrimaryKeys_ = other.deletedEntityPrimaryKeys_;
+          bitField0_ = (bitField0_ & ~0x00000001);
         } else {
           ensureDeletedEntityPrimaryKeysIsMutable();
-          this.deletedEntityPrimaryKeys_.addAll(other.deletedEntityPrimaryKeys_);
+          deletedEntityPrimaryKeys_.addAll(other.deletedEntityPrimaryKeys_);
         }
         onChanged();
       }
@@ -773,12 +773,12 @@ private static final long serialVersionUID = 0L;
     public ResponseCase
         getResponseCase() {
       return ResponseCase.forNumber(
-          this.responseCase_);
+          responseCase_);
     }
 
     public Builder clearResponse() {
-      this.responseCase_ = 0;
-      this.response_ = null;
+      responseCase_ = 0;
+      response_ = null;
       onChanged();
       return this;
     }
@@ -796,7 +796,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public int getDeletedEntities() {
-      return this.deletedEntities_;
+      return deletedEntities_;
     }
     /**
      * <pre>
@@ -809,7 +809,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setDeletedEntities(int value) {
 
-      this.deletedEntities_ = value;
+      deletedEntities_ = value;
       onChanged();
       return this;
     }
@@ -823,7 +823,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearDeletedEntities() {
 
-      this.deletedEntities_ = 0;
+      deletedEntities_ = 0;
       onChanged();
       return this;
     }
@@ -840,7 +840,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasDeletedRootEntityReference() {
-      return this.responseCase_ == 2;
+      return responseCase_ == 2;
     }
     /**
      * <pre>
@@ -852,14 +852,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference getDeletedRootEntityReference() {
-      if (this.deletedRootEntityReferenceBuilder_ == null) {
-        if (this.responseCase_ == 2) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcEntityReference) this.response_;
+      if (deletedRootEntityReferenceBuilder_ == null) {
+        if (responseCase_ == 2) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEntityReference) response_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance();
       } else {
-        if (this.responseCase_ == 2) {
-          return this.deletedRootEntityReferenceBuilder_.getMessage();
+        if (responseCase_ == 2) {
+          return deletedRootEntityReferenceBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance();
       }
@@ -872,16 +872,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
      */
     public Builder setDeletedRootEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
-      if (this.deletedRootEntityReferenceBuilder_ == null) {
+      if (deletedRootEntityReferenceBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.response_ = value;
+        response_ = value;
         onChanged();
       } else {
-        this.deletedRootEntityReferenceBuilder_.setMessage(value);
+        deletedRootEntityReferenceBuilder_.setMessage(value);
       }
-      this.responseCase_ = 2;
+      responseCase_ = 2;
       return this;
     }
     /**
@@ -893,13 +893,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setDeletedRootEntityReference(
         io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder builderForValue) {
-      if (this.deletedRootEntityReferenceBuilder_ == null) {
-        this.response_ = builderForValue.build();
+      if (deletedRootEntityReferenceBuilder_ == null) {
+        response_ = builderForValue.build();
         onChanged();
       } else {
-        this.deletedRootEntityReferenceBuilder_.setMessage(builderForValue.build());
+        deletedRootEntityReferenceBuilder_.setMessage(builderForValue.build());
       }
-      this.responseCase_ = 2;
+      responseCase_ = 2;
       return this;
     }
     /**
@@ -910,22 +910,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
      */
     public Builder mergeDeletedRootEntityReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
-      if (this.deletedRootEntityReferenceBuilder_ == null) {
-        if (this.responseCase_ == 2 &&
-            this.response_ != io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance()) {
-          this.response_ = io.evitadb.externalApi.grpc.generated.GrpcEntityReference.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcEntityReference) this.response_)
+      if (deletedRootEntityReferenceBuilder_ == null) {
+        if (responseCase_ == 2 &&
+            response_ != io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance()) {
+          response_ = io.evitadb.externalApi.grpc.generated.GrpcEntityReference.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcEntityReference) response_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.response_ = value;
+          response_ = value;
         }
         onChanged();
       } else {
-        if (this.responseCase_ == 2) {
-          this.deletedRootEntityReferenceBuilder_.mergeFrom(value);
+        if (responseCase_ == 2) {
+          deletedRootEntityReferenceBuilder_.mergeFrom(value);
         }
-        this.deletedRootEntityReferenceBuilder_.setMessage(value);
+        deletedRootEntityReferenceBuilder_.setMessage(value);
       }
-      this.responseCase_ = 2;
+      responseCase_ = 2;
       return this;
     }
     /**
@@ -936,18 +936,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
      */
     public Builder clearDeletedRootEntityReference() {
-      if (this.deletedRootEntityReferenceBuilder_ == null) {
-        if (this.responseCase_ == 2) {
-          this.responseCase_ = 0;
-          this.response_ = null;
+      if (deletedRootEntityReferenceBuilder_ == null) {
+        if (responseCase_ == 2) {
+          responseCase_ = 0;
+          response_ = null;
           onChanged();
         }
       } else {
-        if (this.responseCase_ == 2) {
-          this.responseCase_ = 0;
-          this.response_ = null;
+        if (responseCase_ == 2) {
+          responseCase_ = 0;
+          response_ = null;
         }
-        this.deletedRootEntityReferenceBuilder_.clear();
+        deletedRootEntityReferenceBuilder_.clear();
       }
       return this;
     }
@@ -970,11 +970,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getDeletedRootEntityReferenceOrBuilder() {
-      if ((this.responseCase_ == 2) && (this.deletedRootEntityReferenceBuilder_ != null)) {
-        return this.deletedRootEntityReferenceBuilder_.getMessageOrBuilder();
+      if ((responseCase_ == 2) && (deletedRootEntityReferenceBuilder_ != null)) {
+        return deletedRootEntityReferenceBuilder_.getMessageOrBuilder();
       } else {
-        if (this.responseCase_ == 2) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcEntityReference) this.response_;
+        if (responseCase_ == 2) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEntityReference) response_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance();
       }
@@ -989,20 +989,20 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
         getDeletedRootEntityReferenceFieldBuilder() {
-      if (this.deletedRootEntityReferenceBuilder_ == null) {
-        if (!(this.responseCase_ == 2)) {
-          this.response_ = io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance();
+      if (deletedRootEntityReferenceBuilder_ == null) {
+        if (!(responseCase_ == 2)) {
+          response_ = io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance();
         }
-        this.deletedRootEntityReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        deletedRootEntityReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcEntityReference) this.response_,
+                (io.evitadb.externalApi.grpc.generated.GrpcEntityReference) response_,
                 getParentForChildren(),
                 isClean());
-        this.response_ = null;
+        response_ = null;
       }
-      this.responseCase_ = 2;
+      responseCase_ = 2;
       onChanged();;
-      return this.deletedRootEntityReferenceBuilder_;
+      return deletedRootEntityReferenceBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1017,7 +1017,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public boolean hasDeletedRootEntity() {
-      return this.responseCase_ == 3;
+      return responseCase_ == 3;
     }
     /**
      * <pre>
@@ -1029,14 +1029,14 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getDeletedRootEntity() {
-      if (this.deletedRootEntityBuilder_ == null) {
-        if (this.responseCase_ == 3) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) this.response_;
+      if (deletedRootEntityBuilder_ == null) {
+        if (responseCase_ == 3) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) response_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance();
       } else {
-        if (this.responseCase_ == 3) {
-          return this.deletedRootEntityBuilder_.getMessage();
+        if (responseCase_ == 3) {
+          return deletedRootEntityBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance();
       }
@@ -1049,16 +1049,16 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
      */
     public Builder setDeletedRootEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
-      if (this.deletedRootEntityBuilder_ == null) {
+      if (deletedRootEntityBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        this.response_ = value;
+        response_ = value;
         onChanged();
       } else {
-        this.deletedRootEntityBuilder_.setMessage(value);
+        deletedRootEntityBuilder_.setMessage(value);
       }
-      this.responseCase_ = 3;
+      responseCase_ = 3;
       return this;
     }
     /**
@@ -1070,13 +1070,13 @@ private static final long serialVersionUID = 0L;
      */
     public Builder setDeletedRootEntity(
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
-      if (this.deletedRootEntityBuilder_ == null) {
-        this.response_ = builderForValue.build();
+      if (deletedRootEntityBuilder_ == null) {
+        response_ = builderForValue.build();
         onChanged();
       } else {
-        this.deletedRootEntityBuilder_.setMessage(builderForValue.build());
+        deletedRootEntityBuilder_.setMessage(builderForValue.build());
       }
-      this.responseCase_ = 3;
+      responseCase_ = 3;
       return this;
     }
     /**
@@ -1087,22 +1087,22 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
      */
     public Builder mergeDeletedRootEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
-      if (this.deletedRootEntityBuilder_ == null) {
-        if (this.responseCase_ == 3 &&
-            this.response_ != io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance()) {
-          this.response_ = io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) this.response_)
+      if (deletedRootEntityBuilder_ == null) {
+        if (responseCase_ == 3 &&
+            response_ != io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance()) {
+          response_ = io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) response_)
               .mergeFrom(value).buildPartial();
         } else {
-          this.response_ = value;
+          response_ = value;
         }
         onChanged();
       } else {
-        if (this.responseCase_ == 3) {
-          this.deletedRootEntityBuilder_.mergeFrom(value);
+        if (responseCase_ == 3) {
+          deletedRootEntityBuilder_.mergeFrom(value);
         }
-        this.deletedRootEntityBuilder_.setMessage(value);
+        deletedRootEntityBuilder_.setMessage(value);
       }
-      this.responseCase_ = 3;
+      responseCase_ = 3;
       return this;
     }
     /**
@@ -1113,18 +1113,18 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
      */
     public Builder clearDeletedRootEntity() {
-      if (this.deletedRootEntityBuilder_ == null) {
-        if (this.responseCase_ == 3) {
-          this.responseCase_ = 0;
-          this.response_ = null;
+      if (deletedRootEntityBuilder_ == null) {
+        if (responseCase_ == 3) {
+          responseCase_ = 0;
+          response_ = null;
           onChanged();
         }
       } else {
-        if (this.responseCase_ == 3) {
-          this.responseCase_ = 0;
-          this.response_ = null;
+        if (responseCase_ == 3) {
+          responseCase_ = 0;
+          response_ = null;
         }
-        this.deletedRootEntityBuilder_.clear();
+        deletedRootEntityBuilder_.clear();
       }
       return this;
     }
@@ -1147,11 +1147,11 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getDeletedRootEntityOrBuilder() {
-      if ((this.responseCase_ == 3) && (this.deletedRootEntityBuilder_ != null)) {
-        return this.deletedRootEntityBuilder_.getMessageOrBuilder();
+      if ((responseCase_ == 3) && (deletedRootEntityBuilder_ != null)) {
+        return deletedRootEntityBuilder_.getMessageOrBuilder();
       } else {
-        if (this.responseCase_ == 3) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) this.response_;
+        if (responseCase_ == 3) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) response_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance();
       }
@@ -1166,27 +1166,27 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getDeletedRootEntityFieldBuilder() {
-      if (this.deletedRootEntityBuilder_ == null) {
-        if (!(this.responseCase_ == 3)) {
-          this.response_ = io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance();
+      if (deletedRootEntityBuilder_ == null) {
+        if (!(responseCase_ == 3)) {
+          response_ = io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance();
         }
-        this.deletedRootEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        deletedRootEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) this.response_,
+                (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) response_,
                 getParentForChildren(),
                 isClean());
-        this.response_ = null;
+        response_ = null;
       }
-      this.responseCase_ = 3;
+      responseCase_ = 3;
       onChanged();;
-      return this.deletedRootEntityBuilder_;
+      return deletedRootEntityBuilder_;
     }
 
     private com.google.protobuf.Internal.IntList deletedEntityPrimaryKeys_ = emptyIntList();
     private void ensureDeletedEntityPrimaryKeysIsMutable() {
-      if (!((this.bitField0_ & 0x00000001) != 0)) {
-        this.deletedEntityPrimaryKeys_ = mutableCopy(this.deletedEntityPrimaryKeys_);
-        this.bitField0_ |= 0x00000001;
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        deletedEntityPrimaryKeys_ = mutableCopy(deletedEntityPrimaryKeys_);
+        bitField0_ |= 0x00000001;
        }
     }
     /**
@@ -1199,8 +1199,8 @@ private static final long serialVersionUID = 0L;
      */
     public java.util.List<java.lang.Integer>
         getDeletedEntityPrimaryKeysList() {
-      return ((this.bitField0_ & 0x00000001) != 0) ?
-               java.util.Collections.unmodifiableList(this.deletedEntityPrimaryKeys_) : this.deletedEntityPrimaryKeys_;
+      return ((bitField0_ & 0x00000001) != 0) ?
+               java.util.Collections.unmodifiableList(deletedEntityPrimaryKeys_) : deletedEntityPrimaryKeys_;
     }
     /**
      * <pre>
@@ -1211,7 +1211,7 @@ private static final long serialVersionUID = 0L;
      * @return The count of deletedEntityPrimaryKeys.
      */
     public int getDeletedEntityPrimaryKeysCount() {
-      return this.deletedEntityPrimaryKeys_.size();
+      return deletedEntityPrimaryKeys_.size();
     }
     /**
      * <pre>
@@ -1223,7 +1223,7 @@ private static final long serialVersionUID = 0L;
      * @return The deletedEntityPrimaryKeys at the given index.
      */
     public int getDeletedEntityPrimaryKeys(int index) {
-      return this.deletedEntityPrimaryKeys_.getInt(index);
+      return deletedEntityPrimaryKeys_.getInt(index);
     }
     /**
      * <pre>
@@ -1238,7 +1238,7 @@ private static final long serialVersionUID = 0L;
     public Builder setDeletedEntityPrimaryKeys(
         int index, int value) {
       ensureDeletedEntityPrimaryKeysIsMutable();
-      this.deletedEntityPrimaryKeys_.setInt(index, value);
+      deletedEntityPrimaryKeys_.setInt(index, value);
       onChanged();
       return this;
     }
@@ -1253,7 +1253,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder addDeletedEntityPrimaryKeys(int value) {
       ensureDeletedEntityPrimaryKeysIsMutable();
-      this.deletedEntityPrimaryKeys_.addInt(value);
+      deletedEntityPrimaryKeys_.addInt(value);
       onChanged();
       return this;
     }
@@ -1270,7 +1270,7 @@ private static final long serialVersionUID = 0L;
         java.lang.Iterable<? extends java.lang.Integer> values) {
       ensureDeletedEntityPrimaryKeysIsMutable();
       com.google.protobuf.AbstractMessageLite.Builder.addAll(
-          values, this.deletedEntityPrimaryKeys_);
+          values, deletedEntityPrimaryKeys_);
       onChanged();
       return this;
     }
@@ -1283,8 +1283,8 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearDeletedEntityPrimaryKeys() {
-      this.deletedEntityPrimaryKeys_ = emptyIntList();
-      this.bitField0_ = (this.bitField0_ & ~0x00000001);
+      deletedEntityPrimaryKeys_ = emptyIntList();
+      bitField0_ = (bitField0_ & ~0x00000001);
       onChanged();
       return this;
     }

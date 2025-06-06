@@ -87,7 +87,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntFunction;
-import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 import java.util.zip.CRC32C;
@@ -125,10 +124,6 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 	 */
 	protected static final long CUT_WAL_CACHE_AFTER_INACTIVITY_MS = 300_000L; // 5 minutes
 	/**
-	 * This lambda allows trimming the bootstrap file to the given date.
-	 */
-	protected final LongConsumer bootstrapFileTrimmer;
-	/**
 	 * A flag indicating whether to compute CRC32 checksums for the written data in the WAL.
 	 */
 	protected final boolean computeCRC32C;
@@ -149,10 +144,6 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 	 * Size of the Write-Ahead Log (WAL) file in bytes before it is rotated.
 	 */
 	protected final long maxWalFileSizeBytes;
-	/**
-	 * Callback to be called when the WAL file is purged.
-	 */
-	protected final WalPurgeCallback onWalPurgeCallback;
 	/**
 	 * Contains information about the last catalog version that was successfully stored (and its WAL contents processed).
 	 */
@@ -595,8 +586,6 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 		this.walFileCountKept = transactionOptions.walFileCountKept();
 		this.storageFolder = storageFolder;
 		this.computeCRC32C = storageOptions.computeCRC32C();
-		this.bootstrapFileTrimmer = bootstrapFileTrimmer;
-		this.onWalPurgeCallback = onWalPurgeCallback;
 		final AtomicInteger currentWalFileIndex = new AtomicInteger(-1);
 		try {
 			final int[] firstAndLastWalFileIndex = getFirstAndLastWalFileIndex(storageFolder);
@@ -707,8 +696,6 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 		this.maxWalFileSizeBytes = transactionOptions.walFileSizeBytes();
 		this.walFileCountKept = transactionOptions.walFileCountKept();
 		this.computeCRC32C = storageOptions.computeCRC32C();
-		this.bootstrapFileTrimmer = null;
-		this.onWalPurgeCallback = null;
 
 		try {
 			final Path walFilePath = storageFolder.resolve(walFileNameProvider.apply(walFileIndex));
