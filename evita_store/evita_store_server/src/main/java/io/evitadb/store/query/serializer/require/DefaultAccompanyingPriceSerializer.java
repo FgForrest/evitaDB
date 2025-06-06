@@ -28,15 +28,14 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.require.DefaultAccompanyingPrice;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link PriceInPriceLists} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link DefaultAccompanyingPrice} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class DefaultAccompanyingPricePriceListsSerializer extends Serializer<DefaultAccompanyingPrice> {
+public class DefaultAccompanyingPriceSerializer extends Serializer<DefaultAccompanyingPrice> {
 
 	@Override
 	public void write(Kryo kryo, Output output, DefaultAccompanyingPrice object) {

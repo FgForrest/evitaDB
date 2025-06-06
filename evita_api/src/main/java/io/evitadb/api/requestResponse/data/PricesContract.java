@@ -543,18 +543,55 @@ public interface PricesContract extends Versioned, Serializable {
 	 */
 	default Optional<PriceContract> getAccompanyingPrice() throws ContextMissingException {
 		final PriceForSaleContext context = getPriceForSaleContext().orElseThrow(ContextMissingException::new);
-		final Optional<PriceForSaleWithAccompanyingPrices> priceForSaleWithAccompanyingPrices;
 		if (context instanceof PriceForSaleContextWithCachedResult pfscwcr) {
-			priceForSaleWithAccompanyingPrices = pfscwcr.compute(getPrices(), getPriceInnerRecordHandling());
+			return pfscwcr.compute(getPrices(), getPriceInnerRecordHandling())
+				.flatMap(it -> it.getAccompanyingPrice(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE));
 		} else {
-			priceForSaleWithAccompanyingPrices = computePriceForSale(
-				getPrices(), getPriceInnerRecordHandling(),
-				context.currency(), context.atTheMoment(), context.priceListPriority(), Objects::nonNull,
-				ofNullable(context.accompanyingPrices()).orElse(NO_ACCOMPANYING_PRICES)
-			);
+			return empty();
 		}
-		return priceForSaleWithAccompanyingPrices
-			.flatMap(it -> it.accompanyingPrices().get(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE));
+	}
+
+	/**
+	 * Returns a default accompanying price that relates to the current price for sale. The method can be used only
+	 * when {@link DefaultAccompanyingPrice} requirement is used in the query - so that the ordered price list
+	 * sequence is known for the accompanying price. Query must also contain the filters allowing to calculate
+	 * the price for sale.
+	 *
+	 * @param accompanyingPriceName - name of the accompanying price that should be returned
+	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
+	 */
+	default Optional<PriceContract> getAccompanyingPrice(@Nonnull String accompanyingPriceName) throws ContextMissingException {
+		final PriceForSaleContext context = getPriceForSaleContext().orElseThrow(ContextMissingException::new);
+		if (context instanceof PriceForSaleContextWithCachedResult pfscwcr) {
+			return pfscwcr.compute(getPrices(), getPriceInnerRecordHandling())
+				.flatMap(it -> it.getAccompanyingPrice(accompanyingPriceName));
+		} else {
+			return empty();
+		}
+	}
+
+	/**
+	 * Retrieves the names of accompanying prices requested for calculation along with the price for sale in the original
+	 * query.
+	 *
+	 * This method fetches the accompanying price names from the price context if available.
+	 * If the context is not present or does not contain accompanying prices, it returns an empty collection.
+	 *
+	 * @return a collection of accompanying price names, or an empty collection if no accompanying prices exist
+	 * @throws ContextMissingException if the price context is missing
+	 */
+	@Nonnull
+	default Collection<String> getAccompanyingPriceNames() {
+		final PriceForSaleContext context = getPriceForSaleContext().orElseThrow(ContextMissingException::new);
+		if (context instanceof PriceForSaleContextWithCachedResult pfscwcr) {
+			return pfscwcr.compute(getPrices(), getPriceInnerRecordHandling())
+				.map(PriceForSaleWithAccompanyingPrices::accompanyingPrices)
+				.map(Map::keySet)
+				.map(Collections::unmodifiableSet)
+				.orElse(Collections.emptySet());
+		} else {
+			return Collections.emptySet();
+		}
 	}
 
 	/**
@@ -587,7 +624,7 @@ public interface PricesContract extends Versioned, Serializable {
 				final PriceForSaleWithAccompanyingPrices dpc = defaultPriceCalculation.get();
 				// find missing accompanying prices
 				final Set<AccompanyingPrice> accompanyingPricesSet = ofNullable(context.accompanyingPrices())
-					.map(it -> (Set<AccompanyingPrice >)new HashSet<>(Arrays.asList(it)))
+					.map(it -> (Set<AccompanyingPrice>) new HashSet<>(Arrays.asList(it)))
 					.orElse(Collections.emptySet());
 				final Set<String> includedAccompaniedPrices = CollectionUtils.createHashSet(accompanyingPrices.length);
 				final AccompanyingPrice[] missingAccompanyingPrices = Arrays.stream(accompanyingPrices)

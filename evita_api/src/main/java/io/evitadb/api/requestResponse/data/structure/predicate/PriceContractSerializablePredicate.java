@@ -112,6 +112,31 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	 */
 	private PriceForSaleContext priceForSaleContext;
 
+	/**
+	 * Collects all price lists from the provided sets of price lists, additional price lists, and accompanying prices.
+	 * Combines these inputs into a single unified set of unique price lists.
+	 *
+	 * @param priceListsAsSet             a set of primary price lists that should be included in the result.
+	 * @param fetchesAdditionalPriceLists an array of additional price lists that need to be incorporated into the result.
+	 * @param accompanyingPrices          an array of accompanying prices, each of which contains a priority list of price lists
+	 *                                    that should also be collected.
+	 * @return a unified set of all unique price lists collected from the input parameters.
+	 */
+	@Nonnull
+	private static Set<String> collectAllPriceLists(
+		@Nonnull Set<String> priceListsAsSet,
+		@Nonnull String[] fetchesAdditionalPriceLists,
+		@Nonnull AccompanyingPrice[] accompanyingPrices
+	) {
+		return Stream.concat(
+			priceListsAsSet.stream(),
+			Stream.concat(
+				Arrays.stream(fetchesAdditionalPriceLists),
+				Arrays.stream(accompanyingPrices).flatMap(accompanyingPrice -> Arrays.stream(accompanyingPrice.priceListPriority()))
+			)
+		).collect(Collectors.toSet());
+	}
+
 	public PriceContractSerializablePredicate() {
 		this.priceContentMode = PriceContentMode.ALL;
 		this.currency = null;
@@ -218,6 +243,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 
 	/**
 	 * Returns the context for price for sale calculation.
+	 *
 	 * @return the context for price for sale calculation
 	 */
 	@Nonnull
@@ -281,7 +307,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	 * @param evitaRequest the request containing additional details or constraints such as required entity prices,
 	 *                     additional price lists, or accompanying price lists which affect the returned predicate.
 	 * @return a new PriceContractSerializablePredicate instance that has been enriched with the provided properties
-	 *         or the current instance if no changes are required.
+	 * or the current instance if no changes are required.
 	 */
 	@Nonnull
 	public PriceContractSerializablePredicate createRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
@@ -289,7 +315,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		final String[] fetchesAdditionalPriceLists = evitaRequest.getFetchesAdditionalPriceLists();
 		final AccompanyingPrice[] accompanyingPrices = evitaRequest.getAccompanyingPrices();
 		if (this.priceContentMode.ordinal() >= requiresEntityPrices.ordinal()) {
-			if (ArrayUtils.isEmpty(fetchesAdditionalPriceLists)) {
+			if (ArrayUtils.isEmpty(fetchesAdditionalPriceLists) && ArrayUtils.isEmpty(accompanyingPrices)) {
 				// this predicate cannot change since everything is taken from the filter and this cannot change in time
 				return this;
 			} else {
@@ -298,34 +324,22 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 					this.currency, this.validIn, this.priceLists,
 					this.additionalPriceLists == null ? fetchesAdditionalPriceLists : ArrayUtils.mergeArrays(this.additionalPriceLists, fetchesAdditionalPriceLists),
 					accompanyingPrices.length == 0 ? this.accompanyingPrices : (this.accompanyingPrices == null ? accompanyingPrices : ArrayUtils.mergeArrays(this.accompanyingPrices, accompanyingPrices)),
-					this.priceListsAsSet,
+					collectAllPriceLists(this.priceListsAsSet, fetchesAdditionalPriceLists, accompanyingPrices),
 					this.queryPriceMode,
 					this.contextAvailable
 				);
 			}
 		} else {
-			if (ArrayUtils.isEmpty(fetchesAdditionalPriceLists)) {
-				return new PriceContractSerializablePredicate(
-					requiresEntityPrices,
-					this.currency, this.validIn, this.priceLists,
-					this.additionalPriceLists,
-					accompanyingPrices.length == 0 ? this.accompanyingPrices : (this.accompanyingPrices == null ? accompanyingPrices : ArrayUtils.mergeArrays(this.accompanyingPrices, accompanyingPrices)),
-					this.priceListsAsSet,
-					this.queryPriceMode,
-					this.contextAvailable
-				);
-			} else {
-				return new PriceContractSerializablePredicate(
-					requiresEntityPrices,
-					this.currency, this.validIn,
-					this.priceLists,
-					this.additionalPriceLists == null ? fetchesAdditionalPriceLists : ArrayUtils.mergeArrays(this.additionalPriceLists, fetchesAdditionalPriceLists),
-					accompanyingPrices.length == 0 ? this.accompanyingPrices : (this.accompanyingPrices == null ? accompanyingPrices : ArrayUtils.mergeArrays(this.accompanyingPrices, accompanyingPrices)),
-					this.additionalPriceLists == null ? this.priceListsAsSet : Stream.concat(this.priceListsAsSet.stream(), Arrays.stream(fetchesAdditionalPriceLists)).collect(Collectors.toSet()),
-					this.queryPriceMode,
-					this.contextAvailable
-				);
-			}
+			return new PriceContractSerializablePredicate(
+				requiresEntityPrices,
+				this.currency, this.validIn,
+				this.priceLists,
+				this.additionalPriceLists == null ? fetchesAdditionalPriceLists : ArrayUtils.mergeArrays(this.additionalPriceLists, fetchesAdditionalPriceLists),
+				accompanyingPrices.length == 0 ? this.accompanyingPrices : (this.accompanyingPrices == null ? accompanyingPrices : ArrayUtils.mergeArrays(this.accompanyingPrices, accompanyingPrices)),
+				collectAllPriceLists(this.priceListsAsSet, fetchesAdditionalPriceLists, accompanyingPrices),
+				this.queryPriceMode,
+				this.contextAvailable
+			);
 		}
 	}
 }

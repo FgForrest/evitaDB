@@ -27,6 +27,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.*;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.AccompanyingPriceContent;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
@@ -1337,7 +1338,8 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 							page(1, Integer.MAX_VALUE),
 							defaultAccompanyingPrice(PRICE_LIST_B2B),
 							entityFetch(
-								priceContent(PriceContentMode.RESPECTING_FILTER)
+								priceContent(PriceContentMode.RESPECTING_FILTER),
+								accompanyingPriceContent()
 							)
 						)
 					)
@@ -1393,6 +1395,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 							defaultAccompanyingPrice(PRICE_LIST_B2B),
 							entityFetch(
 								priceContent(PriceContentMode.RESPECTING_FILTER),
+								accompanyingPriceContent(),
 								accompanyingPriceContent("myPrice", PRICE_LIST_VIP)
 							)
 						)
@@ -1414,10 +1417,16 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertEquals(CURRENCY_EUR, accompanyingPrice.get().currency());
 				assertEquals(PRICE_LIST_B2B, accompanyingPrice.get().priceList());
 
-				final Optional<PriceContract> myAccompanyingPrice = product.getAccompanyingPrice();
+				final Optional<PriceContract> myAccompanyingPrice = product.getAccompanyingPrice("myPrice");
 				assertTrue(myAccompanyingPrice.isPresent(), "Product should have an accompanying price!");
 				assertEquals(CURRENCY_EUR, myAccompanyingPrice.get().currency());
 				assertEquals(PRICE_LIST_VIP, myAccompanyingPrice.get().priceList());
+
+				assertArrayEquals(
+					new String[] { AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE, "myPrice" },
+					product.getAccompanyingPriceNames().toArray(String[]::new),
+					"Product should have two accompanying prices!"
+				);
 
 				return null;
 			}

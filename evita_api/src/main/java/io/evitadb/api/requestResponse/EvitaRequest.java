@@ -644,10 +644,6 @@ public class EvitaRequest {
 	@Nonnull
 	public PriceContentMode getRequiresEntityPrices() {
 		if (this.entityPrices == null) {
-			this.defaultAccompanyingPricePriceLists = ofNullable(QueryUtils.findRequire(this.query, DefaultAccompanyingPrice.class, SeparateEntityContentRequireContainer.class))
-				.map(DefaultAccompanyingPrice::getPriceLists)
-				.orElse(ArrayUtils.EMPTY_STRING_ARRAY);
-
 			final EntityFetch entityFetch = QueryUtils.findRequire(this.query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
 			if (entityFetch == null) {
 				this.entityPrices = PriceContentMode.NONE;
@@ -658,29 +654,30 @@ public class EvitaRequest {
 				this.entityPrices = priceContentRequirement
 					.map(PriceContent::getFetchMode)
 					.orElse(PriceContentMode.NONE);
+				final String[] theDefaultAccompaniedPriceLists = this.getDefaultAccompanyingPricePriceLists();
 				this.accompanyingPrices = QueryUtils.findConstraints(entityFetch, AccompanyingPriceContent.class, SeparateEntityContentRequireContainer.class)
 					.stream()
 					.map(it -> {
 						final String priceName = it.getAccompanyingPriceName().orElse(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE);
 						if (it.getPriceLists().length == 0) {
 							Assert.isTrue(
-								!ArrayUtils.isEmptyOrItsValuesNull(this.defaultAccompanyingPricePriceLists),
+								!ArrayUtils.isEmptyOrItsValuesNull(theDefaultAccompaniedPriceLists),
 								"Default accompanying price lists must be defined in the query if no accompanying price name and no price lists are specified in the query!"
 							);
-							return new AccompanyingPrice(priceName, this.defaultAccompanyingPricePriceLists);
+							return new AccompanyingPrice(priceName, theDefaultAccompaniedPriceLists);
 						} else {
 							return new AccompanyingPrice(priceName, it.getPriceLists());
 						}
 					})
 					.toArray(AccompanyingPrice[]::new);
-				this.additionalPriceLists = this.defaultAccompanyingPricePriceLists.length == 0 && this.accompanyingPrices.length == 0 ?
+				this.additionalPriceLists = theDefaultAccompaniedPriceLists.length == 0 && this.accompanyingPrices.length == 0 ?
 					priceContentRequirement
 						.map(PriceContent::getAdditionalPriceListsToFetch)
 						.orElse(ArrayUtils.EMPTY_STRING_ARRAY) :
 					// default accompanying price lists are always fetched, so we can merge them with additional price lists
 					Stream.concat(
 							Stream.concat(
-								Arrays.stream(this.defaultAccompanyingPricePriceLists), Arrays.stream(
+								Arrays.stream(theDefaultAccompaniedPriceLists), Arrays.stream(
 									priceContentRequirement
 										.map(PriceContent::getAdditionalPriceListsToFetch)
 										.orElse(ArrayUtils.EMPTY_STRING_ARRAY)
@@ -719,7 +716,9 @@ public class EvitaRequest {
 	@Nonnull
 	public String[] getDefaultAccompanyingPricePriceLists() {
 		if (this.defaultAccompanyingPricePriceLists == null) {
-			getRequiresEntityPrices();
+			this.defaultAccompanyingPricePriceLists = ofNullable(QueryUtils.findRequire(this.query, DefaultAccompanyingPrice.class, SeparateEntityContentRequireContainer.class))
+				.map(DefaultAccompanyingPrice::getPriceLists)
+				.orElse(ArrayUtils.EMPTY_STRING_ARRAY);
 		}
 		return this.defaultAccompanyingPricePriceLists;
 	}

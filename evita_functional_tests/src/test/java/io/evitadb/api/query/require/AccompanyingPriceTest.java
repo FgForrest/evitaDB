@@ -39,21 +39,21 @@ class AccompanyingPriceTest {
     @Test
     void shouldCreateDefaultViaFactoryClassWorkAsExpected() {
         final AccompanyingPriceContent accompanyingPrice = accompanyingPriceContent();
-        assertEquals("default", accompanyingPrice.getAccompanyingPriceName());
+        assertEquals("default", accompanyingPrice.getAccompanyingPriceName().orElseThrow());
         assertArrayEquals(ArrayUtils.EMPTY_STRING_ARRAY, accompanyingPrice.getPriceLists());
     }
 
     @Test
     void shouldCreateViaFactoryClassWorkAsExpected() {
         final AccompanyingPriceContent accompanyingPrice = accompanyingPriceContent("myPrice", "basic", "reference");
-        assertEquals("myPrice", accompanyingPrice.getAccompanyingPriceName());
+        assertEquals("myPrice", accompanyingPrice.getAccompanyingPriceName().orElseThrow());
         assertArrayEquals(new String[] {"basic", "reference"}, accompanyingPrice.getPriceLists());
     }
 
     @Test
     void shouldCreateViaFactoryClassWorkAsExpectedNullInArray() {
         final AccompanyingPriceContent accompanyingPrice = accompanyingPriceContent("myPrice", "basic", null, "reference");
-        assertEquals("myPrice", accompanyingPrice.getAccompanyingPriceName());
+        assertEquals("myPrice", accompanyingPrice.getAccompanyingPriceName().orElseThrow());
         assertArrayEquals(new String[] {"basic", "reference"}, accompanyingPrice.getPriceLists());
     }
 
@@ -67,7 +67,7 @@ class AccompanyingPriceTest {
     @Test
     void shouldCreateViaFactoryClassWorkAsExpectedNullValueInArray() {
         final AccompanyingPriceContent accompanyingPrice = accompanyingPriceContent("myPrice", ArrayUtils.EMPTY_STRING_ARRAY);
-        assertEquals("myPrice", accompanyingPrice.getAccompanyingPriceName());
+        assertEquals("myPrice", accompanyingPrice.getAccompanyingPriceName().orElseThrow());
         assertArrayEquals(new String[0], accompanyingPrice.getPriceLists());
     }
 

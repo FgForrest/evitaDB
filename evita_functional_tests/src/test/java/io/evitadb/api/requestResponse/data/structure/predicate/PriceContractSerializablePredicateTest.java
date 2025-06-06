@@ -26,6 +26,8 @@ package io.evitadb.api.requestResponse.data.structure.predicate;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.PricesContract;
+import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -35,6 +37,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.HashSet;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,7 +62,7 @@ class PriceContractSerializablePredicateTest {
 		Mockito.when(evitaRequest.isRequiresPriceLists()).thenReturn(true);
 		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
 		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
-		Mockito.when(evitaRequest.getDefaultAccompanyingPricePriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(PricesContract.NO_ACCOMPANYING_PRICES);
 		Mockito.when(evitaRequest.getRequiresCurrency()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresEntityPrices()).thenReturn(PriceContentMode.RESPECTING_FILTER);
@@ -77,7 +80,7 @@ class PriceContractSerializablePredicateTest {
 		Mockito.when(evitaRequest.isRequiresPriceLists()).thenReturn(true);
 		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
 		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
-		Mockito.when(evitaRequest.getDefaultAccompanyingPricePriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(PricesContract.NO_ACCOMPANYING_PRICES);
 		Mockito.when(evitaRequest.getRequiresCurrency()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresEntityPrices()).thenReturn(PriceContentMode.RESPECTING_FILTER);
@@ -98,7 +101,7 @@ class PriceContractSerializablePredicateTest {
 		Mockito.when(evitaRequest.isRequiresPriceLists()).thenReturn(true);
 		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
 		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(new String[] {"A", "B"});
-		Mockito.when(evitaRequest.getDefaultAccompanyingPricePriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(PricesContract.NO_ACCOMPANYING_PRICES);
 		Mockito.when(evitaRequest.getRequiresCurrency()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresEntityPrices()).thenReturn(PriceContentMode.RESPECTING_FILTER);
@@ -119,7 +122,7 @@ class PriceContractSerializablePredicateTest {
 		Mockito.when(evitaRequest.isRequiresPriceLists()).thenReturn(true);
 		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
 		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(new String[] {"A", "D"});
-		Mockito.when(evitaRequest.getDefaultAccompanyingPricePriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(PricesContract.NO_ACCOMPANYING_PRICES);
 		Mockito.when(evitaRequest.getRequiresCurrency()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresEntityPrices()).thenReturn(PriceContentMode.RESPECTING_FILTER);
@@ -141,7 +144,7 @@ class PriceContractSerializablePredicateTest {
 		Mockito.when(evitaRequest.isRequiresPriceLists()).thenReturn(true);
 		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(null);
 		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(new String[] {"A", "D"});
-		Mockito.when(evitaRequest.getDefaultAccompanyingPricePriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(PricesContract.NO_ACCOMPANYING_PRICES);
 		Mockito.when(evitaRequest.getRequiresCurrency()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresEntityPrices()).thenReturn(PriceContentMode.RESPECTING_FILTER);
@@ -164,7 +167,7 @@ class PriceContractSerializablePredicateTest {
 		Mockito.when(evitaRequest.isRequiresPriceLists()).thenReturn(true);
 		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
 		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
-		Mockito.when(evitaRequest.getDefaultAccompanyingPricePriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(PricesContract.NO_ACCOMPANYING_PRICES);
 		Mockito.when(evitaRequest.getRequiresCurrency()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresEntityPrices()).thenReturn(PriceContentMode.NONE);
@@ -182,7 +185,7 @@ class PriceContractSerializablePredicateTest {
 		Mockito.when(evitaRequest.isRequiresPriceLists()).thenReturn(true);
 		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
 		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
-		Mockito.when(evitaRequest.getDefaultAccompanyingPricePriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(PricesContract.NO_ACCOMPANYING_PRICES);
 		Mockito.when(evitaRequest.getRequiresCurrency()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresEntityPrices()).thenReturn(PriceContentMode.NONE);
@@ -200,7 +203,7 @@ class PriceContractSerializablePredicateTest {
 		Mockito.when(evitaRequest.isRequiresPriceLists()).thenReturn(true);
 		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
 		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
-		Mockito.when(evitaRequest.getDefaultAccompanyingPricePriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(PricesContract.NO_ACCOMPANYING_PRICES);
 		Mockito.when(evitaRequest.getRequiresCurrency()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresEntityPrices()).thenReturn(PriceContentMode.ALL);
@@ -218,7 +221,7 @@ class PriceContractSerializablePredicateTest {
 		Mockito.when(evitaRequest.isRequiresPriceLists()).thenReturn(true);
 		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
 		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
-		Mockito.when(evitaRequest.getDefaultAccompanyingPricePriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(PricesContract.NO_ACCOMPANYING_PRICES);
 		Mockito.when(evitaRequest.getRequiresCurrency()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(null);
 		Mockito.when(evitaRequest.getRequiresEntityPrices()).thenReturn(PriceContentMode.NONE);
@@ -236,11 +239,98 @@ class PriceContractSerializablePredicateTest {
 		Mockito.when(evitaRequest.isRequiresPriceLists()).thenReturn(true);
 		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(new String[]{"A"});
 		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
-		Mockito.when(evitaRequest.getDefaultAccompanyingPricePriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(PricesContract.NO_ACCOMPANYING_PRICES);
 		Mockito.when(evitaRequest.getRequiresCurrency()).thenReturn(Currency.getInstance("CZK"));
 		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(OffsetDateTime.now());
 		Mockito.when(evitaRequest.getRequiresEntityPrices()).thenReturn(PriceContentMode.RESPECTING_FILTER);
 		assertSame(allPrices, allPrices.createRicherCopyWith(evitaRequest));
 	}
 
+	@Test
+	void shouldCreateRicherCopyWithAccompanyingPricesWhenOriginalHasNone() {
+		final PriceContractSerializablePredicate noPricesRequired = new PriceContractSerializablePredicate(
+			PriceContentMode.RESPECTING_FILTER, null, null, null, null, null,
+			Collections.emptySet(), QueryPriceMode.WITH_TAX, false
+		);
+
+		final AccompanyingPrice[] accompanyingPrices = new AccompanyingPrice[] {
+			new AccompanyingPrice("price1", "A", "B"),
+			new AccompanyingPrice("price2", "C", "D")
+		};
+
+		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+		Mockito.when(evitaRequest.isRequiresPriceLists()).thenReturn(true);
+		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(accompanyingPrices);
+		Mockito.when(evitaRequest.getRequiresCurrency()).thenReturn(null);
+		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(null);
+		Mockito.when(evitaRequest.getRequiresEntityPrices()).thenReturn(PriceContentMode.RESPECTING_FILTER);
+
+		final PriceContractSerializablePredicate richerCopy = noPricesRequired.createRicherCopyWith(evitaRequest);
+		assertNotSame(noPricesRequired, richerCopy);
+		assertArrayEquals(accompanyingPrices, richerCopy.getAccompanyingPrices());
+	}
+
+	@Test
+	void shouldCreateRicherCopyWithAccompanyingPricesWhenOriginalHasSome() {
+		final AccompanyingPrice[] originalAccompanyingPrices = new AccompanyingPrice[] {
+			new AccompanyingPrice("price1", "A", "B")
+		};
+
+		final PriceContractSerializablePredicate pricesRequired = new PriceContractSerializablePredicate(
+			PriceContentMode.RESPECTING_FILTER, null, null, null, null, originalAccompanyingPrices,
+			Collections.emptySet(), QueryPriceMode.WITH_TAX, false
+		);
+
+		final AccompanyingPrice[] newAccompanyingPrices = new AccompanyingPrice[] {
+			new AccompanyingPrice("price2", "C", "D"),
+			new AccompanyingPrice("price3", "E", "F")
+		};
+
+		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+		Mockito.when(evitaRequest.isRequiresPriceLists()).thenReturn(true);
+		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(newAccompanyingPrices);
+		Mockito.when(evitaRequest.getRequiresCurrency()).thenReturn(null);
+		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(null);
+		Mockito.when(evitaRequest.getRequiresEntityPrices()).thenReturn(PriceContentMode.RESPECTING_FILTER);
+
+		final PriceContractSerializablePredicate richerCopy = pricesRequired.createRicherCopyWith(evitaRequest);
+		assertNotSame(pricesRequired, richerCopy);
+
+		// Check that both original and new accompanying prices are present
+		AccompanyingPrice[] expectedAccompanyingPrices = ArrayUtils.mergeArrays(originalAccompanyingPrices, newAccompanyingPrices);
+		assertArrayEquals(expectedAccompanyingPrices, richerCopy.getAccompanyingPrices());
+	}
+
+	@Test
+	void shouldAddPriceListsFromAccompanyingPricesToAdditionalPriceLists() {
+		final AccompanyingPrice[] accompanyingPrices = new AccompanyingPrice[] {
+			new AccompanyingPrice("price1", "A", "B"),
+			new AccompanyingPrice("price2", "C", "D")
+		};
+
+		final PriceContractSerializablePredicate pricesRequired = new PriceContractSerializablePredicate(
+			PriceContentMode.RESPECTING_FILTER, null, null, new String[] {"X"}, new String[] {"Y"}, null,
+			new HashSet<>(Arrays.asList("X", "Y")), QueryPriceMode.WITH_TAX, false
+		);
+
+		final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);
+		Mockito.when(evitaRequest.isRequiresPriceLists()).thenReturn(true);
+		Mockito.when(evitaRequest.getRequiresPriceLists()).thenReturn(ArrayUtils.EMPTY_STRING_ARRAY);
+		Mockito.when(evitaRequest.getFetchesAdditionalPriceLists()).thenReturn(new String[] {"Z"});
+		Mockito.when(evitaRequest.getAccompanyingPrices()).thenReturn(accompanyingPrices);
+		Mockito.when(evitaRequest.getRequiresCurrency()).thenReturn(null);
+		Mockito.when(evitaRequest.getRequiresPriceValidIn()).thenReturn(null);
+		Mockito.when(evitaRequest.getRequiresEntityPrices()).thenReturn(PriceContentMode.RESPECTING_FILTER);
+
+		final PriceContractSerializablePredicate richerCopy = pricesRequired.createRicherCopyWith(evitaRequest);
+		assertNotSame(pricesRequired, richerCopy);
+
+		// Check that priceListsAsSet contains all price lists from all sources
+		Set<String> expectedPriceLists = new HashSet<>(Arrays.asList("X", "Y", "Z", "A", "B", "C", "D"));
+		assertEquals(expectedPriceLists, richerCopy.getPriceListsAsSet());
+	}
 }
