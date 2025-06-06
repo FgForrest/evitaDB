@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.query.require.AccompanyingPriceContent;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
@@ -383,6 +384,68 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 				.e(TYPENAME_FIELD, AssociatedDataDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 				.e(ASSOCIATED_DATA_LABELS, map()
 					.build())
+				.build())
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithDefaultAccompanyingPriceForSinglePriceForSale(@Nonnull SealedEntity entity) {
+		final EntityDecorator entityDecorator = ((EntityDecorator) entity);
+		final Optional<PriceForSaleWithAccompanyingPrices> prices = entityDecorator.getPriceForSaleWithAccompanyingPrices(
+			CURRENCY_EUR,
+			null,
+			new String[]{PRICE_LIST_BASIC},
+			new AccompanyingPrice[0]
+		);
+		assertTrue(prices.isPresent());
+		assertTrue(prices.get().accompanyingPrices().get(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE).isPresent());
+
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE.name(), map()
+				.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
+				.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), prices.get().priceForSale().priceWithTax().toString())
+				.e(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), prices.get().accompanyingPrices().get(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE)
+					.map(price -> map()
+						.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+						.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString()))
+					.orElse(null))
+				.build())
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithDefaultAndCustomAccompanyingPricesForSinglePriceForSale(@Nonnull SealedEntity entity) {
+		final String vipPrice = "vipPrice";
+
+		final EntityDecorator entityDecorator = ((EntityDecorator) entity);
+		final Optional<PriceForSaleWithAccompanyingPrices> prices = entityDecorator.getPriceForSaleWithAccompanyingPrices(
+			CURRENCY_EUR,
+			null,
+			new String[]{PRICE_LIST_BASIC},
+			new AccompanyingPrice[0]
+		);
+		assertTrue(prices.isPresent());
+		assertTrue(prices.get().accompanyingPrices().get(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE).isPresent());
+		assertTrue(prices.get().accompanyingPrices().get(vipPrice).isPresent());
+
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE.name(), map()
+				.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
+				.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), prices.get().priceForSale().priceWithTax().toString())
+				.e(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), prices.get().accompanyingPrices().get(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE)
+					.map(price -> map()
+						.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+						.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString()))
+					.orElse(null))
+				.e(vipPrice, prices.get().accompanyingPrices().get(vipPrice)
+					.map(price -> map()
+						.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+						.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString()))
+					.orElse(null))
 				.build())
 			.build();
 	}

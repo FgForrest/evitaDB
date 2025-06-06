@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForS
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 
 import javax.annotation.Nonnull;
@@ -41,6 +42,7 @@ import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -53,9 +55,15 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<P> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public DataFetcherResult<P> get(DataFetchingEnvironment environment) throws Exception {
 		final EntityDecorator entity = environment.getSource();
+		if (entity == null) {
+			throw new GraphQLInternalError("Missing entity");
+		}
 		final EntityQueryContext context = environment.getLocalContext();
+		if (context == null) {
+			throw new GraphQLInternalError("Missing entity context");
+		}
 
 		final String[] priceLists = resolveDesiredPricesLists(environment, context);
 		final Currency currency = resolveDesiredCurrency(environment, context);
@@ -100,6 +108,7 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 	@Nonnull
 	protected String[] resolveDesiredPricesLists(@Nonnull DataFetchingEnvironment environment,
 	                                             @Nonnull EntityQueryContext context) {
+		//noinspection unchecked
 		return Optional.ofNullable((List<String>) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LISTS.name()))
 			.map(it -> it.toArray(String[]::new))
 			.or(() -> Optional.ofNullable((String) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
@@ -133,11 +142,16 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 	protected AccompanyingPrice[] resolveDesiredAccompanyingPrices(@Nonnull DataFetchingEnvironment environment) {
 		return SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), environment.getSelectionSet())
 			.stream()
-			.map(f -> new AccompanyingPrice(
-				f.getAlias() != null ? f.getAlias() : f.getName(),
-				((List<String>) f.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name()))
-					.toArray(String[]::new)
-			))
+			.map(f -> {
+				final String priceName = f.getAlias() != null ? f.getAlias() : f.getName();
+
+				//noinspection unchecked
+				final List<String> priceLists = (List<String>) f.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name());
+				if (priceLists == null ) {
+					return new AccompanyingPrice(priceName);
+				}
+				return new AccompanyingPrice(priceName, priceLists.toArray(String[]::new));
+			})
 			.toArray(AccompanyingPrice[]::new);
 	}
 }

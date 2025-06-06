@@ -351,6 +351,7 @@ public class EntityFetchRequireResolver {
 
 	@Nonnull
 	private static String[] resolveAccompanyingPriceLists(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		//noinspection unchecked
 		return selectionSetAggregator.getImmediateFields(PRICE_FOR_SALE_FIELDS)
 			.stream()
 			.flatMap(f -> SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), f.getSelectionSet())

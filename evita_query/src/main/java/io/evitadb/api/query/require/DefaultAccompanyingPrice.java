@@ -61,7 +61,7 @@ import java.util.Arrays;
 	userDocsLink = "/documentation/query/requirements/price#accompanying-price",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class DefaultAccompanyingPrice extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint>, RequireConstraint {
+public class DefaultAccompanyingPrice extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -5786325458930138452L;
 
 	private DefaultAccompanyingPrice(@Nonnull Serializable... priceLists) {
