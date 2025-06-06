@@ -581,39 +581,45 @@ public interface PricesContract extends Versioned, Serializable {
 		final PriceForSaleContext context = getPriceForSaleContext().orElse(null);
 		if (context instanceof PriceForSaleContextWithCachedResult pfscwcr && pfscwcr.matches(currency, atTheMoment, priceListPriority)) {
 			final Optional<PriceForSaleWithAccompanyingPrices> defaultPriceCalculation = pfscwcr.compute(getPrices(), getPriceInnerRecordHandling());
-			// find missing accompanying prices
-			final Set<AccompanyingPrice> accompanyingPricesSet = new HashSet<>(Arrays.asList(accompanyingPrices));
-			final Set<String> includedAccompaniedPrices = CollectionUtils.createHashSet(accompanyingPrices.length);
-			final AccompanyingPrice[] missingAccompanyingPrices = Arrays.stream(accompanyingPrices)
-				.filter(ap -> {
-					if (accompanyingPricesSet.contains(ap)) {
-						includedAccompaniedPrices.add(ap.priceName());
-						return false; // this price is already included
+			if (defaultPriceCalculation.isEmpty()) {
+				return empty();
+			} else {
+				final PriceForSaleWithAccompanyingPrices dpc = defaultPriceCalculation.get();
+				// find missing accompanying prices
+				final Set<AccompanyingPrice> accompanyingPricesSet = ofNullable(context.accompanyingPrices())
+					.map(it -> (Set<AccompanyingPrice >)new HashSet<>(Arrays.asList(it)))
+					.orElse(Collections.emptySet());
+				final Set<String> includedAccompaniedPrices = CollectionUtils.createHashSet(accompanyingPrices.length);
+				final AccompanyingPrice[] missingAccompanyingPrices = Arrays.stream(accompanyingPrices)
+					.filter(ap -> {
+						if (accompanyingPricesSet.contains(ap)) {
+							includedAccompaniedPrices.add(ap.priceName());
+							return false; // this price is already included
+						} else {
+							return true; // this price is missing
+						}
+					})
+					.toArray(AccompanyingPrice[]::new);
+				if (missingAccompanyingPrices.length == 0) {
+					// limit the included accompanying prices to those that are requested
+					if (dpc.accompanyingPrices().size() == includedAccompaniedPrices.size()) {
+						// all accompanying prices are already included
+						return of(dpc);
 					} else {
-						return true; // this price is missing
+						return of(
+							new PriceForSaleWithAccompanyingPrices(
+								dpc.priceForSale(),
+								dpc.accompanyingPrices().entrySet()
+									.stream()
+									.filter(it -> includedAccompaniedPrices.contains(it.getKey()))
+									.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+							)
+						);
 					}
-				})
-				.toArray(AccompanyingPrice[]::new);
-			if (missingAccompanyingPrices.length == 0 && includedAccompaniedPrices.size() == accompanyingPrices.length) {
-				// all requested accompanying prices are already included in the default price calculation
-				return defaultPriceCalculation;
-			} else if (missingAccompanyingPrices.length == 0) {
-				// limit the included accompanying prices to those that are requested
-				return defaultPriceCalculation
-					.map(
-						dpc -> new PriceForSaleWithAccompanyingPrices(
-							dpc.priceForSale(),
-							dpc.accompanyingPrices().entrySet()
-								.stream()
-								.filter(it -> includedAccompaniedPrices.contains(it.getKey()))
-								.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-						)
-					);
-			} else if (includedAccompaniedPrices.isEmpty()) {
-				// just calculate the missing accompanying prices
-				return defaultPriceCalculation
-					.map(
-						dpc -> new PriceForSaleWithAccompanyingPrices(
+				} else if (includedAccompaniedPrices.isEmpty()) {
+					// just calculate the missing accompanying prices
+					return of(
+						new PriceForSaleWithAccompanyingPrices(
 							dpc.priceForSale(),
 							calculateAccompanyingPrices(
 								dpc.priceForSale(),
@@ -622,31 +628,29 @@ public interface PricesContract extends Versioned, Serializable {
 							)
 						)
 					);
-			} else {
-				// merge included and missing accompanying prices
-				return defaultPriceCalculation
-					.map(
-						dpc -> {
-							final Map<String, Optional<PriceContract>> accompanyingPricesMap = CollectionUtils.createHashMap(accompanyingPrices.length);
-							accompanyingPricesMap.putAll(
-								calculateAccompanyingPrices(
-									dpc.priceForSale(),
-									getPrices(), getPriceInnerRecordHandling(),
-									currency, atTheMoment, accompanyingPrices
-								)
-							);
-							for (String includedAccompaniedPriceName : includedAccompaniedPrices) {
-								accompanyingPricesMap.put(
-									includedAccompaniedPriceName,
-									dpc.getAccompanyingPrice(includedAccompaniedPriceName)
-								);
-							}
-							return new PriceForSaleWithAccompanyingPrices(
-								dpc.priceForSale(),
-								accompanyingPricesMap
-							);
-						}
+				} else {
+					// merge included and missing accompanying prices
+					final Map<String, Optional<PriceContract>> accompanyingPricesMap = CollectionUtils.createHashMap(accompanyingPrices.length);
+					accompanyingPricesMap.putAll(
+						calculateAccompanyingPrices(
+							dpc.priceForSale(),
+							getPrices(), getPriceInnerRecordHandling(),
+							currency, atTheMoment, accompanyingPrices
+						)
 					);
+					for (String includedAccompaniedPriceName : includedAccompaniedPrices) {
+						accompanyingPricesMap.put(
+							includedAccompaniedPriceName,
+							dpc.getAccompanyingPrice(includedAccompaniedPriceName)
+						);
+					}
+					return of(
+						new PriceForSaleWithAccompanyingPrices(
+							dpc.priceForSale(),
+							accompanyingPricesMap
+						)
+					);
+				}
 			}
 		} else {
 			return computePriceForSale(
