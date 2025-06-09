@@ -77,6 +77,17 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 		this.accompanyingPrices = accompanyingPrices;
 	}
 
+	public PriceForSaleContextWithCachedResult(
+		@Nullable String[] priceListPriority,
+		@Nullable Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nullable AccompanyingPrice[] accompanyingPrices,
+		@Nonnull PriceForSaleWithAccompanyingPrices priceForSaleWithAccompanyingPrices
+	) {
+		this(priceListPriority, currency, atTheMoment, accompanyingPrices);
+		this.cachedResult = new AtomicReference<>(priceForSaleWithAccompanyingPrices);
+	}
+
 	@Nonnull
 	@Override
 	public Optional<String[]> priceListPriority() {

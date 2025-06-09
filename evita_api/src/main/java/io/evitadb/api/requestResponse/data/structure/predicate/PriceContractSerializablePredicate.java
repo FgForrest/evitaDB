@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceForSaleContextWithCachedResult;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleContext;
+import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate;
@@ -170,6 +171,20 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 		this.contextAvailable = contextAvailable != null ?
 			contextAvailable : this.currency != null && !ArrayUtils.isEmpty(this.priceLists);
 		this.queryPriceMode = evitaRequest.getQueryPriceMode();
+	}
+
+	public PriceContractSerializablePredicate(
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull PriceForSaleWithAccompanyingPrices priceForSaleWithAccompanyingPrices
+	) {
+		this(evitaRequest, true);
+		this.priceForSaleContext = new PriceForSaleContextWithCachedResult(
+			evitaRequest.getRequiresPriceLists(),
+			evitaRequest.getRequiresCurrency(),
+			evitaRequest.getRequiresPriceValidIn(),
+			evitaRequest.getAccompanyingPrices(),
+			priceForSaleWithAccompanyingPrices
+		);
 	}
 
 	public PriceContractSerializablePredicate(

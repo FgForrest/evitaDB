@@ -98,6 +98,8 @@ message GrpcSealedEntity {
   // Contains total count of references per reference name. This may differ from count of provided references
   // if pagination or strip was used in the input query.
   map<string, GrpcOffsetAndLimit> referenceOffsetAndLimits = 18;
+  // Contains prices that has been requested to be calculated beside the main price for sale.
+  map<string, GrpcPrice> accompanyingPrices = 19;
 }
 
 // Response carries entities in a binary format and is part of the PRIVATE API that is used by Java driver. The client

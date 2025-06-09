@@ -26,6 +26,7 @@ package io.evitadb.api;
 import com.github.javafaker.Faker;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.*;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.AccompanyingPriceContent;
 import io.evitadb.api.query.require.DebugMode;
@@ -105,6 +106,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *                also write test for ordering by combination of reference attribute, entity attribute, reference attribute, entity attribute
  * TOBEDONE JNO - write test to verify the error message when multiple entityHaving constraints are used withing single reference filter constraint
  * TOBEDONE JNO - write test that deeply fetches attributes / associated data / references by using their names to verify the requirement schema validation
+ * TOBEDONE JNO - write test that filters nested referenced products by different price for sale (currency / price lists)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -1424,9 +1426,124 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertEquals(PRICE_LIST_VIP, myAccompanyingPrice.get().priceList());
 
 				assertArrayEquals(
-					new String[] { AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE, "myPrice" },
+					new String[]{AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE, "myPrice"},
 					product.getPriceForSaleWithAccompanyingPrices().orElseThrow().getAccompanyingPrices().keySet().toArray(String[]::new),
 					"Product should have two accompanying prices!"
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entity with diferent price for sale and accompanied prices")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntityWithDifferentPriceForSaleAndAccompanyingPrices(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getPrices().stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_B2B::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_VIP::equals)
+		);
+
+		assertTrue(entitiesMatchingTheRequirements.length > 0, "None entity match the filter, test would not work!");
+
+		final Map<Integer, SealedEntity> originalProductsByPk = originalProducts
+			.stream()
+			.collect(Collectors.toMap(EntityContract::getPrimaryKey, Function.identity()));
+		final Set<Integer> matchingPks = Arrays.stream(entitiesMatchingTheRequirements).collect(Collectors.toSet());
+
+		final SealedEntity selectedProduct = originalProducts
+			.stream()
+			.filter(it -> matchingPks.contains(it.getPrimaryKey()))
+			.filter(
+				it -> it.getReferences(Entities.PRODUCT)
+					.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.map(originalProductsByPk::get)
+					.anyMatch(
+						refProd -> refProd.getPrices()
+							.stream()
+							.anyMatch(refPrice -> CURRENCY_EUR.equals(refPrice.currency()) && !PRICE_LIST_BASIC.equals(refPrice.priceList()))
+					)
+			)
+			.findFirst()
+			.orElseThrow();
+		final String secondPriceList = selectedProduct.getReferences(Entities.PRODUCT)
+			.stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.map(originalProductsByPk::get)
+			.flatMap(refProd -> refProd.getPrices().stream())
+			.filter(price -> CURRENCY_EUR.equals(price.currency()) && !PRICE_LIST_BASIC.equals(price.priceList()))
+			.map(PriceContract::priceList)
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(selectedProduct.getPrimaryKeyOrThrowException()),
+							priceInCurrency(CURRENCY_EUR),
+							priceInPriceLists(PRICE_LIST_BASIC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							defaultAccompanyingPrice(PRICE_LIST_B2B),
+							entityFetch(
+								priceContent(PriceContentMode.RESPECTING_FILTER),
+								accompanyingPriceContent(),
+								referenceContent(
+									Entities.PRODUCT,
+									(FilterBy) null,
+									entityFetch(
+										priceContent(PriceContentMode.RESPECTING_FILTER),
+										accompanyingPriceContent("myPrice", secondPriceList)
+									)
+								)
+							)
+						)
+					)
+				);
+
+				assertEquals(1, productByPk.getRecordData().size());
+				assertEquals(1, productByPk.getTotalRecordCount());
+
+				final SealedEntity product = productByPk.getRecordData().get(0);
+				final Optional<PriceContract> priceForSale = product.getPriceForSale();
+
+				assertTrue(priceForSale.isPresent(), "Product should have a price for sale!");
+				assertEquals(CURRENCY_EUR, priceForSale.get().currency());
+				assertEquals(PRICE_LIST_BASIC, priceForSale.get().priceList());
+
+				final Optional<PriceContract> accompanyingPrice = product.getAccompanyingPrice();
+				assertTrue(accompanyingPrice.isPresent(), "Product should have an accompanying price!");
+				assertEquals(CURRENCY_EUR, accompanyingPrice.get().currency());
+				assertEquals(PRICE_LIST_B2B, accompanyingPrice.get().priceList());
+
+				assertTrue(product.getAccompanyingPrice(secondPriceList).isEmpty());
+
+				final SealedEntity nestedProduct = product.getReferences(Entities.PRODUCT)
+					.stream()
+					.map(it -> it.getReferencedEntity().orElseThrow())
+					.filter(it -> it.getPrice(secondPriceList, CURRENCY_EUR).isPresent())
+					.findFirst()
+					.orElseThrow();
+
+				final Optional<PriceContract> myAccompanyingPrice = nestedProduct.getAccompanyingPrice("myPrice");
+				assertTrue(myAccompanyingPrice.isPresent(), "Product should have an accompanying price!");
+				assertEquals(CURRENCY_EUR, myAccompanyingPrice.get().currency());
+				assertEquals(secondPriceList, myAccompanyingPrice.get().priceList());
+
+				assertArrayEquals(
+					new String[]{"myPrice"},
+					nestedProduct.getPriceForSaleWithAccompanyingPrices().orElseThrow().getAccompanyingPrices().keySet().toArray(String[]::new),
+					"Product should have only `myPrice`!"
 				);
 
 				return null;

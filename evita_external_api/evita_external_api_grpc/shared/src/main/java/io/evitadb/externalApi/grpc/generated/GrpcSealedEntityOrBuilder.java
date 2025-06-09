@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -283,7 +283,7 @@ public interface GrpcSealedEntityOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice>
       getPricesList();
   /**
    * <pre>
@@ -308,7 +308,7 @@ public interface GrpcSealedEntityOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>
       getPricesOrBuilderList();
   /**
    * <pre>
@@ -380,7 +380,7 @@ public interface GrpcSealedEntityOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference>
       getReferencesList();
   /**
    * <pre>
@@ -408,7 +408,7 @@ public interface GrpcSealedEntityOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder>
       getReferencesOrBuilderList();
   /**
    * <pre>
@@ -537,7 +537,7 @@ public interface GrpcSealedEntityOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale>
       getLocalesList();
   /**
    * <pre>
@@ -565,7 +565,7 @@ public interface GrpcSealedEntityOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
       getLocalesOrBuilderList();
   /**
    * <pre>
@@ -654,5 +654,59 @@ public interface GrpcSealedEntityOrBuilder extends
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit getReferenceOffsetAndLimitsOrThrow(
+      java.lang.String key);
+
+  /**
+   * <pre>
+   * Contains prices that has been requested to be calculated beside the main price for sale.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+   */
+  int getAccompanyingPricesCount();
+  /**
+   * <pre>
+   * Contains prices that has been requested to be calculated beside the main price for sale.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+   */
+  boolean containsAccompanyingPrices(
+      java.lang.String key);
+  /**
+   * Use {@link #getAccompanyingPricesMap()} instead.
+   */
+  @java.lang.Deprecated
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice>
+  getAccompanyingPrices();
+  /**
+   * <pre>
+   * Contains prices that has been requested to be calculated beside the main price for sale.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+   */
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice>
+  getAccompanyingPricesMap();
+  /**
+   * <pre>
+   * Contains prices that has been requested to be calculated beside the main price for sale.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+   */
+
+  io.evitadb.externalApi.grpc.generated.GrpcPrice getAccompanyingPricesOrDefault(
+      java.lang.String key,
+      io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue);
+  /**
+   * <pre>
+   * Contains prices that has been requested to be calculated beside the main price for sale.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+   */
+
+  io.evitadb.externalApi.grpc.generated.GrpcPrice getAccompanyingPricesOrThrow(
       java.lang.String key);
 }

@@ -629,6 +629,27 @@ public interface PricesContract extends Versioned, Serializable {
 	}
 
 	/**
+	 * Returns a default accompanying price that relates to the current price for sale. The method can be used only
+	 * when {@link DefaultAccompanyingPrice} requirement is used in the query - so that the ordered price list
+	 * sequence is known for the accompanying price. Query must also contain the filters allowing to calculate
+	 * the price for sale.
+	 *
+	 * Note this method is similar to {@link #getAccompanyingPrice(String)} but it returns an empty
+	 * value if the context is not available, instead of throwing an exception.
+	 *
+	 * @param accompanyingPriceName - name of the accompanying price that should be returned
+	 */
+	default Optional<PriceContract> getAccompanyingPriceIfAvailable(@Nonnull String accompanyingPriceName) {
+		final PriceForSaleContext context = getPriceForSaleContext().orElse(null);
+		if (context instanceof PriceForSaleContextWithCachedResult pfscwcr) {
+			return pfscwcr.compute(getPrices(), getPriceInnerRecordHandling())
+				.flatMap(it -> it.getAccompanyingPrice(accompanyingPriceName));
+		} else {
+			return empty();
+		}
+	}
+
+	/**
 	 * Retrieves the price for sale along with accompanying prices based on the current context.
 	 * The method computes the price using the prices available and the inner record handling logic,
 	 * provided a valid PriceForSaleContext is present.
@@ -644,6 +665,27 @@ public interface PricesContract extends Versioned, Serializable {
 			return pfscwcr.compute(getPrices(), getPriceInnerRecordHandling());
 		} else {
 			throw new ContextMissingException();
+		}
+	}
+
+	/**
+	 * Retrieves the price for sale along with accompanying prices based on the current context.
+	 * The method computes the price using the prices available and the inner record handling logic,
+	 * provided a valid PriceForSaleContext is present.
+	 * If the context is missing or invalid, a ContextMissingException is thrown.
+	 *
+	 * Note this method is similar to {@link #getPriceForSaleWithAccompanyingPrices()} but it returns an empty
+	 * value if the context is not available, instead of throwing an exception.
+	 *
+	 * @return an Optional containing the computed PriceForSaleWithAccompanyingPrices if the context is valid.
+	 */
+	@Nonnull
+	default Optional<PriceForSaleWithAccompanyingPrices> getPriceForSaleWithAccompanyingPricesIfAvailable() {
+		final PriceForSaleContext context = getPriceForSaleContext().orElse(null);
+		if (context instanceof PriceForSaleContextWithCachedResult pfscwcr) {
+			return pfscwcr.compute(getPrices(), getPriceInnerRecordHandling());
+		} else {
+			return empty();
 		}
 	}
 
@@ -855,7 +897,11 @@ public interface PricesContract extends Versioned, Serializable {
 	 * @throws ContextMissingException when the prices were not fetched along with entity but might exist
 	 */
 	@Nonnull
-	default List<PriceContract> getAllPricesForSale(@Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority)
+	default List<PriceContract> getAllPricesForSale(
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment,
+		@Nonnull String... priceListPriority
+	)
 		throws ContextMissingException {
 
 		final PriceInnerRecordHandling priceInnerRecordHandling = getPriceInnerRecordHandling();
@@ -1088,7 +1134,6 @@ public interface PricesContract extends Versioned, Serializable {
 		 */
 		@Nonnull
 		Optional<AccompanyingPrice[]> accompanyingPrices();
-
 	}
 
 	/**
