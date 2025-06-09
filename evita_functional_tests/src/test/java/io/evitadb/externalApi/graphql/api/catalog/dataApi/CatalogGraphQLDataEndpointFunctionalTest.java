@@ -483,10 +483,16 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 		final String vipPrice = "vipPrice";
 
 		final EntityDecorator entityDecorator = ((EntityDecorator) entity);
-		final List<PriceForSaleWithAccompanyingPrices> allPrices = entityDecorator.getAllPricesForSaleWithAccompanyingPrices();
+		final List<PriceForSaleWithAccompanyingPrices> allPrices = entityDecorator.getAllPricesForSaleWithAccompanyingPrices(
+			CURRENCY_CZK,
+			null,
+			new String[]{PRICE_LIST_BASIC},
+			new AccompanyingPrice[]{
+				new AccompanyingPrice(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE, PRICE_LIST_REFERENCE),
+				new AccompanyingPrice(vipPrice, PRICE_LIST_VIP)
+			}
+		);
 		assertFalse(allPrices.isEmpty());
-		assertTrue(allPrices.stream().anyMatch(price -> price.accompanyingPrices().get(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE).isPresent()));
-		assertTrue(allPrices.stream().anyMatch(price -> price.accompanyingPrices().get(vipPrice).isPresent()));
 
 		return map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())

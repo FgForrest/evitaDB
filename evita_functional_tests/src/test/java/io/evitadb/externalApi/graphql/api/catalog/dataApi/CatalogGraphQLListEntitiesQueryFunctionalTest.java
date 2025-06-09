@@ -2309,6 +2309,84 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return default and custom accompanying prices for all prices for sale")
+	void shouldReturnDefaultAndCustomAccompanyingPricesForAllPricesForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final List<Integer> desiredEntities = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
+					entity.getPrices(CURRENCY_CZK).stream()
+						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
+			.map(entity -> entity.getPrimaryKey())
+			.toList();
+		assertTrue(desiredEntities.size() > 1);
+
+
+		final EvitaResponse<SealedEntity> exampleResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(desiredEntities.toArray(Integer[]::new)),
+					priceInPriceLists(PRICE_LIST_BASIC),
+					priceInCurrency(CURRENCY_CZK)
+				),
+				require(
+					defaultAccompanyingPrice(PRICE_LIST_REFERENCE),
+					entityFetch(
+						priceContent(PriceContentMode.RESPECTING_FILTER),
+						accompanyingPriceContent(),
+						accompanyingPriceContent("vipPrice", PRICE_LIST_VIP)
+					)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final List<Map<String, Object>> expectedBody = exampleResponse.getRecordData()
+			.stream()
+			.map(this::createEntityDtoWithAccompanyingPricesForAllPricesForSale)
+			.toList();
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					listProduct(
+						filterBy: {
+							entityPrimaryKeyInSet: %s,
+							priceInPriceLists: "basic",
+							priceInCurrency: CZK
+						},
+						require: {
+							priceDefaultAccompanyingPrice: "reference"
+						}
+					) {
+							primaryKey
+							type
+							allPricesForSale {
+								__typename
+								priceWithTax
+								accompanyingPrice {
+									__typename
+									priceWithTax
+								}
+								vipPrice: accompanyingPrice(priceLists: "vip") {
+									__typename
+									priceWithTax
+								}
+							}
+					}
+				}
+				""",
+				serializeIntArrayToQueryString(desiredEntities))
+			.executeAndExpectOkAndThen()
+			.body(PRODUCT_LIST_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return accompanying prices for all prices for sale")
 	void shouldReturnAccompanyingPricesForAllPricesForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
@@ -2334,11 +2412,8 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 					priceInCurrency(CURRENCY_CZK)
 				),
 				require(
-					defaultAccompanyingPrice(PRICE_LIST_REFERENCE),
 					entityFetch(
-						priceContent(PriceContentMode.RESPECTING_FILTER),
-						accompanyingPriceContent(),
-						accompanyingPriceContent("vipPrice", PRICE_LIST_VIP)
+						priceContent(PriceContentMode.RESPECTING_FILTER, PRICE_LIST_REFERENCE, PRICE_LIST_VIP)
 					)
 				)
 			),
@@ -2407,11 +2482,8 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 					entityPrimaryKeyInSet(desiredEntities.toArray(Integer[]::new))
 				),
 				require(
-					defaultAccompanyingPrice(PRICE_LIST_REFERENCE),
 					entityFetch(
-						priceContent(PriceContentMode.RESPECTING_FILTER),
-						accompanyingPriceContent(),
-						accompanyingPriceContent("vipPrice", PRICE_LIST_VIP)
+						priceContentAll()
 					)
 				)
 			),

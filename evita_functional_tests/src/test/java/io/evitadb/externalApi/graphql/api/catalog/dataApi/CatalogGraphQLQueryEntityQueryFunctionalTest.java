@@ -2853,6 +2853,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							entityPrimaryKeyInSet: %s,
 							priceInPriceLists: "basic",
 							priceInCurrency: CZK
+						},
+						require: {
+							priceDefaultAccompanyingPrice: "reference"
 						}
 					) {
 						__typename
@@ -2911,11 +2914,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					priceInCurrency(CURRENCY_CZK)
 				),
 				require(
-					defaultAccompanyingPrice(PRICE_LIST_REFERENCE),
 					entityFetch(
-						priceContent(PriceContentMode.RESPECTING_FILTER),
-						accompanyingPriceContent(),
-						accompanyingPriceContent("vipPrice", PRICE_LIST_VIP)
+						priceContent(PriceContentMode.RESPECTING_FILTER, PRICE_LIST_REFERENCE, PRICE_LIST_VIP)
 					)
 				)
 			),
@@ -2990,11 +2990,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					entityPrimaryKeyInSet(desiredEntities.toArray(Integer[]::new))
 				),
 				require(
-					defaultAccompanyingPrice(PRICE_LIST_REFERENCE),
 					entityFetch(
-						priceContent(PriceContentMode.RESPECTING_FILTER),
-						accompanyingPriceContent(),
-						accompanyingPriceContent("vipPrice", PRICE_LIST_VIP)
+						priceContentAll()
 					)
 				)
 			),
