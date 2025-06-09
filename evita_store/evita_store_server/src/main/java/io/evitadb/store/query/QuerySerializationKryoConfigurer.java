@@ -184,6 +184,9 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(FacetIncludingChildren.class, new FacetIncludingChildrenSerializer(), index++);
 		kryo.register(FacetIncludingChildrenExcept.class, new FacetIncludingChildrenExceptSerializer(), index++);
 
+		kryo.register(DefaultAccompanyingPrice.class, new DefaultAccompanyingPriceSerializer(), index++);
+		kryo.register(AccompanyingPriceContent.class, new AccompanyingPriceContentSerializer(), index++);
+
 		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}
 

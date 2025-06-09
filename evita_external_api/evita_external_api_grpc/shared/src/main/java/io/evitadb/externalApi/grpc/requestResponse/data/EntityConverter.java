@@ -42,6 +42,8 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
+import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -162,6 +164,30 @@ public class EntityConverter {
 				.map(it -> toReference(entitySchema, it))
 				.collect(Collectors.toList());
 
+			final PriceContractSerializablePredicate pricePredicate;
+			if (grpcEntity.hasPriceForSale()) {
+				final AccompanyingPrice[] requestedAccompanyingPrices = evitaRequest.getAccompanyingPrices();
+				final Map<String, GrpcPrice> returnedAccompanyingPrices = grpcEntity.getAccompanyingPricesMap();
+				final Map<String, Optional<PriceContract>> accompanyingPrices = CollectionUtils.createHashMap(requestedAccompanyingPrices.length);
+				for (AccompanyingPrice requestedAccompanyingPrice : requestedAccompanyingPrices) {
+					final GrpcPrice grpcPrice = returnedAccompanyingPrices.get(requestedAccompanyingPrice.priceName());
+					accompanyingPrices.put(
+						requestedAccompanyingPrice.priceName(),
+						grpcPrice != null ?
+							Optional.of(toPrice(grpcPrice)) :
+							Optional.empty()
+					);
+				}
+				pricePredicate = new PriceContractSerializablePredicate(
+					evitaRequest,
+					new PriceForSaleWithAccompanyingPrices(
+						toPrice(grpcEntity.getPriceForSale()),
+						accompanyingPrices
+					)
+				);
+			} else {
+				pricePredicate = new PriceContractSerializablePredicate(evitaRequest, false);
+			}
 			final EntityDecorator sealedEntity = new EntityDecorator(
 				Entity._internalBuild(
 					grpcEntity.getPrimaryKey(),
@@ -204,7 +230,7 @@ public class EntityConverter {
 				new AttributeValueSerializablePredicate(evitaRequest),
 				new AssociatedDataValueSerializablePredicate(evitaRequest),
 				new ReferenceContractSerializablePredicate(evitaRequest),
-				new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
+				pricePredicate,
 				evitaRequest.getAlignedNow(),
 				new ClientReferenceFetcher(
 					parentEntity,
@@ -352,8 +378,18 @@ public class EntityConverter {
 		if (entity.pricesAvailable() && !entity.getPrices().isEmpty()) {
 			entityBuilder.addAllPrices(entity.getPrices().stream().map(EntityConverter::toGrpcPrice).toList());
 
-			final Optional<PriceContract> priceForSale = entity.getPriceForSaleIfAvailable();
-			priceForSale.ifPresent(it -> entityBuilder.setPriceForSale(toGrpcPrice(it)));
+			final Optional<PriceForSaleWithAccompanyingPrices> priceForSale = entity.getPriceForSaleWithAccompanyingPricesIfAvailable();
+			priceForSale.ifPresent(it -> {
+				entityBuilder.setPriceForSale(toGrpcPrice(it.priceForSale()));
+				for (Entry<String, Optional<PriceContract>> entry : it.accompanyingPrices().entrySet()) {
+					if (entry.getValue().isPresent()) {
+						entityBuilder.putAccompanyingPrices(
+							entry.getKey(),
+							toGrpcPrice(entry.getValue().get())
+						);
+					}
+				}
+			});
 		}
 
 		final boolean referencesRequestedAndFetched;

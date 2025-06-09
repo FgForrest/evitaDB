@@ -616,31 +616,6 @@
 			<plugin>
 				<groupId>org.basepom.maven</groupId>
 				<artifactId>duplicate-finder-maven-plugin</artifactId>
-				<version>1.5.1</version>
-				<configuration>
-					<printEqualFiles>false</printEqualFiles>
-					<failBuildInCaseOfDifferentContentConflict>true</failBuildInCaseOfDifferentContentConflict>
-					<failBuildInCaseOfEqualContentConflict>false</failBuildInCaseOfEqualContentConflict>
-					<failBuildInCaseOfConflict>false</failBuildInCaseOfConflict>
-					<checkCompileClasspath>false</checkCompileClasspath>
-					<checkRuntimeClasspath>true</checkRuntimeClasspath>
-					<checkTestClasspath>false</checkTestClasspath>
-					<skip>false</skip>
-					<quiet>false</quiet>
-					<preferLocal>false</preferLocal>
-					<useResultFile>true</useResultFile>
-					<resultFileMinClasspathCount>2</resultFileMinClasspathCount>
-					<resultFile>${project.build.directory}/duplicate-finder-result.xml</resultFile>
-
-					<useDefaultResourceIgnoreList>true</useDefaultResourceIgnoreList>
-					<ignoredClassPatterns>
-						<ignoredClassPattern>^io\.grpc\..*$</ignoredClassPattern>
-					</ignoredClassPatterns>
-				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>org.basepom.maven</groupId>
-				<artifactId>duplicate-finder-maven-plugin</artifactId>
 				<version>2.0.1</version>
 				<configuration>
 					<printEqualFiles>false</printEqualFiles>

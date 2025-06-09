@@ -215,6 +215,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String entityType,
 		@Nonnull IntFunction<Optional<SealedEntity>> existingEntityRetriever,
+		@Nullable FilterBy entityFilterBy,
+		@Nullable OrderBy entityOrderBy,
 		@Nonnull EntityFetch entityFetch,
 		@Nonnull Bitmap referencedRecordIds
 	) {
@@ -223,7 +225,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			return Collections.emptyMap();
 		} else {
 			// finally, create the fetch request, get the collection and fetch the referenced entity bodies
-			final EvitaRequest fetchRequest = executionContext.getEvitaRequest().deriveCopyWith(entityType, entityFetch);
+			final EvitaRequest fetchRequest = executionContext.getEvitaRequest().deriveCopyWith(entityType, entityFilterBy, entityOrderBy, entityFetch);
 			final EntityCollection referencedCollection = executionContext.getEntityCollectionOrThrowException(
 				entityType, "fetch references"
 			);
@@ -1319,6 +1321,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 										referenceSchema,
 										referenceSchema.getReferencedEntityType(),
 										pk -> existingEntityRetriever.getExistingEntity(referenceName, pk),
+										requirements.filterBy(),
+										requirements.orderBy(),
 										requirements.entityFetch(),
 										filteredAndSlicedReferencedIds
 									);
@@ -1358,6 +1362,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 									referenceSchema,
 									referenceSchema.getReferencedGroupType(),
 									pk -> existingEntityRetriever.getExistingGroupEntity(referenceName, pk),
+									requirements.filterBy(),
+									requirements.orderBy(),
 									new EntityFetch(requirements.entityGroupFetch().getRequirements()),
 									filteredReferencedGroupEntityIds
 								);

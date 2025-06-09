@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -57,8 +57,11 @@ public class AccompanyingPriceDataFetcher implements DataFetcher<DataFetcherResu
 
 	@Override
 	@Nonnull
-	public DataFetcherResult<PriceContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public DataFetcherResult<PriceContract> get(DataFetchingEnvironment environment) throws Exception {
 		final PrefetchedPriceForSale prefetchedPrices = environment.getSource();
+		if (prefetchedPrices == null) {
+			throw new GraphQLInternalError("PrefetchedPriceForSale is null");
+		}
 
 		final String priceName = resolvePriceName(environment);
 		final Optional<PriceContract> priceForName = getPrefetchedPrice(prefetchedPrices, priceName);
@@ -70,13 +73,13 @@ public class AccompanyingPriceDataFetcher implements DataFetcher<DataFetcherResu
 	}
 
 	@Nonnull
-	private String resolvePriceName(@Nonnull DataFetchingEnvironment environment) {
+	private static String resolvePriceName(@Nonnull DataFetchingEnvironment environment) {
 		return environment.getField().getAlias() != null ? environment.getField().getAlias() : environment.getField().getName();
 	}
 
 	@Nonnull
-	private Optional<PriceContract> getPrefetchedPrice(@Nonnull PrefetchedPriceForSale prefetchedPrices,
-	                                                   @Nonnull String priceName) {
+	private static Optional<PriceContract> getPrefetchedPrice(@Nonnull PrefetchedPriceForSale prefetchedPrices,
+	                                                          @Nonnull String priceName) {
 		final Optional<PriceContract> prefetchedPrice = prefetchedPrices.getAccompanyingPrices().get(priceName);
 		if (prefetchedPrice == null) {
 			throw new GraphQLInternalError("Missing prefetched price `" + priceName + "` for entity `" + prefetchedPrices.getParentEntity().getType() + ":" + prefetchedPrices.getParentEntity().getPrimaryKey() + "`.");

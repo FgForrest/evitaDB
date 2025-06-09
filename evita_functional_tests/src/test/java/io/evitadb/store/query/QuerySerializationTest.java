@@ -34,6 +34,7 @@ import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
+import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.dataType.Scope;
@@ -257,6 +258,15 @@ public class QuerySerializationTest {
 		assertSerializationRound(facetSummaryOfReference("a", orderGroupBy(attributeNatural("a", OrderDirection.DESC)), entityFetchAll()));
 		assertSerializationRound(facetSummaryOfReference("a", orderBy(random()), orderGroupBy(attributeNatural("a", OrderDirection.DESC))));
 		assertSerializationRound(facetSummaryOfReference("a", orderBy(random()), orderGroupBy(attributeNatural("a", OrderDirection.DESC)), entityFetchAll()));
+
+		assertSerializationRound(priceType(QueryPriceMode.WITHOUT_TAX));
+
+		assertSerializationRound(defaultAccompanyingPrice("a"));
+		assertSerializationRound(defaultAccompanyingPrice("a", "b"));
+
+		assertSerializationRound(accompanyingPriceContent());
+		assertSerializationRound(accompanyingPriceContent("a"));
+		assertSerializationRound(accompanyingPriceContent("a", "b"));
 
 		assertSerializationRound(priceHistogram(20));
 		assertSerializationRound(priceHistogram(20, HistogramBehavior.OPTIMIZED));

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,23 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.query.serializer.filter;
+package io.evitadb.store.query.serializer.require;
+
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.filter.PriceInPriceLists;
+import io.evitadb.api.query.require.AccompanyingPriceContent;
+
+import java.util.Optional;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link PriceInPriceLists} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link AccompanyingPriceContent} from/to binary format.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class PriceInPriceListsSerializer extends Serializer<PriceInPriceLists> {
+public class AccompanyingPriceContentSerializer extends Serializer<AccompanyingPriceContent> {
 
 	@Override
-	public void write(Kryo kryo, Output output, PriceInPriceLists object) {
+	public void write(Kryo kryo, Output output, AccompanyingPriceContent object) {
+		final Optional<String> accompanyingPriceName = object.getAccompanyingPriceName();
+		output.writeBoolean(accompanyingPriceName.isPresent());
+		accompanyingPriceName.ifPresent(output::writeString);
 		final String[] priceLists = object.getPriceLists();
 		output.writeVarInt(priceLists.length, true);
 		for (String priceList : priceLists) {
@@ -46,13 +52,16 @@ public class PriceInPriceListsSerializer extends Serializer<PriceInPriceLists> {
 	}
 
 	@Override
-	public PriceInPriceLists read(Kryo kryo, Input input, Class<? extends PriceInPriceLists> type) {
+	public AccompanyingPriceContent read(Kryo kryo, Input input, Class<? extends AccompanyingPriceContent> type) {
+		final String accompanyingPriceName = input.readBoolean() ?
+			input.readString() : null;
 		final int priceListCount = input.readVarInt(true);
 		final String[] priceLists = new String[priceListCount];
 		for (int i = 0; i < priceListCount; i++) {
 			priceLists[i] = input.readString();
 		}
-		return new PriceInPriceLists(priceLists);
+		return accompanyingPriceName == null ?
+			new AccompanyingPriceContent() : new AccompanyingPriceContent(accompanyingPriceName, priceLists);
 	}
 
 }

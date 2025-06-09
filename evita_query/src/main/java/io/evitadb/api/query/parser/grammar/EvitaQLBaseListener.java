@@ -1445,6 +1445,30 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterDefaultAccompanyingPriceConstraint(EvitaQLParser.DefaultAccompanyingPriceConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitDefaultAccompanyingPriceConstraint(EvitaQLParser.DefaultAccompanyingPriceConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterAccompanyingPriceContentConstraint(EvitaQLParser.AccompanyingPriceContentConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAccompanyingPriceContentConstraint(EvitaQLParser.AccompanyingPriceContentConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterPriceTypeConstraint(EvitaQLParser.PriceTypeConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}

@@ -29,6 +29,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
+import io.evitadb.api.query.require.DefaultAccompanyingPrice;
 import io.evitadb.api.query.require.FacetCalculationRules;
 import io.evitadb.api.query.require.FacetGroupsConjunction;
 import io.evitadb.api.query.require.FacetGroupsDisjunction;
@@ -55,17 +56,32 @@ import java.util.function.Predicate;
 public class RequireConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilder {
 
 	/**
-	 * Because most of require constraints are resolved from client-defined output objects structure we need only
-	 * few left constraints that cannot be resolved from output structure because they usually change whole Evita
+	 * Because most of the require constraints are resolved from client-defined output structure, we need only
+	 * a few left-out constraints that cannot be resolved from the output structure because they usually change the whole Evita
 	 * query behaviour.
+	 *
+	 * This list of allowed constraints is specific for full querying entities.
 	 */
-	private static final Set<Class<? extends Constraint<?>>> MAIN_REQUIRE_ALLOWED_CONSTRAINTS = Set.of(
+	private static final Set<Class<? extends Constraint<?>>> MAIN_QUERY_REQUIRE_ALLOWED_CONSTRAINTS = Set.of(
 		FacetCalculationRules.class,
 		FacetGroupsConjunction.class,
 		FacetGroupsDisjunction.class,
 		FacetGroupsNegation.class,
 		FacetGroupsExclusivity.class,
-		PriceType.class
+		PriceType.class,
+		DefaultAccompanyingPrice.class
+	);
+
+	/**
+	 * Because most of the require constraints are resolved from client-defined output structure, we need only
+	 * a few left-out constraints that cannot be resolved from the output structure because they usually change the whole Evita
+	 * query behaviour.
+	 *
+	 * This list of allowed constraints is specific for listing entities.
+	 */
+	private static final Set<Class<? extends Constraint<?>>> MAIN_LIST_REQUIRE_ALLOWED_CONSTRAINTS = Set.of(
+		PriceType.class,
+		DefaultAccompanyingPrice.class
 	);
 
 	protected RequireConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
@@ -76,15 +92,28 @@ public class RequireConstraintSchemaBuilder extends GraphQLConstraintSchemaBuild
 	}
 
 	/**
-	 * Creates schema builder for require container used in main query. This require is limited because rest of requires
+	 * Creates schema builder for require container used in main full query. This require is limited because rest of requires
 	 * are resolved from input fields.
 	 */
-	public static RequireConstraintSchemaBuilder forMainRequire(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
-	                                                            @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder) {
+	public static RequireConstraintSchemaBuilder forMainQueryRequire(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
+	                                                                 @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder) {
 		return new RequireConstraintSchemaBuilder(
 			sharedContext,
 			Map.of(ConstraintType.FILTER, filterConstraintSchemaBuilder),
-			MAIN_REQUIRE_ALLOWED_CONSTRAINTS
+			MAIN_QUERY_REQUIRE_ALLOWED_CONSTRAINTS
+		);
+	}
+
+	/**
+	 * Creates schema builder for require container used in main list query. This require is limited because rest of requires
+	 * are resolved from input fields.
+	 */
+	public static RequireConstraintSchemaBuilder forMainListRequire(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
+	                                                                @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder) {
+		return new RequireConstraintSchemaBuilder(
+			sharedContext,
+			Map.of(ConstraintType.FILTER, filterConstraintSchemaBuilder),
+			MAIN_LIST_REQUIRE_ALLOWED_CONSTRAINTS
 		);
 	}
 
