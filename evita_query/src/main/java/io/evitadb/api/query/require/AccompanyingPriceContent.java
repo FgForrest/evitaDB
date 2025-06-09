@@ -54,14 +54,14 @@ import java.util.Optional;
  * subsequent arguments are names of price lists that should be used for default accompanying price calculation.
  * The order of price lists is important, because it defines the order in which the prices are used in calculation.
  *
- * You can also use {@link DefaultAccompanyingPrice} constraint to define default rules for accompanying price
+ * You can also use {@link DefaultAccompanyingPriceLists} constraint to define default rules for accompanying price
  * and then use only simple form of this constraint without arguments:
  *
  * <pre>
  *     accompanyingPriceContent()
  * </pre>
  *
- * Calculated price will be labeled as `default` and will use price lists defined in `defaultAccompanyingPrice` constraint.
+ * Calculated price will be labeled as `default` and will use price lists defined in `defaultAccompanyingPriceLists` constraint.
  *
  * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
  *

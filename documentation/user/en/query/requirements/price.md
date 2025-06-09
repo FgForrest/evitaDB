@@ -111,10 +111,10 @@ difference - in regular UI you'd choose to show the price without tax) with more
 
 </Note>
 
-## Default accompanying price
+## Default accompanying price lists
 
 ```evitaql-syntax
-defaultAccompanyingPrice(
+defaultAccompanyingPriceLists(
     argument:string+
 )
 ```

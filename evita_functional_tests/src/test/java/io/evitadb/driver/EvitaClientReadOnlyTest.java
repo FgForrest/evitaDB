@@ -1012,7 +1012,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 							entityLocaleEquals(locale)
 						),
 						require(
-							defaultAccompanyingPrice(PRICE_LIST_REFERENCE),
+							defaultAccompanyingPriceLists(PRICE_LIST_REFERENCE),
 							entityFetch(
 								attributeContentAll(),
 								hierarchyContent(),

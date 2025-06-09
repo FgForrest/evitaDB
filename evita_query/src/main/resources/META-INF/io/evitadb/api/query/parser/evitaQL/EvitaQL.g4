@@ -156,7 +156,7 @@ requireConstraint
     | 'hierarchyContent'                    emptyArgs                                                       # emptyHierarchyContentConstraint
     | 'hierarchyContent'                    args = singleRequireHierarchyContentArgs                        # singleRequireHierarchyContentConstraint
     | 'hierarchyContent'                    args = allRequiresHierarchyContentArgs                          # allRequiresHierarchyContentConstraint
-    | 'defaultAccompanyingPrice'            args = classifierListArgs                                       # defaultAccompanyingPriceConstraint
+    | 'defaultAccompanyingPriceLists'       args = classifierListArgs                                       # defaultAccompanyingPriceListsConstraint
     | 'accompanyingPriceContent'            (emptyArgs | args = classifierWithOptionalValueListArgs)        # accompanyingPriceContentConstraint
     | 'priceType'                           args = valueArgs                                                # priceTypeConstraint
     | 'dataInLocalesAll'                    emptyArgs                                                       # dataInLocalesAllConstraint

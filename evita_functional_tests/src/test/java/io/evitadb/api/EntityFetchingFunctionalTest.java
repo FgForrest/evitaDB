@@ -1339,7 +1339,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							defaultAccompanyingPrice(PRICE_LIST_B2B),
+							defaultAccompanyingPriceLists(PRICE_LIST_B2B),
 							entityFetch(
 								priceContent(PriceContentMode.RESPECTING_FILTER),
 								accompanyingPriceContent()
@@ -1395,7 +1395,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							defaultAccompanyingPrice(PRICE_LIST_B2B),
+							defaultAccompanyingPriceLists(PRICE_LIST_B2B),
 							entityFetch(
 								priceContent(PriceContentMode.RESPECTING_FILTER),
 								accompanyingPriceContent(),
@@ -1494,7 +1494,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							defaultAccompanyingPrice(PRICE_LIST_B2B),
+							defaultAccompanyingPriceLists(PRICE_LIST_B2B),
 							entityFetch(
 								priceContent(PriceContentMode.RESPECTING_FILTER),
 								accompanyingPriceContent(),

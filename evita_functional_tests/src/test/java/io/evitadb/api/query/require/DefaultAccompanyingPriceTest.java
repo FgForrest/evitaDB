@@ -26,11 +26,11 @@ package io.evitadb.api.query.require;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.Test;
 
-import static io.evitadb.api.query.QueryConstraints.defaultAccompanyingPrice;
+import static io.evitadb.api.query.QueryConstraints.defaultAccompanyingPriceLists;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link DefaultAccompanyingPrice} query.
+ * This tests verifies basic properties of {@link DefaultAccompanyingPriceLists} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -38,51 +38,51 @@ class DefaultAccompanyingPriceTest {
 
     @Test
     void shouldCreateViaFactoryClassWorkAsExpected() {
-        final DefaultAccompanyingPrice accompanyingPrice = defaultAccompanyingPrice("basic", "reference");
+        final DefaultAccompanyingPriceLists accompanyingPrice = defaultAccompanyingPriceLists("basic", "reference");
         assertArrayEquals(new String[] {"basic", "reference"}, accompanyingPrice.getPriceLists());
     }
 
     @Test
     void shouldCreateViaFactoryClassWorkAsExpectedNullInArray() {
-        final DefaultAccompanyingPrice accompanyingPrice = defaultAccompanyingPrice("basic", null, "reference");
+        final DefaultAccompanyingPriceLists accompanyingPrice = defaultAccompanyingPriceLists("basic", null, "reference");
         assertArrayEquals(new String[] {"basic", "reference"}, accompanyingPrice.getPriceLists());
     }
 
     @Test
     void shouldCreateViaFactoryClassWorkAsExpectedForNullVariable() {
         final String nullString = null;
-        final DefaultAccompanyingPrice accompanyingPrice = defaultAccompanyingPrice(nullString);
+        final DefaultAccompanyingPriceLists accompanyingPrice = defaultAccompanyingPriceLists(nullString);
         assertNull(accompanyingPrice);
     }
 
     @Test
     void shouldCreateViaFactoryClassWorkAsExpectedNullValueInArray() {
-        final DefaultAccompanyingPrice accompanyingPrice = defaultAccompanyingPrice(ArrayUtils.EMPTY_STRING_ARRAY);
+        final DefaultAccompanyingPriceLists accompanyingPrice = defaultAccompanyingPriceLists(ArrayUtils.EMPTY_STRING_ARRAY);
         assertNull(accompanyingPrice);
     }
 
     @Test
     void shouldRecognizeApplicability() {
-        assertTrue(new DefaultAccompanyingPrice(new String[0]).isApplicable());
-        assertTrue(defaultAccompanyingPrice("A").isApplicable());
-        assertTrue(defaultAccompanyingPrice("A", "B").isApplicable());
+        assertTrue(new DefaultAccompanyingPriceLists(new String[0]).isApplicable());
+        assertTrue(defaultAccompanyingPriceLists("A").isApplicable());
+        assertTrue(defaultAccompanyingPriceLists("A", "B").isApplicable());
     }
 
     @Test
     void shouldToStringReturnExpectedFormat() {
-        final DefaultAccompanyingPrice accompanyingPrice = defaultAccompanyingPrice("basic", "reference");
-        assertEquals("defaultAccompanyingPrice('basic','reference')", accompanyingPrice.toString());
+        final DefaultAccompanyingPriceLists accompanyingPrice = defaultAccompanyingPriceLists("basic", "reference");
+        assertEquals("defaultAccompanyingPriceLists('basic','reference')", accompanyingPrice.toString());
     }
 
     @Test
     void shouldConformToEqualsAndHashContract() {
-        assertNotSame(defaultAccompanyingPrice("basic", "reference"), defaultAccompanyingPrice("basic", "reference"));
-        assertEquals(defaultAccompanyingPrice("basic", "reference"), defaultAccompanyingPrice("basic", "reference"));
-        assertNotEquals(defaultAccompanyingPrice("basic", "reference"), defaultAccompanyingPrice("basic", "action"));
-        assertNotEquals(defaultAccompanyingPrice("basic", "reference"), defaultAccompanyingPrice("basic"));
-        assertEquals(defaultAccompanyingPrice("basic", "reference").hashCode(), defaultAccompanyingPrice("basic", "reference").hashCode());
-        assertNotEquals(defaultAccompanyingPrice("basic", "reference").hashCode(), defaultAccompanyingPrice("basic", "action").hashCode());
-        assertNotEquals(defaultAccompanyingPrice("basic", "reference").hashCode(), defaultAccompanyingPrice("basic").hashCode());
+        assertNotSame(defaultAccompanyingPriceLists("basic", "reference"), defaultAccompanyingPriceLists("basic", "reference"));
+        assertEquals(defaultAccompanyingPriceLists("basic", "reference"), defaultAccompanyingPriceLists("basic", "reference"));
+        assertNotEquals(defaultAccompanyingPriceLists("basic", "reference"), defaultAccompanyingPriceLists("basic", "action"));
+        assertNotEquals(defaultAccompanyingPriceLists("basic", "reference"), defaultAccompanyingPriceLists("basic"));
+        assertEquals(defaultAccompanyingPriceLists("basic", "reference").hashCode(), defaultAccompanyingPriceLists("basic", "reference").hashCode());
+        assertNotEquals(defaultAccompanyingPriceLists("basic", "reference").hashCode(), defaultAccompanyingPriceLists("basic", "action").hashCode());
+        assertNotEquals(defaultAccompanyingPriceLists("basic", "reference").hashCode(), defaultAccompanyingPriceLists("basic").hashCode());
     }
 
 }

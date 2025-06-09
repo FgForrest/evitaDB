@@ -45,9 +45,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 import io.evitadb.test.Entities;
@@ -72,8 +72,8 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -2110,7 +2110,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 					priceInCurrency(CURRENCY_EUR)
 				),
 				require(
-					defaultAccompanyingPrice(PRICE_LIST_B2B),
+					defaultAccompanyingPriceLists(PRICE_LIST_B2B),
 					entityFetch(
 						priceContent(PriceContentMode.RESPECTING_FILTER),
 						accompanyingPriceContent()
@@ -2135,7 +2135,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 							priceInCurrency: EUR
 						},
 						require: {
-							priceDefaultAccompanyingPrice: "b2b"
+							priceDefaultAccompanyingPriceLists: "b2b"
 						}
 					) {
 						primaryKey
@@ -2182,7 +2182,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 					priceInCurrency(CURRENCY_EUR)
 				),
 				require(
-					defaultAccompanyingPrice(PRICE_LIST_B2B),
+					defaultAccompanyingPriceLists(PRICE_LIST_B2B),
 					entityFetch(
 						priceContent(PriceContentMode.RESPECTING_FILTER),
 						accompanyingPriceContent(),
@@ -2208,7 +2208,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 							priceInCurrency: EUR
 						},
 						require: {
-							priceDefaultAccompanyingPrice: "b2b"
+							priceDefaultAccompanyingPriceLists: "b2b"
 						}
 					) {
 						primaryKey
@@ -2335,7 +2335,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 					priceInCurrency(CURRENCY_CZK)
 				),
 				require(
-					defaultAccompanyingPrice(PRICE_LIST_REFERENCE),
+					defaultAccompanyingPriceLists(PRICE_LIST_REFERENCE),
 					entityFetch(
 						priceContent(PriceContentMode.RESPECTING_FILTER),
 						accompanyingPriceContent(),
@@ -2360,7 +2360,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 							priceInCurrency: CZK
 						},
 						require: {
-							priceDefaultAccompanyingPrice: "reference"
+							priceDefaultAccompanyingPriceLists: "reference"
 						}
 					) {
 							primaryKey

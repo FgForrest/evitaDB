@@ -719,14 +719,14 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns array of price list ids if requirement {@link DefaultAccompanyingPrice} is present in the query.
+	 * Returns array of price list ids if requirement {@link DefaultAccompanyingPriceLists} is present in the query.
 	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
 	 */
 	@Nonnull
 	public String[] getDefaultAccompanyingPricePriceLists() {
 		if (this.defaultAccompanyingPricePriceLists == null) {
-			this.defaultAccompanyingPricePriceLists = ofNullable(QueryUtils.findRequire(this.query, DefaultAccompanyingPrice.class, SeparateEntityContentRequireContainer.class))
-				.map(DefaultAccompanyingPrice::getPriceLists)
+			this.defaultAccompanyingPricePriceLists = ofNullable(QueryUtils.findRequire(this.query, DefaultAccompanyingPriceLists.class, SeparateEntityContentRequireContainer.class))
+				.map(DefaultAccompanyingPriceLists::getPriceLists)
 				.orElse(ArrayUtils.EMPTY_STRING_ARRAY);
 		}
 		return this.defaultAccompanyingPricePriceLists;

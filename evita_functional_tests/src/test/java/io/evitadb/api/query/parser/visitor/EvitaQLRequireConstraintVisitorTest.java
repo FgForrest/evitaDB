@@ -2046,50 +2046,50 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldParseDefaultAccompanyingPriceConstraint() {
-		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("defaultAccompanyingPrice('A')");
-		assertEquals(defaultAccompanyingPrice("A"), constraint1);
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("defaultAccompanyingPriceLists('A')");
+		assertEquals(defaultAccompanyingPriceLists("A"), constraint1);
 
-		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("defaultAccompanyingPrice('A','B','C','E')");
-		assertEquals(defaultAccompanyingPrice("A", "B", "C", "E"), constraint2);
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("defaultAccompanyingPriceLists('A','B','C','E')");
+		assertEquals(defaultAccompanyingPriceLists("A", "B", "C", "E"), constraint2);
 
-		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("defaultAccompanyingPrice ( 'A' ,  'B' , 'C' , 'D' )");
-		assertEquals(defaultAccompanyingPrice("A", "B", "C", "D"), constraint3);
+		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("defaultAccompanyingPriceLists ( 'A' ,  'B' , 'C' , 'D' )");
+		assertEquals(defaultAccompanyingPriceLists("A", "B", "C", "D"), constraint3);
 
-		final RequireConstraint constraint4 = parseRequireConstraintUnsafe("defaultAccompanyingPrice('basic')");
-		assertEquals(defaultAccompanyingPrice("basic"), constraint4);
+		final RequireConstraint constraint4 = parseRequireConstraintUnsafe("defaultAccompanyingPriceLists('basic')");
+		assertEquals(defaultAccompanyingPriceLists("basic"), constraint4);
 
-		final RequireConstraint constraint5 = parseRequireConstraintUnsafe("defaultAccompanyingPrice('basic','reference')");
-		assertEquals(defaultAccompanyingPrice("basic", "reference"), constraint5);
+		final RequireConstraint constraint5 = parseRequireConstraintUnsafe("defaultAccompanyingPriceLists('basic','reference')");
+		assertEquals(defaultAccompanyingPriceLists("basic", "reference"), constraint5);
 
-		final RequireConstraint constraint6 = parseRequireConstraintUnsafe("defaultAccompanyingPrice ( 'basic' ,  'reference' , 'action' )");
-		assertEquals(defaultAccompanyingPrice("basic", "reference", "action"), constraint6);
+		final RequireConstraint constraint6 = parseRequireConstraintUnsafe("defaultAccompanyingPriceLists ( 'basic' ,  'reference' , 'action' )");
+		assertEquals(defaultAccompanyingPriceLists("basic", "reference", "action"), constraint6);
 
-		final RequireConstraint constraint8 = parseRequireConstraint("defaultAccompanyingPrice(?)", "basic");
-		assertEquals(defaultAccompanyingPrice("basic"), constraint8);
+		final RequireConstraint constraint8 = parseRequireConstraint("defaultAccompanyingPriceLists(?)", "basic");
+		assertEquals(defaultAccompanyingPriceLists("basic"), constraint8);
 
-		final RequireConstraint constraint9 = parseRequireConstraint("defaultAccompanyingPrice(@pl)", Map.of("pl", "basic"));
-		assertEquals(defaultAccompanyingPrice("basic"), constraint9);
+		final RequireConstraint constraint9 = parseRequireConstraint("defaultAccompanyingPriceLists(@pl)", Map.of("pl", "basic"));
+		assertEquals(defaultAccompanyingPriceLists("basic"), constraint9);
 
-		final RequireConstraint constraint10 = parseRequireConstraint("defaultAccompanyingPrice(?)", List.of("basic", "vip"));
-		assertEquals(defaultAccompanyingPrice("basic", "vip"), constraint10);
+		final RequireConstraint constraint10 = parseRequireConstraint("defaultAccompanyingPriceLists(?)", List.of("basic", "vip"));
+		assertEquals(defaultAccompanyingPriceLists("basic", "vip"), constraint10);
 
-		final RequireConstraint constraint11 = parseRequireConstraint("defaultAccompanyingPrice(@pl)", Map.of("pl", List.of("basic", "vip")));
-		assertEquals(defaultAccompanyingPrice("basic", "vip"), constraint11);
+		final RequireConstraint constraint11 = parseRequireConstraint("defaultAccompanyingPriceLists(@pl)", Map.of("pl", List.of("basic", "vip")));
+		assertEquals(defaultAccompanyingPriceLists("basic", "vip"), constraint11);
 
-		final RequireConstraint constraint12 = parseRequireConstraint("defaultAccompanyingPrice(?,?)", "basic", "vip");
-		assertEquals(defaultAccompanyingPrice("basic", "vip"), constraint12);
+		final RequireConstraint constraint12 = parseRequireConstraint("defaultAccompanyingPriceLists(?,?)", "basic", "vip");
+		assertEquals(defaultAccompanyingPriceLists("basic", "vip"), constraint12);
 
-		final RequireConstraint constraint13 = parseRequireConstraint("defaultAccompanyingPrice(@pl1,@pl2)", Map.of("pl1", "basic", "pl2", "vip"));
-		assertEquals(defaultAccompanyingPrice("basic", "vip"), constraint13);
+		final RequireConstraint constraint13 = parseRequireConstraint("defaultAccompanyingPriceLists(@pl1,@pl2)", Map.of("pl1", "basic", "pl2", "vip"));
+		assertEquals(defaultAccompanyingPriceLists("basic", "vip"), constraint13);
 	}
 
 	@Test
 	void shouldNotParseDefaultAccompanyingPriceConstraint() {
-		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("defaultAccompanyingPrice('basic')"));
-		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("defaultAccompanyingPrice(?)"));
-		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("defaultAccompanyingPrice(@a)"));
-		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("defaultAccompanyingPrice"));
-		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("defaultAccompanyingPrice()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("defaultAccompanyingPriceLists('basic')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("defaultAccompanyingPriceLists(?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("defaultAccompanyingPriceLists(@a)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("defaultAccompanyingPriceLists"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("defaultAccompanyingPriceLists()"));
 	}
 
 	@Test

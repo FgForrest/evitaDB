@@ -261,8 +261,8 @@ public class QuerySerializationTest {
 
 		assertSerializationRound(priceType(QueryPriceMode.WITHOUT_TAX));
 
-		assertSerializationRound(defaultAccompanyingPrice("a"));
-		assertSerializationRound(defaultAccompanyingPrice("a", "b"));
+		assertSerializationRound(defaultAccompanyingPriceLists("a"));
+		assertSerializationRound(defaultAccompanyingPriceLists("a", "b"));
 
 		assertSerializationRound(accompanyingPriceContent());
 		assertSerializationRound(accompanyingPriceContent("a"));

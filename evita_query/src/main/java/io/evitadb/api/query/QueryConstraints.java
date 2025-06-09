@@ -35419,7 +35419,7 @@ public interface QueryConstraints {
 	 * information (such as "previous price", "recommended price", etc.).
 	 *
 	 * <pre>
-	 * defaultAccompanyingPrice(
+	 * defaultAccompanyingPriceLists(
 	 *     "reference",
 	 *     "basic"
 	 * )
@@ -35431,7 +35431,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static DefaultAccompanyingPrice defaultAccompanyingPrice(@Nullable String... priceList) {
+	static DefaultAccompanyingPriceLists defaultAccompanyingPriceLists(@Nullable String... priceList) {
 		if (priceList == null) {
 			return null;
 		}
@@ -35447,7 +35447,7 @@ public interface QueryConstraints {
 		}
 		// otherwise propagate only non-null values
 		return normalizeNames.length == priceList.length ?
-			new DefaultAccompanyingPrice(priceList) : new DefaultAccompanyingPrice(normalizeNames);
+			new DefaultAccompanyingPriceLists(priceList) : new DefaultAccompanyingPriceLists(normalizeNames);
 	}
 
 	/**
@@ -35467,14 +35467,14 @@ public interface QueryConstraints {
 	 * subsequent arguments are names of price lists that should be used for default accompanying price calculation.
 	 * The order of price lists is important, because it defines the order in which the prices are used in calculation.
 	 *
-	 * You can also use {@link DefaultAccompanyingPrice} constraint to define default rules for accompanying price
+	 * You can also use {@link DefaultAccompanyingPriceLists} constraint to define default rules for accompanying price
 	 * and then use only simple form of this constraint without arguments:
 	 *
 	 * <pre>
 	 *     accompanyingPriceContent()
 	 * </pre>
 	 *
-	 * Calculated price will be labeled as `default` and will use price lists defined in `defaultAccompanyingPrice` constraint.
+	 * Calculated price will be labeled as `default` and will use price lists defined in `defaultAccompanyingPriceLists` constraint.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
 	*/
@@ -35500,14 +35500,14 @@ public interface QueryConstraints {
 	 * subsequent arguments are names of price lists that should be used for default accompanying price calculation.
 	 * The order of price lists is important, because it defines the order in which the prices are used in calculation.
 	 *
-	 * You can also use {@link DefaultAccompanyingPrice} constraint to define default rules for accompanying price
+	 * You can also use {@link DefaultAccompanyingPriceLists} constraint to define default rules for accompanying price
 	 * and then use only simple form of this constraint without arguments:
 	 *
 	 * <pre>
 	 *     accompanyingPriceContent()
 	 * </pre>
 	 *
-	 * Calculated price will be labeled as `default` and will use price lists defined in `defaultAccompanyingPrice` constraint.
+	 * Calculated price will be labeled as `default` and will use price lists defined in `defaultAccompanyingPriceLists` constraint.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
 	*/

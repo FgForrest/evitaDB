@@ -183,7 +183,7 @@ public class EvitaQLParser extends Parser {
 			"'priceContent'", "'priceContentAll'", "'priceContentRespectingFilter'",
 			"'associatedDataContent'", "'associatedDataContentAll'", "'referenceContentAll'",
 			"'referenceContent'", "'referenceContentAllWithAttributes'", "'referenceContentWithAttributes'",
-			"'hierarchyContent'", "'defaultAccompanyingPrice'", "'accompanyingPriceContent'",
+			"'hierarchyContent'", "'defaultAccompanyingPriceLists'", "'accompanyingPriceContent'",
 			"'priceType'", "'dataInLocalesAll'", "'dataInLocales'", "'facetSummary'",
 			"'facetSummaryOfReference'", "'facetGroupsConjunction'", "'facetGroupsDisjunction'",
 			"'facetGroupsNegation'", "'facetGroupsExclusivity'", "'facetCalculationRules'",
@@ -3907,6 +3907,26 @@ public class EvitaQLParser extends Parser {
 			else return visitor.visitChildren(this);
 		}
 	}
+	public static class DefaultAccompanyingPriceListsConstraintContext extends RequireConstraintContext {
+		public ClassifierListArgsContext args;
+		public ClassifierListArgsContext classifierListArgs() {
+			return getRuleContext(ClassifierListArgsContext.class,0);
+		}
+		public DefaultAccompanyingPriceListsConstraintContext(RequireConstraintContext ctx) { copyFrom(ctx); }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterDefaultAccompanyingPriceListsConstraint(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitDefaultAccompanyingPriceListsConstraint(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitDefaultAccompanyingPriceListsConstraint(this);
+			else return visitor.visitChildren(this);
+		}
+	}
 	public static class SingleRefReferenceContentWithAttributes1ConstraintContext extends RequireConstraintContext {
 		public SingleRefReferenceContent1ArgsContext args;
 		public SingleRefReferenceContent1ArgsContext singleRefReferenceContent1Args() {
@@ -4596,26 +4616,6 @@ public class EvitaQLParser extends Parser {
 			else return visitor.visitChildren(this);
 		}
 	}
-	public static class DefaultAccompanyingPriceConstraintContext extends RequireConstraintContext {
-		public ClassifierListArgsContext args;
-		public ClassifierListArgsContext classifierListArgs() {
-			return getRuleContext(ClassifierListArgsContext.class,0);
-		}
-		public DefaultAccompanyingPriceConstraintContext(RequireConstraintContext ctx) { copyFrom(ctx); }
-		@Override
-		public void enterRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterDefaultAccompanyingPriceConstraint(this);
-		}
-		@Override
-		public void exitRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitDefaultAccompanyingPriceConstraint(this);
-		}
-		@Override
-		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitDefaultAccompanyingPriceConstraint(this);
-			else return visitor.visitChildren(this);
-		}
-	}
 	public static class FacetSummary2ConstraintContext extends RequireConstraintContext {
 		public FacetSummary2ArgsContext args;
 		public FacetSummary2ArgsContext facetSummary2Args() {
@@ -5239,13 +5239,13 @@ public class EvitaQLParser extends Parser {
 				}
 				break;
 			case 42:
-				_localctx = new DefaultAccompanyingPriceConstraintContext(_localctx);
+				_localctx = new DefaultAccompanyingPriceListsConstraintContext(_localctx);
 				enterOuterAlt(_localctx, 42);
 				{
 				setState(516);
 				match(T__87);
 				setState(517);
-				((DefaultAccompanyingPriceConstraintContext)_localctx).args = classifierListArgs();
+				((DefaultAccompanyingPriceListsConstraintContext)_localctx).args = classifierListArgs();
 				}
 				break;
 			case 43:

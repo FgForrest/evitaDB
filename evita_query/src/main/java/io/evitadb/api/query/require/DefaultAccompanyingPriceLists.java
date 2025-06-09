@@ -25,7 +25,6 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 
@@ -40,7 +39,7 @@ import java.util.Arrays;
  * information (such as "previous price", "recommended price", etc.).
  *
  * <pre>
- * defaultAccompanyingPrice(
+ * defaultAccompanyingPriceLists(
  *     "reference",
  *     "basic"
  * )
@@ -54,21 +53,21 @@ import java.util.Arrays;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
-	name = "defaultAccompanyingPrice",
+	name = "defaultAccompanyingPriceLists",
 	shortDescription = "The requirement defines the ordered price list names that should be used for calculation of" +
 		" so-called accompanying price, which is a price not used for selling, but rather for displaying additional" +
 		" price information (such as \"previous price\", \"recommended price\", etc.)..",
 	userDocsLink = "/documentation/query/requirements/price#accompanying-price"
 )
-public class DefaultAccompanyingPrice extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint> {
+public class DefaultAccompanyingPriceLists extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -5786325458930138452L;
 
-	private DefaultAccompanyingPrice(@Nonnull Serializable... priceLists) {
+	private DefaultAccompanyingPriceLists(@Nonnull Serializable... priceLists) {
 		super(priceLists);
 	}
 
 	@Creator
-	public DefaultAccompanyingPrice(@Nonnull String... priceLists) {
+	public DefaultAccompanyingPriceLists(@Nonnull String... priceLists) {
 		super(priceLists);
 	}
 
@@ -88,7 +87,7 @@ public class DefaultAccompanyingPrice extends AbstractRequireConstraintLeaf impl
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new DefaultAccompanyingPrice(newArguments);
+		return new DefaultAccompanyingPriceLists(newArguments);
 	}
 
 }

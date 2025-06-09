@@ -2050,7 +2050,7 @@ accompanyingPriceContent(
     <dt>argument:string*</dt>
     <dd>
         An optional prioritized list of price list names, that should be used to calculate the accompanying price.
-        If not specified, the [`defaultAccompanyingPrice`](price.md#default-accompanying-price) requirement is used to 
+        If not specified, the [`defaultAccompanyingPriceLists`](price.md#default-accompanying-price-lists) requirement is used to 
         specify this prioritized list of price lists. Otherwise, an error will occur.
     </dd>
 </dl>
@@ -2083,8 +2083,8 @@ Let's demonstrate this principle with a complex example:
 For our example, we selected a product using the `LOWEST_PRICE` inner record handling strategy to calculate the sale price.
 We also requested three accompanying prices.
 
-1. the first has no name and no price lists specified, it will be calculated as the `default` accompanying price using the price list sequence defined in the `defaultAccompanyingPrice` requirement;
-2. the second has the name `custom` and no price lists specified, it will be calculated as the `custom` accompanying price using the price list sequence defined in the `defaultAccompanyingPrice` requirement;
+1. the first has no name and no price lists specified, it will be calculated as the `default` accompanying price using the price list sequence defined in the `defaultAccompanyingPriceLists` requirement;
+2. the second has the name `custom` and no price lists specified, it will be calculated as the `custom` accompanying price using the price list sequence defined in the `defaultAccompanyingPriceLists` requirement;
 3. the third has the name `special` and uses the price lists `TODO-1` and `TODO-2` to calculate the price; 
 
 The results of the query that calculates these prices are shown below:

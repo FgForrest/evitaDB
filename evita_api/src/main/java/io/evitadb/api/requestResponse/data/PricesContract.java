@@ -28,7 +28,7 @@ import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.AccompanyingPriceContent;
-import io.evitadb.api.query.require.DefaultAccompanyingPrice;
+import io.evitadb.api.query.require.DefaultAccompanyingPriceLists;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.structure.CumulatedPrice;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -593,7 +593,7 @@ public interface PricesContract extends Versioned, Serializable {
 
 	/**
 	 * Returns a default accompanying price that relates to the current price for sale. The method can be used only
-	 * when {@link DefaultAccompanyingPrice} requirement is used in the query - so that the ordered price list
+	 * when {@link DefaultAccompanyingPriceLists} requirement is used in the query - so that the ordered price list
 	 * sequence is known for the accompanying price. Query must also contain the filters allowing to calculate
 	 * the price for sale.
 	 *
@@ -611,7 +611,7 @@ public interface PricesContract extends Versioned, Serializable {
 
 	/**
 	 * Returns a default accompanying price that relates to the current price for sale. The method can be used only
-	 * when {@link DefaultAccompanyingPrice} requirement is used in the query - so that the ordered price list
+	 * when {@link DefaultAccompanyingPriceLists} requirement is used in the query - so that the ordered price list
 	 * sequence is known for the accompanying price. Query must also contain the filters allowing to calculate
 	 * the price for sale.
 	 *
@@ -630,7 +630,7 @@ public interface PricesContract extends Versioned, Serializable {
 
 	/**
 	 * Returns a default accompanying price that relates to the current price for sale. The method can be used only
-	 * when {@link DefaultAccompanyingPrice} requirement is used in the query - so that the ordered price list
+	 * when {@link DefaultAccompanyingPriceLists} requirement is used in the query - so that the ordered price list
 	 * sequence is known for the accompanying price. Query must also contain the filters allowing to calculate
 	 * the price for sale.
 	 *
