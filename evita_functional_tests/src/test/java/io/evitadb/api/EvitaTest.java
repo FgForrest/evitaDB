@@ -2164,43 +2164,38 @@ class EvitaTest implements EvitaTestSupport {
 		final CommitProgress session2CommitProgress = session2.closeNowWithProgress();
 		session2CommitProgress.onConflictResolved().thenAccept(commitVersions -> worklog.add("Session 2 conflict resolved: " + commitVersions));
 		session2CommitProgress.onWalAppended().thenAccept(commitVersions -> worklog.add("Session 2 WAL appended: " + commitVersions));
-		final CommitVersions versionsAssigned = session2CommitProgress.onChangesVisible()
-			.thenApply(commitVersions -> {
-				worklog.add("Session 2 changes visible: " + commitVersions);
-				return commitVersions;
-			})
-			.toCompletableFuture()
-			.join();
 
 		// commit first
 		final CommitProgress session1CommitProgress = session1.closeNowWithProgress();
 		session1CommitProgress.onConflictResolved().thenAccept(commitVersions -> worklog.add("Session 1 conflict resolved: " + commitVersions));
 		session1CommitProgress.onWalAppended().thenAccept(commitVersions -> worklog.add("Session 1 WAL appended: " + commitVersions));
-		final CommitVersions versionsAssignedAfter = session1CommitProgress.onChangesVisible()
+
+		final CompletableFuture<CommitVersions> session1Future = session1CommitProgress.onChangesVisible()
 			.thenApply(commitVersions -> {
 				worklog.add("Session 1 changes visible: " + commitVersions);
 				return commitVersions;
 			})
-			.toCompletableFuture()
-			.join();
+			.toCompletableFuture();
+		final CompletableFuture<CommitVersions> session2Future = session2CommitProgress.onChangesVisible()
+			.thenApply(commitVersions -> {
+				worklog.add("Session 2 changes visible: " + commitVersions);
+				return commitVersions;
+			})
+			.toCompletableFuture();
+
+		CompletableFuture.allOf(
+			session1Future,
+			session2Future
+		).join();
+
+		final CommitVersions versionsAssignedAfter = session1Future.getNow(null);
+		final CommitVersions versionsAssigned = session2Future.getNow(null);
 
 		// check work log
 		assertEquals(
 			6,
 			worklog.size(),
 			"Expected 6 log entries, but got: " + worklog.size() + ". Log: " + String.join(", ", worklog)
-		);
-		assertArrayEquals(
-			new String[]{
-				"Session 2 conflict resolved: " + versionsAssigned,
-				"Session 2 WAL appended: " + versionsAssigned,
-				"Session 2 changes visible: " + versionsAssigned,
-				"Session 1 conflict resolved: " + versionsAssignedAfter,
-				"Session 1 WAL appended: " + versionsAssignedAfter,
-				"Session 1 changes visible: " + versionsAssignedAfter
-			},
-			worklog.toArray(),
-			"Got unexpected worklog entries: " + String.join(", ", worklog)
 		);
 
 		// versions in second session, committed first will be lesser

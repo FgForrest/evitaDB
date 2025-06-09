@@ -95,6 +95,8 @@ public class CommitProgressRecord implements CommitProgress {
 					// if the future is cancelled, we complete it with the result anyway
 					if (throwable instanceof CancellationException) {
 						thisStage.complete(result);
+					} else if (throwable != null) {
+						thisStage.completeExceptionally(throwable);
 					}
 				});
 
