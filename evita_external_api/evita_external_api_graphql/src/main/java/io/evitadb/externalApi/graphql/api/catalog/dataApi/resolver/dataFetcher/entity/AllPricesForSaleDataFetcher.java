@@ -61,8 +61,10 @@ public class AllPricesForSaleDataFetcher extends AbstractPriceForSaleDataFetcher
     @Nullable
     @Override
     protected List<? extends PriceContract> computeDefaultPrices(@Nonnull EntityDecorator entity) {
-        // todo lho impl
-        throw new GraphQLQueryResolvingInternalError("not implemented");
+        return entity.getAllPricesForSaleWithAccompanyingPrices()
+            .stream()
+            .map(it -> new PrefetchedPriceForSale(it.priceForSale(), entity, it.accompanyingPrices()))
+            .toList();
     }
 
     @Nullable

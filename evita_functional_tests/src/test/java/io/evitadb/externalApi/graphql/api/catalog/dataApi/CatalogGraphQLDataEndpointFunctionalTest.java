@@ -483,16 +483,10 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 		final String vipPrice = "vipPrice";
 
 		final EntityDecorator entityDecorator = ((EntityDecorator) entity);
-		final List<PriceForSaleWithAccompanyingPrices> allPrices = entityDecorator.getAllPricesForSaleWithAccompanyingPrices(
-			CURRENCY_CZK,
-			null,
-			new String[]{PRICE_LIST_BASIC},
-			new AccompanyingPrice[]{
-				new AccompanyingPrice(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), PRICE_LIST_REFERENCE),
-				new AccompanyingPrice(vipPrice, PRICE_LIST_VIP)
-			}
-		);
+		final List<PriceForSaleWithAccompanyingPrices> allPrices = entityDecorator.getAllPricesForSaleWithAccompanyingPrices();
 		assertFalse(allPrices.isEmpty());
+		assertTrue(allPrices.stream().anyMatch(price -> price.accompanyingPrices().get(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE).isPresent()));
+		assertTrue(allPrices.stream().anyMatch(price -> price.accompanyingPrices().get(vipPrice).isPresent()));
 
 		return map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
@@ -501,7 +495,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 				.map(prices -> map()
 					.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
 					.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), prices.priceForSale().priceWithTax().toString())
-					.e(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), prices.accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name())
+					.e(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), prices.accompanyingPrices().get(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE)
 						.map(price -> map()
 							.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
 							.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString()))
