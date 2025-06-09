@@ -235,9 +235,10 @@ public class EvitaRequest {
 	public EvitaRequest(
 		@Nonnull EvitaRequest evitaRequest,
 		@Nullable String entityType,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
 		@Nonnull EntityFetchRequire requirements
 	) {
-
 		this.requiresEntity = true;
 		this.entityRequirement = new EntityFetch(requirements.getRequirements());
 		this.entityType = entityType;
@@ -249,8 +250,8 @@ public class EvitaRequest {
 						evitaRequest.query.getHead(),
 						(constraintCloneVisitor, constraint) -> constraint instanceof Collection ? null : constraint
 					),
-				evitaRequest.query.getFilterBy(),
-				evitaRequest.query.getOrderBy(),
+				filterBy == null ? evitaRequest.query.getFilterBy() : filterBy,
+				orderBy == null ? evitaRequest.query.getOrderBy() : orderBy,
 				require(this.entityRequirement)
 			) :
 			Query.query(
@@ -260,22 +261,30 @@ public class EvitaRequest {
 						evitaRequest.query.getHead(),
 						(constraintCloneVisitor, constraint) -> constraint instanceof Collection ? collection(entityType) : constraint
 					),
-				evitaRequest.query.getFilterBy(),
-				evitaRequest.query.getOrderBy(),
+				filterBy == null ? evitaRequest.query.getFilterBy() : filterBy,
+				orderBy == null ? evitaRequest.query.getOrderBy() : orderBy,
 				require(this.entityRequirement)
 			);
 		this.labels = evitaRequest.labels;
 		this.alignedNow = evitaRequest.alignedNow;
 		this.implicitLocale = evitaRequest.implicitLocale;
 		this.primaryKeys = evitaRequest.primaryKeys;
-		this.localeExamined = evitaRequest.localeExamined;
-		this.locale = evitaRequest.locale;
-		if (Arrays.stream(requirements.getRequirements()).anyMatch(it -> it instanceof DataInLocales)) {
+		if (filterBy != null) {
+			this.localeExamined = true;
+			this.locale = ofNullable(QueryUtils.findConstraint(filterBy, EntityLocaleEquals.class))
+				.map(EntityLocaleEquals::getLocale)
+				.orElseGet(evitaRequest::getLocale);
+		} else {
+			this.localeExamined = evitaRequest.localeExamined;
+			this.locale = evitaRequest.locale;
+		}
+		if (Arrays.stream(requirements.getRequirements()).anyMatch(DataInLocales.class::isInstance)) {
 			this.requiredLocales = null;
 			this.requiredLocaleSet = null;
 		} else {
 			this.requiredLocales = evitaRequest.requiredLocales;
-			this.requiredLocaleSet = evitaRequest.requiredLocaleSet;
+			this.requiredLocaleSet = this.locale == null ?
+				evitaRequest.requiredLocaleSet : Set.of(this.locale);
 		}
 		this.queryPriceMode = evitaRequest.queryPriceMode;
 		this.priceValidInTimeSet = evitaRequest.priceValidInTimeSet;
@@ -1100,7 +1109,27 @@ public class EvitaRequest {
 	public EvitaRequest deriveCopyWith(@Nullable String entityType, @Nonnull EntityFetchRequire requirements) {
 		return new EvitaRequest(
 			this,
-			entityType, requirements
+			entityType,
+			null, null,
+			requirements
+		);
+	}
+
+	/**
+	 * Method creates copy of this request with changed `entityType` and entity `requirements`. The copy will share
+	 * already resolved and memoized values of this request except those that relate to the changed entity type and
+	 * requirements.
+	 */
+	@Nonnull
+	public EvitaRequest deriveCopyWith(
+		@Nullable String entityType,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nonnull EntityFetchRequire requirements
+	) {
+		return new EvitaRequest(
+			this,
+			entityType, filterBy, orderBy, requirements
 		);
 	}
 
