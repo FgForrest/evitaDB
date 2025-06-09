@@ -1246,4 +1246,143 @@ class PricesContractTest extends AbstractBuilderTest {
 		}
 	}
 
+	/**
+	 * Tests the non-parametrized getPriceForSaleWithAccompanyingPrices method.
+	 * Verifies that the method correctly retrieves price for sale with accompanying prices
+	 * when a valid price for sale context is available.
+	 */
+	@Test
+	@DisplayName("Non-parametrized price for sale with accompanying prices retrieval")
+	void shouldReturnPriceForSaleWithAccompanyingPrices() {
+		final PricesContract prices = Mockito.spy(
+			new Prices(
+				PRODUCT_SCHEMA,
+				1,
+				Arrays.asList(
+					createStandardPriceSetWithMultiplier(null, BigDecimal.ONE)
+				),
+				PriceInnerRecordHandling.NONE,
+				true
+			)
+		);
+
+		// Mock the price for sale context with accompanying prices
+		Mockito.when(prices.getPriceForSaleContext())
+			.thenReturn(
+				Optional.of(
+					new PriceForSaleContextWithCachedResult(
+						new String[]{BASIC},
+						CZK,
+						MOMENT_2020,
+						new AccompanyingPrice[] {
+							new AccompanyingPrice("testPrice1", REFERENCE),
+							new AccompanyingPrice("testPrice2", LOGGED_ONLY)
+						}
+					)
+				)
+			);
+
+		// Test the non-parametrized method
+		final PriceForSaleWithAccompanyingPrices result = prices.getPriceForSaleWithAccompanyingPrices().orElseThrow();
+
+		// Verify the price for sale
+		assertEquals(1, result.priceForSale().priceId());
+
+		// Verify accompanying prices
+		assertEquals(2, result.accompanyingPrices().size());
+		assertEquals(7, result.accompanyingPrices().get("testPrice1").orElseThrow().priceId());
+		assertEquals(3, result.accompanyingPrices().get("testPrice2").orElseThrow().priceId());
+	}
+
+	/**
+	 * Tests that the non-parametrized getPriceForSaleWithAccompanyingPrices method
+	 * throws ContextMissingException when the price for sale context is not available.
+	 */
+	@Test
+	@DisplayName("Exception handling for missing context in non-parametrized getPriceForSaleWithAccompanyingPrices")
+	void shouldThrowContextMissingExceptionForGetPriceForSaleWithAccompanyingPrices() {
+		final PricesContract prices = new Prices(
+			PRODUCT_SCHEMA,
+			1,
+			Arrays.asList(
+				createStandardPriceSetWithMultiplier(null, BigDecimal.ONE)
+			),
+			PriceInnerRecordHandling.NONE,
+			true
+		);
+
+		// Test getPriceForSaleWithAccompanyingPrices throws ContextMissingException
+		try {
+			prices.getPriceForSaleWithAccompanyingPrices();
+			// If we get here, the test has failed
+			throw new AssertionError("Expected ContextMissingException was not thrown");
+		} catch (ContextMissingException e) {
+			// Expected exception
+		}
+	}
+
+	/**
+	 * Tests the non-parametrized getAllPricesForSaleWithAccompanyingPrices method.
+	 * Verifies that the method correctly retrieves all prices for sale with accompanying prices
+	 * when a valid price for sale context is available.
+	 */
+	@Test
+	@DisplayName("Non-parametrized all prices for sale with accompanying prices retrieval")
+	void shouldReturnAllPricesForSaleWithAccompanyingPrices() {
+		// Create a price set with multiple inner records for LOWEST_PRICE strategy
+		final PricesContract prices = Mockito.spy(
+			new Prices(
+				PRODUCT_SCHEMA,
+				1,
+				Arrays.asList(
+					ArrayUtils.mergeArrays(
+						createStandardPriceSetWithMultiplier(1, BigDecimal.ONE),
+						createStandardPriceSetWithMultiplier(2, new BigDecimal("2")),
+						createStandardPriceSetWithMultiplier(3, new BigDecimal("0.5"))
+					)
+				),
+				PriceInnerRecordHandling.LOWEST_PRICE,
+				true
+			)
+		);
+
+		// Mock the price for sale context with accompanying prices
+		Mockito.when(prices.getPriceForSaleContext())
+			.thenReturn(
+				Optional.of(
+					new PriceForSaleContextWithCachedResult(
+						new String[]{BASIC, LOGGED_ONLY},
+						CZK,
+						MOMENT_2020,
+						new AccompanyingPrice[] {
+							new AccompanyingPrice("testPrice1", REFERENCE),
+							new AccompanyingPrice("testPrice2", VIP)
+						}
+					)
+				)
+			);
+
+		// Test the non-parametrized method
+		final List<PriceForSaleWithAccompanyingPrices> results = prices.getAllPricesForSaleWithAccompanyingPrices();
+
+		// Verify we got results for all three inner records
+		assertEquals(3, results.size());
+
+		// For each result, verify the price for sale and accompanying prices
+		for (PriceForSaleWithAccompanyingPrices result : results) {
+			// Get the inner record ID from the price for sale
+			final int innerRecordId = result.priceForSale().innerRecordId();
+
+			// Verify the price for sale is from the BASIC price list (since it's first in priority)
+			assertEquals(1000000 * innerRecordId + 1, result.priceForSale().priceId());
+
+			// Verify accompanying prices
+			assertEquals(2, result.accompanyingPrices().size());
+			assertEquals(1000000 * innerRecordId + 7, result.accompanyingPrices().get("testPrice1").orElseThrow().priceId());
+
+			// VIP price is only valid in 2011, not in 2020, so it should be empty
+			assertTrue(result.accompanyingPrices().get("testPrice2").isEmpty());
+		}
+	}
+
 }
