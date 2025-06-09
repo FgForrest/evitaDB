@@ -42,7 +42,6 @@ import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -68,9 +67,16 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 		final String[] priceLists = resolveDesiredPricesLists(environment, context);
 		final Currency currency = resolveDesiredCurrency(environment, context);
 		final OffsetDateTime validIn = resolveDesiredValidIn(environment, entity, context);
-		final AccompanyingPrice[] desiredAccompanyingPrices = resolveDesiredAccompanyingPrices(environment);
 
-		final P result = computePrices(entity, priceLists, currency, validIn, desiredAccompanyingPrices);
+		final P result;
+		if (environment.getArguments().isEmpty()) {
+			// default priceForSale computed by evita engine from resolved constraints
+			result = computeDefaultPrices(entity);
+		} else {
+			// custom priceForSale based on specified user arguments on fields, doesn't use evita defaults
+			final AccompanyingPrice[] desiredAccompanyingPrices = resolveDesiredAccompanyingPricesForCustomPriceForSale(environment);
+			result = computePrices(entity, priceLists, currency, validIn, desiredAccompanyingPrices);
+		}
 
 		final Locale customLocale = environment.getArgument(PriceForSaleFieldHeaderDescriptor.LOCALE.name());
 		final EntityQueryContext newContext = context.toBuilder()
@@ -88,7 +94,16 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 	}
 
 	/**
-	 * Computes actual price for sale or all prices for sale. Also should prefetch accompanying prices for nested price
+	 * Computes actual default price for sale or all prices for sale based on request constraints.
+	 *
+	 * @param entity parent entity
+	 * @return computed price for sale
+	 */
+	@Nullable
+	protected abstract P computeDefaultPrices(@Nonnull EntityDecorator entity);
+
+	/**
+	 * Computes actual custom price for sale or all prices for sale based on user field arguments. Also should prefetch accompanying prices for nested price
 	 * fields.
 	 *
 	 * @param entity parent entity
@@ -139,7 +154,7 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 	}
 
 	@Nonnull
-	protected AccompanyingPrice[] resolveDesiredAccompanyingPrices(@Nonnull DataFetchingEnvironment environment) {
+	protected AccompanyingPrice[] resolveDesiredAccompanyingPricesForCustomPriceForSale(@Nonnull DataFetchingEnvironment environment) {
 		return SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), environment.getSelectionSet())
 			.stream()
 			.map(f -> {
@@ -147,8 +162,8 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 
 				//noinspection unchecked
 				final List<String> priceLists = (List<String>) f.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name());
-				if (priceLists == null ) {
-					return new AccompanyingPrice(priceName);
+				if (priceLists == null || priceLists.isEmpty()) {
+					throw new GraphQLInvalidArgumentException("Custom price for sale requires custom price lists for accompanying prices.");
 				}
 				return new AccompanyingPrice(priceName, priceLists.toArray(String[]::new));
 			})

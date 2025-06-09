@@ -2613,7 +2613,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							priceInCurrency: EUR
 						},
 						require: {
-							priceDefaultAccompanyingPrice("b2b")
+							priceDefaultAccompanyingPrice: "b2b"
 						}
 					) {
 						__typename
@@ -2691,7 +2691,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							priceInCurrency: EUR
 						},
 						require: {
-							priceDefaultAccompanyingPrice("b2b")
+							priceDefaultAccompanyingPrice: "b2b"
 						}
 					) {
 						__typename

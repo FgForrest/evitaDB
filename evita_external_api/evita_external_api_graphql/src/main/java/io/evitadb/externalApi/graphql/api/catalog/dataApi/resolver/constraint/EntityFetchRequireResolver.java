@@ -171,6 +171,7 @@ public class EntityFetchRequireResolver {
 		resolveAttributeContent(selectionSetAggregator, currentEntitySchema).ifPresent(entityContentRequires::add);
 		resolveAssociatedDataContent(selectionSetAggregator, currentEntitySchema).ifPresent(entityContentRequires::add);
 		resolvePriceContent(selectionSetAggregator).ifPresent(entityContentRequires::add);
+		entityContentRequires.addAll(resolveAccompanyingPriceContents(selectionSetAggregator));
 		entityContentRequires.addAll(resolveReferenceContent(selectionSetAggregator, desiredLocale, currentEntitySchema));
 		resolveDataInLocales(selectionSetAggregator, desiredLocale, currentEntitySchema.getLocales()).ifPresent(entityContentRequires::add);
 
@@ -333,9 +334,8 @@ public class EntityFetchRequireResolver {
 		if (isCustomPriceFieldPresent(selectionSetAggregator) || isCustomPriceForSaleFieldPresent(selectionSetAggregator)) {
 			return Optional.of(priceContentAll());
 		} else {
-			final String[] accompanyingPriceListsToFetch = resolveAccompanyingPriceLists(selectionSetAggregator);
 			//noinspection DataFlowIssue
-			return Optional.of(priceContent(PriceContentMode.RESPECTING_FILTER, accompanyingPriceListsToFetch));
+			return Optional.of(priceContent(PriceContentMode.RESPECTING_FILTER));
 		}
 	}
 
@@ -358,6 +358,30 @@ public class EntityFetchRequireResolver {
 				.stream()
 				.flatMap(apf -> ((List<String>) apf.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name())).stream()))
 			.toArray(String[]::new);
+	}
+
+	/**
+	 * Resolves {@link AccompanyingPriceContent} for default `priceForSale` field (i.e., without parameters). Custom
+	 * `priceForSale` fields are computed during serialization manually.
+	 */
+	@Nonnull
+	private static List<AccompanyingPriceContent> resolveAccompanyingPriceContents(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.getImmediateFields(PRICE_FOR_SALE_FIELDS)
+			.stream()
+			.filter(f -> f.getArguments().isEmpty())
+			.flatMap(f -> SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), f.getSelectionSet())
+				.stream()
+				.map(apf -> {
+					final String priceName = apf.getAlias() != null ? apf.getAlias() : apf.getName();
+					if (apf.getArguments().isEmpty()) {
+						return accompanyingPriceContent(priceName);
+					} else {
+						//noinspection unchecked
+						final String[] priceLists = ((List<String>) apf.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name())).toArray(String[]::new);
+						return accompanyingPriceContent(priceName, priceLists);
+					}
+				}))
+			.toList();
 	}
 
 	@Nonnull

@@ -391,12 +391,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 	@Nonnull
 	protected Map<String, Object> createEntityDtoWithDefaultAccompanyingPriceForSinglePriceForSale(@Nonnull SealedEntity entity) {
 		final EntityDecorator entityDecorator = ((EntityDecorator) entity);
-		final Optional<PriceForSaleWithAccompanyingPrices> prices = entityDecorator.getPriceForSaleWithAccompanyingPrices(
-			CURRENCY_EUR,
-			null,
-			new String[]{PRICE_LIST_BASIC},
-			new AccompanyingPrice[0]
-		);
+		final Optional<PriceForSaleWithAccompanyingPrices> prices = entityDecorator.getPriceForSaleWithAccompanyingPrices();
 		assertTrue(prices.isPresent());
 		assertTrue(prices.get().accompanyingPrices().get(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE).isPresent());
 
@@ -420,12 +415,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 		final String vipPrice = "vipPrice";
 
 		final EntityDecorator entityDecorator = ((EntityDecorator) entity);
-		final Optional<PriceForSaleWithAccompanyingPrices> prices = entityDecorator.getPriceForSaleWithAccompanyingPrices(
-			CURRENCY_EUR,
-			null,
-			new String[]{PRICE_LIST_BASIC},
-			new AccompanyingPrice[0]
-		);
+		final Optional<PriceForSaleWithAccompanyingPrices> prices = entityDecorator.getPriceForSaleWithAccompanyingPrices();
 		assertTrue(prices.isPresent());
 		assertTrue(prices.get().accompanyingPrices().get(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE).isPresent());
 		assertTrue(prices.get().accompanyingPrices().get(vipPrice).isPresent());

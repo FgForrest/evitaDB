@@ -58,8 +58,7 @@ import java.util.Arrays;
 	shortDescription = "The requirement defines the ordered price list names that should be used for calculation of" +
 		" so-called accompanying price, which is a price not used for selling, but rather for displaying additional" +
 		" price information (such as \"previous price\", \"recommended price\", etc.)..",
-	userDocsLink = "/documentation/query/requirements/price#accompanying-price",
-	supportedIn = ConstraintDomain.ENTITY
+	userDocsLink = "/documentation/query/requirements/price#accompanying-price"
 )
 public class DefaultAccompanyingPrice extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -5786325458930138452L;
