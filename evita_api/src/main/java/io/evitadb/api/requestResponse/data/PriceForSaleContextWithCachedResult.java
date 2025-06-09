@@ -77,28 +77,28 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 		this.accompanyingPrices = accompanyingPrices;
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	public String[] priceListPriority() {
-		return this.priceListPriority;
+	public Optional<String[]> priceListPriority() {
+		return ofNullable(this.priceListPriority);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	public Currency currency() {
-		return this.currency;
+	public Optional<Currency> currency() {
+		return ofNullable(this.currency);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	public OffsetDateTime atTheMoment() {
-		return this.atTheMoment;
+	public Optional<OffsetDateTime> atTheMoment() {
+		return ofNullable(this.atTheMoment);
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	public AccompanyingPrice[] accompanyingPrices() {
-		return this.accompanyingPrices;
+	public Optional<AccompanyingPrice[]> accompanyingPrices() {
+		return ofNullable(this.accompanyingPrices);
 	}
 
 	/**

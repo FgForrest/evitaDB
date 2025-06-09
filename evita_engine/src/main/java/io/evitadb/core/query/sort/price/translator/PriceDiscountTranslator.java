@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.PriceDiscount;
@@ -38,6 +39,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
+import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleContext;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.comparator.IntComparator;
@@ -55,6 +57,7 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.filter.translator.price.PriceInPriceListsTranslator;
 import io.evitadb.core.query.filter.translator.price.PriceListCompositionTerminationVisitor;
 import io.evitadb.core.query.filter.translator.price.PriceValidInTranslator;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
@@ -161,8 +164,8 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		final String[] priceLists = priceDiscount.getInPriceLists();
 		final QueryPriceMode queryPriceMode = orderByVisitor.getQueryPriceMode();
 
-		// if prefetch happens we need to prefetch prices so that the attribute comparator can work
-		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter(priceLists));
+		// if prefetch happens we need to prefetch prices so that the entity comparator can work
+		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
 
 		// are filtered prices used in the filtering?
 		final Collection<PriceFilteringEnvelopeContainer> sellingPriceFilteringEnvelopeContainers = FormulaFinder.find(
@@ -283,7 +286,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 				this.nonSortedEntities.add(o2);
 				return -1;
 			} else {
-				return priceComparator.compare(
+				return this.priceComparator.compare(
 					priceDiscount1,
 					priceDiscount2
 				);
@@ -300,22 +303,35 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		 */
 		@Nonnull
 		private BigDecimal getPriceDiscount(@Nonnull EntityContract entity) {
-			final BigDecimal memoizedResult = memoizedDiscounts.get(entity.getPrimaryKeyOrThrowException());
+			final BigDecimal memoizedResult = this.memoizedDiscounts.get(entity.getPrimaryKeyOrThrowException());
 			if (memoizedResult != null) {
 				return memoizedResult;
 			}
-			final Optional<PriceForSaleWithAccompanyingPrices> calculatedPrices = entity.getPriceForSaleWithAccompanyingPrices(
-				new AccompanyingPrice[]{
-					new AccompanyingPrice(DISCOUNTED_PRICE, discountPriceLists)
-				}
-			);
+			final Optional<PriceForSaleWithAccompanyingPrices> calculatedPrices;
+			if (entity instanceof ServerEntityDecorator sed && sed.getPriceForSaleContext().isPresent()) {
+				final PriceForSaleContext priceForSaleContext = sed.getPriceForSaleContext().get();
+				calculatedPrices = sed.getDelegate().getPriceForSaleWithAccompanyingPrices(
+					priceForSaleContext.currency().orElseThrow(ContextMissingException::new),
+					priceForSaleContext.atTheMoment().orElse(null),
+					priceForSaleContext.priceListPriority().orElseThrow(ContextMissingException::new),
+					new AccompanyingPrice[]{
+						new AccompanyingPrice(DISCOUNTED_PRICE, this.discountPriceLists)
+					}
+				);
+			} else {
+				calculatedPrices = entity.getPriceForSaleWithAccompanyingPrices(
+					new AccompanyingPrice[]{
+						new AccompanyingPrice(DISCOUNTED_PRICE, this.discountPriceLists)
+					}
+				);
+			}
 
 			final BigDecimal calculatedResult = calculatedPrices
 				.map(priceCalculation -> {
-					final BigDecimal priceForSale = priceExtractor.apply(priceCalculation.priceForSale());
+					final BigDecimal priceForSale = this.priceExtractor.apply(priceCalculation.priceForSale());
 					return priceCalculation.accompanyingPrices()
 						.get(DISCOUNTED_PRICE)
-						.map(priceExtractor)
+						.map(this.priceExtractor)
 						.map(discountedPrice -> {
 							final BigDecimal discount = discountedPrice.subtract(priceForSale);
 							return BigDecimal.ZERO.compareTo(discount) < 0 ? discount : BigDecimal.ZERO;
@@ -448,7 +464,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 			} else if (DISCOUNT_CANNOT_BE_CALCULATED == priceDiscount2) {
 				return -1;
 			} else {
-				return priceComparator.compare(priceDiscount1, priceDiscount2);
+				return this.priceComparator.compare(priceDiscount1, priceDiscount2);
 			}
 		}
 
@@ -484,8 +500,8 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 					this.memoizedDiscounts.put(priceRecord.entityPrimaryKey(), DISCOUNT_CANNOT_BE_CALCULATED);
 					return DISCOUNT_CANNOT_BE_CALCULATED;
 				} else {
-					final int sellingPrice = priceExtractor.applyAsInt(this.sellingPriceRecords[sellingPriceIndex]);
-					final int referencePrice = priceExtractor.applyAsInt(this.referencePriceRecords[referencePriceIndex]);
+					final int sellingPrice = this.priceExtractor.applyAsInt(this.sellingPriceRecords[sellingPriceIndex]);
+					final int referencePrice = this.priceExtractor.applyAsInt(this.referencePriceRecords[referencePriceIndex]);
 					final int theDiscount = sellingPrice >= referencePrice ? 0 : referencePrice - sellingPrice;
 					this.memoizedDiscounts.put(priceRecord.entityPrimaryKey(), theDiscount == 0 ? ZERO_DISCOUNT : theDiscount);
 					return theDiscount;

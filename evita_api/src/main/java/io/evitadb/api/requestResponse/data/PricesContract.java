@@ -571,26 +571,21 @@ public interface PricesContract extends Versioned, Serializable {
 	}
 
 	/**
-	 * Retrieves the names of accompanying prices requested for calculation along with the price for sale in the original
-	 * query.
+	 * Retrieves the price for sale along with accompanying prices based on the current context.
+	 * The method computes the price using the prices available and the inner record handling logic,
+	 * provided a valid PriceForSaleContext is present.
+	 * If the context is missing or invalid, a ContextMissingException is thrown.
 	 *
-	 * This method fetches the accompanying price names from the price context if available.
-	 * If the context is not present or does not contain accompanying prices, it returns an empty collection.
-	 *
-	 * @return a collection of accompanying price names, or an empty collection if no accompanying prices exist
-	 * @throws ContextMissingException if the price context is missing
+	 * @return an Optional containing the computed PriceForSaleWithAccompanyingPrices if the context is valid.
+	 * @throws ContextMissingException if the price for sale context is missing or invalid.
 	 */
 	@Nonnull
-	default Collection<String> getAccompanyingPriceNames() {
+	default Optional<PriceForSaleWithAccompanyingPrices> getPriceForSaleWithAccompanyingPrices() throws ContextMissingException {
 		final PriceForSaleContext context = getPriceForSaleContext().orElseThrow(ContextMissingException::new);
 		if (context instanceof PriceForSaleContextWithCachedResult pfscwcr) {
-			return pfscwcr.compute(getPrices(), getPriceInnerRecordHandling())
-				.map(PriceForSaleWithAccompanyingPrices::accompanyingPrices)
-				.map(Map::keySet)
-				.map(Collections::unmodifiableSet)
-				.orElse(Collections.emptySet());
+			return pfscwcr.compute(getPrices(), getPriceInnerRecordHandling());
 		} else {
-			return Collections.emptySet();
+			throw new ContextMissingException();
 		}
 	}
 
@@ -623,7 +618,7 @@ public interface PricesContract extends Versioned, Serializable {
 			} else {
 				final PriceForSaleWithAccompanyingPrices dpc = defaultPriceCalculation.get();
 				// find missing accompanying prices
-				final Set<AccompanyingPrice> accompanyingPricesSet = ofNullable(context.accompanyingPrices())
+				final Set<AccompanyingPrice> accompanyingPricesSet = context.accompanyingPrices()
 					.map(it -> (Set<AccompanyingPrice>) new HashSet<>(Arrays.asList(it)))
 					.orElse(Collections.emptySet());
 				final Set<String> includedAccompaniedPrices = CollectionUtils.createHashSet(accompanyingPrices.length);
@@ -727,7 +722,9 @@ public interface PricesContract extends Versioned, Serializable {
 							calculateAccompanyingPrices(
 								dpc.priceForSale(),
 								getPrices(), getPriceInnerRecordHandling(),
-								context.currency(), context.atTheMoment(), accompanyingPricesRequest
+								context.currency().orElseThrow(ContextMissingException::new),
+								context.atTheMoment().orElse(null),
+								accompanyingPricesRequest
 							)
 						)
 					);
@@ -735,7 +732,10 @@ public interface PricesContract extends Versioned, Serializable {
 		} else {
 			return computePriceForSale(
 				getPrices(), getPriceInnerRecordHandling(),
-				context.currency(), context.atTheMoment(), context.priceListPriority(), Objects::nonNull,
+				context.currency().orElseThrow(ContextMissingException::new),
+				context.atTheMoment().orElse(null),
+				context.priceListPriority().orElseThrow(ContextMissingException::new),
+				Objects::nonNull,
 				accompanyingPricesRequest
 			);
 		}
@@ -1015,24 +1015,24 @@ public interface PricesContract extends Versioned, Serializable {
 		 *
 		 * @return array of price list priorities
 		 */
-		@Nullable
-		String[] priceListPriority();
+		@Nonnull
+		Optional<String[]> priceListPriority();
 
 		/**
 		 * Returns the currency used for the price for sale calculation.
 		 *
 		 * @return currency used for price for sale calculation
 		 */
-		@Nullable
-		Currency currency();
+		@Nonnull
+		Optional<Currency> currency();
 
 		/**
 		 * Returns the moment used for the price for sale calculation.
 		 *
 		 * @return moment used for price for sale calculation
 		 */
-		@Nullable
-		OffsetDateTime atTheMoment();
+		@Nonnull
+		Optional<OffsetDateTime> atTheMoment();
 
 		/**
 		 * Returns an array of AccompanyingPrice objects that describe the computation of additional prices
@@ -1041,8 +1041,8 @@ public interface PricesContract extends Versioned, Serializable {
 		 *
 		 * @return an array of AccompanyingPrice objects or null if none are present
 		 */
-		@Nullable
-		AccompanyingPrice[] accompanyingPrices();
+		@Nonnull
+		Optional<AccompanyingPrice[]> accompanyingPrices();
 
 	}
 
@@ -1057,6 +1057,12 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull String priceName,
 		@Nonnull String... priceListPriority
 	) implements Serializable {
+
+		@Nonnull
+		@Override
+		public String toString() {
+			return "AccompanyingPrice `" + this.priceName + "`: " + Arrays.toString(this.priceListPriority);
+		}
 
 		@Override
 		public boolean equals(Object o) {
@@ -1097,6 +1103,19 @@ public interface PricesContract extends Versioned, Serializable {
 			return this.accompanyingPrices.getOrDefault(priceName, Optional.empty());
 		}
 
+		/**
+		 * Returns an unmodifiable map of accompanying prices associated with this entity.
+		 *
+		 * Accompanying prices are additional price entries identified by a string key, e.g., representing
+		 * supplementary pricing information like discounts or secondary prices.
+		 *
+		 * @return a map containing accompanying prices where the key is a string identifier and the value is a {@link PriceContract}
+		 */
+		@Nonnull
+		public Map<String, Optional<PriceContract>> getAccompanyingPrices() {
+			return Collections.unmodifiableMap(this.accompanyingPrices);
+		}
+
 		@Override
 		public boolean equals(Object o) {
 			if (!(o instanceof final PriceForSaleWithAccompanyingPrices that)) return false;
@@ -1110,7 +1129,6 @@ public interface PricesContract extends Versioned, Serializable {
 			result = 31 * result + this.accompanyingPrices.hashCode();
 			return result;
 		}
-
 	}
 
 }

@@ -34,6 +34,7 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesAvailabilityChecker;
 import io.evitadb.api.requestResponse.data.AttributesContract;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -1424,7 +1425,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				assertArrayEquals(
 					new String[] { AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE, "myPrice" },
-					product.getAccompanyingPriceNames().toArray(String[]::new),
+					product.getPriceForSaleWithAccompanyingPrices().orElseThrow().getAccompanyingPrices().keySet().toArray(String[]::new),
 					"Product should have two accompanying prices!"
 				);
 
@@ -2394,7 +2395,18 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				);
 				assertFalse(productByPk.getRecordData().isEmpty());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData()
+					.stream()
+					.filter(
+						it -> it.getPrices()
+							.stream()
+							.map(PriceContract::priceList)
+							.distinct()
+							.count() > 1
+					)
+					.findFirst()
+					.orElseThrow();
+
 				assertNotNull(product);
 				assertFalse(product.getPrices().isEmpty());
 				assertFalse(product.getAttributeValues().isEmpty());
@@ -3101,40 +3113,44 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	@DisplayName("References can be eagerly deeply fetched, filtered and ordered (via. getEntity)")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldEagerlyDeepFetchReferenceEntityBodiesFilteredAndOrderedViaGetEntity(Evita evita, List<SealedEntity> originalProducts) {
+	void shouldEagerlyDeepFetchReferenceEntityBodiesFilteredAndOrderedViaGetEntity(Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores) {
+		final Set<Integer> storesWithCzechLocale = originalStores
+			.stream()
+			.filter(it -> it.getLocales().contains(CZECH_LOCALE))
+			.map(EntityClassifier::getPrimaryKeyOrThrowException)
+			.collect(Collectors.toSet());
+
 		final Map<Integer, Set<Integer>> productsWithLotsOfStores = originalProducts.stream()
-			.filter(it -> it.getReferences(Entities.STORE).size() > 4)
+			.filter(it -> it.getLocales().contains(CZECH_LOCALE))
+			.filter(
+				it -> it.getReferences(Entities.STORE)
+					.stream()
+					.filter(x -> storesWithCzechLocale.contains(x.getReferencedPrimaryKey()))
+					.count() > 3
+			)
 			.limit(1)
 			.collect(
 				Collectors.toMap(
 					EntityContract::getPrimaryKey,
 					it -> it.getReferences(Entities.STORE)
 						.stream()
+						.filter(x -> storesWithCzechLocale.contains(x.getReferencedPrimaryKey()))
 						.map(ref -> ref.getReferenceKey().primaryKey())
 						.collect(Collectors.toSet())
 				)
 			);
 
-		final AtomicBoolean atLeastFirst = new AtomicBoolean();
-		final Random rnd = new Random(5);
-		final Integer[] randomStores = productsWithLotsOfStores
-			.values()
-			.stream()
-			.flatMap(Collection::stream)
-			.filter(it -> atLeastFirst.compareAndSet(false, true) || rnd.nextInt(10) == 0)
-			.distinct()
-			.toArray(Integer[]::new);
-
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
+				final Integer[] filteredStores = productsWithLotsOfStores.values().iterator().next().toArray(new Integer[0]);
 				final SealedEntity product = session.getEntity(
 					Entities.PRODUCT,
 					productsWithLotsOfStores.keySet().iterator().next(),
 					referenceContent(
 						Entities.STORE,
 						filterBy(
-							entityPrimaryKeyInSet(randomStores),
+							entityPrimaryKeyInSet(filteredStores),
 							entityLocaleEquals(LOCALE_CZECH)
 						),
 						orderBy(
@@ -3149,7 +3165,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final Collection<ReferenceContract> references = product.getReferences(Entities.STORE);
 				final Set<Integer> storeIds = productsWithLotsOfStores.get(product.getPrimaryKey());
 				final Set<Integer> filteredStoreIds = storeIds.stream()
-					.filter(it -> Arrays.asList(randomStores).contains(it))
+					.filter(it -> Arrays.asList(filteredStores).contains(it))
 					.collect(Collectors.toSet());
 				assertEquals(filteredStoreIds.size(), references.size());
 				for (ReferenceContract reference : references) {
@@ -4831,34 +4847,34 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnProductSortedByExactOrderAppendingTheRest(Evita evita, List<SealedEntity> originalProducts) {
-		final Integer[] productsStartingWithD = originalProducts.stream()
-			.filter(it -> it.getAttribute(ATTRIBUTE_CODE, String.class).startsWith("D"))
+		final Integer[] productsStartingWithA = originalProducts.stream()
+			.filter(it -> it.getAttribute(ATTRIBUTE_CODE, String.class).startsWith("A"))
 			.map(EntityContract::getPrimaryKey)
 			.toArray(Integer[]::new);
-		Assert.isTrue(productsStartingWithD.length >= 5, "Not enough products starting with D found");
+		Assert.isTrue(productsStartingWithA.length >= 5, "Not enough products starting with A found");
 
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Integer[] exactOrder = Arrays.copyOfRange(productsStartingWithD, 0, (int) (productsStartingWithD.length * 0.5));
-				final Integer[] theRest = Arrays.copyOfRange(productsStartingWithD, (int) (productsStartingWithD.length * 0.5), productsStartingWithD.length);
+				final Integer[] exactOrder = Arrays.copyOfRange(productsStartingWithA, 0, (int) (productsStartingWithA.length * 0.5));
+				final Integer[] theRest = Arrays.copyOfRange(productsStartingWithA, (int) (productsStartingWithA.length * 0.5), productsStartingWithA.length);
 				ArrayUtils.reverse(exactOrder);
 				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							attributeStartsWith(ATTRIBUTE_CODE, "D")
+							attributeStartsWith(ATTRIBUTE_CODE, "A")
 						),
 						orderBy(
 							entityPrimaryKeyExact(exactOrder)
 						),
 						require(
-							page(1, productsStartingWithD.length)
+							page(1, productsStartingWithA.length)
 						)
 					)
 				);
-				assertEquals(productsStartingWithD.length, products.getRecordData().size());
-				assertEquals(productsStartingWithD.length, products.getTotalRecordCount());
+				assertEquals(productsStartingWithA.length, products.getRecordData().size());
+				assertEquals(productsStartingWithA.length, products.getTotalRecordCount());
 
 				assertArrayEquals(
 					ArrayUtils.mergeArrays(
@@ -5575,6 +5591,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	void shouldCombinePaginatedAndStrippedReferences(Evita evita, List<SealedEntity> originalProducts) {
 		final SealedEntity productWithMaxReferences = originalProducts
 			.stream()
+			.filter(it -> !it.getReferences(Entities.BRAND).isEmpty())
 			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size() + o.getReferences(Entities.PRICE_LIST).size()))
 			.orElseThrow();
 		final Set<Integer> originParameters = productWithMaxReferences.getReferences(Entities.PARAMETER)

@@ -256,9 +256,9 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 		return this.getPriceForSaleContext()
 			.map(
 				it -> getPriceForSale(
-					ofNullable(it.currency()).orElseThrow(ContextMissingException::new),
-					it.atTheMoment(),
-					ofNullable(it.priceListPriority()).orElseThrow(ContextMissingException::new)
+					it.currency().orElseThrow(ContextMissingException::new),
+					it.atTheMoment().orElse(null),
+					it.priceListPriority().orElseThrow(ContextMissingException::new)
 				)
 			)
 			.orElseThrow(ContextMissingException::new);
