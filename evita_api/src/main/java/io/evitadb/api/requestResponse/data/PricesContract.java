@@ -458,7 +458,7 @@ public interface PricesContract extends Versioned, Serializable {
 			.filter(it -> currency.equals(it.currency()))
 			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
 			.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)));
-		final List<PriceContract> pricesForSale = pricesByInnerId
+		return pricesByInnerId
 			.values()
 			.stream()
 			.map(thePrices -> thePrices.stream()
@@ -468,14 +468,12 @@ public interface PricesContract extends Versioned, Serializable {
 				.orElse(null))
 			.filter(Objects::nonNull)
 			.sorted(
-				Comparator.comparing(
-					PriceContract::innerRecordId,
-					Comparator.nullsLast(Integer::compareTo)
-				)
+				Comparator.comparing(PriceContract::priceId)
+					.thenComparing(
+						PriceContract::innerRecordId,
+						Comparator.nullsLast(Integer::compareTo)
+					)
 			)
-			.toList();
-		return pricesForSale
-			.stream()
 			.map(
 				priceContract -> new PriceForSaleWithAccompanyingPrices(
 					priceContract,
