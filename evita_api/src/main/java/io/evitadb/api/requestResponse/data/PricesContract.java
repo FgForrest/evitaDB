@@ -457,6 +457,12 @@ public interface PricesContract extends Versioned, Serializable {
 			.filter(PriceContract::exists)
 			.filter(it -> currency.equals(it.currency()))
 			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+			.sorted(
+				Comparator.comparing(
+					PriceContract::innerRecordId,
+					Comparator.nullsLast(Integer::compareTo)
+				)
+			)
 			.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)));
 		final List<PriceContract> pricesForSale = pricesByInnerId
 			.values()
