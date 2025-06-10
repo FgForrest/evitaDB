@@ -28,24 +28,17 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 			query(
 				collection("Product"),
 				filterBy(
-					entityPrimaryKeyInSet(103885),
-					entityLocaleEquals(Locale.forLanguageTag("en"))
+					attributeEquals("code", "iget-blackview-tab-g11"),
+					priceInCurrency(Currency.getInstance("EUR")),
+					priceInPriceLists("basic")
 				),
 				require(
+					defaultAccompanyingPriceLists("reference"),
 					entityFetch(
-						attributeContent("name"),
-						referenceContent(
-							"parameterValues",
-							orderBy(
-								entityProperty(
-									attributeNatural("order", ASC)
-								)
-							),
-							entityFetch(
-								attributeContent("name")
-							),
-							page(1, 3)
-						)
+						priceContentRespectingFilter(),
+						accompanyingPriceContent("default"),
+						accompanyingPriceContent("custom"),
+						accompanyingPriceContent("special", "employee-basic-price", "b2b-basic-price")
 					)
 				)
 			)
