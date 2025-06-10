@@ -523,12 +523,26 @@ public class EntityFetchConverter extends RequireConverter {
 		entityFieldsBuilder.addObjectField(
 			fieldName,
 			referenceBuilder -> {
-				if (referenceContent.getPage().isPresent() || referenceContent.getStrip().isPresent()) {
-					referenceBuilder.addObjectField(
-						DataChunkDescriptor.DATA,
-						dataChunkBuilder ->
-							convertReferenceContentReferenceBody(filterLocale, requiredLocales, referenceContent, referenceSchema, dataChunkBuilder)
-					);
+				if (referenceContent.getPage().isPresent()) {
+					if (referenceContent.getPage().get().getPageSize() == 0) {
+						referenceBuilder.addPrimitiveField(DataChunkDescriptor.TOTAL_RECORD_COUNT);
+					} else {
+						referenceBuilder.addObjectField(
+							DataChunkDescriptor.DATA,
+							dataChunkBuilder ->
+								convertReferenceContentReferenceBody(filterLocale, requiredLocales, referenceContent, referenceSchema, dataChunkBuilder)
+						);
+					}
+				} else if (referenceContent.getStrip().isPresent()) {
+					if (referenceContent.getStrip().get().getLimit() == 0) {
+						referenceBuilder.addPrimitiveField(DataChunkDescriptor.TOTAL_RECORD_COUNT);
+					} else {
+						referenceBuilder.addObjectField(
+							DataChunkDescriptor.DATA,
+							dataChunkBuilder ->
+								convertReferenceContentReferenceBody(filterLocale, requiredLocales, referenceContent, referenceSchema, dataChunkBuilder)
+						);
+					}
 				} else {
 					convertReferenceContentReferenceBody(filterLocale, requiredLocales, referenceContent, referenceSchema, referenceBuilder);
 				}
