@@ -1,0 +1,27 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "attributeCodeEquals" : "iget-blackview-tab-g11",
+    "priceInCurrency" : "EUR",
+    "priceInPriceLists" : [
+      "basic"
+    ]
+  },
+  "require" : {
+    "priceDefaultAccompanyingPriceLists" : [
+      "reference"
+    ],
+    "entityFetch" : {
+      "priceContentRespectingFilter" : [ ],
+      "priceAccompanyingPriceContentDefault" : true,
+      "priceAccompanyingPriceContent" : {
+        "accompanyingPriceName" : "special",
+        "priceLists" : [
+          "employee-basic-price",
+          "b2b-basic-price"
+        ]
+      }
+    }
+  }
+}
