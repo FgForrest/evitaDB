@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ public class CombinedFacetFormula extends AbstractFormula implements NonCacheabl
 
 	@Override
 	public int getEstimatedCardinality() {
-		return Arrays.stream(this.innerFormulas).mapToInt(formula -> formula.getEstimatedCardinality()).sum();
+		return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
 	}
 
 	@Nonnull
@@ -85,7 +85,7 @@ public class CombinedFacetFormula extends AbstractFormula implements NonCacheabl
 		return new BaseBitmap(
 			RoaringBitmap.or(
 				Arrays.stream(getInnerFormulas())
-					.map(formula -> formula.compute())
+					.map(Formula::compute)
 					.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 					.toArray(RoaringBitmap[]::new)
 			)

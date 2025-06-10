@@ -27,6 +27,7 @@ import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import jdk.jfr.Event;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -43,6 +44,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiFunction;
 
 import static java.util.Optional.ofNullable;
 
@@ -93,6 +95,10 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	 * already finished tasks that are subject to be removed.
 	 */
 	private final ArrayBlockingQueue<WeakReference<ObservableTask>> queue;
+	/**
+	 * Last observed steal count of the request executor.
+	 */
+	private long executorSteals;
 
 	public ObservableThreadExecutor(
 		@Nonnull String name,
@@ -352,6 +358,15 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 			this.rejectedExecutionHandler.rejectedExecution();
 			throw e;
 		}
+	}
+
+	/**
+	 * Emits statistics of the ForkJoinPool associated with the request executor.
+	 */
+	public void emitPoolStatistics(@Nonnull BiFunction<ForkJoinPool, Long, Event> eventFactory) {
+		final long currentStealCount = this.forkJoinPool.getStealCount();
+		eventFactory.apply(this.forkJoinPool, currentStealCount - this.executorSteals).commit();
+		this.executorSteals = currentStealCount;
 	}
 
 	/**

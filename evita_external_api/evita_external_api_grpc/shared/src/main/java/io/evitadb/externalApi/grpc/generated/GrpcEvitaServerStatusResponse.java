@@ -167,6 +167,16 @@ private static final long serialVersionUID = 0L;
             readOnly_ = input.readBool();
             break;
           }
+          case 88: {
+
+            catalogsActive_ = input.readInt32();
+            break;
+          }
+          case 96: {
+
+            catalogsInactive_ = input.readInt32();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -378,14 +388,15 @@ private static final long serialVersionUID = 0L;
   private int catalogsOk_;
   /**
    * <pre>
-   * Number of catalogs that are ok
+   * Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
    * </pre>
    *
-   * <code>int32 catalogsOk = 6;</code>
+   * <code>int32 catalogsOk = 6 [deprecated = true];</code>
+   * @deprecated
    * @return The catalogsOk.
    */
   @java.lang.Override
-  public int getCatalogsOk() {
+  @java.lang.Deprecated public int getCatalogsOk() {
     return catalogsOk_;
   }
 
@@ -606,6 +617,36 @@ private static final long serialVersionUID = 0L;
     return readOnly_;
   }
 
+  public static final int CATALOGSACTIVE_FIELD_NUMBER = 11;
+  private int catalogsActive_;
+  /**
+   * <pre>
+   * Number of catalogs that are active and has been successfully loaded
+   * </pre>
+   *
+   * <code>int32 catalogsActive = 11;</code>
+   * @return The catalogsActive.
+   */
+  @java.lang.Override
+  public int getCatalogsActive() {
+    return catalogsActive_;
+  }
+
+  public static final int CATALOGSINACTIVE_FIELD_NUMBER = 12;
+  private int catalogsInactive_;
+  /**
+   * <pre>
+   * Number of inactive catalogs
+   * </pre>
+   *
+   * <code>int32 catalogsInactive = 12;</code>
+   * @return The catalogsInactive.
+   */
+  @java.lang.Override
+  public int getCatalogsInactive() {
+    return catalogsInactive_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -657,6 +698,12 @@ private static final long serialVersionUID = 0L;
         9);
     if (readOnly_ != false) {
       output.writeBool(10, readOnly_);
+    }
+    if (catalogsActive_ != 0) {
+      output.writeInt32(11, catalogsActive_);
+    }
+    if (catalogsInactive_ != 0) {
+      output.writeInt32(12, catalogsInactive_);
     }
     unknownFields.writeTo(output);
   }
@@ -719,6 +766,14 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(10, readOnly_);
     }
+    if (catalogsActive_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(11, catalogsActive_);
+    }
+    if (catalogsInactive_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(12, catalogsInactive_);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -755,6 +810,10 @@ private static final long serialVersionUID = 0L;
         other.internalGetApi())) return false;
     if (getReadOnly()
         != other.getReadOnly()) return false;
+    if (getCatalogsActive()
+        != other.getCatalogsActive()) return false;
+    if (getCatalogsInactive()
+        != other.getCatalogsInactive()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -794,6 +853,10 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + READONLY_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getReadOnly());
+    hash = (37 * hash) + CATALOGSACTIVE_FIELD_NUMBER;
+    hash = (53 * hash) + getCatalogsActive();
+    hash = (37 * hash) + CATALOGSINACTIVE_FIELD_NUMBER;
+    hash = (53 * hash) + getCatalogsInactive();
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -976,6 +1039,10 @@ private static final long serialVersionUID = 0L;
       internalGetMutableApi().clear();
       readOnly_ = false;
 
+      catalogsActive_ = 0;
+
+      catalogsInactive_ = 0;
+
       return this;
     }
 
@@ -1022,6 +1089,8 @@ private static final long serialVersionUID = 0L;
       result.api_ = internalGetApi();
       result.api_.makeImmutable();
       result.readOnly_ = readOnly_;
+      result.catalogsActive_ = catalogsActive_;
+      result.catalogsInactive_ = catalogsInactive_;
       onBuilt();
       return result;
     }
@@ -1107,6 +1176,12 @@ private static final long serialVersionUID = 0L;
           other.internalGetApi());
       if (other.getReadOnly() != false) {
         setReadOnly(other.getReadOnly());
+      }
+      if (other.getCatalogsActive() != 0) {
+        setCatalogsActive(other.getCatalogsActive());
+      }
+      if (other.getCatalogsInactive() != 0) {
+        setCatalogsInactive(other.getCatalogsInactive());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -1574,26 +1649,28 @@ private static final long serialVersionUID = 0L;
     private int catalogsOk_ ;
     /**
      * <pre>
-     * Number of catalogs that are ok
+     * Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
      * </pre>
      *
-     * <code>int32 catalogsOk = 6;</code>
+     * <code>int32 catalogsOk = 6 [deprecated = true];</code>
+     * @deprecated
      * @return The catalogsOk.
      */
     @java.lang.Override
-    public int getCatalogsOk() {
+    @java.lang.Deprecated public int getCatalogsOk() {
       return catalogsOk_;
     }
     /**
      * <pre>
-     * Number of catalogs that are ok
+     * Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
      * </pre>
      *
-     * <code>int32 catalogsOk = 6;</code>
+     * <code>int32 catalogsOk = 6 [deprecated = true];</code>
+     * @deprecated
      * @param value The catalogsOk to set.
      * @return This builder for chaining.
      */
-    public Builder setCatalogsOk(int value) {
+    @java.lang.Deprecated public Builder setCatalogsOk(int value) {
 
       catalogsOk_ = value;
       onChanged();
@@ -1601,13 +1678,14 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Number of catalogs that are ok
+     * Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
      * </pre>
      *
-     * <code>int32 catalogsOk = 6;</code>
+     * <code>int32 catalogsOk = 6 [deprecated = true];</code>
+     * @deprecated
      * @return This builder for chaining.
      */
-    public Builder clearCatalogsOk() {
+    @java.lang.Deprecated public Builder clearCatalogsOk() {
 
       catalogsOk_ = 0;
       onChanged();
@@ -2074,6 +2152,92 @@ private static final long serialVersionUID = 0L;
     public Builder clearReadOnly() {
 
       readOnly_ = false;
+      onChanged();
+      return this;
+    }
+
+    private int catalogsActive_ ;
+    /**
+     * <pre>
+     * Number of catalogs that are active and has been successfully loaded
+     * </pre>
+     *
+     * <code>int32 catalogsActive = 11;</code>
+     * @return The catalogsActive.
+     */
+    @java.lang.Override
+    public int getCatalogsActive() {
+      return catalogsActive_;
+    }
+    /**
+     * <pre>
+     * Number of catalogs that are active and has been successfully loaded
+     * </pre>
+     *
+     * <code>int32 catalogsActive = 11;</code>
+     * @param value The catalogsActive to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogsActive(int value) {
+
+      catalogsActive_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Number of catalogs that are active and has been successfully loaded
+     * </pre>
+     *
+     * <code>int32 catalogsActive = 11;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCatalogsActive() {
+
+      catalogsActive_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private int catalogsInactive_ ;
+    /**
+     * <pre>
+     * Number of inactive catalogs
+     * </pre>
+     *
+     * <code>int32 catalogsInactive = 12;</code>
+     * @return The catalogsInactive.
+     */
+    @java.lang.Override
+    public int getCatalogsInactive() {
+      return catalogsInactive_;
+    }
+    /**
+     * <pre>
+     * Number of inactive catalogs
+     * </pre>
+     *
+     * <code>int32 catalogsInactive = 12;</code>
+     * @param value The catalogsInactive to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogsInactive(int value) {
+
+      catalogsInactive_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Number of inactive catalogs
+     * </pre>
+     *
+     * <code>int32 catalogsInactive = 12;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCatalogsInactive() {
+
+      catalogsInactive_ = 0;
       onChanged();
       return this;
     }

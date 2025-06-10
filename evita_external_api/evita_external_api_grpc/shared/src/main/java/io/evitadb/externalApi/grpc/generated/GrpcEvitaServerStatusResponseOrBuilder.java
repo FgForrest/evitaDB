@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -119,13 +119,14 @@ public interface GrpcEvitaServerStatusResponseOrBuilder extends
 
   /**
    * <pre>
-   * Number of catalogs that are ok
+   * Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
    * </pre>
    *
-   * <code>int32 catalogsOk = 6;</code>
+   * <code>int32 catalogsOk = 6 [deprecated = true];</code>
+   * @deprecated
    * @return The catalogsOk.
    */
-  int getCatalogsOk();
+  @java.lang.Deprecated int getCatalogsOk();
 
   /**
    * <pre>
@@ -258,4 +259,24 @@ public interface GrpcEvitaServerStatusResponseOrBuilder extends
    * @return The readOnly.
    */
   boolean getReadOnly();
+
+  /**
+   * <pre>
+   * Number of catalogs that are active and has been successfully loaded
+   * </pre>
+   *
+   * <code>int32 catalogsActive = 11;</code>
+   * @return The catalogsActive.
+   */
+  int getCatalogsActive();
+
+  /**
+   * <pre>
+   * Number of inactive catalogs
+   * </pre>
+   *
+   * <code>int32 catalogsInactive = 12;</code>
+   * @return The catalogsInactive.
+   */
+  int getCatalogsInactive();
 }

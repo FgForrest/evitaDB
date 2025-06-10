@@ -23,6 +23,9 @@ enum GrpcCatalogState {
   ALIVE = 1;
   // State signalizing that evitaDB engine was not able to consistently open and load this catalog from the file system.
   CORRUPTED = 3;
+  // State signalizing that evitaDB engine didn't load this catalog from the file system, but is present in
+  // the persistence storage. Catalog might be loaded into memory later on demand and start to process requests.
+  INACTIVE = 4;
   // Unknown state of the catalog. Used when catalog is corrupted.
   UNKNOWN_CATALOG_STATE = 2;
 }

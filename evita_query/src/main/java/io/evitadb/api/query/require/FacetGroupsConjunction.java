@@ -161,7 +161,7 @@ public class FacetGroupsConjunction extends AbstractRequireConstraintContainer i
 	@Nonnull
 	public Optional<FilterBy> getFacetGroups() {
 		return Arrays.stream(getAdditionalChildren())
-			.filter(child -> child instanceof FilterBy)
+			.filter(FilterBy.class::isInstance)
 			.map(FilterBy.class::cast)
 			.findAny();
 	}

@@ -321,10 +321,15 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	@Override
 	public SystemStatus getSystemStatus() {
 		final Collection<CatalogContract> catalogs = this.evita.getCatalogs();
-		final int corruptedCatalogs = (int) catalogs
-			.stream()
-			.filter(it -> it instanceof CorruptedCatalog)
-			.count();
+		int corruptedCatalogs = 0;
+		int inactiveCatalogs = 0;
+		for (CatalogContract catalog : catalogs) {
+			if (catalog instanceof CorruptedCatalog) {
+				corruptedCatalogs++;
+			} else if (catalog instanceof InactiveCatalog) {
+				inactiveCatalogs++;
+			}
+		}
 
 		return new SystemStatus(
 			VersionUtils.readVersion(),
@@ -332,7 +337,8 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 			Duration.between(this.started, OffsetDateTime.now()),
 			this.evita.getConfiguration().name(),
 			corruptedCatalogs,
-			catalogs.size() - corruptedCatalogs
+			catalogs.size() - corruptedCatalogs,
+			inactiveCatalogs
 		);
 	}
 

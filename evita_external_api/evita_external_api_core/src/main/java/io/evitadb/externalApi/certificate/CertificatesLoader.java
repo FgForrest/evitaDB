@@ -118,7 +118,7 @@ public class CertificatesLoader {
 	) throws IOException, CertificateException, NoSuchAlgorithmException {
 		try (InputStream inputStream = new FileInputStream(certificatePath)) {
 			 final Collection<? extends Certificate> certificateChain = certificateFactory.generateCertificates(inputStream);
-			 return certificateChain.stream().map(x -> (X509Certificate) x).toArray(X509Certificate[]::new);
+			 return certificateChain.stream().map(X509Certificate.class::cast).toArray(X509Certificate[]::new);
 		}
 	}
 

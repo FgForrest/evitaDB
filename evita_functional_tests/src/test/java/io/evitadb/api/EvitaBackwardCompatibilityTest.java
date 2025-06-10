@@ -139,7 +139,7 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 
 			final SystemStatus status = evita.management().getSystemStatus();
 			assertEquals(0, status.catalogsCorrupted());
-			assertEquals(1, status.catalogsOk());
+			assertEquals(1, status.catalogsActive());
 
 			// check the catalog has its own id
 			final UUID catalogId = evita.queryCatalog(

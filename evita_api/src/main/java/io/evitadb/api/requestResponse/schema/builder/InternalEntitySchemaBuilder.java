@@ -508,7 +508,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			cardinality,
 			this.mutations,
 			this.baseSchema.getReference(name)
-				.map(it -> it instanceof ReflectedReferenceSchemaContract)
+				.map(ReflectedReferenceSchemaContract.class::isInstance)
 				.orElse(true)
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceSchemaBuilder));

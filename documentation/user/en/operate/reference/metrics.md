@@ -340,6 +340,8 @@ duration of the probe.</dd>
   <dd><strong>Minimum percentage of active records in the file to start compacting in %.</strong>: Configured threshold for the minimum percentage of active records in the file to start compacting in % (`storage.minimalActiveRecordShare`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_corrupted_catalogs</code> (GAUGE)</dt>
   <dd><strong>Corrupted catalog count</strong>: Number of corrupted catalogs that evitaDB could not load.<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
+  <dt><code>io_evitadb_system_evita_statistics_inactive_catalogs</code> (GAUGE)</dt>
+  <dd><strong>Inactive catalog count</strong>: Number of inaccessible (not loaded to memory) catalogs present in storage directory of this instance of evitaDB.<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_query_timeout_seconds</code> (GAUGE)</dt>
   <dd><strong>Read-only request timeout in seconds</strong>: Configured threshold for the read-only request timeout in seconds (`server.queryTimeoutInMilliseconds`).<br/><br/><strong>Labels:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_read_only_handles_limit</code> (GAUGE)</dt>

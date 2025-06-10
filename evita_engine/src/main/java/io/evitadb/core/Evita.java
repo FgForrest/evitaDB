@@ -99,8 +99,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
@@ -181,13 +179,11 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Executor service that handles all requests to the Evita instance.
 	 */
-	@Getter
-	private final ObservableExecutorServiceWithHardDeadline requestExecutor;
+	private final ObservableThreadExecutor requestExecutor;
 	/**
 	 * Executor service that handles transaction handling, once transaction gets committed.
 	 */
-	@Getter
-	private final ObservableExecutorServiceWithHardDeadline transactionExecutor;
+	private final ObservableThreadExecutor transactionExecutor;
 	/**
 	 * Scheduler service for executing asynchronous service tasks.
 	 */
@@ -228,18 +224,6 @@ public final class Evita implements EvitaContract {
 	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
 	 */
 	@Getter private boolean readOnly;
-	/**
-	 * Last observed steal count of the request executor.
-	 */
-	private long requestExecutorSteals;
-	/**
-	 * Last observed steal count of the transactional executor.
-	 */
-	private long transactionalExecutorSteals;
-	/**
-	 * Last observed completed task count of the scheduler.
-	 */
-	private long schedulerCompletedTasks;
 
 	/**
 	 * Shuts down passed executor service in a safe manner.
@@ -288,7 +272,8 @@ public final class Evita implements EvitaContract {
 		this.tracingContext = TracingContextProvider.getContext();
 		this.changeObserver = new SystemChangeObserver();
 
-		final ServiceLoader<EnginePersistenceServiceFactory> svcLoader = ServiceLoader.load(EnginePersistenceServiceFactory.class);
+		final ServiceLoader<EnginePersistenceServiceFactory> svcLoader = ServiceLoader.load(
+			EnginePersistenceServiceFactory.class);
 		this.enginePersistenceService = svcLoader
 			.findFirst()
 			.map(it -> it.create(configuration.storage(), configuration.transaction(), this.serviceExecutor))
@@ -301,6 +286,11 @@ public final class Evita implements EvitaContract {
 		Collections.addAll(this.inactiveCatalogs, engineState.inactiveCatalogs());
 		this.management = new EvitaManagement(this);
 
+		// register stubs for all inactive catalogs
+		Arrays.stream(engineState.inactiveCatalogs())
+		      .map(it -> new InactiveCatalog(it, this.configuration.storage().storageDirectory().resolve(it)))
+		      .forEach(it -> this.catalogs.put(it.getName(), it));
+		// spawn parallel tasks to load all active catalogs
 		try {
 			CompletableFuture.allOf(
 				Arrays.stream(engineState.activeCatalogs())
@@ -319,6 +309,31 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Provides access to the request executor service, which is responsible
+	 * for managing and executing request-level operations with hard deadlines
+	 * within the Evita instance.
+	 *
+	 * @return An instance of {@link ObservableExecutorServiceWithHardDeadline}
+	 *         that handles request execution with hard deadlines for tasks.
+	 */
+	@Nonnull
+	public ObservableExecutorServiceWithHardDeadline getRequestExecutor() {
+		return this.requestExecutor;
+	}
+
+	/**
+	 * Provides access to the transaction executor service, which is responsible for managing
+	 * and executing transactional operations within the Evita instance.
+	 *
+	 * @return An instance of {@link ObservableExecutorServiceWithHardDeadline} that handles
+	 *         transaction execution with hard deadlines for tasks.
+	 */
+	@Nonnull
+	public ObservableExecutorServiceWithHardDeadline getTransactionExecutor() {
+		return this.transactionExecutor;
+	}
+
+	/**
 	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
 	 * If we didn't postpone this initialization, events would become lost.
 	 */
@@ -330,15 +345,29 @@ public final class Evita implements EvitaContract {
 		);
 		FlightRecorder.addPeriodicEvent(
 			RequestForkJoinPoolStatisticsEvent.class,
-			this::emitRequestForkJoinPoolStatistics
+			() -> this.requestExecutor.emitPoolStatistics(
+				(fj, steals) -> new RequestForkJoinPoolStatisticsEvent(
+					steals,
+					fj.getQueuedTaskCount(),
+					fj.getActiveThreadCount(),
+					fj.getRunningThreadCount()
+				)
+			)
 		);
 		FlightRecorder.addPeriodicEvent(
 			TransactionForkJoinPoolStatisticsEvent.class,
-			this::emitTransactionalForkJoinPoolStatistics
+			() -> this.transactionExecutor.emitPoolStatistics(
+				(fj, steals) -> new TransactionForkJoinPoolStatisticsEvent(
+					steals,
+					fj.getQueuedTaskCount(),
+					fj.getActiveThreadCount(),
+					fj.getRunningThreadCount()
+				)
+			)
 		);
 		FlightRecorder.addPeriodicEvent(
 			ScheduledExecutorStatisticsEvent.class,
-			this::emitScheduledForkJoinPoolStatistics
+			this.serviceExecutor::emitScheduledForkJoinPoolStatistics
 		);
 	}
 
@@ -389,8 +418,16 @@ public final class Evita implements EvitaContract {
 	@Nonnull
 	@Override
 	public Optional<CatalogState> getCatalogState(@Nonnull String catalogName) {
-		return Optional.ofNullable(this.catalogs.get(catalogName))
-		               .map(it -> it instanceof CorruptedCatalog ? CatalogState.CORRUPTED : it.getCatalogState());
+		return ofNullable(this.catalogs.get(catalogName))
+			.map(it -> {
+				if (it instanceof InactiveCatalog) {
+					return CatalogState.INACTIVE;
+				} else if (it instanceof CorruptedCatalog) {
+					return CatalogState.CORRUPTED;
+				} else {
+					return it.getCatalogState();
+				}
+			});
 	}
 
 	@Override
@@ -437,7 +474,8 @@ public final class Evita implements EvitaContract {
 	public void update(@Nonnull EngineMutation engineMutation) {
 		assertActiveAndWritable();
 		try {
-			if (this.engineStateLock.tryLock(this.configuration.server().transactionTimeoutInMilliseconds(), TimeUnit.MILLISECONDS)) {
+			if (this.engineStateLock.tryLock(
+				this.configuration.server().transactionTimeoutInMilliseconds(), TimeUnit.MILLISECONDS)) {
 				final EngineState theEngineState = this.engineState.get();
 				final WalFileReference walFileReference = this.enginePersistenceService.appendWal(
 					theEngineState.version(),
@@ -447,7 +485,8 @@ public final class Evita implements EvitaContract {
 					if (engineMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
 						createCatalogInternal(createCatalogSchema);
 					} else if (engineMutation instanceof ModifyCatalogSchemaNameMutation modifyCatalogSchemaName) {
-						if (modifyCatalogSchemaName.isOverwriteTarget() && this.catalogs.containsKey(modifyCatalogSchemaName.getNewCatalogName())) {
+						if (modifyCatalogSchemaName.isOverwriteTarget() && this.catalogs.containsKey(
+							modifyCatalogSchemaName.getNewCatalogName())) {
 							replaceCatalogInternal(modifyCatalogSchemaName);
 						} else {
 							renameCatalogInternal(modifyCatalogSchemaName);
@@ -463,16 +502,19 @@ public final class Evita implements EvitaContract {
 					} else if (engineMutation instanceof RemoveCatalogSchemaMutation removeCatalogSchema) {
 						removeCatalogInternal(removeCatalogSchema);
 					} else {
-						throw new EvitaInvalidUsageException("Unknown engine mutation: `" + engineMutation.getClass() + "`!");
+						throw new EvitaInvalidUsageException(
+							"Unknown engine mutation: `" + engineMutation.getClass() + "`!");
 					}
 				} finally {
 					final EngineState newState = EngineState
 						.builder()
 						.version(theEngineState.version() + 1)
-						.activeCatalogs(this.catalogs.keySet()
-						                             .stream()
-						                             .filter(it -> !this.inactiveCatalogs.contains(it))
-						                             .toArray(String[]::new))
+						.activeCatalogs(
+							this.catalogs.keySet()
+							             .stream()
+							             .filter(it -> !this.inactiveCatalogs.contains(it))
+							             .toArray(String[]::new)
+						)
 						.inactiveCatalogs(this.inactiveCatalogs.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
 						.walFileReference(walFileReference)
 						.build();
@@ -645,7 +687,7 @@ public final class Evita implements EvitaContract {
 	@Nonnull
 	public Optional<CatalogContract> getCatalogInstance(@Nonnull String catalog) {
 		return ofNullable(this.catalogs.get(catalog))
-			.or(() -> Optional.ofNullable(this.removedCatalog.get()));
+			.or(() -> ofNullable(this.removedCatalog.get()));
 	}
 
 	/**
@@ -698,7 +740,8 @@ public final class Evita implements EvitaContract {
 					this::replaceCatalogReference,
 					this.tracingContext
 				);
-				log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
+				log.info(
+					"Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
 				// this will be one day used in more clever way, when entire catalog loading will be split into
 				// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
 				theCatalog.processWriteAheadLog(
@@ -745,57 +788,9 @@ public final class Evita implements EvitaContract {
 		}
 	}
 
-	/**
-	 * Emits statistics of the ThreadPool associated with the scheduler.
-	 */
-	private void emitScheduledForkJoinPoolStatistics() {
-		final ScheduledThreadPoolExecutor tp = this.serviceExecutor.getExecutorServiceInternal();
-		final long currentlyCompleted = tp.getCompletedTaskCount();
-		new ScheduledExecutorStatisticsEvent(
-			currentlyCompleted - this.schedulerCompletedTasks,
-			tp.getActiveCount(),
-			tp.getQueue().size(),
-			tp.getQueue().remainingCapacity(),
-			tp.getPoolSize(),
-			tp.getCorePoolSize(),
-			tp.getMaximumPoolSize()
-		).commit();
-		this.schedulerCompletedTasks = currentlyCompleted;
-	}
-
 	/*
 		PRIVATE METHODS
 	*/
-
-	/**
-	 * Emits statistics of the ForkJoinPool associated with the request executor.
-	 */
-	private void emitRequestForkJoinPoolStatistics() {
-		final ForkJoinPool fj = ((ObservableThreadExecutor) this.requestExecutor).getForkJoinPoolInternal();
-		final long currentStealCount = fj.getStealCount();
-		new RequestForkJoinPoolStatisticsEvent(
-			currentStealCount - this.requestExecutorSteals,
-			fj.getQueuedTaskCount(),
-			fj.getActiveThreadCount(),
-			fj.getRunningThreadCount()
-		).commit();
-		this.requestExecutorSteals = currentStealCount;
-	}
-
-	/**
-	 * Emits statistics of the ForkJoinPool associated with the transactional executor.
-	 */
-	private void emitTransactionalForkJoinPoolStatistics() {
-		final ForkJoinPool fj = ((ObservableThreadExecutor) this.transactionExecutor).getForkJoinPoolInternal();
-		final long currentStealCount = fj.getStealCount();
-		new RequestForkJoinPoolStatisticsEvent(
-			currentStealCount - this.transactionalExecutorSteals,
-			fj.getQueuedTaskCount(),
-			fj.getActiveThreadCount(),
-			fj.getRunningThreadCount()
-		).commit();
-		this.transactionalExecutorSteals = currentStealCount;
-	}
 
 	/**
 	 * Creates new catalog in the evitaDB.
@@ -825,11 +820,19 @@ public final class Evita implements EvitaContract {
 							                            .stream();
 						             }
 						             return nameStream
-							             .map(name -> new CatalogNameInConvention(it.getName(), name.getKey(), name.getValue()));
+							             .map(name -> new CatalogNameInConvention(
+								             it.getName(), name.getKey(),
+								             name.getValue()
+							             ));
 					             })
 					             .filter(nameVariant -> nameVariant.name()
-					                                               .equals(catalogSchema.getNameVariant(nameVariant.convention())))
-					             .map(nameVariant -> new CatalogNamingConventionConflict(nameVariant.catalogName(), nameVariant.convention(), nameVariant.name()))
+					                                               .equals(catalogSchema.getNameVariant(
+						                                               nameVariant.convention())))
+					             .map(nameVariant -> new CatalogNamingConventionConflict(
+						             nameVariant.catalogName(),
+						             nameVariant.convention(),
+						             nameVariant.name()
+					             ))
 					             .forEach(conflict -> {
 						             throw new CatalogAlreadyPresentException(
 							             catalogName, conflict.conflictingCatalogName(),
@@ -878,7 +881,10 @@ public final class Evita implements EvitaContract {
 		final String catalogNameToBeReplaced = modifyCatalogSchemaName.getNewCatalogName();
 		final CatalogContract catalogToBeReplaced = getCatalogInstanceOrThrowException(catalogNameToBeReplaced);
 		final CatalogContract catalogToBeReplacedWith = getCatalogInstanceOrThrowException(catalogNameToBeReplacedWith);
-		doReplaceCatalogInternal(modifyCatalogSchemaName, catalogNameToBeReplaced, catalogNameToBeReplacedWith, catalogToBeReplaced, catalogToBeReplacedWith);
+		doReplaceCatalogInternal(
+			modifyCatalogSchemaName, catalogNameToBeReplaced, catalogNameToBeReplacedWith, catalogToBeReplaced,
+			catalogToBeReplacedWith
+		);
 	}
 
 	/**
@@ -892,9 +898,11 @@ public final class Evita implements EvitaContract {
 		@Nonnull CatalogContract catalogToBeReplacedWith
 	) {
 		// close all active sessions to the catalog that will replace the original one
-		final Optional<SessionRegistry> prevailingCatalogSessionRegistry = ofNullable(this.catalogSessionRegistries.get(catalogNameToBeReplacedWith));
+		final Optional<SessionRegistry> prevailingCatalogSessionRegistry = ofNullable(
+			this.catalogSessionRegistries.get(catalogNameToBeReplacedWith));
 		// this will be always empty if catalogToBeReplaced == catalogToBeReplacedWith
-		Optional<SessionRegistry> removedCatalogSessionRegistry = ofNullable(this.catalogSessionRegistries.get(catalogNameToBeReplaced));
+		Optional<SessionRegistry> removedCatalogSessionRegistry = ofNullable(
+			this.catalogSessionRegistries.get(catalogNameToBeReplaced));
 
 		prevailingCatalogSessionRegistry
 			.ifPresent(sessionRegistry -> {
@@ -903,20 +911,23 @@ public final class Evita implements EvitaContract {
 				// session creation will be postponed until the catalog is fully available
 				this.catalogSessionRegistries.put(
 					catalogNameToBeReplaced,
-					sessionRegistry.withDifferentCatalogSupplier(() -> (Catalog) this.catalogs.get(catalogNameToBeReplaced))
+					sessionRegistry.withDifferentCatalogSupplier(
+						() -> (Catalog) this.catalogs.get(catalogNameToBeReplaced))
 				);
 			});
 
 		try {
 			// first terminate the catalog that is being replaced (unless it's the very same catalog)
 			if (catalogToBeReplaced != catalogToBeReplacedWith) {
-				removedCatalogSessionRegistry.ifPresent(it -> it.closeAllActiveSessionsAndSuspend(SuspendOperation.REJECT));
+				removedCatalogSessionRegistry.ifPresent(
+					it -> it.closeAllActiveSessionsAndSuspend(SuspendOperation.REJECT));
 				catalogToBeReplaced.terminate();
 			} else {
 				Assert.isPremiseValid(removedCatalogSessionRegistry.isEmpty(), "Expectation failed!");
 			}
 
-			final CatalogSchemaWithImpactOnEntitySchemas updatedSchemaWrapper = modifyCatalogSchemaName.mutate(catalogToBeReplacedWith.getSchema());
+			final CatalogSchemaWithImpactOnEntitySchemas updatedSchemaWrapper = modifyCatalogSchemaName.mutate(
+				catalogToBeReplacedWith.getSchema());
 			Assert.isPremiseValid(
 				updatedSchemaWrapper != null,
 				"Result of modify catalog schema mutation must not be null."
@@ -931,7 +942,8 @@ public final class Evita implements EvitaContract {
 
 			// notify publishers about the change
 			if (previousCatalog != null) {
-				this.changeObserver.notifyPublishers(catalogNameToBeReplaced, new RemoveCatalogSchemaMutation(previousCatalog.getName()));
+				this.changeObserver.notifyPublishers(
+					catalogNameToBeReplaced, new RemoveCatalogSchemaMutation(previousCatalog.getName()));
 			}
 			this.changeObserver.notifyPublishers(catalogNameToBeReplacedWith, modifyCatalogSchemaName);
 

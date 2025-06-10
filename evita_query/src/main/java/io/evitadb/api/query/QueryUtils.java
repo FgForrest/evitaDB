@@ -129,7 +129,7 @@ public class QueryUtils {
 			.map(it -> FinderVisitor.findConstraints(it, new ConstraintTypeMatcher(constraintType)))
 				.orElse(Collections.emptyList())
 				.stream()
-				.map(i -> (FilterConstraint) i)
+				.map(FilterConstraint.class::cast)
 				.collect(Collectors.toList());
 	}
 
@@ -177,7 +177,7 @@ public class QueryUtils {
 			.map(it -> FinderVisitor.findConstraints(it, new ConstraintTypeMatcher(constraintType)))
 			.orElse(Collections.emptyList())
 			.stream()
-			.map(i -> (RequireConstraint) i)
+			.map(RequireConstraint.class::cast)
 			.collect(Collectors.toList());
 	}
 
@@ -192,7 +192,7 @@ public class QueryUtils {
 			.map(it -> FinderVisitor.findConstraints(it, new ConstraintTypeMatcher(constraintType), stopContainerType::isInstance))
 			.orElse(Collections.emptyList())
 			.stream()
-			.map(i -> (RequireConstraint) i)
+			.map(RequireConstraint.class::cast)
 			.collect(Collectors.toList());
 	}
 

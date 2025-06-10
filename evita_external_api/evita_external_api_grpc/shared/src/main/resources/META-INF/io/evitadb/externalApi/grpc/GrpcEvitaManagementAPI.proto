@@ -21,8 +21,8 @@ message GrpcEvitaServerStatusResponse {
   string instanceId = 4;
   // Number of corrupted catalogs
   int32 catalogsCorrupted = 5;
-  // Number of catalogs that are ok
-  int32 catalogsOk = 6;
+  // Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
+  int32 catalogsOk = 6 [deprecated = true];
   // Health problems
   repeated GrpcHealthProblem healthProblems = 7;
   // Overall readiness of the evitaDB server
@@ -31,6 +31,10 @@ message GrpcEvitaServerStatusResponse {
   map<string, GrpcApiStatus> api = 9;
   // Flag indicating that the server is in read-only mode
   bool readOnly = 10;
+  // Number of catalogs that are active and has been successfully loaded
+  int32 catalogsActive = 11;
+  // Number of inactive catalogs
+  int32 catalogsInactive = 12;
 }
 
 // Status of the external API

@@ -372,7 +372,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				new ModifyAttributeSchemaTypeMutation(
 					this.baseSchema.getName(),
 					toAttributeMutation().stream()
-						.filter(it -> it instanceof ModifyAttributeSchemaTypeMutation)
+						.filter(ModifyAttributeSchemaTypeMutation.class::isInstance)
 						.map(it -> ((ModifyAttributeSchemaTypeMutation) it).getType())
 						.findFirst()
 						.orElseGet(() -> (Class) this.baseSchema.getType()),

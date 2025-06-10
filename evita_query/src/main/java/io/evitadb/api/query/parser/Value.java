@@ -282,7 +282,7 @@ public class Value {
 	@Nonnull
 	public Serializable[] asSerializableArray() {
 		try {
-			return asArray(v -> (Serializable) v, Serializable.class);
+			return asArray(Serializable.class::cast, Serializable.class);
 		} catch (ClassCastException e) {
 			throw new EvitaInvalidUsageException("Unexpected type of value array `" + this.actualValue.getClass().getName() + "`.");
 		}

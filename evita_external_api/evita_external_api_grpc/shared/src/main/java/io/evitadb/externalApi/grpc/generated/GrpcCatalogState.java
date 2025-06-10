@@ -72,6 +72,15 @@ public enum GrpcCatalogState
   CORRUPTED(3),
   /**
    * <pre>
+   * State signalizing that evitaDB engine didn't load this catalog from the file system, but is present in
+   * the persistence storage. Catalog might be loaded into memory later on demand and start to process requests.
+   * </pre>
+   *
+   * <code>INACTIVE = 4;</code>
+   */
+  INACTIVE(4),
+  /**
+   * <pre>
    * Unknown state of the catalog. Used when catalog is corrupted.
    * </pre>
    *
@@ -118,6 +127,15 @@ public enum GrpcCatalogState
   public static final int CORRUPTED_VALUE = 3;
   /**
    * <pre>
+   * State signalizing that evitaDB engine didn't load this catalog from the file system, but is present in
+   * the persistence storage. Catalog might be loaded into memory later on demand and start to process requests.
+   * </pre>
+   *
+   * <code>INACTIVE = 4;</code>
+   */
+  public static final int INACTIVE_VALUE = 4;
+  /**
+   * <pre>
    * Unknown state of the catalog. Used when catalog is corrupted.
    * </pre>
    *
@@ -153,6 +171,7 @@ public enum GrpcCatalogState
       case 0: return WARMING_UP;
       case 1: return ALIVE;
       case 3: return CORRUPTED;
+      case 4: return INACTIVE;
       case 2: return UNKNOWN_CATALOG_STATE;
       default: return null;
     }

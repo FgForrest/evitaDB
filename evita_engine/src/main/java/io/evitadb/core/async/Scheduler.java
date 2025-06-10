@@ -29,6 +29,7 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.utils.ArrayUtils;
@@ -99,6 +100,10 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * Rejected execution handler that is called when the queue is full and a new task cannot be added.
 	 */
 	private final EvitaRejectingExecutorHandler rejectingExecutorHandler;
+	/**
+	 * Last observed completed task count of the scheduler.
+	 */
+	private long schedulerCompletedTasks;
 
 	/**
 	 * Creates a predicate to evaluate {@link TaskStatus} objects based on the specified task types and simplified states.
@@ -563,6 +568,23 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
 		}
+	}
+
+	/**
+	 * Emits statistics of the ThreadPool associated with the scheduler.
+	 */
+	public void emitScheduledForkJoinPoolStatistics() {
+		final long currentlyCompleted = this.executorService.getCompletedTaskCount();
+		new ScheduledExecutorStatisticsEvent(
+			currentlyCompleted - this.schedulerCompletedTasks,
+			this.executorService.getActiveCount(),
+			this.executorService.getQueue().size(),
+			this.executorService.getQueue().remainingCapacity(),
+			this.executorService.getPoolSize(),
+			this.executorService.getCorePoolSize(),
+			this.executorService.getMaximumPoolSize()
+		).commit();
+		this.schedulerCompletedTasks = currentlyCompleted;
 	}
 
 	/**

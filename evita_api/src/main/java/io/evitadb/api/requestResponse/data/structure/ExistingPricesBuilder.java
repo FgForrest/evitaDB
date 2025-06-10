@@ -461,7 +461,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 		}
 		// check whether there is no conflicting update
 		final UpsertPriceMutation conflictingMutation = this.priceMutations.values().stream()
-			.filter(it -> it instanceof UpsertPriceMutation)
+			.filter(UpsertPriceMutation.class::isInstance)
 			.map(UpsertPriceMutation.class::cast)
 			.filter(it -> it.getPriceKey().priceList().equals(price.priceList()))
 			.filter(it -> it.getPriceKey().currency().equals(price.currency()))

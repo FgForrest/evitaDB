@@ -102,6 +102,7 @@ public class EvitaEnumConverter {
 		return switch (catalogState) {
 			case WARMING_UP -> GrpcCatalogState.WARMING_UP;
 			case ALIVE -> GrpcCatalogState.ALIVE;
+			case INACTIVE -> GrpcCatalogState.INACTIVE;
 			case CORRUPTED -> GrpcCatalogState.CORRUPTED;
 		};
 	}

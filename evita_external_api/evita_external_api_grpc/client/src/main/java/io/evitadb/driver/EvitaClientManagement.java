@@ -475,7 +475,8 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 			Duration.of(response.getUptime(), ChronoUnit.SECONDS),
 			response.getInstanceId(),
 			response.getCatalogsCorrupted(),
-			response.getCatalogsOk()
+			response.getCatalogsActive(),
+			response.getCatalogsInactive()
 		);
 	}
 

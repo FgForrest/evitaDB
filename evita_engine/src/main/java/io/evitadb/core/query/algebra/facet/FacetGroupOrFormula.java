@@ -175,7 +175,7 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 					this.facetGroupId == null ? LongStream.empty() : LongStream.of(this.facetGroupId),
 					StreamSupport.stream(this.facetIds.spliterator(), false).mapToLong(it -> it),
 					Arrays.stream(this.bitmaps)
-						.filter(it -> it instanceof TransactionalBitmap)
+						.filter(TransactionalBitmap.class::isInstance)
 						.mapToLong(it -> ((TransactionalBitmap) it).getId())
 						.sorted()
 				)

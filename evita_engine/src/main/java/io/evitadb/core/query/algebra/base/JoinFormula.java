@@ -264,7 +264,7 @@ public class JoinFormula extends AbstractFormula {
 	protected long getCostInternal() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(() -> super.getCostInternal());
+			.orElseGet(super::getCostInternal);
 	}
 
 	/*

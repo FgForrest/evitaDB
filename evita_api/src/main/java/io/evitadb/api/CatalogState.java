@@ -54,6 +54,13 @@ public enum CatalogState {
     ALIVE,
 
     /**
+     * State signalizing that evitaDB engine didn't load this catalog from the file system. The catalog data are present
+     * on the file system, but they are not loaded into memory and the evitaDB engine is not able to serve any requests
+     * for this catalog.
+     */
+    INACTIVE,
+
+    /**
      * State signalizing that evitaDB engine was not able to consistently open and load this catalog from the file system.
      */
     CORRUPTED

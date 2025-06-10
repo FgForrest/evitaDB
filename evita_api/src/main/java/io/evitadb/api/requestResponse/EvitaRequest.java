@@ -265,7 +265,7 @@ public class EvitaRequest {
 		this.primaryKeys = evitaRequest.primaryKeys;
 		this.localeExamined = evitaRequest.localeExamined;
 		this.locale = evitaRequest.locale;
-		if (Arrays.stream(requirements.getRequirements()).anyMatch(it -> it instanceof DataInLocales)) {
+		if (Arrays.stream(requirements.getRequirements()).anyMatch(DataInLocales.class::isInstance)) {
 			this.requiredLocales = null;
 			this.requiredLocaleSet = null;
 		} else {

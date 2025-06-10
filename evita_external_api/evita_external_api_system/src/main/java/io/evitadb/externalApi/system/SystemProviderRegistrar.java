@@ -137,7 +137,8 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 								   "uptime": %d,
 								   "uptimeForHuman": "%s",
 								   "catalogsCorrupted": %d,
-								   "catalogsOk": %d,
+								   "catalogsActive": %d,
+								   "catalogsInactive": %d,
 								   "healthProblems": [%s],
 								   "apis": [
 								%s
@@ -149,7 +150,8 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 							systemStatus.uptime().toSeconds(),
 							StringUtils.formatDuration(systemStatus.uptime()),
 							systemStatus.catalogsCorrupted(),
-							systemStatus.catalogsOk(),
+							systemStatus.catalogsActive(),
+							systemStatus.catalogsInactive(),
 							healthProblems.stream()
 								.sorted()
 								.map(it -> "\"" + it.name() + "\"")

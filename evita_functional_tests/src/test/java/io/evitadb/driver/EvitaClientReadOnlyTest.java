@@ -1265,7 +1265,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	void shouldRetrieveSystemStatus(EvitaClient evitaClient) {
 		final SystemStatus systemStatus = evitaClient.management().getSystemStatus();
 		assertNotNull(systemStatus);
-		assertEquals(1, systemStatus.catalogsOk());
+		assertEquals(1, systemStatus.catalogsActive());
 		assertEquals(0, systemStatus.catalogsCorrupted());
 	}
 

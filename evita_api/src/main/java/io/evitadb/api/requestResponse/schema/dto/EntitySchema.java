@@ -824,7 +824,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	@Override
 	public ReferenceSchema getReferenceOrThrowException(@Nonnull String referenceName) {
 		return getReference(referenceName)
-			.map(it -> (ReferenceSchema) it)
+			.map(ReferenceSchema.class::cast)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, this));
 	}
 

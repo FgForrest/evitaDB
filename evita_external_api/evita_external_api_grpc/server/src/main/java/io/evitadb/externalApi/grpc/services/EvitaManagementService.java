@@ -172,7 +172,9 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					.setUptime(systemStatus.uptime().toSeconds())
 					.setInstanceId(systemStatus.instanceId())
 					.setCatalogsCorrupted(systemStatus.catalogsCorrupted())
-					.setCatalogsOk(systemStatus.catalogsOk())
+					.setCatalogsOk(systemStatus.catalogsActive())
+					.setCatalogsActive(systemStatus.catalogsActive())
+					.setCatalogsInactive(systemStatus.catalogsInactive())
 					.setReadiness(toGrpcReadinessState(readiness.map(Readiness::state).orElse(ReadinessState.UNKNOWN)))
 					.setReadOnly(this.evita.getConfiguration().server().readOnly());
 

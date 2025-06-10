@@ -69,7 +69,7 @@ public class AllEntitySchemasDataFetcher implements DataFetcher<List<EntitySchem
 			.stream()
 			.map(entityType -> requestExecutedEvent.measureInternalEvitaDBExecution(() -> evitaSession.getEntitySchema(entityType))
 				.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing entity schema for type `" + entityType + "`.")))
-			.map(it -> (EntitySchemaContract)it)
+			.map(EntitySchemaContract.class::cast)
 			.toList();
 	}
 }

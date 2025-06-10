@@ -83,7 +83,7 @@ import static java.util.Optional.ofNullable;
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, IndexDataStructure, Serializable {
 	public static final String ERROR_RANGE_TYPE_NOT_SUPPORTED = "This filter index doesn't handle Range type!";
-	public static final Function<Object, Serializable> NO_NORMALIZATION = o -> (Serializable) o;
+	public static final Function<Object, Serializable> NO_NORMALIZATION = Serializable.class::cast;
 	@Serial private static final long serialVersionUID = -6813305126746774103L;
 	public static final Comparator<Comparable> DEFAULT_COMPARATOR = Comparator.naturalOrder();
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();

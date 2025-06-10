@@ -187,6 +187,11 @@ public class EvitaStatisticsEvent extends AbstractSystemCatalogEvent {
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int corruptedCatalogs;
 
+	@Label("Inactive catalog count")
+	@Description("Number of inaccessible (not loaded to memory) catalogs present in storage directory of this instance of evitaDB.")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final int inactiveCatalogs;
+
 	public EvitaStatisticsEvent(
 		@Nonnull EvitaConfiguration configuration,
 		@Nonnull SystemStatus systemStatus
@@ -195,7 +200,8 @@ public class EvitaStatisticsEvent extends AbstractSystemCatalogEvent {
 
 		this.serverVersion = systemStatus.version();
 		this.instanceId = systemStatus.instanceId();
-		this.catalogs = systemStatus.catalogsOk();
+		this.catalogs = systemStatus.catalogsActive();
+		this.inactiveCatalogs = systemStatus.catalogsInactive();
 		this.corruptedCatalogs = systemStatus.catalogsCorrupted();
 
 		final ServerOptions serverConfiguration = configuration.server();

@@ -196,7 +196,7 @@ public final class SortableAttributeCompoundSchemaBuilder
 	public Collection<SortableAttributeCompoundSchemaMutation> toSortableAttributeCompoundSchemaMutation() {
 		return this.mutations
 			.stream()
-			.map(it -> (SortableAttributeCompoundSchemaMutation) it)
+			.map(SortableAttributeCompoundSchemaMutation.class::cast)
 			.collect(Collectors.toList());
 	}
 
