@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,18 +41,13 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocato
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.BigDecimalFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceBigDecimalFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.*;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.Argument;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.ArgumentSupplier;
 import io.evitadb.utils.ArrayUtils;
@@ -62,6 +57,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -125,6 +121,7 @@ public class EntityFetchConverter extends RequireConverter {
 		);
 		convertPriceContent(
 			fieldsBuilder,
+			entityFetch,
 			QueryUtils.findConstraint(entityFetch, PriceContent.class, SeparateEntityContentRequireContainer.class),
 			locale
 		);
@@ -314,6 +311,7 @@ public class EntityFetchConverter extends RequireConverter {
 	}
 
 	private void convertPriceContent(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
+									 @Nonnull EntityFetchRequire entityFetch,
 	                                 @Nullable PriceContent priceContent,
 	                                 @Nullable Locale locale) {
 		if (priceContent != null) {
@@ -333,6 +331,11 @@ public class EntityFetchConverter extends RequireConverter {
 							priceForSaleBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITHOUT_TAX, getPriceValueFieldArguments(locale));
 							priceForSaleBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITH_TAX, getPriceValueFieldArguments(locale));
 							priceForSaleBuilder.addPrimitiveField(PriceDescriptor.TAX_RATE);
+
+							final List<AccompanyingPriceContent> accompanyingPriceContents = QueryUtils.findConstraints(entityFetch, AccompanyingPriceContent.class, SeparateEntityContentRequireContainer.class);
+							if (!accompanyingPriceContents.isEmpty()) {
+								convertAccompanyingPriceContents(priceForSaleBuilder, accompanyingPriceContents, locale);
+							}
 						}
 					);
 
@@ -439,6 +442,44 @@ public class EntityFetchConverter extends RequireConverter {
 		};
 	}
 
+	private static void convertAccompanyingPriceContents(@Nonnull GraphQLOutputFieldsBuilder priceForSaleFieldsBuilder,
+	                                                     @Nonnull List<AccompanyingPriceContent> accompanyingPriceContents,
+	                                                     @Nullable Locale locale) {
+		if (accompanyingPriceContents.isEmpty()) {
+			return;
+		}
+		for (final AccompanyingPriceContent accompanyingPriceContent : accompanyingPriceContents) {
+			priceForSaleFieldsBuilder.addObjectField(
+				AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE.equals(accompanyingPriceContent.getName()) ? null : accompanyingPriceContent.getName(),
+				PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(),
+				accompanyingPriceBuilder -> {
+					accompanyingPriceBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITHOUT_TAX, getPriceValueFieldArguments(locale));
+					accompanyingPriceBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITH_TAX, getPriceValueFieldArguments(locale));
+					accompanyingPriceBuilder.addPrimitiveField(PriceDescriptor.TAX_RATE);
+				},
+				getAccompanyingPriceArguments(accompanyingPriceContent)
+			);
+		}
+	}
+
+	@Nonnull
+	private static ArgumentSupplier[] getAccompanyingPriceArguments(@Nonnull AccompanyingPriceContent accompanyingPriceContent) {
+		final List<ArgumentSupplier> arguments = new LinkedList<>();
+
+		if (accompanyingPriceContent.getPriceLists().length > 0) {
+			arguments.add(
+				(offset, multipleArguments) -> new Argument(
+					AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS,
+					offset,
+					multipleArguments,
+					accompanyingPriceContent.getPriceLists()
+				)
+			);
+		}
+
+		return arguments.toArray(ArgumentSupplier[]::new);
+	}
+
 	private void convertReferenceContents(@Nonnull GraphQLOutputFieldsBuilder entityFieldsBuilder,
 	                                      @Nonnull List<ReferenceContent> referenceContents,
 	                                      @Nonnull String entityType,
@@ -467,46 +508,71 @@ public class EntityFetchConverter extends RequireConverter {
 	                                     @Nonnull EntitySchemaContract entitySchema,
 	                                     @Nonnull ReferenceContent referenceContent,
 	                                     @Nonnull String referenceName) {
+		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName).orElseThrow();
+
+		final String fieldName;
+		if (referenceContent.getPage().isPresent()) {
+			fieldName = GraphQLEntityDescriptor.REFERENCE_PAGE.name(referenceSchema);
+		} else if (referenceContent.getStrip().isPresent()) {
+			fieldName = GraphQLEntityDescriptor.REFERENCE_STRIP.name(referenceSchema);
+		} else {
+			fieldName = GraphQLEntityDescriptor.REFERENCE.name(referenceSchema);
+		}
+
 		// convert requirements into output fields
 		entityFieldsBuilder.addObjectField(
-			StringUtils.toCamelCase(referenceName),
+			fieldName,
 			referenceBuilder -> {
-				final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName).orElseThrow();
-
-				referenceBuilder.addPrimitiveField(ReferenceDescriptor.REFERENCED_PRIMARY_KEY);
-
-				referenceContent.getAttributeContent().ifPresent(attributeContent -> convertAttributeContent(
-					referenceBuilder,
-					attributeContent,
-					filterLocale,
-					requiredLocales,
-					referenceSchema
-				));
-
-				referenceContent.getEntityRequirement().ifPresent(entityRequirement ->
+				if (referenceContent.getPage().isPresent() || referenceContent.getStrip().isPresent()) {
 					referenceBuilder.addObjectField(
-						ReferenceDescriptor.REFERENCED_ENTITY,
-						referencedEntityBuilder -> convert(
-							referencedEntityBuilder,
-							referenceSchema.getReferencedEntityType(),
-							filterLocale,
-							entityRequirement
-						)
-					));
-
-				referenceContent.getGroupEntityRequirement().ifPresent(groupEntityRequirement ->
-					referenceBuilder.addObjectField(
-						ReferenceDescriptor.GROUP_ENTITY,
-						referencedGroupEntityBuilder -> convert(
-							referencedGroupEntityBuilder,
-							referenceSchema.getReferencedGroupType(),
-							filterLocale,
-							groupEntityRequirement
-						)
-					));
+						DataChunkDescriptor.DATA,
+						dataChunkBuilder ->
+							convertReferenceContentReferenceBody(filterLocale, requiredLocales, referenceContent, referenceSchema, dataChunkBuilder)
+					);
+				} else {
+					convertReferenceContentReferenceBody(filterLocale, requiredLocales, referenceContent, referenceSchema, referenceBuilder);
+				}
 			},
 			getReferenceContentArguments(entityType, referenceContent, referenceName)
 		);
+	}
+
+	private void convertReferenceContentReferenceBody(@Nullable Locale filterLocale,
+	                                                  @Nullable Set<Locale> requiredLocales,
+	                                                  @Nonnull ReferenceContent referenceContent,
+													  @Nonnull ReferenceSchemaContract referenceSchema,
+	                                                  @Nonnull GraphQLOutputFieldsBuilder referenceBuilder) {
+		referenceBuilder.addPrimitiveField(ReferenceDescriptor.REFERENCED_PRIMARY_KEY);
+
+		referenceContent.getAttributeContent().ifPresent(attributeContent -> convertAttributeContent(
+			referenceBuilder,
+			attributeContent,
+			filterLocale,
+			requiredLocales,
+			referenceSchema
+		));
+
+		referenceContent.getEntityRequirement().ifPresent(entityRequirement ->
+			referenceBuilder.addObjectField(
+				ReferenceDescriptor.REFERENCED_ENTITY,
+				referencedEntityBuilder -> convert(
+					referencedEntityBuilder,
+					referenceSchema.getReferencedEntityType(),
+					filterLocale,
+					entityRequirement
+				)
+			));
+
+		referenceContent.getGroupEntityRequirement().ifPresent(groupEntityRequirement ->
+			referenceBuilder.addObjectField(
+				ReferenceDescriptor.GROUP_ENTITY,
+				referencedGroupEntityBuilder -> convert(
+					referencedGroupEntityBuilder,
+					referenceSchema.getReferencedGroupType(),
+					filterLocale,
+					groupEntityRequirement
+				)
+			));
 	}
 
 	@Nonnull
@@ -540,6 +606,44 @@ public class EntityFetchConverter extends RequireConverter {
 					multipleArguments,
 					convertOrderConstraint(referenceDataLocator, referenceContent.getOrderBy().get())
 						.orElseThrow()
+				)
+			);
+		}
+
+		if (referenceContent.getPage().isPresent()) {
+			final Page page = referenceContent.getPage().get();
+			arguments.add(
+				(offset, multipleArguments) -> new Argument(
+					ReferencePageFieldHeaderDescriptor.NUMBER,
+					offset,
+					multipleArguments,
+					page.getPageNumber()
+				)
+			);
+			arguments.add(
+				(offset, multipleArguments) -> new Argument(
+					ReferencePageFieldHeaderDescriptor.SIZE,
+					offset,
+					multipleArguments,
+					page.getPageSize()
+				)
+			);
+		} else if (referenceContent.getStrip().isPresent()) {
+			final Strip strip = referenceContent.getStrip().get();
+			arguments.add(
+				(offset, multipleArguments) -> new Argument(
+					ReferenceStripFieldHeaderDescriptor.LIMIT,
+					offset,
+					multipleArguments,
+					strip.getLimit()
+				)
+			);
+			arguments.add(
+				(offset, multipleArguments) -> new Argument(
+					ReferenceStripFieldHeaderDescriptor.OFFSET,
+					offset,
+					multipleArguments,
+					strip.getOffset()
 				)
 			);
 		}
