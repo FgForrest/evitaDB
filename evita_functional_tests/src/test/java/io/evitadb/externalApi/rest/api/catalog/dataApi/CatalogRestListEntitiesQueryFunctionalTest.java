@@ -1023,7 +1023,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					defaultAccompanyingPriceLists(PRICE_LIST_REFERENCE),
 					entityFetch(
 						priceContent(PriceContentMode.RESPECTING_FILTER),
-						accompanyingPriceContent(),
+						accompanyingPriceContentDefault(),
 						accompanyingPriceContent("vipPrice", PRICE_LIST_VIP)
 					)
 				)
