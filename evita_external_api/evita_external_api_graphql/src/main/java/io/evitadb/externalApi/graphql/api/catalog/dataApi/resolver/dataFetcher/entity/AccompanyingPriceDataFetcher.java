@@ -34,7 +34,6 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -90,18 +89,4 @@ public class AccompanyingPriceDataFetcher implements DataFetcher<DataFetcherResu
 			.build();
 	}
 
-	@Nonnull
-	private static String resolvePriceName(@Nonnull DataFetchingEnvironment environment) {
-		return environment.getField().getAlias() != null ? environment.getField().getAlias() : environment.getField().getName();
-	}
-
-	@Nonnull
-	private static Optional<PriceContract> getPrefetchedPrice(@Nonnull PrefetchedPriceForSale prefetchedPrices,
-	                                                          @Nonnull String priceName) {
-		final Optional<PriceContract> prefetchedPrice = prefetchedPrices.getAccompanyingPrices().get(priceName);
-		if (prefetchedPrice == null) {
-			throw new GraphQLInternalError("Missing prefetched price `" + priceName + "` for entity `" + prefetchedPrices.getParentEntity().getType() + ":" + prefetchedPrices.getParentEntity().getPrimaryKey() + "`.");
-		}
-		return prefetchedPrice;
-	}
 }
