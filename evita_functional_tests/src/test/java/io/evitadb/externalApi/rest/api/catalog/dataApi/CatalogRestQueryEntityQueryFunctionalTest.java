@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HierarchyRequireConstraint;
 import io.evitadb.api.query.require.HierarchyStatistics;
 import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -1362,6 +1363,75 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					""",
 				serializeIntArrayToQueryString(pks),
 				serializeStringArrayToQueryString(priceLists)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return default and custom accompanying prices for products")
+	void shouldReturnDefaultAndCustomAccompanyingPricesForProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final List<Integer> desiredEntities = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+					entity.getPrices().stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
+					entity.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
+					entity.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_REFERENCE::equals) &&
+					entity.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_VIP::equals)
+			)
+			.map(EntityContract::getPrimaryKey)
+			.toList();
+		assertFalse(desiredEntities.isEmpty());
+
+		final List<EntityClassifier> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(desiredEntities.toArray(Integer[]::new)),
+					priceInPriceLists(PRICE_LIST_BASIC),
+					priceInCurrency(CURRENCY_EUR)
+				),
+				require(
+					defaultAccompanyingPriceLists(PRICE_LIST_REFERENCE),
+					entityFetch(
+						priceContent(PriceContentMode.RESPECTING_FILTER),
+						accompanyingPriceContent(),
+						accompanyingPriceContent("vipPrice", PRICE_LIST_VIP)
+					)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+                    {
+						"filterBy": {
+						    "entityPrimaryKeyInSet": %s,
+						    "priceInCurrency": "EUR",
+						    "priceInPriceLists": ["basic"]
+						},
+						"require": {
+							"priceDefaultAccompanyingPriceLists": ["reference"],
+						    "entityFetch": {
+						        "priceContent": {
+						            "contentMode": "RESPECTING_FILTER"
+					            },
+					            "priceAccompanyingPriceContentDefault": true,
+					            "priceAccompanyingPriceContent": {
+					                "accompanyingPriceName": "vipPrice",
+					                "priceLists": ["vip"]
+					            }
+						    }
+						}
+					}
+					""",
+				serializeIntArrayToQueryString(desiredEntities.toArray(Integer[]::new))
 			)
 			.executeAndThen()
 			.statusCode(200)

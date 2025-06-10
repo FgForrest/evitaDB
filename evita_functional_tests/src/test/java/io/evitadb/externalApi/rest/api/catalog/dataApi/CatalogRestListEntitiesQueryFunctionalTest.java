@@ -28,8 +28,10 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.Segments;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -68,6 +70,7 @@ import static io.evitadb.test.generator.DataGenerator.*;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -986,6 +989,75 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					}
 					""",
 				Arrays.toString(pks))
+			.executeAndThen()
+			.statusCode(200)
+			.body("", equalTo(createEntityDtos(entities)));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return default and custom accompanying prices for products")
+	void shouldReturnDefaultAndCustomAccompanyingPricesForProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final List<Integer> desiredEntities = originalProductEntities.stream()
+			.filter(entity ->
+				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+					entity.getPrices().stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
+					entity.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
+					entity.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_REFERENCE::equals) &&
+					entity.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_VIP::equals)
+			)
+			.map(EntityContract::getPrimaryKey)
+			.toList();
+		assertFalse(desiredEntities.isEmpty());
+
+		final List<EntityClassifier> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(desiredEntities.toArray(Integer[]::new)),
+					priceInPriceLists(PRICE_LIST_BASIC),
+					priceInCurrency(CURRENCY_EUR)
+				),
+				require(
+					defaultAccompanyingPriceLists(PRICE_LIST_REFERENCE),
+					entityFetch(
+						priceContent(PriceContentMode.RESPECTING_FILTER),
+						accompanyingPriceContent(),
+						accompanyingPriceContent("vipPrice", PRICE_LIST_VIP)
+					)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/list")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+                    {
+						"filterBy": {
+						    "entityPrimaryKeyInSet": %s,
+						    "priceInCurrency": "EUR",
+						    "priceInPriceLists": ["basic"]
+						},
+						"require": {
+							"priceDefaultAccompanyingPriceLists": ["reference"],
+						    "entityFetch": {
+						        "priceContent": {
+						            "contentMode": "RESPECTING_FILTER"
+					            },
+					            "priceAccompanyingPriceContentDefault": true,
+					            "priceAccompanyingPriceContent": {
+					                "accompanyingPriceName": "vipPrice",
+					                "priceLists": ["vip"]
+					            }
+						    }
+						}
+					}
+					""",
+				serializeIntArrayToQueryString(desiredEntities.toArray(Integer[]::new))
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(createEntityDtos(entities)));
