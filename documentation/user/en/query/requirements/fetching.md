@@ -2068,7 +2068,7 @@ Let's demonstrate this principle with a complex example:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Example query to calculate different accompanying prices](/documentation/user/en/query/requirements/examples/price/accompanying-price-content.evitaql)
+[Example query to calculate different accompanying prices](/documentation/user/en/query/requirements/examples/fetching/accompanying-price-content.evitaql)
 
 </SourceCodeTabs>
 
@@ -2085,23 +2085,23 @@ We also requested three accompanying prices.
 
 1. the first has no name and no price lists specified, it will be calculated as the `default` accompanying price using the price list sequence defined in the `defaultAccompanyingPriceLists` requirement;
 2. the second has the name `custom` and no price lists specified, it will be calculated as the `custom` accompanying price using the price list sequence defined in the `defaultAccompanyingPriceLists` requirement;
-3. the third has the name `special` and uses the price lists `TODO-1` and `TODO-2` to calculate the price; 
+3. the third has the name `special` and uses the price lists `employee-basic-price` and `b2b-basic-price` to calculate the price; 
 
 The results of the query that calculates these prices are shown below:
 
 <LS to="e,j,c">
 
-<MDInclude>[Results of calculating different accompanying prices](/documentation/user/en/query/requirements/examples/price/accompanying-price-content.evitaql.md)</MDInclude>
+<MDInclude>[Results of calculating different accompanying prices](/documentation/user/en/query/requirements/examples/fetching/accompanying-price-content.evitaql.md)</MDInclude>
 
 </LS>
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.recordPage">[Results of calculating different accompanying prices](/documentation/user/en/query/requirements/examples/price/accompanying-price-content.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.recordPage">[Results of calculating different accompanying prices](/documentation/user/en/query/requirements/examples/fetching/accompanying-price-content.graphql.json.md)</MDInclude>
 
 </LS>
 <LS to="r">
 
-<MDInclude sourceVariable="recordPage">[Results of calculating different accompanying prices](/documentation/user/en/query/requirements/examples/price/accompanying-price-content.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Results of calculating different accompanying prices](/documentation/user/en/query/requirements/examples/fetching/accompanying-price-content.rest.json.md)</MDInclude>
 
 </LS>
 

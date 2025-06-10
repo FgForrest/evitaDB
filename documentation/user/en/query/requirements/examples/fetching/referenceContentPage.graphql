@@ -13,7 +13,7 @@
         attributes {
           name
         }
-        parameterValuesPage(
+        parameterValues(
           orderBy: [
             {
               entityProperty: [
@@ -22,17 +22,13 @@
                 }
               ]
             }
-          ],
-          number: 1,
-          size: 3
+          ]
         ) {
-          data {
-            referencedPrimaryKey
-            referencedEntity {
-              primaryKey
-              attributes {
-                name
-              }
+          referencedPrimaryKey
+          referencedEntity {
+            primaryKey
+            attributes {
+              name
             }
           }
         }
