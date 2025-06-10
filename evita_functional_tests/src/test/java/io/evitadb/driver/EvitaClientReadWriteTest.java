@@ -174,13 +174,13 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	@DataSet(value = EVITA_CLIENT_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
 	static DataCarrier initDataSet(EvitaServer evitaServer) {
 		DATA_GENERATOR = new DataGenerator.Builder()
-		.registerValueGenerator(
-			Entities.PRICE_LIST, ATTRIBUTE_ORDER,
-			faker -> Predecessor.HEAD
-		).registerValueGenerator(
-			Entities.PRODUCT, ATTRIBUTE_CATEGORY_ORDER,
-			faker -> Predecessor.HEAD
-		).build();
+			.registerValueGenerator(
+				Entities.PRICE_LIST, ATTRIBUTE_ORDER,
+				faker -> Predecessor.HEAD
+			).registerValueGenerator(
+				Entities.PRODUCT, ATTRIBUTE_CATEGORY_ORDER,
+				faker -> Predecessor.HEAD
+			).build();
 
 		GENERATED_ENTITIES.clear();
 
@@ -262,8 +262,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 								builder -> {
 									builder
 										.withAttribute(
-										ATTRIBUTE_ORDER, Predecessor.class, AttributeSchemaEditor::sortable
-									);
+											ATTRIBUTE_ORDER, Predecessor.class, AttributeSchemaEditor::sortable
+										);
 									session.updateEntitySchema(builder);
 									return builder.toInstance();
 								}
@@ -727,6 +727,20 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			)
 			// and now push all the definitions (mutations) to the server
 			.updateViaNewSession(evitaClient);
+	}
+
+	@Nonnull
+	private static EvitaManagementServiceFutureStub getManagementStubInternal(
+		@Nonnull EvitaClient evitaClient
+	) {
+		try {
+			final EvitaManagementContract management = evitaClient.management();
+			final Field evitaManagementServiceStub = management.getClass().getDeclaredField("evitaManagementServiceFutureStub");
+			evitaManagementServiceStub.setAccessible(true);
+			return (EvitaManagementServiceFutureStub) evitaManagementServiceStub.get(management);
+		} catch (Exception ex) {
+			throw new RuntimeException(ex);
+		}
 	}
 
 	@Test
@@ -1209,7 +1223,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 
 		final EvitaManagementContract management = evitaClient.management();
-		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(TEST_CATALOG, null, null,true);
+		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(TEST_CATALOG, null, null, true);
 		final FileForFetch fileForFetch = backupFileFuture.get(3, TimeUnit.MINUTES);
 
 		log.info("Catalog backed up to file: {}", fileForFetch.fileId());
@@ -1455,7 +1469,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	@DisplayName("Update catalog with another product - asynchronously.")
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	@Test
-	void shouldUpdateCatalogWithAnotherProductAsynchronously(EvitaContract evita, SealedEntitySchema productSchema) {
+	void shouldUpdateCatalogWithAnotherProductAsynchronously(EvitaContract evita, SealedEntitySchema productSchema) throws ExecutionException, InterruptedException, TimeoutException {
 		final AtomicInteger addedEntityPrimaryKey = new AtomicInteger();
 		final CommitProgress commitProgress = evita.updateCatalogAsync(
 			TEST_CATALOG,
@@ -1471,14 +1485,16 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		);
 
 		List<String> worklog = new ArrayList<>();
-		commitProgress.onConflictResolved().thenAccept(it -> worklog.add("Conflict resolved!"));
-		commitProgress.onWalAppended().thenAccept(it -> worklog.add("WAL appended!"));
-		commitProgress.onChangesVisible().thenAccept(it -> worklog.add("Changes visible!"));
+		CompletableFuture.allOf(
+			commitProgress.onConflictResolved().thenAccept(it -> worklog.add("Conflict resolved!")).toCompletableFuture(),
+			commitProgress.onWalAppended().thenAccept(it -> worklog.add("WAL appended!")).toCompletableFuture(),
+			commitProgress.onChangesVisible().thenAccept(it -> worklog.add("Changes visible!")).toCompletableFuture()
+		).get(1, TimeUnit.MINUTES);
 
 		commitProgress.onChangesVisible().toCompletableFuture().join();
 
 		assertArrayEquals(
-			new String[] {
+			new String[]{
 				"Conflict resolved!",
 				"WAL appended!",
 				"Changes visible!"
@@ -1600,7 +1616,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				assertFalse(loadedEntity.isPresent());
 
 				final Optional<SealedEntity> loadedArchivedEntity = session.getEntity(
-					Entities.PRODUCT, newProductId.get(), new Scope[] {Scope.ARCHIVED}, entityFetchAllContent()
+					Entities.PRODUCT, newProductId.get(), new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()
 				);
 				assertTrue(loadedArchivedEntity.isPresent());
 				assertEquals(Scope.ARCHIVED, loadedArchivedEntity.get().getScope());
@@ -1640,7 +1656,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				assertFalse(loadedEntity.isPresent());
 
 				final Optional<SealedEntity> loadedArchivedEntity = session.getEntity(
-					Entities.PRODUCT, newProductId.get(), new Scope[] {Scope.ARCHIVED}, entityFetchAllContent()
+					Entities.PRODUCT, newProductId.get(), new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()
 				);
 				assertTrue(loadedArchivedEntity.isPresent());
 				assertEquals(Scope.ARCHIVED, loadedArchivedEntity.get().getScope());
@@ -1679,7 +1695,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				assertFalse(loadedEntity.isPresent());
 
 				final Optional<SealedEntity> loadedArchivedEntity = session.getEntity(
-					Entities.PRODUCT, newProductId.get(), new Scope[] {Scope.ARCHIVED}, entityFetchAllContent()
+					Entities.PRODUCT, newProductId.get(), new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()
 				);
 				assertTrue(loadedArchivedEntity.isPresent());
 				assertEquals(Scope.ARCHIVED, loadedArchivedEntity.get().getScope());
@@ -2391,19 +2407,5 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final ReferenceContract productsAfterRestore = categoryAfterRestore.getReference("products", 100).orElse(null);
 		assertNotNull(productsAfterRestore);
 		assertEquals("EU", productsAfterRestore.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
-	}
-
-	@Nonnull
-	private static EvitaManagementServiceFutureStub getManagementStubInternal(
-		@Nonnull EvitaClient evitaClient
-	) {
-		try {
-			final EvitaManagementContract management = evitaClient.management();
-			final Field evitaManagementServiceStub = management.getClass().getDeclaredField("evitaManagementServiceFutureStub");
-			evitaManagementServiceStub.setAccessible(true);
-			return (EvitaManagementServiceFutureStub) evitaManagementServiceStub.get(management);
-		} catch (Exception ex) {
-			throw new RuntimeException(ex);
-		}
 	}
 }

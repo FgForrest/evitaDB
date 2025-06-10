@@ -93,6 +93,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
     @Nonnull private final HeadConstraintResolver headConstraintResolver;
     @Nonnull private final FilterConstraintResolver filterConstraintResolver;
     @Nonnull private final OrderConstraintResolver orderConstraintResolver;
+    @Nonnull private final RequireConstraintResolver requireConstraintResolver;
     @Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
     public ListEntitiesDataFetcher(@Nonnull CatalogSchemaContract catalogSchema,
@@ -105,7 +106,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             catalogSchema,
             new AtomicReference<>(this.filterConstraintResolver)
         );
-        final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(
+	    final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(
             catalogSchema,
             new AtomicReference<>(this.filterConstraintResolver)
         );
@@ -205,6 +206,18 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
 
         final List<RequireConstraint> requireConstraints = new LinkedList<>();
 
+        // build explicit require container
+        if (arguments.require() != null) {
+            final Require explicitRequire = (Require) this.requireConstraintResolver.resolve(
+                this.entitySchema.getName(),
+                ListEntitiesHeaderDescriptor.REQUIRE.name(),
+                arguments.require()
+            );
+            if (explicitRequire != null) {
+                requireConstraints.addAll(Arrays.asList(explicitRequire.getChildren()));
+            }
+        }
+
         final Optional<EntityFetch> entityFetch = this.entityFetchRequireResolver.resolveEntityFetch(
             SelectionSetAggregator.from(environment.getSelectionSet()),
             extractDesiredLocale(filterBy),
@@ -268,6 +281,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
     private record Arguments(@Nullable Object head,
                              @Nullable Object filterBy,
                              @Nullable Object orderBy,
+                             @Nullable Object require,
                              @Nullable Integer offset,
                              @Nullable Integer limit) {
 
@@ -275,6 +289,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             final Object head = environment.getArgument(ListEntitiesHeaderDescriptor.HEAD.name());
             final Object filterBy = environment.getArgument(ListEntitiesHeaderDescriptor.FILTER_BY.name());
             final Object orderBy = environment.getArgument(ListEntitiesHeaderDescriptor.ORDER_BY.name());
+            final Object require = environment.getArgument(ListEntitiesHeaderDescriptor.REQUIRE.name());
             final Integer offset = environment.getArgument(ListEntitiesHeaderDescriptor.OFFSET.name());
             final Integer limit = environment.getArgument(ListEntitiesHeaderDescriptor.LIMIT.name());
 
@@ -282,6 +297,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
                 head,
                 filterBy,
                 orderBy,
+                require,
                 offset,
                 limit
             );

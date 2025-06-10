@@ -26,13 +26,16 @@ package io.evitadb.api;
 import com.github.javafaker.Faker;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.*;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.AccompanyingPriceContent;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesAvailabilityChecker;
 import io.evitadb.api.requestResponse.data.AttributesContract;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -103,6 +106,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *                also write test for ordering by combination of reference attribute, entity attribute, reference attribute, entity attribute
  * TOBEDONE JNO - write test to verify the error message when multiple entityHaving constraints are used withing single reference filter constraint
  * TOBEDONE JNO - write test that deeply fetches attributes / associated data / references by using their names to verify the requirement schema validation
+ * TOBEDONE JNO - write test that filters nested referenced products by different price for sale (currency / price lists)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -221,6 +225,143 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		}
 
 		return workingNode;
+	}
+
+	private static void assertHasNotReferencesTo(@Nonnull SealedEntity product, @Nonnull String referenceName) {
+		assertThrows(ContextMissingException.class, () -> product.getReferences(referenceName));
+	}
+
+	private static void assertHasReferencesTo(@Nonnull SealedEntity product, @Nonnull String referenceName, int... primaryKeys) {
+		final Collection<ReferenceContract> references = product.getReferences(referenceName);
+		final Set<Integer> expectedKeys = Arrays.stream(primaryKeys).boxed().collect(Collectors.toSet());
+		assertEquals(primaryKeys.length, references.size());
+		for (ReferenceContract reference : references) {
+			assertEquals(referenceName, reference.getReferenceName());
+			expectedKeys.remove(reference.getReferencedPrimaryKey());
+		}
+		assertTrue(
+			expectedKeys.isEmpty(),
+			"Expected references to these " + referenceName + ": " +
+				expectedKeys.stream().map(Object::toString).collect(Collectors.joining(", ")) +
+				" but were not found!"
+		);
+	}
+
+	private static void assertProductHasAttributesInLocale(SealedEntity product, Locale locale, String... attributes) {
+		for (String attribute : attributes) {
+			assertNotNull(
+				product.getAttribute(attribute, locale),
+				"Product " + product.getPrimaryKey() + " lacks attribute " + attribute
+			);
+		}
+	}
+
+	private static void assertProductHasNotAttributesInLocale(SealedEntity product, Locale locale, String... attributes) {
+		for (String attribute : attributes) {
+			assertThrows(
+				ContextMissingException.class,
+				() -> product.getAttribute(attribute, locale),
+				"Product " + product.getPrimaryKey() + " has attribute " + attribute
+			);
+		}
+	}
+
+	private static void assertProductHasAssociatedDataInLocale(SealedEntity product, Locale locale, String... associatedDataName) {
+		for (String associatedData : associatedDataName) {
+			assertNotNull(
+				product.getAssociatedData(associatedData, locale),
+				"Product " + product.getPrimaryKey() + " lacks associated data " + associatedData
+			);
+		}
+	}
+
+	private static void assertProductHasNotAssociatedDataInLocale(SealedEntity product, Locale locale, String... associatedDataName) {
+		for (String associatedData : associatedDataName) {
+			assertNull(
+				product.getAssociatedData(associatedData, locale),
+				"Product " + product.getPrimaryKey() + " has associated data " + associatedData
+			);
+		}
+	}
+
+	private static void assertProductHasNotAssociatedData(SealedEntity product, String... associatedDataName) {
+		for (String associatedData : associatedDataName) {
+			assertThrows(
+				ContextMissingException.class,
+				() -> product.getAssociatedData(associatedData),
+				"Product " + product.getPrimaryKey() + " has associated data " + associatedData
+			);
+		}
+	}
+
+	private static void assertHasPriceInPriceList(SealedEntity product, Serializable... priceListName) {
+		final Set<Serializable> foundPriceLists = new HashSet<>();
+		for (PriceContract price : product.getPrices()) {
+			foundPriceLists.add(price.priceList());
+		}
+		assertTrue(
+			foundPriceLists.size() >= priceListName.length,
+			"Expected price in price list " +
+				Arrays.stream(priceListName)
+					.filter(it -> !foundPriceLists.contains(it))
+					.map(Object::toString)
+					.collect(Collectors.joining(", ")) +
+				" but was not found!"
+		);
+	}
+
+	private static void assertHasNotPriceInPriceList(SealedEntity product, Serializable... priceList) {
+		final Set<Serializable> forbiddenCurrencies = new HashSet<>(Arrays.asList(priceList));
+		final Set<Serializable> clashingCurrencies = new HashSet<>();
+		for (PriceContract price : product.getPrices()) {
+			if (forbiddenCurrencies.contains(price.priceList())) {
+				clashingCurrencies.add(price.priceList());
+			}
+		}
+		assertTrue(
+			clashingCurrencies.isEmpty(),
+			"Price in price list " +
+				clashingCurrencies
+					.stream()
+					.map(Object::toString)
+					.collect(Collectors.joining(", ")) +
+				" was not expected but was found!"
+		);
+	}
+
+	private static void assertHasPriceInCurrency(SealedEntity product, Currency... currency) {
+		final Set<Currency> foundCurrencies = new HashSet<>();
+		for (PriceContract price : product.getPrices()) {
+			foundCurrencies.add(price.currency());
+		}
+		assertTrue(
+			foundCurrencies.size() >= currency.length,
+			"Expected price in currency " +
+				Arrays.stream(currency)
+					.filter(it -> !foundCurrencies.contains(it))
+					.map(Object::toString)
+					.collect(Collectors.joining(", ")) +
+				" but was not found!"
+		);
+	}
+
+	private static void assertHasNotPriceInCurrency(SealedEntity product, Currency... currency) {
+		final Set<Currency> forbiddenCurrencies = new HashSet<>(Arrays.asList(currency));
+		final Set<Currency> clashingCurrencies = new HashSet<>();
+		for (PriceContract price : product.getPrices()) {
+			if (forbiddenCurrencies.contains(price.currency())) {
+				clashingCurrencies.add(price.currency());
+			}
+		}
+		assertTrue(
+			clashingCurrencies.isEmpty(),
+			"Price in currency " +
+				clashingCurrencies
+					.stream()
+					.map(Object::toString)
+					.collect(Collectors.joining(", ")) +
+				" was not expected but was found!"
+		);
 	}
 
 	@Nonnull
@@ -1172,6 +1313,244 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		);
 	}
 
+	@DisplayName("Should return entity with price for sale and accompanied price")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntityWithPriceForSaleAndAccompanyingPrice(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getPrices().stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_B2B::equals)
+		);
+
+		assertTrue(entitiesMatchingTheRequirements.length > 0, "None entity match the filter, test would not work!");
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements[0]),
+							priceInCurrency(CURRENCY_EUR),
+							priceInPriceLists(PRICE_LIST_BASIC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							defaultAccompanyingPriceLists(PRICE_LIST_B2B),
+							entityFetch(
+								priceContent(PriceContentMode.RESPECTING_FILTER),
+								accompanyingPriceContent()
+							)
+						)
+					)
+				);
+
+				assertEquals(1, productByPk.getRecordData().size());
+				assertEquals(1, productByPk.getTotalRecordCount());
+
+				final SealedEntity product = productByPk.getRecordData().get(0);
+				final Optional<PriceContract> priceForSale = product.getPriceForSale();
+
+				assertTrue(priceForSale.isPresent(), "Product should have a price for sale!");
+				assertEquals(CURRENCY_EUR, priceForSale.get().currency());
+				assertEquals(PRICE_LIST_BASIC, priceForSale.get().priceList());
+
+				final Optional<PriceContract> accompanyingPrice = product.getAccompanyingPrice();
+				assertTrue(accompanyingPrice.isPresent(), "Product should have an accompanying price!");
+				assertEquals(CURRENCY_EUR, accompanyingPrice.get().currency());
+				assertEquals(PRICE_LIST_B2B, accompanyingPrice.get().priceList());
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entity with price for sale and two accompanied prices")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntityWithPriceForSaleAndTwoAccompanyingPrices(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getPrices().stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_B2B::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_VIP::equals)
+		);
+
+		assertTrue(entitiesMatchingTheRequirements.length > 0, "None entity match the filter, test would not work!");
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements[0]),
+							priceInCurrency(CURRENCY_EUR),
+							priceInPriceLists(PRICE_LIST_BASIC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							defaultAccompanyingPriceLists(PRICE_LIST_B2B),
+							entityFetch(
+								priceContent(PriceContentMode.RESPECTING_FILTER),
+								accompanyingPriceContent(),
+								accompanyingPriceContent("myPrice", PRICE_LIST_VIP)
+							)
+						)
+					)
+				);
+
+				assertEquals(1, productByPk.getRecordData().size());
+				assertEquals(1, productByPk.getTotalRecordCount());
+
+				final SealedEntity product = productByPk.getRecordData().get(0);
+				final Optional<PriceContract> priceForSale = product.getPriceForSale();
+
+				assertTrue(priceForSale.isPresent(), "Product should have a price for sale!");
+				assertEquals(CURRENCY_EUR, priceForSale.get().currency());
+				assertEquals(PRICE_LIST_BASIC, priceForSale.get().priceList());
+
+				final Optional<PriceContract> accompanyingPrice = product.getAccompanyingPrice();
+				assertTrue(accompanyingPrice.isPresent(), "Product should have an accompanying price!");
+				assertEquals(CURRENCY_EUR, accompanyingPrice.get().currency());
+				assertEquals(PRICE_LIST_B2B, accompanyingPrice.get().priceList());
+
+				final Optional<PriceContract> myAccompanyingPrice = product.getAccompanyingPrice("myPrice");
+				assertTrue(myAccompanyingPrice.isPresent(), "Product should have an accompanying price!");
+				assertEquals(CURRENCY_EUR, myAccompanyingPrice.get().currency());
+				assertEquals(PRICE_LIST_VIP, myAccompanyingPrice.get().priceList());
+
+				assertArrayEquals(
+					new String[]{AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE, "myPrice"},
+					product.getPriceForSaleWithAccompanyingPrices().orElseThrow().getAccompanyingPrices().keySet().toArray(String[]::new),
+					"Product should have two accompanying prices!"
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entity with diferent price for sale and accompanied prices")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntityWithDifferentPriceForSaleAndAccompanyingPrices(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getPrices().stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_B2B::equals) &&
+				it.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_VIP::equals)
+		);
+
+		assertTrue(entitiesMatchingTheRequirements.length > 0, "None entity match the filter, test would not work!");
+
+		final Map<Integer, SealedEntity> originalProductsByPk = originalProducts
+			.stream()
+			.collect(Collectors.toMap(EntityContract::getPrimaryKey, Function.identity()));
+		final Set<Integer> matchingPks = Arrays.stream(entitiesMatchingTheRequirements).collect(Collectors.toSet());
+
+		final SealedEntity selectedProduct = originalProducts
+			.stream()
+			.filter(it -> matchingPks.contains(it.getPrimaryKey()))
+			.filter(
+				it -> it.getReferences(Entities.PRODUCT)
+					.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.map(originalProductsByPk::get)
+					.anyMatch(
+						refProd -> refProd.getPrices()
+							.stream()
+							.anyMatch(refPrice -> CURRENCY_EUR.equals(refPrice.currency()) && !PRICE_LIST_BASIC.equals(refPrice.priceList()))
+					)
+			)
+			.findFirst()
+			.orElseThrow();
+		final String secondPriceList = selectedProduct.getReferences(Entities.PRODUCT)
+			.stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.map(originalProductsByPk::get)
+			.flatMap(refProd -> refProd.getPrices().stream())
+			.filter(price -> CURRENCY_EUR.equals(price.currency()) && !PRICE_LIST_BASIC.equals(price.priceList()))
+			.map(PriceContract::priceList)
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(selectedProduct.getPrimaryKeyOrThrowException()),
+							priceInCurrency(CURRENCY_EUR),
+							priceInPriceLists(PRICE_LIST_BASIC)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							defaultAccompanyingPriceLists(PRICE_LIST_B2B),
+							entityFetch(
+								priceContent(PriceContentMode.RESPECTING_FILTER),
+								accompanyingPriceContent(),
+								referenceContent(
+									Entities.PRODUCT,
+									(FilterBy) null,
+									entityFetch(
+										priceContent(PriceContentMode.RESPECTING_FILTER),
+										accompanyingPriceContent("myPrice", secondPriceList)
+									)
+								)
+							)
+						)
+					)
+				);
+
+				assertEquals(1, productByPk.getRecordData().size());
+				assertEquals(1, productByPk.getTotalRecordCount());
+
+				final SealedEntity product = productByPk.getRecordData().get(0);
+				final Optional<PriceContract> priceForSale = product.getPriceForSale();
+
+				assertTrue(priceForSale.isPresent(), "Product should have a price for sale!");
+				assertEquals(CURRENCY_EUR, priceForSale.get().currency());
+				assertEquals(PRICE_LIST_BASIC, priceForSale.get().priceList());
+
+				final Optional<PriceContract> accompanyingPrice = product.getAccompanyingPrice();
+				assertTrue(accompanyingPrice.isPresent(), "Product should have an accompanying price!");
+				assertEquals(CURRENCY_EUR, accompanyingPrice.get().currency());
+				assertEquals(PRICE_LIST_B2B, accompanyingPrice.get().priceList());
+
+				assertTrue(product.getAccompanyingPrice(secondPriceList).isEmpty());
+
+				final SealedEntity nestedProduct = product.getReferences(Entities.PRODUCT)
+					.stream()
+					.map(it -> it.getReferencedEntity().orElseThrow())
+					.filter(it -> it.getPrice(secondPriceList, CURRENCY_EUR).isPresent())
+					.findFirst()
+					.orElseThrow();
+
+				final Optional<PriceContract> myAccompanyingPrice = nestedProduct.getAccompanyingPrice("myPrice");
+				assertTrue(myAccompanyingPrice.isPresent(), "Product should have an accompanying price!");
+				assertEquals(CURRENCY_EUR, myAccompanyingPrice.get().currency());
+				assertEquals(secondPriceList, myAccompanyingPrice.get().priceList());
+
+				assertArrayEquals(
+					new String[]{"myPrice"},
+					nestedProduct.getPriceForSaleWithAccompanyingPrices().orElseThrow().getAccompanyingPrices().keySet().toArray(String[]::new),
+					"Product should have only `myPrice`!"
+				);
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Multiple entities with prices in selected currency by their primary keys should be found")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -1227,8 +1606,14 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	void shouldRetrieveMultipleEntitiesWithPricesInPriceListsByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
 			originalProducts,
-			it -> it.getPrices(CURRENCY_USD).stream().filter(PriceContract::indexed).map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
-				it.getPrices(CURRENCY_USD).stream().filter(PriceContract::indexed).map(PriceContract::priceList)
+			it -> it.getPrices(CURRENCY_USD)
+				.stream()
+				.filter(PriceContract::indexed)
+				.map(PriceContract::priceList)
+				.anyMatch(PRICE_LIST_BASIC::equals) &&
+				it.getPrices(CURRENCY_USD).stream()
+					.filter(PriceContract::indexed)
+					.map(PriceContract::priceList)
 					.noneMatch(pl ->
 						pl.equals(PRICE_LIST_REFERENCE) &&
 							pl.equals(PRICE_LIST_INTRODUCTION) &&
@@ -1529,6 +1914,10 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 			}
 		);
 	}
+
+	/*
+		PRIVATE METHODS
+	 */
 
 	@DisplayName("Multiple entities with specific references with all attributes can be retrieved")
 	@UseDataSet(HUNDRED_PRODUCTS)
@@ -1998,10 +2387,6 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		);
 	}
 
-	/*
-		PRIVATE METHODS
-	 */
-
 	@DisplayName("References can be lazy auto loaded")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -2127,7 +2512,18 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				);
 				assertFalse(productByPk.getRecordData().isEmpty());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData()
+					.stream()
+					.filter(
+						it -> it.getPrices()
+							.stream()
+							.map(PriceContract::priceList)
+							.distinct()
+							.count() > 1
+					)
+					.findFirst()
+					.orElseThrow();
+
 				assertNotNull(product);
 				assertFalse(product.getPrices().isEmpty());
 				assertFalse(product.getAttributeValues().isEmpty());
@@ -2834,40 +3230,44 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	@DisplayName("References can be eagerly deeply fetched, filtered and ordered (via. getEntity)")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldEagerlyDeepFetchReferenceEntityBodiesFilteredAndOrderedViaGetEntity(Evita evita, List<SealedEntity> originalProducts) {
+	void shouldEagerlyDeepFetchReferenceEntityBodiesFilteredAndOrderedViaGetEntity(Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores) {
+		final Set<Integer> storesWithCzechLocale = originalStores
+			.stream()
+			.filter(it -> it.getLocales().contains(CZECH_LOCALE))
+			.map(EntityClassifier::getPrimaryKeyOrThrowException)
+			.collect(Collectors.toSet());
+
 		final Map<Integer, Set<Integer>> productsWithLotsOfStores = originalProducts.stream()
-			.filter(it -> it.getReferences(Entities.STORE).size() > 4)
+			.filter(it -> it.getLocales().contains(CZECH_LOCALE))
+			.filter(
+				it -> it.getReferences(Entities.STORE)
+					.stream()
+					.filter(x -> storesWithCzechLocale.contains(x.getReferencedPrimaryKey()))
+					.count() > 3
+			)
 			.limit(1)
 			.collect(
 				Collectors.toMap(
 					EntityContract::getPrimaryKey,
 					it -> it.getReferences(Entities.STORE)
 						.stream()
+						.filter(x -> storesWithCzechLocale.contains(x.getReferencedPrimaryKey()))
 						.map(ref -> ref.getReferenceKey().primaryKey())
 						.collect(Collectors.toSet())
 				)
 			);
 
-		final AtomicBoolean atLeastFirst = new AtomicBoolean();
-		final Random rnd = new Random(5);
-		final Integer[] randomStores = productsWithLotsOfStores
-			.values()
-			.stream()
-			.flatMap(Collection::stream)
-			.filter(it -> atLeastFirst.compareAndSet(false, true) || rnd.nextInt(10) == 0)
-			.distinct()
-			.toArray(Integer[]::new);
-
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
+				final Integer[] filteredStores = productsWithLotsOfStores.values().iterator().next().toArray(new Integer[0]);
 				final SealedEntity product = session.getEntity(
 					Entities.PRODUCT,
 					productsWithLotsOfStores.keySet().iterator().next(),
 					referenceContent(
 						Entities.STORE,
 						filterBy(
-							entityPrimaryKeyInSet(randomStores),
+							entityPrimaryKeyInSet(filteredStores),
 							entityLocaleEquals(LOCALE_CZECH)
 						),
 						orderBy(
@@ -2882,7 +3282,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final Collection<ReferenceContract> references = product.getReferences(Entities.STORE);
 				final Set<Integer> storeIds = productsWithLotsOfStores.get(product.getPrimaryKey());
 				final Set<Integer> filteredStoreIds = storeIds.stream()
-					.filter(it -> Arrays.asList(randomStores).contains(it))
+					.filter(it -> Arrays.asList(filteredStores).contains(it))
 					.collect(Collectors.toSet());
 				assertEquals(filteredStoreIds.size(), references.size());
 				for (ReferenceContract reference : references) {
@@ -4564,34 +4964,34 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnProductSortedByExactOrderAppendingTheRest(Evita evita, List<SealedEntity> originalProducts) {
-		final Integer[] productsStartingWithD = originalProducts.stream()
-			.filter(it -> it.getAttribute(ATTRIBUTE_CODE, String.class).startsWith("D"))
+		final Integer[] productsStartingWithA = originalProducts.stream()
+			.filter(it -> it.getAttribute(ATTRIBUTE_CODE, String.class).startsWith("A"))
 			.map(EntityContract::getPrimaryKey)
 			.toArray(Integer[]::new);
-		Assert.isTrue(productsStartingWithD.length >= 5, "Not enough products starting with D found");
+		Assert.isTrue(productsStartingWithA.length >= 5, "Not enough products starting with A found");
 
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Integer[] exactOrder = Arrays.copyOfRange(productsStartingWithD, 0, (int) (productsStartingWithD.length * 0.5));
-				final Integer[] theRest = Arrays.copyOfRange(productsStartingWithD, (int) (productsStartingWithD.length * 0.5), productsStartingWithD.length);
+				final Integer[] exactOrder = Arrays.copyOfRange(productsStartingWithA, 0, (int) (productsStartingWithA.length * 0.5));
+				final Integer[] theRest = Arrays.copyOfRange(productsStartingWithA, (int) (productsStartingWithA.length * 0.5), productsStartingWithA.length);
 				ArrayUtils.reverse(exactOrder);
 				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							attributeStartsWith(ATTRIBUTE_CODE, "D")
+							attributeStartsWith(ATTRIBUTE_CODE, "A")
 						),
 						orderBy(
 							entityPrimaryKeyExact(exactOrder)
 						),
 						require(
-							page(1, productsStartingWithD.length)
+							page(1, productsStartingWithA.length)
 						)
 					)
 				);
-				assertEquals(productsStartingWithD.length, products.getRecordData().size());
-				assertEquals(productsStartingWithD.length, products.getTotalRecordCount());
+				assertEquals(productsStartingWithA.length, products.getRecordData().size());
+				assertEquals(productsStartingWithA.length, products.getTotalRecordCount());
 
 				assertArrayEquals(
 					ArrayUtils.mergeArrays(
@@ -5308,6 +5708,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	void shouldCombinePaginatedAndStrippedReferences(Evita evita, List<SealedEntity> originalProducts) {
 		final SealedEntity productWithMaxReferences = originalProducts
 			.stream()
+			.filter(it -> !it.getReferences(Entities.BRAND).isEmpty())
 			.max(Comparator.comparingInt(o -> o.getReferences(Entities.BRAND).size() + o.getReferences(Entities.PARAMETER).size() + o.getReferences(Entities.PRICE_LIST).size()))
 			.orElseThrow();
 		final Set<Integer> originParameters = productWithMaxReferences.getReferences(Entities.PARAMETER)
@@ -5537,143 +5938,6 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				return null;
 			}
-		);
-	}
-
-	private void assertProductHasAttributesInLocale(SealedEntity product, Locale locale, String... attributes) {
-		for (String attribute : attributes) {
-			assertNotNull(
-				product.getAttribute(attribute, locale),
-				"Product " + product.getPrimaryKey() + " lacks attribute " + attribute
-			);
-		}
-	}
-
-	private void assertProductHasNotAttributesInLocale(SealedEntity product, Locale locale, String... attributes) {
-		for (String attribute : attributes) {
-			assertThrows(
-				ContextMissingException.class,
-				() -> product.getAttribute(attribute, locale),
-				"Product " + product.getPrimaryKey() + " has attribute " + attribute
-			);
-		}
-	}
-
-	private void assertProductHasAssociatedDataInLocale(SealedEntity product, Locale locale, String... associatedDataName) {
-		for (String associatedData : associatedDataName) {
-			assertNotNull(
-				product.getAssociatedData(associatedData, locale),
-				"Product " + product.getPrimaryKey() + " lacks associated data " + associatedData
-			);
-		}
-	}
-
-	private void assertProductHasNotAssociatedDataInLocale(SealedEntity product, Locale locale, String... associatedDataName) {
-		for (String associatedData : associatedDataName) {
-			assertNull(
-				product.getAssociatedData(associatedData, locale),
-				"Product " + product.getPrimaryKey() + " has associated data " + associatedData
-			);
-		}
-	}
-
-	private void assertProductHasNotAssociatedData(SealedEntity product, String... associatedDataName) {
-		for (String associatedData : associatedDataName) {
-			assertThrows(
-				ContextMissingException.class,
-				() -> product.getAssociatedData(associatedData),
-				"Product " + product.getPrimaryKey() + " has associated data " + associatedData
-			);
-		}
-	}
-
-	private void assertHasPriceInPriceList(SealedEntity product, Serializable... priceListName) {
-		final Set<Serializable> foundPriceLists = new HashSet<>();
-		for (PriceContract price : product.getPrices()) {
-			foundPriceLists.add(price.priceList());
-		}
-		assertTrue(
-			foundPriceLists.size() >= priceListName.length,
-			"Expected price in price list " +
-				Arrays.stream(priceListName)
-					.filter(it -> !foundPriceLists.contains(it))
-					.map(Object::toString)
-					.collect(Collectors.joining(", ")) +
-				" but was not found!"
-		);
-	}
-
-	private void assertHasNotPriceInPriceList(SealedEntity product, Serializable... priceList) {
-		final Set<Serializable> forbiddenCurrencies = new HashSet<>(Arrays.asList(priceList));
-		final Set<Serializable> clashingCurrencies = new HashSet<>();
-		for (PriceContract price : product.getPrices()) {
-			if (forbiddenCurrencies.contains(price.priceList())) {
-				clashingCurrencies.add(price.priceList());
-			}
-		}
-		assertTrue(
-			clashingCurrencies.isEmpty(),
-			"Price in price list " +
-				clashingCurrencies
-					.stream()
-					.map(Object::toString)
-					.collect(Collectors.joining(", ")) +
-				" was not expected but was found!"
-		);
-	}
-
-	private void assertHasPriceInCurrency(SealedEntity product, Currency... currency) {
-		final Set<Currency> foundCurrencies = new HashSet<>();
-		for (PriceContract price : product.getPrices()) {
-			foundCurrencies.add(price.currency());
-		}
-		assertTrue(
-			foundCurrencies.size() >= currency.length,
-			"Expected price in currency " +
-				Arrays.stream(currency)
-					.filter(it -> !foundCurrencies.contains(it))
-					.map(Object::toString)
-					.collect(Collectors.joining(", ")) +
-				" but was not found!"
-		);
-	}
-
-	private void assertHasNotPriceInCurrency(SealedEntity product, Currency... currency) {
-		final Set<Currency> forbiddenCurrencies = new HashSet<>(Arrays.asList(currency));
-		final Set<Currency> clashingCurrencies = new HashSet<>();
-		for (PriceContract price : product.getPrices()) {
-			if (forbiddenCurrencies.contains(price.currency())) {
-				clashingCurrencies.add(price.currency());
-			}
-		}
-		assertTrue(
-			clashingCurrencies.isEmpty(),
-			"Price in currency " +
-				clashingCurrencies
-					.stream()
-					.map(Object::toString)
-					.collect(Collectors.joining(", ")) +
-				" was not expected but was found!"
-		);
-	}
-
-	private void assertHasNotReferencesTo(@Nonnull SealedEntity product, @Nonnull String referenceName) {
-		assertThrows(ContextMissingException.class, () -> product.getReferences(referenceName));
-	}
-
-	private void assertHasReferencesTo(@Nonnull SealedEntity product, @Nonnull String referenceName, int... primaryKeys) {
-		final Collection<ReferenceContract> references = product.getReferences(referenceName);
-		final Set<Integer> expectedKeys = Arrays.stream(primaryKeys).boxed().collect(Collectors.toSet());
-		assertEquals(primaryKeys.length, references.size());
-		for (ReferenceContract reference : references) {
-			assertEquals(referenceName, reference.getReferenceName());
-			expectedKeys.remove(reference.getReferencedPrimaryKey());
-		}
-		assertTrue(
-			expectedKeys.isEmpty(),
-			"Expected references to these " + referenceName + ": " +
-				expectedKeys.stream().map(Object::toString).collect(Collectors.joining(", ")) +
-				" but were not found!"
 		);
 	}
 

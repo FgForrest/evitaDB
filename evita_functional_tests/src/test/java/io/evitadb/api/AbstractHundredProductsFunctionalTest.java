@@ -208,6 +208,7 @@ public class AbstractHundredProductsFunctionalTest {
 										.faceted()
 										.withGroupTypeRelatedToEntity(Entities.STORE)
 								)
+								.withReferenceToEntity(Entities.PRODUCT, Entities.PRODUCT, Cardinality.ZERO_OR_MORE)
 								.updateVia(session);
 							return builder.toInstance();
 						}

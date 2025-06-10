@@ -1,0 +1,22 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeCodeEquals: "iget-blackview-tab-g11",
+      priceInCurrency: EUR,
+      priceInPriceLists: [
+        "basic"
+      ]
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        priceForSale {
+          priceWithoutTax
+          priceWithTax
+          taxRate
+        }
+      }
+    }
+  }
+}

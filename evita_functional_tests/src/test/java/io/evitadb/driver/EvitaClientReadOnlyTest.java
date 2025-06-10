@@ -110,6 +110,7 @@ import static io.evitadb.test.Assertions.assertDiffers;
 import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
+import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_REFERENCE;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -450,7 +451,10 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		if (currency == null && priceLists == null) {
 			assertThrows(ContextMissingException.class, product::getPriceForSale);
 			assertThrows(ContextMissingException.class, product::getAllPricesForSale);
+			assertThrows(ContextMissingException.class, product::getReferencePrice);
 		} else {
+			assertEquals(originalProduct.getPrice(PRICE_LIST_REFERENCE, currency), product.getReferencePriceIfPresent());
+
 			final PriceContract[] allPricesForSale = product.getAllPricesForSale();
 			final List<PriceContract> originalPricesForSale = originalProduct.getAllPricesForSale(currency, null, priceLists);
 			final PriceContract[] expectedAllPricesForSale = originalPricesForSale.toArray(PriceContract[]::new);
@@ -984,6 +988,8 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	void shouldGetListOfCustomEntitiesWithExtraResults(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
 		final SealedEntity someProductWithCategory = products.values()
 			.stream()
+			.filter(it -> it.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::currency).findFirst().isPresent())
+			.filter(it -> it.getPrice(PRICE_LIST_REFERENCE, it.getPrices().stream().filter(PriceContract::indexed).map(PriceContract::currency).findFirst().orElseThrow()).isPresent())
 			.filter(it -> !it.getReferences(Entities.CATEGORY).isEmpty())
 			.filter(it -> it.getAttributeValue(ATTRIBUTE_QUANTITY).isPresent())
 			.filter(it -> it.getPrices().stream().anyMatch(PriceContract::indexed))
@@ -1006,12 +1012,14 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 							entityLocaleEquals(locale)
 						),
 						require(
+							defaultAccompanyingPriceLists(PRICE_LIST_REFERENCE),
 							entityFetch(
 								attributeContentAll(),
 								hierarchyContent(),
 								associatedDataContentAll(),
 								priceContentRespectingFilter(),
-								referenceContentAllWithAttributes()
+								referenceContentAllWithAttributes(),
+								accompanyingPriceContent()
 							),
 							queryTelemetry(),
 							priceHistogram(20),
@@ -1036,7 +1044,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 				product,
 				originalCategories,
 				currency,
-				priceLists,
+				Stream.concat(Arrays.stream(priceLists), Stream.of(PRICE_LIST_REFERENCE)).toArray(String[]::new),
 				locale
 			);
 		}

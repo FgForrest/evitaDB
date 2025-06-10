@@ -69,6 +69,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.CURRENCY_CZK;
 import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_BASIC;
 import static java.util.Optional.ofNullable;
@@ -397,10 +398,11 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		final Field[] fields = proxyClass.getDeclaredFields();
 		final Set<String> exceptFields = new HashSet<>(Arrays.asList(except));
 		for (Field field : fields) {
-			if (!exceptFields.contains(field.getName())) {
+			final String fieldName = field.getName();
+			if (!exceptFields.contains(fieldName)) {
 				field.setAccessible(true);
 				try {
-					assertNotNull(field.get(proxy), "Field `" + field.getName() + "` is unexpectedly null!");
+					assertNotNull(field.get(proxy), "Field `" + fieldName + "` is unexpectedly null!");
 				} catch (IllegalAccessException e) {
 					fail(e.getMessage());
 				}
@@ -448,6 +450,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		final List<SealedEntity> productsWithCzkSellingPrice = originalProducts
 			.stream()
 			.filter(it -> it.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC).isPresent())
+			.filter(it -> !it.getReferences(Entities.CATEGORY).isEmpty())
 			.limit(2)
 			.toList();
 		assertEquals(2, productsWithCzkSellingPrice.size());
@@ -503,6 +506,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		final int expectedReferenceCount = originalProducts.get(0).getSchema().getReferences().size();
 		final SealedEntity theProduct = originalProducts
 			.stream()
+			.filter(it -> it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH) != null)
 			.filter(it ->
 				it.getAssociatedDataValues()
 					.stream()
@@ -533,7 +537,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 
 		verifyAllFieldsAreSet(
 			proxiedEntity, theClass,
-			"priceForSale", "allPricesForSale"
+			"priceForSale", "allPricesForSale", "eanAsDifferentProperty"
 		);
 
 		assertProduct(

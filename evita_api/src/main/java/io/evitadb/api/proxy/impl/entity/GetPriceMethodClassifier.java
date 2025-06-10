@@ -29,10 +29,12 @@ import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.ProxyUtils.ResultWrapper;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
+import io.evitadb.api.query.require.AccompanyingPriceContent;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PricesContract;
+import io.evitadb.api.requestResponse.data.annotation.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
@@ -679,12 +681,14 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				final PriceForSale priceForSale = reflectionLookup.getAnnotationInstanceForProperty(method, PriceForSale.class);
 				final PriceForSaleRef priceForSaleRef = reflectionLookup.getAnnotationInstanceForProperty(method, PriceForSaleRef.class);
+				final AccompanyingPrice accompanyingPrice = reflectionLookup.getAnnotationInstanceForProperty(method, AccompanyingPrice.class);
 				final Price price = reflectionLookup.getAnnotationInstanceForProperty(method, Price.class);
 
 				if (
-					priceForSale == null && priceForSaleRef == null && price == null ||
+					priceForSale == null && priceForSaleRef == null && accompanyingPrice == null && price == null ||
 						method.isAnnotationPresent(CreateWhenMissing.class) ||
-						method.isAnnotationPresent(RemoveWhenExists.class)) {
+						method.isAnnotationPresent(RemoveWhenExists.class)
+				) {
 					return null;
 				}
 
@@ -753,6 +757,17 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 							return listOfPriceForSaleResult(proxyState.getProxyClass(), method, priceForSaleSupplier, resultWrapper);
 						}
 					}
+				} else if (accompanyingPrice != null) {
+					// we need to provide access to the price that is marked as accompanying price
+					final String accompanyingPriceName = accompanyingPrice.name().isBlank() ?
+						AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE : accompanyingPrice.name();
+					return singlePriceForSaleResult(
+						proxyState.getProxyClass(), method,
+						sealedEntity -> resultWrapper instanceof OptionalProducingOperator ?
+							sealedEntity.getAccompanyingPriceIfAvailable(accompanyingPriceName).orElse(null) :
+							sealedEntity.getAccompanyingPrice(accompanyingPriceName).orElse(null),
+						resultWrapper
+					);
 				} else {
 					// otherwise we need to provide access to all prices in the entity
 					final String priceList = price.priceList().isBlank() ?

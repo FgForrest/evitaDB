@@ -36,7 +36,8 @@ entityFetch(
         referenceContent|
         referenceContentWithAttributes|
         referenceContentAll|
-        referenceContentAllWithAttributes
+        referenceContentAllWithAttributes|
+        accopanyingPriceContent
     )*
 )
 ```
@@ -61,6 +62,7 @@ entityFetch(
             <li>[referenceContentAll](#reference-content-all)</li>
             <li>[referenceContentWithAttributes](#reference-content-with-attributes)</li>
             <li>[referenceContentAllWithAttributes](#reference-content-all-with-attributes)</li>
+            <li>[accompanyingPriceContent](#accompanying-price-content)</li>
         </ul>
     </dd>
 </dl>
@@ -2027,5 +2029,89 @@ The returned `Product` entity will contain all the references and the attributes
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAllWithAttributes.rest.json.md)</MDInclude>
 
 </LS>
+
+</Note>
+
+## Accompanying price content
+
+```evitaql-syntax
+accompanyingPriceContent(
+    argument:string?,
+    argument:string*
+)
+```
+
+<dl>
+    <dt>argument:string?</dt>
+    <dd>
+        Optional specification of an accompanying price name that should be used to distinguish this accompanying price
+        from others. If not specified, the `default` accompanying price name is used.
+    </dd>
+    <dt>argument:string*</dt>
+    <dd>
+        An optional prioritized list of price list names, that should be used to calculate the accompanying price.
+        If not specified, the [`defaultAccompanyingPriceLists`](price.md#default-accompanying-price-lists) requirement is used to 
+        specify this prioritized list of price lists. Otherwise, an error will occur.
+    </dd>
+</dl>
+
+The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AccompanyingPriceContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/AccompanyingPriceContent.cs</SourceClass></LS> requirement
+defines which other prices should be calculated beside the price for sale. These prices are closely tied to the price for 
+sale and cannot be calculated independently. Prices can be calculated from both indexed and non-indexed price lists. They
+follow the same [calculation rules](/documentation/user/en/deep-dive/price-for-sale-calculation.md) as the price for sale, 
+but are calculated only from the entities that are involved in the price for sale calculation.
+
+You may calculate multiple accompanying prices at once, but you must specify the name of each accompanying price in order
+to distinguish them one from another.
+
+Let's demonstrate this principle with a complex example:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Example query to calculate different accompanying prices](/documentation/user/en/query/requirements/examples/fetching/accompanying-price-content.evitaql)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Results of calculating different accompanying prices
+
+</NoteTitle>
+
+For our example, we selected a product using the `LOWEST_PRICE` inner record handling strategy to calculate the sale price.
+We also requested three accompanying prices.
+
+1. the first has no name and no price lists specified, it will be calculated as the `default` accompanying price using the price list sequence defined in the `defaultAccompanyingPriceLists` requirement;
+2. the second has the name `custom` and no price lists specified, it will be calculated as the `custom` accompanying price using the price list sequence defined in the `defaultAccompanyingPriceLists` requirement;
+3. the third has the name `special` and uses the price lists `employee-basic-price` and `b2b-basic-price` to calculate the price; 
+
+The results of the query that calculates these prices are shown below:
+
+<LS to="e,j,c">
+
+<MDInclude>[Results of calculating different accompanying prices](/documentation/user/en/query/requirements/examples/fetching/accompanying-price-content.evitaql.md)</MDInclude>
+
+</LS>
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[Results of calculating different accompanying prices](/documentation/user/en/query/requirements/examples/fetching/accompanying-price-content.graphql.json.md)</MDInclude>
+
+</LS>
+<LS to="r">
+
+<MDInclude sourceVariable="recordPage">[Results of calculating different accompanying prices](/documentation/user/en/query/requirements/examples/fetching/accompanying-price-content.rest.json.md)</MDInclude>
+
+</LS>
+
+Because the `LOWEST_PRICE` strategy was used, the sale price is calculated separately for each inner record of the product,
+and then the lowest price is selected. Then, the accompanying prices are calculated, but only from prices that share 
+the same inner record as the sale price.
+
+If the `SUM` strategy was used, the accompanying prices would only be calculated for prices relating to inner records 
+that are part of the price-for-sale calculation. Therefore, even if there are prices for price lists used in the 
+`default` or `special` accompanying prices, they would not be part of the `default` or `special` sum price because their
+price-for-sale counterpart does not exist.
 
 </Note>

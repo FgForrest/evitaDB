@@ -74,6 +74,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -1184,10 +1185,39 @@ public class EntityDecorator implements SealedEntity {
 			return allPricesForSale
 				.stream()
 				.sorted(
-					Comparator.comparing(
-						this.pricePredicate.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
-							PriceContract::priceWithTax : PriceContract::priceWithoutTax
-					)
+					Comparator.comparing(PriceContract::priceId)
+						.thenComparing(
+							PriceContract::innerRecordId,
+							Comparator.nullsLast(Integer::compareTo)
+						)
+				).toList();
+		} else {
+			return allPricesForSale;
+		}
+	}
+
+	@Nonnull
+	@Override
+	public List<PriceForSaleWithAccompanyingPrices> getAllPricesForSaleWithAccompanyingPrices() {
+		final PriceForSaleContext context = getPriceForSaleContext().orElseThrow(ContextMissingException::new);
+		this.pricePredicate.checkFetched(
+			context.currency().orElseThrow(ContextMissingException::new),
+			Stream.concat(
+				Arrays.stream(context.priceListPriority().orElseThrow(ContextMissingException::new)),
+				Arrays.stream(context.accompanyingPrices().orElseThrow(ContextMissingException::new))
+					.flatMap(it -> Arrays.stream(it.priceListPriority()))
+			).toArray(String[]::new)
+		);
+		final List<PriceForSaleWithAccompanyingPrices> allPricesForSale = SealedEntity.super.getAllPricesForSaleWithAccompanyingPrices();
+		if (allPricesForSale.size() > 1) {
+			return allPricesForSale
+				.stream()
+				.sorted(
+					Comparator.comparing(it -> ((PriceForSaleWithAccompanyingPrices)it).priceForSale().priceId())
+						.thenComparing(
+							it -> ((PriceForSaleWithAccompanyingPrices)it).priceForSale().innerRecordId(),
+							Comparator.nullsLast(Integer::compareTo)
+						)
 				).toList();
 		} else {
 			return allPricesForSale;
@@ -1208,11 +1238,11 @@ public class EntityDecorator implements SealedEntity {
 			return allPricesForSale
 				.stream()
 				.sorted(
-					Comparator.comparing(
-						this.pricePredicate.getQueryPriceMode() == QueryPriceMode.WITH_TAX ?
-							it -> it.priceForSale().priceWithTax() :
-							it -> it.priceForSale().priceWithoutTax()
-					)
+					Comparator.comparing(it -> ((PriceForSaleWithAccompanyingPrices)it).priceForSale().priceId())
+						.thenComparing(
+							it -> ((PriceForSaleWithAccompanyingPrices)it).priceForSale().innerRecordId(),
+							Comparator.nullsLast(Integer::compareTo)
+						)
 				).toList();
 		} else {
 			return allPricesForSale;

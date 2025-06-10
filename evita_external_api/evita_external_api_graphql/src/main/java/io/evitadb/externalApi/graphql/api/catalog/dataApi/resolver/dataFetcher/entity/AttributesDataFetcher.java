@@ -63,8 +63,11 @@ public class AttributesDataFetcher implements DataFetcher<DataFetcherResult<Attr
     @Nonnull
     @Override
     public DataFetcherResult<AttributesContract<?>> get(DataFetchingEnvironment environment) throws Exception {
-        final EntityQueryContext context = Objects.requireNonNull(environment.getLocalContext());
-        final AttributesContract<?> attributes = Objects.requireNonNull(environment.getSource()); // because entity implements AttributesContract
+        final EntityQueryContext context = environment.getLocalContext();
+        final AttributesContract<?> attributes = environment.getSource(); // because entity implements AttributesContract
+        if (attributes == null) {
+            throw new GraphQLInternalError("Missing attributes");
+        }
 
         final Locale customLocale = environment.getArgument(AttributesFieldHeaderDescriptor.LOCALE.name());
         if (customLocale != null && !attributes.getAttributeLocales().contains(customLocale)) {

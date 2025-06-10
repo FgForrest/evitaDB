@@ -51,7 +51,8 @@ public class CollectionGraphQLSchemaBuildingContext {
 	private GraphQLInputType headInputObject;
 	private GraphQLInputType filterByInputObject;
 	private GraphQLInputType orderByInputObject;
-	private GraphQLInputType requireInputObject;
+	private GraphQLInputType listRequireInputObject;
+	private GraphQLInputType queryRequireInputObject;
 
 	@Nonnull
 	public CatalogContract getCatalog() {
@@ -114,21 +115,40 @@ public class CollectionGraphQLSchemaBuildingContext {
 	}
 
 	/**
-	 * Set built orderBy object corresponding to this schema. Can be set only once before all other methods need it.
+	 * Set built require object corresponding to this schema for listing entities. Can be set only once before all other methods need it.
 	 */
-	public void setRequireInputObject(@Nonnull GraphQLInputType requireInputObject) {
+	public void setListRequireInputObject(@Nonnull GraphQLInputType listRequireInputObject) {
 		Assert.isPremiseValid(
-			this.requireInputObject == null,
-			() -> new GraphQLSchemaBuildingError("Require input object for schema `" + this.schema.getName() + "` has been already initialized.")
+			this.listRequireInputObject == null,
+			() -> new GraphQLSchemaBuildingError("List require input object for schema `" + this.schema.getName() + "` has been already initialized.")
 		);
-		this.requireInputObject = requireInputObject;
+		this.listRequireInputObject = listRequireInputObject;
 	}
 
 	/**
-	 * Returns require object if has been already initialized.
+	 * Returns require object for listing entities if has been already initialized.
 	 */
 	@Nonnull
-	public Optional<GraphQLInputType> getRequireInputObject() {
-		return Optional.ofNullable(this.requireInputObject);
+	public Optional<GraphQLInputType> getListRequireInputObject() {
+		return Optional.ofNullable(this.listRequireInputObject);
+	}
+
+	/**
+	 * Set built require object corresponding to this schema for querying entities. Can be set only once before all other methods need it.
+	 */
+	public void setQueryRequireInputObject(@Nonnull GraphQLInputType queryRequireInputObject) {
+		Assert.isPremiseValid(
+			this.queryRequireInputObject == null,
+			() -> new GraphQLSchemaBuildingError("Query require input object for schema `" + this.schema.getName() + "` has been already initialized.")
+		);
+		this.queryRequireInputObject = queryRequireInputObject;
+	}
+
+	/**
+	 * Returns require object for querying entities if has been already initialized.
+	 */
+	@Nonnull
+	public Optional<GraphQLInputType> getQueryRequireInputObject() {
+		return Optional.ofNullable(this.queryRequireInputObject);
 	}
 }

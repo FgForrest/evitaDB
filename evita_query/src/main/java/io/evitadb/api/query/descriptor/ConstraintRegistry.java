@@ -160,6 +160,7 @@ class ConstraintRegistry {
 		PriceHistogram.class,
 		PriceContent.class,
 		PriceType.class,
+		DefaultAccompanyingPriceLists.class,
 		// references
 		ReferenceContent.class,
 		// hierarchy

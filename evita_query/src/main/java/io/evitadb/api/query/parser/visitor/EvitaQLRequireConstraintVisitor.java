@@ -1542,6 +1542,37 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
+	public RequireConstraint visitDefaultAccompanyingPriceListsConstraint(DefaultAccompanyingPriceListsConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new DefaultAccompanyingPriceLists(
+				ctx.args.classifiers.accept(stringValueListTokenVisitor).asStringArray()
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitAccompanyingPriceContentConstraint(AccompanyingPriceContentConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				if (ctx.args == null || ctx.args.classifier == null) {
+					return new AccompanyingPriceContent();
+				} else if (ctx.args.values == null) {
+					return new AccompanyingPriceContent(
+						ctx.args.classifier.accept(stringValueListTokenVisitor).asString()
+					);
+				} else {
+					return new AccompanyingPriceContent(
+						ctx.args.classifier.accept(stringValueListTokenVisitor).asString(),
+						ctx.args.values.accept(stringValueListTokenVisitor).asStringArray()
+					);
+				}
+			}
+		);
+	}
+
+	@Override
 	public RequireConstraint visitDataInLocalesAllConstraint(DataInLocalesAllConstraintContext ctx) {
 		return parse(ctx, DataInLocales::new);
 	}

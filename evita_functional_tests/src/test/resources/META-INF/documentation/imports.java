@@ -63,6 +63,7 @@ import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
 import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
 import io.evitadb.api.requestResponse.data.annotation.PriceForSaleRef;
+import io.evitadb.api.requestResponse.data.annotation.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
 import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;

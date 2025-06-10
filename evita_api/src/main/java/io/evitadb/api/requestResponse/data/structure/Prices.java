@@ -253,7 +253,15 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {
-		throw new ContextMissingException();
+		return this.getPriceForSaleContext()
+			.map(
+				it -> getPriceForSale(
+					it.currency().orElseThrow(ContextMissingException::new),
+					it.atTheMoment().orElse(null),
+					it.priceListPriority().orElseThrow(ContextMissingException::new)
+				)
+			)
+			.orElseThrow(ContextMissingException::new);
 	}
 
 	@Nonnull

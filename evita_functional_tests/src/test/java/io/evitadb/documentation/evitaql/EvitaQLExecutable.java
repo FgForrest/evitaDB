@@ -33,6 +33,7 @@ import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.parser.DefaultQueryParser;
+import io.evitadb.api.query.require.AccompanyingPriceContent;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.DataInLocales;
 import io.evitadb.api.query.require.EntityFetch;
@@ -135,6 +136,8 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 		Locale.GERMAN, "\uD83C\uDDE9\uD83C\uDDEA"
 	);
 	private static final String PRICE_FOR_SALE = PRICE_LINK + "Price for sale";
+	private static final String ACCOMPANYING_PRICE = PRICE_LINK + "Accompanying price";
+	private static final String ACCOMPANYING_PRICE_DELIMITER = "`";
 	private static final String PRICES = PRICE_LINK + "Prices found";
 	private static final String ALTERNATIVE_PRICES = PRICE_LINK + "Other prices: ";
 	private static final String SCOPE = "Scope";
@@ -389,25 +392,33 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 						.distinct())
 					.orElse(Stream.empty()),
 				entityFetch
-					.map(it -> QueryUtils.findConstraints(
-								it, PriceContent.class, SeparateEntityContentRequireContainer.class
-							)
-							.stream()
-							.flatMap(priceCnt -> {
-								if (priceCnt.getFetchMode() == PriceContentMode.RESPECTING_FILTER) {
-									if (ArrayUtils.isEmpty(priceCnt.getAdditionalPriceListsToFetch())) {
-										return allPriceForSaleConstraintsSet ?
-											Stream.of(PRICE_FOR_SALE) : Stream.of(PRICES);
+					.map(
+						it -> Stream.concat(
+							QueryUtils.findConstraints(
+									it, PriceContent.class, SeparateEntityContentRequireContainer.class
+								)
+								.stream()
+								.flatMap(priceCnt -> {
+									if (priceCnt.getFetchMode() == PriceContentMode.RESPECTING_FILTER) {
+										if (ArrayUtils.isEmpty(priceCnt.getAdditionalPriceListsToFetch())) {
+											return allPriceForSaleConstraintsSet ?
+												Stream.of(PRICE_FOR_SALE) : Stream.of(PRICES);
+										} else {
+											final String additionalPrices = ALTERNATIVE_PRICES + String.join(", ", priceCnt.getAdditionalPriceListsToFetch());
+											return allPriceForSaleConstraintsSet ?
+												Stream.of(PRICE_FOR_SALE, additionalPrices) : Stream.of(additionalPrices);
+										}
 									} else {
-										final String additionalPrices = ALTERNATIVE_PRICES + String.join(", ", priceCnt.getAdditionalPriceListsToFetch());
-										return allPriceForSaleConstraintsSet ?
-											Stream.of(PRICE_FOR_SALE, additionalPrices) : Stream.of(additionalPrices);
+										return Stream.empty();
 									}
-								} else {
-									return Stream.empty();
-								}
-							})
-							.filter(Objects::nonNull)
+								})
+								.filter(Objects::nonNull),
+							QueryUtils.findConstraints(
+									it, AccompanyingPriceContent.class, SeparateEntityContentRequireContainer.class
+								)
+								.stream()
+								.map(accompanyingPrice -> ACCOMPANYING_PRICE + ACCOMPANYING_PRICE_DELIMITER + accompanyingPrice.getAccompanyingPriceName().orElse(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE) + ACCOMPANYING_PRICE_DELIMITER)
+						)
 					)
 					.orElse(Stream.empty())
 			)
@@ -443,16 +454,16 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 							.filter(it -> !ENTITY_PRIMARY_KEY.equals(it) && !SCOPE.equals(it) && !it.startsWith(REF_LINK) && !it.startsWith(PRICE_LINK))
 							.map(EvitaQLExecutable::toAttributeKey)
 							.map(it -> {
-								if (sealedEntity.getSchema().getAttribute(it.attributeName()).isPresent()) {
-									return sealedEntity.getAttributeValue(it)
-										.map(AttributeValue::value)
-										.map(EvitaQLExecutable::formatValue)
-										.orElse(null);
-								} else {
-									return "N/A";
+									if (sealedEntity.getSchema().getAttribute(it.attributeName()).isPresent()) {
+										return sealedEntity.getAttributeValue(it)
+											.map(AttributeValue::value)
+											.map(EvitaQLExecutable::formatValue)
+											.orElse(null);
+									} else {
+										return "N/A";
+									}
 								}
-							}
-						),
+							),
 						Arrays.stream(headers)
 							.filter(it -> it.startsWith(REF_LINK))
 							.map(it -> {
@@ -511,6 +522,14 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 								.map(price -> PRICE_LINK + priceFormatter.format(price.priceWithTax()) + " (with " + percentFormatter.format(price.taxRate()) + "% tax) / " + priceFormatter.format(price.priceWithoutTax()))
 								.orElse("N/A")),
 						Arrays.stream(headers)
+							.filter(it -> it.startsWith(ACCOMPANYING_PRICE))
+							.filter(it -> sealedEntity.getSchema().isWithPrice())
+							.map(it -> sealedEntity.getPriceForSaleWithAccompanyingPrices()
+								.flatMap(price -> price.getAccompanyingPrice(it.substring(ACCOMPANYING_PRICE.length() + 1, it.length() - 1)))
+								.filter(Objects::nonNull)
+								.map(price -> PRICE_LINK + priceFormatter.format(price.priceWithTax()) + " (with " + percentFormatter.format(price.taxRate()) + "% tax) / " + priceFormatter.format(price.priceWithoutTax()))
+								.orElse("N/A")),
+						Arrays.stream(headers)
 							.filter(PRICES::equals)
 							.filter(it -> sealedEntity.getSchema().isWithPrice())
 							.map(it -> {
@@ -535,8 +554,8 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 									.map(priceList -> {
 										if (sealedEntity.isPriceForSaleContextAvailable()) {
 											return sealedEntity.getPriceForSaleWithAccompanyingPrices(
-												new AccompanyingPrice[]{new AccompanyingPrice("alternativePrice", priceList)}
-											)
+													new AccompanyingPrice[]{new AccompanyingPrice("alternativePrice", priceList)}
+												)
 												.flatMap(result -> result.accompanyingPrices().get("alternativePrice"))
 												.orElse(null);
 										} else {

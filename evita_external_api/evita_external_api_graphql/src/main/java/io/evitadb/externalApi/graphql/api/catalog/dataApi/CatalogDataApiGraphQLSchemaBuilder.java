@@ -105,7 +105,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nonnull private final HeadConstraintSchemaBuilder headConstraintSchemaBuilder;
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
-	@Nonnull private final RequireConstraintSchemaBuilder mainRequireConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder mainQueryRequireConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder mainListRequireConstraintSchemaBuilder;
 
 	@Nonnull private final EntityObjectBuilder entityObjectBuilder;
 	@Nonnull private final FullResponseObjectBuilder fullResponseObjectBuilder;
@@ -123,7 +124,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			this.constraintContext,
 			new AtomicReference<>(this.filterConstraintSchemaBuilder)
 		);
-		this.mainRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forMainRequire(
+		this.mainQueryRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forMainQueryRequire(
+			this.constraintContext,
+			new AtomicReference<>(this.filterConstraintSchemaBuilder)
+		);
+		this.mainListRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forMainListRequire(
 			this.constraintContext,
 			new AtomicReference<>(this.filterConstraintSchemaBuilder)
 		);
@@ -174,8 +179,6 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		this.buildingContext.registerType(scalarEnum);
 		this.buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
 
-		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
-
 		this.entityObjectBuilder.buildCommonTypes();
 		this.fullResponseObjectBuilder.buildCommonTypes();
 		this.localMutationAggregateObjectBuilder.buildCommonTypes();
@@ -195,15 +198,23 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		this.buildingContext.getEntitySchemas().forEach(entitySchema -> {
 			final CollectionGraphQLSchemaBuildingContext collectionBuildingContext = setupForCollection(entitySchema);
 
+			// collection specific "getEntity" field
 			this.buildingContext.registerQueryField(buildGetEntityField(collectionBuildingContext));
+
+			// collection specific "listEntity" field
 			this.buildingContext.registerQueryField(buildListEntityField(collectionBuildingContext));
+
+			// collection specific "queryEntity" field
 			this.buildingContext.registerQueryField(buildQueryEntityField(collectionBuildingContext));
+
+			// collection specific "countEntity" field
 			this.buildingContext.registerQueryField(buildCountCollectionField(collectionBuildingContext));
 
+			// collection specific "upsertEntity" field
 			this.buildingContext.registerMutationField(buildUpsertEntityField(collectionBuildingContext));
-			this.buildingContext.registerMutationField(buildDeleteEntitiesField(collectionBuildingContext));
 
-			this.buildingContext.registerSubscriptionField(buildOnDataChangeField(collectionBuildingContext));
+			// collection specific "deleteEntity" field
+			this.buildingContext.registerMutationField(buildDeleteEntitiesField(collectionBuildingContext));
 		});
 
 		// register gathered custom constraint types
@@ -233,12 +244,17 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		final GraphQLInputType orderByInputObject = this.orderConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
 		collectionBuildingContext.setOrderByInputObject(orderByInputObject);
 
-		// build require input object
-		// build only if there are any prices or facets because these are only few allowed constraints in require builder
+		// build require input objects
+		// build only if there are any prices because these are only a few allowed constraints in the require builder
+		if (!entitySchema.getCurrencies().isEmpty()) {
+			final GraphQLInputType requireInputObject = this.mainListRequireConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
+			collectionBuildingContext.setListRequireInputObject(requireInputObject);
+		}
+		// build only if there are any prices or facets because these are only a few allowed constraints in the require builder
 		if (!entitySchema.getCurrencies().isEmpty() ||
 			entitySchema.getReferences().values().stream().anyMatch(ReferenceSchemaContract::isFacetedInAnyScope)) {
-			final GraphQLInputType requireInputObject = this.mainRequireConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
-			collectionBuildingContext.setRequireInputObject(requireInputObject);
+			final GraphQLInputType requireInputObject = this.mainQueryRequireConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
+			collectionBuildingContext.setQueryRequireInputObject(requireInputObject);
 		}
 
 		// build entity object specific to this schema
@@ -456,6 +472,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.argument(ListEntitiesHeaderDescriptor.LIMIT
 				.to(this.argumentBuilderTransformer));
 
+		// build require constraints
+		// build only if there are any prices or facets because these are only a few allowed constraints in require builder
+		collectionBuildingContext.getListRequireInputObject().ifPresent(requireInputObject -> {
+			entityListFieldBuilder.argument(ListEntitiesHeaderDescriptor.REQUIRE
+				.to(this.argumentBuilderTransformer)
+				.type(requireInputObject));
+		});
+
 		return new BuiltFieldDescriptor(
 			entityListFieldBuilder.build(),
 			new AsyncDataFetcher(
@@ -492,7 +516,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		// build require constraints
 		// build only if there are any prices or facets because these are only few allowed constraints in require builder
-		collectionBuildingContext.getRequireInputObject().ifPresent(requireInputObject -> {
+		collectionBuildingContext.getQueryRequireInputObject().ifPresent(requireInputObject -> {
 			entityQueryFieldBuilder.argument(QueryEntitiesHeaderDescriptor.REQUIRE
 				.to(this.argumentBuilderTransformer)
 				.type(requireInputObject));

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.PrefetchedPriceForSale;
+import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -55,6 +56,15 @@ public class AllPricesForSaleDataFetcher extends AbstractPriceForSaleDataFetcher
             INSTANCE = new AllPricesForSaleDataFetcher();
         }
         return INSTANCE;
+    }
+
+    @Nullable
+    @Override
+    protected List<? extends PriceContract> computeDefaultPrices(@Nonnull EntityDecorator entity) {
+        return entity.getAllPricesForSaleWithAccompanyingPrices()
+            .stream()
+            .map(it -> new PrefetchedPriceForSale(it.priceForSale(), entity, it.accompanyingPrices()))
+            .toList();
     }
 
     @Nullable

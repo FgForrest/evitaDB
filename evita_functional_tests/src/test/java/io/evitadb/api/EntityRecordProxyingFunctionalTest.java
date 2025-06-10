@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -62,6 +62,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -432,6 +433,7 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 		final int expectedReferenceCount = originalProducts.get(0).getSchema().getReferences().size();
 		final SealedEntity theProduct = originalProducts
 			.stream()
+			.filter(it -> it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH) != null)
 			.filter(it ->
 				it.getAssociatedDataValues()
 					.stream()
@@ -461,7 +463,7 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 		verifyAllComponentsAreSet(
 			proxiedEntity, ProductRecord.class,
-			"priceForSale", "allPricesForSale"
+			"priceForSale", "allPricesForSale", "eanAsDifferentProperty"
 		);
 
 		assertProduct(
@@ -641,10 +643,20 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@DisplayName("Should return same proxy instances for repeated calls")
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void shouldReturnSameInstancesForRepeatedCalls(EvitaSessionContract evitaSession) {
+	void shouldReturnSameInstancesForRepeatedCalls(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final SealedEntity testProduct = originalProducts
+			.stream()
+			.filter(it -> it.getReferences(Entities.CATEGORY).size() == 2)
+			.filter(it -> it.getLocales().contains(Locale.ENGLISH))
+			.findFirst()
+			.orElseThrow();
+
 		final Query query = query(
 			collection(Entities.PRODUCT),
-			filterBy(entityPrimaryKeyInSet(1)),
+			filterBy(entityPrimaryKeyInSet(testProduct.getPrimaryKeyOrThrowException())),
 			require(
 				entityFetch(
 					hierarchyContent(),

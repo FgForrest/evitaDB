@@ -29,6 +29,7 @@ import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.PriceDiscount;
@@ -38,6 +39,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
+import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleContext;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.comparator.IntComparator;
@@ -55,6 +57,7 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.filter.translator.price.PriceInPriceListsTranslator;
 import io.evitadb.core.query.filter.translator.price.PriceListCompositionTerminationVisitor;
 import io.evitadb.core.query.filter.translator.price.PriceValidInTranslator;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
@@ -161,8 +164,8 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		final String[] priceLists = priceDiscount.getInPriceLists();
 		final QueryPriceMode queryPriceMode = orderByVisitor.getQueryPriceMode();
 
-		// if prefetch happens we need to prefetch prices so that the attribute comparator can work
-		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter(priceLists));
+		// if prefetch happens we need to prefetch prices so that the entity comparator can work
+		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
 
 		// are filtered prices used in the filtering?
 		final Collection<PriceFilteringEnvelopeContainer> sellingPriceFilteringEnvelopeContainers = FormulaFinder.find(
@@ -304,11 +307,24 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 			if (memoizedResult != null) {
 				return memoizedResult;
 			}
-			final Optional<PriceForSaleWithAccompanyingPrices> calculatedPrices = entity.getPriceForSaleWithAccompanyingPrices(
-				new AccompanyingPrice[]{
-					new AccompanyingPrice(DISCOUNTED_PRICE, this.discountPriceLists)
-				}
-			);
+			final Optional<PriceForSaleWithAccompanyingPrices> calculatedPrices;
+			if (entity instanceof ServerEntityDecorator sed && sed.getPriceForSaleContext().isPresent()) {
+				final PriceForSaleContext priceForSaleContext = sed.getPriceForSaleContext().get();
+				calculatedPrices = sed.getDelegate().getPriceForSaleWithAccompanyingPrices(
+					priceForSaleContext.currency().orElseThrow(ContextMissingException::new),
+					priceForSaleContext.atTheMoment().orElse(null),
+					priceForSaleContext.priceListPriority().orElseThrow(ContextMissingException::new),
+					new AccompanyingPrice[]{
+						new AccompanyingPrice(DISCOUNTED_PRICE, this.discountPriceLists)
+					}
+				);
+			} else {
+				calculatedPrices = entity.getPriceForSaleWithAccompanyingPrices(
+					new AccompanyingPrice[]{
+						new AccompanyingPrice(DISCOUNTED_PRICE, this.discountPriceLists)
+					}
+				);
+			}
 
 			final BigDecimal calculatedResult = calculatedPrices
 				.map(priceCalculation -> {

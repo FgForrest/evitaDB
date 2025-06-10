@@ -1,17 +1,13 @@
 ---
 title: Price
-date: '7.11.2023'
+date: '9.6.2025'
 perex: |
-  In B2C scenarios, prices are generally displayed with tax included to give consumers the total purchase cost upfront,
-  adhering to retail standards and regulations. For the B2B subset, displaying prices without tax is critical as it
-  aligns with their financial processes and allows them to manage tax reclaim separately.
+  This chapter covers handling prices with or without tax for B2C and B2B scenarios, and how to set default price list priorities for consistent pricing across your queries.
+  
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
 preferredLang: 'evitaql'
 ---
-
-That's why we need to control what type of price we're working with in our queries, since it would produce different
-results for different settings. The [`priceType`](../requirements/price.md#price-type) requirement allows us to do this.
 
 ## Price type
 
@@ -29,6 +25,12 @@ priceType(
     </dd>
 </dl>
 
+In B2C scenarios, prices are generally displayed with tax included to give consumers the total purchase cost upfront,
+adhering to retail standards and regulations. For the B2B subset, displaying prices without tax is critical as it
+aligns with their financial processes and allows them to manage tax reclaim separately.
+
+That's why we need to control what type of price we're working with in our queries, since it would produce different
+results for different settings. The [`priceType`](../requirements/price.md#price-type) requirement allows us to do this.
 
 The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceType.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/PriceType.cs</SourceClass></LS> requirement
 controls which price type is used when calculating the sales price and filtering or sorting by it. If no such
@@ -108,3 +110,25 @@ difference - in regular UI you'd choose to show the price without tax) with more
 </LS>
 
 </Note>
+
+## Default accompanying price lists
+
+```evitaql-syntax
+defaultAccompanyingPriceLists(
+    argument:string+
+)
+```
+
+<dl>
+    <dt>argument:string+</dt>
+    <dd>
+        A mandatory specification of one or more price list names in order of priority from most preferred to least
+        preferred.
+    </dd>
+</dl>
+
+The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/DefaultAccompanyingPrice.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/DefaultAccompanyingPrice.cs</SourceClass></LS> requirement
+defines prioritized list of price list names that will be used for all [`accompanyingPriceContent`](fetching.md#accompanying-price-content)
+requirements that don't specify their own price list sequence. This is useful when you want to specify a default rule
+at the top level of your query, so that you don't have to repeat the same price list sequence in every 
+[`accompanyingPriceContent`](fetching.md#accompanying-price-content) nested in [`entityFetch`](fetching.md#entity-fetch) containers.
