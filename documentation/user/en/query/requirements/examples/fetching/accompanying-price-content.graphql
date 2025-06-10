@@ -6,6 +6,11 @@
       priceInPriceLists: [
         "basic"
       ]
+    },
+    require: {
+      priceDefaultAccompanyingPriceLists: [
+        "reference"
+      ]
     }
   ) {
     recordPage {
@@ -15,6 +20,26 @@
           priceWithoutTax
           priceWithTax
           taxRate
+          accompanyingPrice {
+            priceWithoutTax
+            priceWithTax
+            taxRate
+          }
+          custom: accompanyingPrice {
+            priceWithoutTax
+            priceWithTax
+            taxRate
+          }
+          special: accompanyingPrice(
+            priceLists: [
+              "employee-basic-price",
+              "b2b-basic-price"
+            ]
+          ) {
+            priceWithoutTax
+            priceWithTax
+            taxRate
+          }
         }
       }
     }

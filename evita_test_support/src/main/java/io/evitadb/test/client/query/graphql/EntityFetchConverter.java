@@ -57,6 +57,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -222,14 +223,14 @@ public class EntityFetchConverter extends RequireConverter {
 				);
 
 				final List<? extends AttributeSchemaContract> localizedAttributes = attributesToFetch.stream().filter(AttributeSchemaContract::isLocalized).toList();
-				for (Locale locale : requiredLocales) {
+				requiredLocales.stream().sorted(Comparator.comparing(Locale::toLanguageTag)).forEach(locale -> {
 					fieldsBuilder.addObjectField(
 						AttributesProviderDescriptor.ATTRIBUTES.name() + StringUtils.toPascalCase(locale.toString()),
 						AttributesProviderDescriptor.ATTRIBUTES,
 						getAttributesFieldsBuilder(localizedAttributes),
 						(offset, multipleArguments) -> new Argument(AttributesFieldHeaderDescriptor.LOCALE, offset, multipleArguments, locale)
 					);
-				}
+				});
 			}
 		}
 	}
@@ -289,14 +290,14 @@ public class EntityFetchConverter extends RequireConverter {
 				);
 
 				final List<AssociatedDataSchemaContract> localizedAssociatedData = associatedDataToFetch.stream().filter(AssociatedDataSchemaContract::isLocalized).toList();
-				for (Locale locale : requiredLocales) {
+				requiredLocales.stream().sorted(Comparator.comparing(Locale::toLanguageTag)).forEach(locale -> {
 					entityFieldsBuilder.addObjectField(
 						EntityDescriptor.ASSOCIATED_DATA.name() + StringUtils.toPascalCase(locale.toString()),
 						EntityDescriptor.ASSOCIATED_DATA,
 						getAssociatedDataFieldsBuilder(localizedAssociatedData),
 						(offset, multipleArguments) -> new Argument(AssociatedDataFieldHeaderDescriptor.LOCALE, offset, multipleArguments, locale)
 					);
-				}
+				});
 			}
 		}
 	}
@@ -450,7 +451,14 @@ public class EntityFetchConverter extends RequireConverter {
 		}
 		for (final AccompanyingPriceContent accompanyingPriceContent : accompanyingPriceContents) {
 			priceForSaleFieldsBuilder.addObjectField(
-				AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE.equals(accompanyingPriceContent.getName()) ? null : accompanyingPriceContent.getName(),
+				accompanyingPriceContent.getAccompanyingPriceName()
+					.map(accompanyingPriceName -> {
+						if (AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE.equals(accompanyingPriceName)) {
+							return null;
+						}
+						return StringUtils.toCamelCase(accompanyingPriceName);
+					})
+					.orElse(null),
 				PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(),
 				accompanyingPriceBuilder -> {
 					accompanyingPriceBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITHOUT_TAX, getPriceValueFieldArguments(locale));

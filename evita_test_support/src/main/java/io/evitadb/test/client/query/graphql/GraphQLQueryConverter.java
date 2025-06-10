@@ -78,7 +78,8 @@ public class GraphQLQueryConverter {
 		FacetGroupsNegation.class,
 		FacetCalculationRules.class,
 		FacetGroupsExclusivity.class,
-		PriceType.class
+		PriceType.class,
+		DefaultAccompanyingPriceLists.class
 	);
 
 	@Nullable private final EvitaContract evita;
