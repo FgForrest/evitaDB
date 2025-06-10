@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,10 +53,11 @@ public interface ConstraintWithSuffix {
 	 * This method is used in {@link BaseConstraint#toString()} implementation to exclude the argument that is used
 	 * implicitly when this suffix is applied to this constraint.
 	 *
+	 * @param argumentPosition position of the argument in the list of arguments of this constraint, zero-based
 	 * @param argument to check
 	 * @return true, if this argument should be omitted in {@link BaseConstraint#toString()}
 	 */
-	default boolean isArgumentImplicitForSuffix(@Nonnull Serializable argument) {
+	default boolean isArgumentImplicitForSuffix(int argumentPosition, @Nonnull Serializable argument) {
 		return false;
 	}
 

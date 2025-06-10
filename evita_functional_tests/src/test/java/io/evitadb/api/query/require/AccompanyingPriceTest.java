@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.Test;
 
@@ -38,7 +39,7 @@ class AccompanyingPriceTest {
 
     @Test
     void shouldCreateDefaultViaFactoryClassWorkAsExpected() {
-        final AccompanyingPriceContent accompanyingPrice = accompanyingPriceContent();
+        final AccompanyingPriceContent accompanyingPrice = QueryConstraints.accompanyingPriceContentDefault();
         assertEquals("default", accompanyingPrice.getAccompanyingPriceName().orElseThrow());
         assertArrayEquals(ArrayUtils.EMPTY_STRING_ARRAY, accompanyingPrice.getPriceLists());
     }
@@ -96,12 +97,12 @@ class AccompanyingPriceTest {
         assertNotEquals(accompanyingPriceContent("myPrice", "basic", "reference").hashCode(), accompanyingPriceContent("myPrice", "basic").hashCode());
         assertNotEquals(accompanyingPriceContent("myPrice", "basic", "reference"), accompanyingPriceContent("otherPrice", "basic", "reference"));
         assertNotEquals(accompanyingPriceContent("myPrice", "basic", "reference").hashCode(), accompanyingPriceContent("otherPrice", "basic", "reference").hashCode());
-        assertNotEquals(accompanyingPriceContent(), accompanyingPriceContent("myPrice", "basic", "reference"));
+        assertNotEquals(QueryConstraints.accompanyingPriceContentDefault(), accompanyingPriceContent("myPrice", "basic", "reference"));
         assertNotEquals(accompanyingPriceContent("myPrice", "basic", "reference"), accompanyingPriceContent("myPrice2", "basic", "reference"));
-        assertNotEquals(accompanyingPriceContent().hashCode(), accompanyingPriceContent("myPrice", "basic", "reference").hashCode());
+        assertNotEquals(QueryConstraints.accompanyingPriceContentDefault().hashCode(), accompanyingPriceContent("myPrice", "basic", "reference").hashCode());
         assertNotEquals(accompanyingPriceContent("myPrice", "basic", "reference").hashCode(), accompanyingPriceContent("myPrice2", "basic", "reference").hashCode());
-        assertEquals(accompanyingPriceContent(), accompanyingPriceContent());
-        assertEquals(accompanyingPriceContent().hashCode(), accompanyingPriceContent().hashCode());
+        assertEquals(QueryConstraints.accompanyingPriceContentDefault(), QueryConstraints.accompanyingPriceContentDefault());
+        assertEquals(QueryConstraints.accompanyingPriceContentDefault().hashCode(), QueryConstraints.accompanyingPriceContentDefault().hashCode());
 
     }
 

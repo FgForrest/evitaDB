@@ -13,8 +13,8 @@
         attributes {
           name
         }
-        parameterValues {
-          referencedPrimaryKey
+        parameterValuesPage {
+          totalRecordCount
         }
       }
     }

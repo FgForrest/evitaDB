@@ -58,7 +58,7 @@ class ConstraintDescriptorProviderTest {
 
 	@Test
 	void shouldHaveProcessedConstraints() {
-		assertEquals(112, ConstraintDescriptorProvider.getAllConstraints().size());
+		assertEquals(114, ConstraintDescriptorProvider.getAllConstraints().size());
 	}
 
 	@Test

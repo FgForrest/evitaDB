@@ -35479,7 +35479,7 @@ public interface QueryConstraints {
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
-	static AccompanyingPriceContent accompanyingPriceContent() {
+	static AccompanyingPriceContent accompanyingPriceContentDefault() {
 		return new AccompanyingPriceContent();
 	}
 

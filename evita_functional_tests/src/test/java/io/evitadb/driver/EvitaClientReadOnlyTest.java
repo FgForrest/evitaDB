@@ -1019,7 +1019,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 								associatedDataContentAll(),
 								priceContentRespectingFilter(),
 								referenceContentAllWithAttributes(),
-								accompanyingPriceContent()
+								accompanyingPriceContentDefault()
 							),
 							queryTelemetry(),
 							priceHistogram(20),

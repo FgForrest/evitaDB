@@ -264,7 +264,7 @@ public class QuerySerializationTest {
 		assertSerializationRound(defaultAccompanyingPriceLists("a"));
 		assertSerializationRound(defaultAccompanyingPriceLists("a", "b"));
 
-		assertSerializationRound(accompanyingPriceContent());
+		assertSerializationRound(accompanyingPriceContentDefault());
 		assertSerializationRound(accompanyingPriceContent("a"));
 		assertSerializationRound(accompanyingPriceContent("a", "b"));
 
