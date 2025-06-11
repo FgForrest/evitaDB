@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,25 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult;
+package io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity;
 
-import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * Represents {@link Hierarchy#getReferenceHierarchy(String, String)}.
+ * Descriptor of an object containing named accompanying prices for price for sale.
  *
- * Note: this descriptor is meant to be a template for generated specific DTOs base on internal data. Fields in this
- * descriptor are supposed to be dynamically registered to target generated DTO.
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-public interface HierarchyOfReferenceDescriptor extends HierarchyOfDescriptor {
+public interface AccompanyingPricesDescriptor {
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("*Hierarchy")
+		.name("AccompanyingPrices")
 		.description("""
-			This DTO contains hierarchical structures of entities referenced by the entities required by the query. It copies
-			hierarchical structure of those entities and contains their identification or full body as well as information on
-			cardinality of referencing entities.
+            Holds named accompanying prices for computed price for sale.
 			""")
 		.build();
 }

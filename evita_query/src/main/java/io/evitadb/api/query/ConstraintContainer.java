@@ -32,8 +32,10 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Array;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -192,9 +194,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 		return getName() +
 			ARG_OPENING +
 			Stream.of(
-					Arrays.stream((this instanceof ConstraintWithDefaults<?> constraintWithDefaults) ? constraintWithDefaults.getArgumentsExcludingDefaults() : getArguments())
-						.filter(it -> !(this instanceof ConstraintWithSuffix cws) || !cws.isArgumentImplicitForSuffix(it))
-						.map(BaseConstraint::convertToString),
+					getSerializedArguments().stream(),
 					Arrays.stream(this.additionalChildren)
 						.filter(it -> !(this instanceof ConstraintContainerWithSuffix ccws) || !ccws.isAdditionalChildImplicitForSuffix(it))
 						.map(Constraint::toString),

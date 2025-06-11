@@ -174,8 +174,9 @@ public class GraphQLOutputFieldsBuilder {
 	                       int offset,
 						   boolean multipleArguments,
 	                       @Nonnull Object value) {
-		@Nonnull
+
 		@Override
+		@Nonnull
 		public String toString() {
 			final String serializedValue;
 			if (this.value instanceof JsonNode jsonNode) {

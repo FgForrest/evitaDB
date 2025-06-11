@@ -189,8 +189,8 @@ public abstract class ConstraintToJsonConverter {
 	 */
 	@Nonnull
 	private Optional<JsonConstraint> constructConstraint(@Nonnull ConstraintToJsonConvertContext convertContext,
-	                                           @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                           @Nonnull Constraint<?> constraint) {
+	                                                     @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                     @Nonnull Constraint<?> constraint) {
 		final String constraintKey = this.constraintKeyBuilder.build(
 			convertContext,
 			parsedConstraintDescriptor.constraintDescriptor(),
@@ -201,7 +201,7 @@ public abstract class ConstraintToJsonConverter {
 		final ConstraintValueStructure valueStructure = creator.valueStructure();
 		final JsonNode constraintValue = switch (valueStructure) {
 			case NONE -> convertNoneStructure();
-			case PRIMITIVE -> convertValueParameter(constraint, creator.valueParameters().get(0)).orElse(null);
+			case PRIMITIVE -> convertValueParameter(constraint, 0, creator.valueParameters().get(0)).orElse(null);
 			case RANGE -> convertWrapperRangeStructure(constraint, creator.valueParameters());
 			case CONTAINER -> convertChildParameter(
 					convertContext,
@@ -229,14 +229,16 @@ public abstract class ConstraintToJsonConverter {
 	}
 
 	@Nonnull
-	private Optional<JsonNode> convertValueParameter(@Nonnull Constraint<?> constraint, @Nonnull ValueParameterDescriptor parameterDescriptor) {
+	private Optional<JsonNode> convertValueParameter(@Nonnull Constraint<?> constraint,
+													 int parameterPosition,
+	                                                 @Nonnull ValueParameterDescriptor parameterDescriptor) {
 		return this.parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor)
 			.map(parameterValue -> {
 				if (!(parameterValue instanceof Serializable serializableParameterValue)) {
 					throw new GenericEvitaInternalError("Parameter `" + parameterDescriptor.name() + "` is not serializable.");
 				}
 				if (constraint instanceof ConstraintWithSuffix constraintWithSuffix &&
-					constraintWithSuffix.isArgumentImplicitForSuffix(serializableParameterValue)) {
+					constraintWithSuffix.isArgumentImplicitForSuffix(parameterPosition, serializableParameterValue)) {
 					return null;
 				}
 				if (constraint instanceof ConstraintWithDefaults<?> constraintWithDefaults &&
@@ -393,8 +395,8 @@ public abstract class ConstraintToJsonConverter {
 		);
 
 		final ArrayNode wrapperRange = this.jsonNodeFactory.arrayNode();
-		wrapperRange.add(convertValueParameter(constraint, fromParameter).orElse(null));
-		wrapperRange.add(convertValueParameter(constraint, toParameter).orElse(null));
+		wrapperRange.add(convertValueParameter(constraint, 0, fromParameter).orElse(null));
+		wrapperRange.add(convertValueParameter(constraint, 1, toParameter).orElse(null));
 		return wrapperRange;
 	}
 
@@ -407,9 +409,11 @@ public abstract class ConstraintToJsonConverter {
 	                                               @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameterDescriptors) {
 		final ObjectNode wrapperObject = this.jsonNodeFactory.objectNode();
 
-		valueParameterDescriptors.forEach(valueParameterDescriptor ->
-			convertValueParameter(constraint, valueParameterDescriptor)
-				.ifPresent(it -> wrapperObject.putIfAbsent(valueParameterDescriptor.name(), it)));
+		for (int i = 0; i < valueParameterDescriptors.size(); i++) {
+			final ValueParameterDescriptor valueParameterDescriptor = valueParameterDescriptors.get(i);
+			convertValueParameter(constraint, i, valueParameterDescriptor)
+				.ifPresent(it -> wrapperObject.putIfAbsent(valueParameterDescriptor.name(), it));
+		}
 
 		childParameterDescriptors.forEach(childParameterDescriptor ->
 			convertChildParameter(convertContext, constraint, parsedConstraintDescriptor, childParameterDescriptor)

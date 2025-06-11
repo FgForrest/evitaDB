@@ -36,7 +36,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 					defaultAccompanyingPriceLists("reference"),
 					entityFetch(
 						priceContentRespectingFilter(),
-						accompanyingPriceContent("default"),
+						accompanyingPriceContentDefault(),
 						accompanyingPriceContent("custom"),
 						accompanyingPriceContent("special", "employee-basic-price", "b2b-basic-price")
 					)

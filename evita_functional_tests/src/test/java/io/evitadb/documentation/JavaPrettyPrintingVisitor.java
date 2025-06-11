@@ -285,7 +285,7 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 			for (int i = 0; i < argumentsLength; i++) {
 				final Serializable argument = arguments[i];
 
-				if (constraint instanceof ConstraintWithSuffix cws && cws.isArgumentImplicitForSuffix(argument)) {
+				if (constraint instanceof ConstraintWithSuffix cws && cws.isArgumentImplicitForSuffix(i, argument)) {
 					continue;
 				}
 
@@ -337,7 +337,7 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 		final StringBuilder argumentString = new StringBuilder();
 		for (int i = 0; i < arguments.length; i++) {
 			final Serializable argument = arguments[i];
-			if (constraint instanceof ConstraintWithSuffix constraintWithSuffix && constraintWithSuffix.isArgumentImplicitForSuffix(argument)) {
+			if (constraint instanceof ConstraintWithSuffix constraintWithSuffix && constraintWithSuffix.isArgumentImplicitForSuffix(i, argument)) {
 				continue;
 			}
 			argumentString.append(formatValue(argument));

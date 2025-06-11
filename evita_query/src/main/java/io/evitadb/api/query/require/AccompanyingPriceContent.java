@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
@@ -75,7 +76,10 @@ import java.util.Optional;
 	userDocsLink = "/documentation/query/requirements/price#accompanying-price",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class AccompanyingPriceContent extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint>, EntityContentRequire, RequireConstraint {
+public class AccompanyingPriceContent
+	extends AbstractRequireConstraintLeaf
+	implements PriceConstraint<RequireConstraint>, EntityContentRequire, RequireConstraint, ConstraintWithSuffix {
+
 	public static final String DEFAULT_ACCOMPANYING_PRICE = "default";
 	@Serial private static final long serialVersionUID = -5786325458930138452L;
 	public static final String SUFFIX = "default";
@@ -151,4 +155,18 @@ public class AccompanyingPriceContent extends AbstractRequireConstraintLeaf impl
 		return false;
 	}
 
+	@Nonnull
+	@Override
+	public Optional<String> getSuffixIfApplied() {
+		if (getAccompanyingPriceName().filter(DEFAULT_ACCOMPANYING_PRICE::equals).orElse(null) != null) {
+			return Optional.of(SUFFIX);
+		}
+		return Optional.empty();
+	}
+
+	@Override
+	public boolean isArgumentImplicitForSuffix(int argumentPosition, @Nonnull Serializable argument) {
+		// we want to omit the default accompanying price name
+		return argumentPosition == 0 && DEFAULT_ACCOMPANYING_PRICE.equals(argument);
+	}
 }

@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.facet.producer;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
@@ -64,7 +65,6 @@ import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -138,29 +138,22 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	private DefaultFacetSummaryRequest defaultRequest;
 
 	/**
-	 * Returns a function that allows to fetch {@link EntityClassifier} for passed `entityType` and multiple `groupIds`
-	 * that represents primary keys of the group entity. The form and richness of the returned {@link EntityClassifier}
-	 * is controlled by the passed `groupFetch` argument.
-	 */
-	private static TriFunction<QueryExecutionContext, String, int[], EntityClassifier[]> createFetcherFunction(
-		@Nullable EntityGroupFetch groupFetch
-	) {
-		return groupFetch == null ?
-			ENTITY_REFERENCE_CONVERTER :
-			(context, entityType, groupIds) -> context.fetchEntities(entityType, groupIds, groupFetch).toArray(EntityClassifier[]::new);
-	}
-
-	/**
 	 * Returns a function that allows to fetch {@link EntityClassifier} for passed `entityType` and multiple `facetIds`
 	 * that represents primary keys of the group entity. The form and richness of the returned {@link EntityClassifier}
 	 * is controlled by the passed `entityFetch` argument.
 	 */
-	private static TriFunction<QueryExecutionContext, String, int[], EntityClassifier[]> createFetcherFunction(
-		@Nullable EntityFetch entityFetch
+	@Nonnull
+	private static <T extends EntityFetchRequire> TriFunction<QueryExecutionContext, String, int[], EntityClassifier[]> createFetcherFunction(
+		@Nonnull QueryExecutionContext executionContext,
+		@Nullable T entityFetch
 	) {
-		return entityFetch == null ?
-			ENTITY_REFERENCE_CONVERTER :
-			(context, entityType, facetIds) -> context.fetchEntities(entityType, facetIds, entityFetch).toArray(EntityClassifier[]::new);
+		if (entityFetch == null) {
+			return ENTITY_REFERENCE_CONVERTER;
+		} else {
+			final T enrichedEntityFetch = executionContext.enrichEntityFetch(entityFetch);
+			return (context, entityType, facetIds) ->
+				context.fetchEntities(entityType, facetIds, enrichedEntityFetch).toArray(EntityClassifier[]::new);
+		}
 	}
 
 	public FacetSummaryProducer(
@@ -223,8 +216,6 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 				facetSorter, groupSorter,
 				facetEntityRequirement,
 				groupEntityRequirement,
-				createFetcherFunction(facetEntityRequirement),
-				createFetcherFunction(groupEntityRequirement),
 				facetStatisticsDepth
 			)
 		);
@@ -232,8 +223,8 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
-		// create facet calculators - in reaction to requested depth level
+	public EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
+		// create facet calculators - in reaction to the requested depth level
 		final MemoizingFacetCalculator universalCalculator = new MemoizingFacetCalculator(
 			context, this.filterFormula, this.filterFormulaWithoutUserFilter
 		);
@@ -296,8 +287,6 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 												),
 											combinedFacetEntityRequirement,
 											combinedGroupEntityRequirement,
-											createFetcherFunction(combinedFacetEntityRequirement),
-											createFetcherFunction(combinedGroupEntityRequirement),
 											referenceRequest.facetStatisticsDepth()
 										);
 									})
@@ -331,8 +320,6 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 													.orElse(null),
 												facetEntityRequirement,
 												groupEntityRequirement,
-												createFetcherFunction(facetEntityRequirement),
-												createFetcherFunction(groupEntityRequirement),
 												defaultRequestOpt
 													.map(DefaultFacetSummaryRequest::facetStatisticsDepth)
 													.orElse(FacetStatisticsDepth.COUNTS)
@@ -977,41 +964,105 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 
 	/**
 	 * Record captures the facet summary requirements.
-	 *
-	 * @param facetStatisticsDepth Contains {@link io.evitadb.api.query.require.FacetSummary#getStatisticsDepth()} information.
 	 */
-	private record FacetSummaryRequest(
-		int order,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nullable IntPredicate facetPredicate,
-		@Nullable IntPredicate groupPredicate,
-		@Nullable NestedContextSorter facetSorter,
-		@Nullable NestedContextSorter groupSorter,
-		@Nullable EntityFetch facetEntityRequirement,
-		@Nullable EntityGroupFetch groupEntityRequirement,
-		@Nonnull TriFunction<QueryExecutionContext, String, int[], EntityClassifier[]> facetEntityFetcher,
-		@Nonnull TriFunction<QueryExecutionContext, String, int[], EntityClassifier[]> groupEntityFetcher,
-		@Nonnull FacetStatisticsDepth facetStatisticsDepth
-	) {
+	@RequiredArgsConstructor
+	private static class FacetSummaryRequest {
+		private final int order;
+		private final @Nonnull ReferenceSchemaContract referenceSchema;
+		private final @Nullable IntPredicate facetPredicate;
+		private final @Nullable IntPredicate groupPredicate;
+		private final @Nullable NestedContextSorter facetSorter;
+		private final @Nullable NestedContextSorter groupSorter;
+		private final @Nullable EntityFetch facetEntityRequirement;
+		private final @Nullable EntityGroupFetch groupEntityRequirement;
+		private final @Nonnull FacetStatisticsDepth facetStatisticsDepth;
+		private Function<int[], EntityClassifier[]> entityFetcherFunction;
+		private Function<int[], EntityClassifier[]> entityGroupFetcherFunction;
 
+		public int order() {
+			return this.order;
+		}
+
+		@Nonnull
+		public ReferenceSchemaContract referenceSchema() {
+			return this.referenceSchema;
+		}
+
+		@Nullable
+		public IntPredicate facetPredicate() {
+			return this.facetPredicate;
+		}
+
+		@Nullable
+		public IntPredicate groupPredicate() {
+			return this.groupPredicate;
+		}
+
+		@Nullable
+		public NestedContextSorter facetSorter() {
+			return this.facetSorter;
+		}
+
+		@Nullable
+		public NestedContextSorter groupSorter() {
+			return this.groupSorter;
+		}
+
+		@Nullable
+		public EntityFetch facetEntityRequirement() {
+			return this.facetEntityRequirement;
+		}
+
+		@Nullable
+		public EntityGroupFetch groupEntityRequirement() {
+			return this.groupEntityRequirement;
+		}
+
+		@Nonnull
+		public FacetStatisticsDepth facetStatisticsDepth() {
+			return this.facetStatisticsDepth;
+		}
+
+		/**
+		 * Returns a function that fetches an array of {@link EntityClassifier} instances based on the provided facet IDs.
+		 * The function is initialized depending on whether the referenced entity type in the schema is managed.
+		 *
+		 * @param context the {@link QueryExecutionContext} containing the execution context for queries
+		 * @param referenceSchema the {@link ReferenceSchemaContract} defining the schema for the referenced entity
+		 * @return a {@link Function} that maps an array of facet IDs to an array of {@link EntityClassifier}
+		 */
 		@Nonnull
 		public Function<int[], EntityClassifier[]> getFacetEntityFetcher(
 			@Nonnull QueryExecutionContext context,
 			@Nonnull ReferenceSchemaContract referenceSchema
 		) {
-			return referenceSchema.isReferencedEntityTypeManaged() ?
-				facetIds -> this.facetEntityFetcher.apply(context, referenceSchema.getReferencedEntityType(), facetIds) :
-				facetIds -> ENTITY_REFERENCE_CONVERTER.apply(context, referenceSchema.getReferencedEntityType(), facetIds);
+			if (this.entityFetcherFunction == null) {
+				this.entityFetcherFunction = referenceSchema.isReferencedEntityTypeManaged() ?
+					facetIds -> createFetcherFunction(context, this.facetEntityRequirement).apply(context, referenceSchema.getReferencedEntityType(), facetIds) :
+					facetIds -> ENTITY_REFERENCE_CONVERTER.apply(context, referenceSchema.getReferencedEntityType(), facetIds);
+			}
+			return this.entityFetcherFunction;
 		}
 
+		/**
+		 * Returns a function that can fetch a group of {@link EntityClassifier} instances based on the provided group IDs.
+		 * The function is initialized based on whether the referenced group type in the provided schema is managed.
+		 *
+		 * @param context the {@link QueryExecutionContext} containing the execution context for queries.
+		 * @param referenceSchema the {@link ReferenceSchemaContract} that defines the schema for the referenced group.
+		 * @return a {@link Function} that maps an array of group IDs to an array of {@link EntityClassifier}.
+		 */
 		@Nonnull
 		public Function<int[], EntityClassifier[]> getGroupEntityFetcher(
 			@Nonnull QueryExecutionContext context,
 			@Nonnull ReferenceSchemaContract referenceSchema
 		) {
-			return referenceSchema.isReferencedGroupTypeManaged() ?
-				groupIds -> this.groupEntityFetcher.apply(context, Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupIds) :
-				groupIds -> ENTITY_REFERENCE_CONVERTER.apply(context, Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupIds);
+			if (this.entityGroupFetcherFunction == null) {
+				this.entityGroupFetcherFunction = referenceSchema.isReferencedGroupTypeManaged() ?
+					groupIds -> createFetcherFunction(context, this.groupEntityRequirement).apply(context, Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupIds) :
+					groupIds -> ENTITY_REFERENCE_CONVERTER.apply(context, Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupIds);
+			}
+			return this.entityGroupFetcherFunction;
 		}
 
 	}

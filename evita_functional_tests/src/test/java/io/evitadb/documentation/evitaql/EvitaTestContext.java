@@ -63,7 +63,7 @@ public class EvitaTestContext implements TestContext {
 					.host("localhost")
 					.port(5555)
 					.useGeneratedCertificate(true)
-					.mtlsEnabled(true)
+					.mtlsEnabled(false)
 					.build()
 				:
 				EvitaClientConfiguration.builder()

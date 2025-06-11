@@ -36,18 +36,12 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.GlobalAssociatedDataDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.GlobalAttributesDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.LocalizedAssociatedDataDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.LocalizedAssociatedDataForLocaleDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.LocalizedAttributesDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.LocalizedAttributesForLocaleDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.*;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
+import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiDictionary;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
@@ -81,10 +75,21 @@ public class EntityObjectBuilder {
 	@Nonnull private final CatalogRestBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
+	@Nonnull private final ObjectDescriptorToOpenApiDictionaryTransformer dictionaryBuilderTransformer;
 
 	public void buildCommonTypes() {
 		this.buildingContext.registerType(PriceDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(RestEntityDescriptor.THIS_REFERENCE.to(this.objectBuilderTransformer).build());
+		buildEntityAccompanyingPricesObject();
+	}
+
+	@Nonnull
+	private OpenApiTypeReference buildEntityAccompanyingPricesObject() {
+		final OpenApiDictionary accompanyingPricesObject = AccompanyingPricesDescriptor.THIS
+			.to(this.dictionaryBuilderTransformer)
+			.valueType(typeRefTo(PriceDescriptor.THIS.name()))
+			.build();
+		return this.buildingContext.registerType(accompanyingPricesObject);
 	}
 
 	/**
@@ -131,6 +136,7 @@ public class EntityObjectBuilder {
 		if (!entitySchema.getCurrencies().isEmpty()) {
 			entityObject.property(RestEntityDescriptor.PRICE_INNER_RECORD_HANDLING.to(this.propertyBuilderTransformer));
 			entityObject.property(RestEntityDescriptor.PRICE_FOR_SALE.to(this.propertyBuilderTransformer));
+			entityObject.property(buildEntityAccompanyingPricesProperty());
 			entityObject.property(RestEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.to(this.propertyBuilderTransformer));
 			entityObject.property(RestEntityDescriptor.PRICES.to(this.propertyBuilderTransformer));
 		}
@@ -154,12 +160,20 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
+	private OpenApiProperty buildEntityAccompanyingPricesProperty() {
+		return RestEntityDescriptor.ACCOMPANYING_PRICES
+			.to(this.propertyBuilderTransformer)
+			.type(typeRefTo(AccompanyingPricesDescriptor.THIS.name()))
+			.build();
+	}
+
+	@Nonnull
 	private OpenApiProperty buildEntityAttributesProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                      boolean localized) {
 		final OpenApiTypeReference attributesObject = buildEntityAttributesObject(entitySchema, localized);
 		return RestEntityDescriptor.ATTRIBUTES
 			.to(this.propertyBuilderTransformer)
-			.type(nonNull(attributesObject))
+			.type(attributesObject)
 			.build();
 	}
 

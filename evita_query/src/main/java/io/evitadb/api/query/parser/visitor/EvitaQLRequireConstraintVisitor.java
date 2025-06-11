@@ -1546,8 +1546,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new DefaultAccompanyingPriceLists(
-				ctx.args.classifiers.accept(stringValueListTokenVisitor).asStringArray()
+				ctx.args.classifiers.accept(this.stringValueListTokenVisitor).asStringArray()
 			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitAccompanyingPriceContentDefaultConstraint(AccompanyingPriceContentDefaultConstraintContext ctx) {
+		return parse(
+			ctx,
+			AccompanyingPriceContent::new
 		);
 	}
 
@@ -1556,16 +1564,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				if (ctx.args == null || ctx.args.classifier == null) {
-					return new AccompanyingPriceContent();
-				} else if (ctx.args.values == null) {
+				if (ctx.args.values == null) {
 					return new AccompanyingPriceContent(
-						ctx.args.classifier.accept(stringValueListTokenVisitor).asString()
+						ctx.args.classifier.accept(this.stringValueListTokenVisitor).asString()
 					);
 				} else {
 					return new AccompanyingPriceContent(
-						ctx.args.classifier.accept(stringValueListTokenVisitor).asString(),
-						ctx.args.values.accept(stringValueListTokenVisitor).asStringArray()
+						ctx.args.classifier.accept(this.stringValueListTokenVisitor).asString(),
+						ctx.args.values.accept(this.stringValueListTokenVisitor).asStringArray()
 					);
 				}
 			}

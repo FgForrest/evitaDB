@@ -1342,7 +1342,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 							defaultAccompanyingPriceLists(PRICE_LIST_B2B),
 							entityFetch(
 								priceContent(PriceContentMode.RESPECTING_FILTER),
-								accompanyingPriceContent()
+								accompanyingPriceContentDefault()
 							)
 						)
 					)
@@ -1398,7 +1398,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 							defaultAccompanyingPriceLists(PRICE_LIST_B2B),
 							entityFetch(
 								priceContent(PriceContentMode.RESPECTING_FILTER),
-								accompanyingPriceContent(),
+								accompanyingPriceContentDefault(),
 								accompanyingPriceContent("myPrice", PRICE_LIST_VIP)
 							)
 						)
@@ -1497,7 +1497,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 							defaultAccompanyingPriceLists(PRICE_LIST_B2B),
 							entityFetch(
 								priceContent(PriceContentMode.RESPECTING_FILTER),
-								accompanyingPriceContent(),
+								accompanyingPriceContentDefault(),
 								referenceContent(
 									Entities.PRODUCT,
 									(FilterBy) null,

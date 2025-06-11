@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,10 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity;
 
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
 
 /**
  * Extension of {@link EntityDescriptor} with REST-specific properties.
@@ -44,5 +47,14 @@ public interface RestEntityDescriptor extends EntityDescriptor {
 	        Each entity must be part of at most single hierarchy (tree).
 	        """)
 		// type is expected to be a same hierarchical entity as parent
+		.build();
+
+	PropertyDescriptor ACCOMPANYING_PRICES = PropertyDescriptor.builder()
+		.name("accompanyingPrices")
+		.description("""
+			Returns named calculated additional accompanying prices that relate to the selected price for sale
+			and adhere to particular price inner record handling logic.
+			""")
+		// type is expected to be a dictionary of accompanying price name -> price
 		.build();
 }

@@ -31,7 +31,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -113,11 +115,24 @@ public abstract class BaseConstraint<T extends Constraint<T>> implements Constra
 	public String toString() {
 		return getName() +
 			ARG_OPENING +
-			Arrays.stream((this instanceof ConstraintWithDefaults<?> constraintWithDefaults) ? constraintWithDefaults.getArgumentsExcludingDefaults() : getArguments())
-				.filter(it -> !(this instanceof ConstraintWithSuffix cws) || !cws.isArgumentImplicitForSuffix(it))
-				.map(BaseConstraint::convertToString)
-				.collect(Collectors.joining(",")) +
+			String.join(",", getSerializedArguments()) +
 			ARG_CLOSING;
+	}
+
+	/**
+	 * Serializes {@link #getArguments()} into individual strings for pretty printing.
+	 */
+	@Nonnull
+	protected List<String> getSerializedArguments() {
+		final Serializable[] arguments = (this instanceof ConstraintWithDefaults<?> constraintWithDefaults) ? constraintWithDefaults.getArgumentsExcludingDefaults() : getArguments();
+		final List<String> serializedArguments = new ArrayList<>(arguments.length);
+		for (int i = 0; i < arguments.length; i++) {
+			final Serializable argument = arguments[i];
+			if (!(this instanceof ConstraintWithSuffix cws) || !cws.isArgumentImplicitForSuffix(i, argument)) {
+				serializedArguments.add(BaseConstraint.convertToString(argument));
+			}
+		}
+		return serializedArguments;
 	}
 
 	/**

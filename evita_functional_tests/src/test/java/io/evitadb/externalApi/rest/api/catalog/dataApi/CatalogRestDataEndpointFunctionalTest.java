@@ -365,8 +365,18 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 				);
 			}
 
-			entity.getPriceForSaleIfAvailable().ifPresent(price -> {
-				entityDto.e(EntityDescriptor.PRICE_FOR_SALE.name(), createEntityPriceDto(price));
+			entity.getPriceForSaleWithAccompanyingPricesIfAvailable().ifPresent(price -> {
+				entityDto.e(EntityDescriptor.PRICE_FOR_SALE.name(), createEntityPriceDto(price.priceForSale()));
+
+				final Map<String, Optional<PriceContract>> accompanyingPrices = price.accompanyingPrices();
+				if (!accompanyingPrices.isEmpty()) {
+					final MapBuilder accompanyingPricesObject = map();
+					accompanyingPrices.forEach((accompanyingPriceName, accompanyingPrice) -> {
+						accompanyingPricesObject.e(accompanyingPriceName, accompanyingPrice.map(CatalogRestDataEndpointFunctionalTest::createEntityPriceDto).orElse(null));
+					});
+					entityDto.e(RestEntityDescriptor.ACCOMPANYING_PRICES.name(), accompanyingPricesObject);
+				}
+
 				if (!entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE)) {
 					entityDto.e(EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), entity.getAllPricesForSale().size() > 1);
 				}

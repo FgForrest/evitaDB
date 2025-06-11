@@ -499,12 +499,12 @@ public class FullResponseObjectBuilder {
 	private OpenApiProperty buildHierarchyOfReferenceProperty(@Nonnull EntitySchemaContract entitySchema,
 															  @Nonnull ReferenceSchemaContract referenceSchema,
                                                               boolean localized) {
-		final OpenApiTypeReference hierarchyOfSelfObject = buildHierarchyOfReferenceObject(entitySchema, referenceSchema, localized);
+		final OpenApiTypeReference hierarchyOfReferenceObject = buildHierarchyOfReferenceObject(entitySchema, referenceSchema, localized);
 		return HierarchyDescriptor.REFERENCE
 			.to(this.propertyBuilderTransformer)
 			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(HierarchyDescriptor.REFERENCE.description(referenceSchema.getReferencedEntityType()))
-			.type(nonNull(hierarchyOfSelfObject))
+			.type(nonNull(hierarchyOfReferenceObject))
 			.build();
 	}
 

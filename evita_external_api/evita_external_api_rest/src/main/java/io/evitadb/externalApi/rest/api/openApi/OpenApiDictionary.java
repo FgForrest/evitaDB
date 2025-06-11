@@ -38,9 +38,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Represents dictionary (or map) with pre-defined type of keys (which are always string) and type of values
+ * Represents a dictionary (or map) with a pre-defined type of keys (which is always string) and type of values
  * and must be globally registered in OpenAPI
- * so that there are no duplicates and client can generate prettier client libraries.
+ * so that there are no duplicates and the client can generate prettier client libraries.
  *
  * It translates into {@link ObjectSchema} additional properties.
  *

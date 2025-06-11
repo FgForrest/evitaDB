@@ -151,8 +151,8 @@ public class EntityJsonSerializer {
 	@Nonnull
 	private ObjectNode serializeEntityClassifier(@Nonnull EntityClassifier entity) {
 		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
-		rootNode.set(EntityDescriptor.PRIMARY_KEY.name(), this.objectJsonSerializer.serializeObject(entity.getPrimaryKeyOrThrowException()));
-		rootNode.set(EntityDescriptor.TYPE.name(), this.objectJsonSerializer.serializeObject(entity.getType()));
+		rootNode.put(RestEntityDescriptor.PRIMARY_KEY.name(), this.objectJsonSerializer.serializeObject(entity.getPrimaryKey()));
+		rootNode.put(RestEntityDescriptor.TYPE.name(), this.objectJsonSerializer.serializeObject(entity.getType()));
 		return rootNode;
 	}
 
@@ -162,22 +162,22 @@ public class EntityJsonSerializer {
 	private void serializeEntityBody(@Nonnull EntitySerializationContext ctx,
 	                                 @Nonnull ObjectNode rootNode,
 	                                 @Nonnull EntityDecorator entity) {
-		rootNode.set(VersionedDescriptor.VERSION.name(), this.objectJsonSerializer.serializeObject(entity.version()));
-		rootNode.set(EntityDescriptor.SCOPE.name(), this.objectJsonSerializer.serializeObject(entity.getScope()));
+		rootNode.put(RestEntityDescriptor.VERSION.name(), this.objectJsonSerializer.serializeObject(entity.version()));
+		rootNode.put(RestEntityDescriptor.SCOPE.name(), this.objectJsonSerializer.serializeObject(entity.getScope()));
 
 		if (entity.parentAvailable()) {
 			entity.getParentEntity().ifPresent(parent -> rootNode.putIfAbsent(RestEntityDescriptor.PARENT_ENTITY.name(), serializeSingleEntity(ctx, parent)));
 		}
 
 		if (!entity.getLocales().isEmpty()) {
-			rootNode.putIfAbsent(EntityDescriptor.LOCALES.name(), this.objectJsonSerializer.serializeObject(entity.getLocales()));
+			rootNode.putIfAbsent(RestEntityDescriptor.LOCALES.name(), this.objectJsonSerializer.serializeObject(entity.getLocales()));
 		}
 		if (!entity.getAllLocales().isEmpty()) {
-			rootNode.putIfAbsent(EntityDescriptor.ALL_LOCALES.name(), this.objectJsonSerializer.serializeObject(entity.getAllLocales()));
+			rootNode.putIfAbsent(RestEntityDescriptor.ALL_LOCALES.name(), this.objectJsonSerializer.serializeObject(entity.getAllLocales()));
 		}
 
 		if (entity.getPriceInnerRecordHandling() != PriceInnerRecordHandling.UNKNOWN) {
-			rootNode.putIfAbsent(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), this.objectJsonSerializer.serializeObject(entity.getPriceInnerRecordHandling()));
+			rootNode.putIfAbsent(RestEntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), this.objectJsonSerializer.serializeObject(entity.getPriceInnerRecordHandling()));
 		}
 	}
 
@@ -191,7 +191,7 @@ public class EntityJsonSerializer {
 	                                 @Nonnull AttributeSchemaProvider<?> attributeSchemaProvider) {
 		if (attributes.attributesAvailable() && !attributes.getAttributeKeys().isEmpty()) {
 			final ObjectNode attributesNode = this.objectJsonSerializer.objectNode();
-			rootNode.putIfAbsent(AttributesProviderDescriptor.ATTRIBUTES.name(), attributesNode);
+			rootNode.putIfAbsent(RestEntityDescriptor.ATTRIBUTES.name(), attributesNode);
 			final Set<AttributeKey> attributeKeys = attributes.getAttributeKeys();
 			if (this.localized) {
 				writeAttributesIntoNode(attributesNode, attributeKeys, attributes, parentSchema, attributeSchemaProvider);
@@ -354,18 +354,28 @@ public class EntityJsonSerializer {
 		if (entity.pricesAvailable()) {
 			final Collection<PriceContract> prices = entity.getPrices();
 			final ArrayNode pricesNode = this.objectJsonSerializer.arrayNode();
-			rootNode.putIfAbsent(EntityDescriptor.PRICES.name(), pricesNode);
+			rootNode.putIfAbsent(RestEntityDescriptor.PRICES.name(), pricesNode);
 
 			for (PriceContract price : prices) {
 				pricesNode.add(this.objectJsonSerializer.serializeObject(price));
 			}
 
-			entity.getPriceForSaleIfAvailable().ifPresent(it -> {
-				rootNode.putIfAbsent(EntityDescriptor.PRICE_FOR_SALE.name(), this.objectJsonSerializer.serializeObject(it));
+			entity.getPriceForSaleWithAccompanyingPricesIfAvailable().ifPresent(it -> {
+				rootNode.putIfAbsent(RestEntityDescriptor.PRICE_FOR_SALE.name(), this.objectJsonSerializer.serializeObject(it.priceForSale()));
+
+				final Map<String, Optional<PriceContract>> accompanyingPrices = it.accompanyingPrices();
+				if (!accompanyingPrices.isEmpty()) {
+					final ObjectNode accompanyingPricesNode = this.objectJsonSerializer.objectNode();
+					accompanyingPrices.forEach((accompanyingPriceName, accompanyingPrice) -> accompanyingPricesNode.putIfAbsent(
+						accompanyingPriceName,
+						accompanyingPrice.map(this.objectJsonSerializer::serializeObject).orElse(null)
+					));
+					rootNode.putIfAbsent(RestEntityDescriptor.ACCOMPANYING_PRICES.name(), accompanyingPricesNode);
+				}
 
 				if (!entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE)) {
-					final boolean multiplePricesForSale = hasMultiplePricesForSaleAvailable(entity);
-					rootNode.putIfAbsent(EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), this.objectJsonSerializer.serializeObject(multiplePricesForSale));
+					final boolean multiplePricesForSale = hasMultiplePricesForSaleAvailable(ctx, entity);
+					rootNode.putIfAbsent(RestEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), this.objectJsonSerializer.serializeObject(multiplePricesForSale));
 				}
 			});
 		}
