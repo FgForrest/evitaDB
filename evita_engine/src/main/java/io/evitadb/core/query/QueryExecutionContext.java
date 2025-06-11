@@ -27,9 +27,14 @@ import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
+import io.evitadb.api.query.require.AccompanyingPriceContent;
+import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
+import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetGroupRelationLevel;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -322,6 +327,76 @@ public class QueryExecutionContext implements Closeable {
 					.forEach(it -> this.prefetchedEntities.add(it));
 			}
 		}
+	}
+
+	/**
+	 * Enriches the provided {@link EntityFetch} instance by updating its requirements
+	 * based on specified rules. If no {@link EntityFetch} is provided or no updates are needed,
+	 * the method returns the original or null input. When updates are applied, a new instance
+	 * of {@link EntityFetch} is created and returned.
+	 *
+	 * @param entityFetchRequire the original {@link EntityFetch} instance to be enriched; may be null
+	 * @return the enriched {@link EntityFetch} instance if updates are applied, or the original instance if no updates are needed, or null if the input is null
+	 */
+	@Nonnull
+	public <T extends EntityFetchRequire> T enrichEntityFetch(@Nonnull T entityFetchRequire) {
+		//noinspection unchecked
+		return (T) Objects.requireNonNull(
+			ConstraintCloneVisitor.clone(
+				entityFetchRequire,
+				(visitor, constraint) -> {
+					if (constraint instanceof EntityFetch ef) {
+						final EntityContentRequire[] originalRequirements = ef.getRequirements();
+						final EntityContentRequire[] updatedRequirements = updateRequirements(originalRequirements);
+						//noinspection ArrayEquality
+						return updatedRequirements == originalRequirements ? ef : new EntityFetch(updatedRequirements);
+					} else if (constraint instanceof EntityGroupFetch egf) {
+						final EntityContentRequire[] originalRequirements = egf.getRequirements();
+						final EntityContentRequire[] updatedRequirements = updateRequirements(originalRequirements);
+						//noinspection ArrayEquality
+						return updatedRequirements == originalRequirements ? egf : new EntityGroupFetch(updatedRequirements);
+					} else {
+						return constraint;
+					}
+				}
+			)
+		);
+	}
+
+	/**
+	 * Updates the given array of {@link EntityContentRequire} objects based on specific rules for modifying
+	 * {@link AccompanyingPriceContent} elements. If updates are applied to the elements of the array, a
+	 * new array instance is returned containing the modified elements. If no updates are needed, the original
+	 * array is returned unchanged.
+	 *
+	 * @param requirements an array of {@link EntityContentRequire} objects to be checked and potentially modified;
+	 *                     must not be null.
+	 * @return a new array of {@link EntityContentRequire} objects with modified elements if applicable, or
+	 *         the original array if no changes were made.
+	 */
+	@Nonnull
+	private EntityContentRequire[] updateRequirements(@Nonnull EntityContentRequire[] requirements) {
+		EntityContentRequire[] result = requirements;
+		for (int i = 0; i < requirements.length; i++) {
+			final EntityContentRequire requirement = requirements[i];
+			if (requirement instanceof AccompanyingPriceContent apc) {
+				final boolean emptyPriceLists = ArrayUtils.isEmpty(apc.getPriceLists());
+				if (apc.getAccompanyingPriceName().isEmpty() || emptyPriceLists) {
+					// copy on first write
+					//noinspection ArrayEquality
+					if (requirements == result) {
+						result = Arrays.copyOf(requirements, requirements.length);
+					}
+					result[i] = new AccompanyingPriceContent(
+						apc.getAccompanyingPriceName().orElse(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE),
+						emptyPriceLists ?
+							this.queryContext.getEvitaRequest().getDefaultAccompanyingPricePriceLists() :
+							apc.getPriceLists()
+					);
+				}
+			}
+		}
+		return result;
 	}
 
 	/**
