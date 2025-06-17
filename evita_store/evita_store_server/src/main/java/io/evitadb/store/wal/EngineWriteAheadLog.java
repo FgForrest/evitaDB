@@ -27,11 +27,12 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.core.async.DelayedAsyncTask;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.transaction.WalCacheSizeChangedEvent;
@@ -51,7 +52,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
-import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 /**
@@ -68,7 +68,7 @@ import java.util.function.LongSupplier;
  */
 @Slf4j
 @NotThreadSafe
-public class EngineWriteAheadLog extends AbstractWriteAheadLog {
+public class EngineWriteAheadLog extends AbstractWriteAheadLog<EngineMutation> {
 
 	/**
 	 * Creates an instance of {@link EngineTransactionChanges} to describe transaction changes based on the provided mutation details

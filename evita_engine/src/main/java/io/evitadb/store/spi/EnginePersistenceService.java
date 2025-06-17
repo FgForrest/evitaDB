@@ -24,8 +24,7 @@
 
 package io.evitadb.store.spi;
 
-import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.schema.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.store.spi.model.EngineState;
 import io.evitadb.store.spi.model.reference.WalFileReference;
@@ -115,7 +114,7 @@ public non-sealed interface EnginePersistenceService extends PersistenceService 
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getCommittedMutationStream(long version);
+	Stream<EngineMutation> getCommittedMutationStream(long version);
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
@@ -127,7 +126,7 @@ public non-sealed interface EnginePersistenceService extends PersistenceService 
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long version);
+	Stream<EngineMutation> getReversedCommittedMutationStream(@Nullable Long version);
 
 	/**
 	 * Retrieves the last engine state version written in the WAL stream.

@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.structure.ExistingEntityBuilder;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
@@ -90,7 +91,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Slf4j
 class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTest {
 	private static final String HUNDRED_PRODUCTS = "HundredProductsForCapture";
-	private List<Mutation> mutations;
+	private List<CatalogBoundMutation> mutations;
 
 	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true)
 	@Override
@@ -235,7 +236,7 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 		);
 
 		/* we need somehow to initialize mutation count eagerly?! */
-		final Mutation[] reversedMutations = new Mutation[this.mutations.size()];
+		final CatalogBoundMutation[] reversedMutations = new CatalogBoundMutation[this.mutations.size()];
 		int reverseIndex = this.mutations.size() - 1;
 		for (int i = 0; i < this.mutations.size(); i++) {
 			final Mutation mutation = this.mutations.get(i);

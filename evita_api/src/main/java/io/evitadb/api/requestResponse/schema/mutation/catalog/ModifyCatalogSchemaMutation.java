@@ -23,6 +23,8 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
+import io.evitadb.api.EvitaContract;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
@@ -59,15 +61,24 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	@Nonnull @Getter private final String catalogName;
 	@Nonnull @Getter private final LocalCatalogSchemaMutation[] schemaMutations;
 
-	public ModifyCatalogSchemaMutation(@Nonnull String catalogName, @Nonnull LocalCatalogSchemaMutation... schemaMutations) {
+	public ModifyCatalogSchemaMutation(
+		@Nonnull String catalogName, @Nonnull LocalCatalogSchemaMutation... schemaMutations) {
 		this.catalogName = catalogName;
 		this.schemaMutations = schemaMutations;
+	}
+
+	@Override
+	public void verifyApplicability(@Nonnull EvitaContract evita) throws InvalidMutationException {
+		if (!evita.getCatalogNames().contains(this.catalogName)) {
+			throw new InvalidMutationException("Catalog `" + this.catalogName + "` doesn't exist!");
+		}
 	}
 
 	@Nullable
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
-		CatalogSchemaWithImpactOnEntitySchemas alteredSchema = new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
+		CatalogSchemaWithImpactOnEntitySchemas alteredSchema = new CatalogSchemaWithImpactOnEntitySchemas(
+			catalogSchema);
 		ModifyEntitySchemaMutation[] aggregatedMutations = null;
 		for (LocalCatalogSchemaMutation schemaMutation : this.schemaMutations) {
 			alteredSchema = schemaMutation.mutate(alteredSchema.updatedCatalogSchema(), catalogSchema);
@@ -86,40 +97,30 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 		return Operation.UPSERT;
 	}
 
-	@Nonnull
 	@Override
+	@Nonnull
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
-		@Nonnull ChangeCaptureContent content) {
-		final MutationPredicateContext context = predicate.getContext();
-		context.advance();
+		@Nonnull ChangeCaptureContent content
+	) {
+		final Stream<ChangeCatalogCapture> catalogMutation = TopLevelCatalogSchemaMutation.super.toChangeCatalogCapture(predicate, content);
 
-		final Stream<ChangeCatalogCapture> catalogMutation;
-		if (predicate.test(this)) {
-			catalogMutation = Stream.of(ChangeCatalogCapture.schemaCapture(
-					context,
-					operation(),
-					content == ChangeCaptureContent.BODY ? this : null
-				)
-			);
-		} else {
-			catalogMutation = Stream.empty();
-		}
+		final MutationPredicateContext context = predicate.getContext();
 		if (context.getDirection() == StreamDirection.FORWARD) {
 			return Stream.concat(
 				catalogMutation,
 				Arrays.stream(this.schemaMutations)
-					.filter(predicate)
-					.flatMap(m -> m.toChangeCatalogCapture(predicate, content))
+				      .filter(predicate)
+				      .flatMap(m -> m.toChangeCatalogCapture(predicate, content))
 			);
 		} else {
 			final AtomicInteger index = new AtomicInteger(this.schemaMutations.length);
 			return Stream.concat(
 				Stream.generate(() -> null)
-					.takeWhile(x -> index.get() > 0)
-					.map(x -> this.schemaMutations[index.decrementAndGet()])
-					.filter(predicate)
-					.flatMap(x -> x.toChangeCatalogCapture(predicate, content)),
+				      .takeWhile(x -> index.get() > 0)
+				      .map(x -> this.schemaMutations[index.decrementAndGet()])
+				      .filter(predicate)
+				      .flatMap(x -> x.toChangeCatalogCapture(predicate, content)),
 				catalogMutation
 			);
 
@@ -130,7 +131,7 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	public String toString() {
 		return "Modify catalog `" + this.catalogName + "` schema:\n" +
 			Arrays.stream(this.schemaMutations)
-				.map(Object::toString)
-				.collect(Collectors.joining(",\n"));
+			      .map(Object::toString)
+			      .collect(Collectors.joining(",\n"));
 	}
 }

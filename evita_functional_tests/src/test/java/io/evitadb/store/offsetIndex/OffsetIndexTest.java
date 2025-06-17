@@ -28,7 +28,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.StorageOptions.Builder;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;

@@ -61,7 +61,7 @@ import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.task.Task;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
-import io.evitadb.core.async.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.PaginatedList;

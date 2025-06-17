@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ package io.evitadb.api.requestResponse.data.mutation;
 
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -53,7 +53,7 @@ import java.util.Set;
  */
 @Immutable
 @ThreadSafe
-public non-sealed interface EntityMutation extends Mutation {
+public non-sealed interface EntityMutation extends CatalogBoundMutation {
 
 	/**
 	 * Default implementation of the entity builder retrieves all local mutations, filters those that implement

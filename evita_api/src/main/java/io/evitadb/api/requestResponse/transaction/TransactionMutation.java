@@ -23,10 +23,13 @@
 
 package io.evitadb.api.requestResponse.transaction;
 
+import io.evitadb.api.EvitaContract;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import lombok.EqualsAndHashCode;
@@ -45,7 +48,7 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EqualsAndHashCode
-public non-sealed class TransactionMutation implements Mutation {
+public non-sealed class TransactionMutation implements EngineMutation, CatalogBoundMutation {
 	@Serial private static final long serialVersionUID = -8039363287149601917L;
 	/**
 	 * Represents the unique identifier of a transaction.
@@ -107,7 +110,12 @@ public non-sealed class TransactionMutation implements Mutation {
 	}
 
 	@Override
+	public void verifyApplicability(@Nonnull EvitaContract evita) throws InvalidMutationException {
+		// do nothing
+	}
+
+	@Override
 	public String toString() {
-		return "transaction commit `" + this.transactionId + "` (moves catalog to version `" + this.version + "`)";
+		return "transaction commit `" + this.transactionId + "` (moves persistent state to version `" + this.version + "`)";
 	}
 }

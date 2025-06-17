@@ -76,7 +76,33 @@ private static final long serialVersionUID = 0L;
           case 0:
             done = true;
             break;
-          case 8: {
+          case 10: {
+            com.google.protobuf.Int64Value.Builder subBuilder = null;
+            if (sinceVersion_ != null) {
+              subBuilder = sinceVersion_.toBuilder();
+            }
+            sinceVersion_ = input.readMessage(com.google.protobuf.Int64Value.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(sinceVersion_);
+              sinceVersion_ = subBuilder.buildPartial();
+            }
+
+            break;
+          }
+          case 18: {
+            com.google.protobuf.Int32Value.Builder subBuilder = null;
+            if (sinceIndex_ != null) {
+              subBuilder = sinceIndex_.toBuilder();
+            }
+            sinceIndex_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(sinceIndex_);
+              sinceIndex_ = subBuilder.buildPartial();
+            }
+
+            break;
+          }
+          case 24: {
             int rawValue = input.readEnum();
 
             content_ = rawValue;
@@ -114,17 +140,93 @@ private static final long serialVersionUID = 0L;
             io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest.class, io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest.Builder.class);
   }
 
-  public static final int CONTENT_FIELD_NUMBER = 1;
+  public static final int SINCEVERSION_FIELD_NUMBER = 1;
+  private com.google.protobuf.Int64Value sinceVersion_;
+  /**
+   * <pre>
+   * Starting point for the search (catalog version)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+   * @return Whether the sinceVersion field is set.
+   */
+  @java.lang.Override
+  public boolean hasSinceVersion() {
+    return sinceVersion_ != null;
+  }
+  /**
+   * <pre>
+   * Starting point for the search (catalog version)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+   * @return The sinceVersion.
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int64Value getSinceVersion() {
+    return sinceVersion_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : sinceVersion_;
+  }
+  /**
+   * <pre>
+   * Starting point for the search (catalog version)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int64ValueOrBuilder getSinceVersionOrBuilder() {
+    return getSinceVersion();
+  }
+
+  public static final int SINCEINDEX_FIELD_NUMBER = 2;
+  private com.google.protobuf.Int32Value sinceIndex_;
+  /**
+   * <pre>
+   * Starting point for the search (index of the mutation within catalog version)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+   * @return Whether the sinceIndex field is set.
+   */
+  @java.lang.Override
+  public boolean hasSinceIndex() {
+    return sinceIndex_ != null;
+  }
+  /**
+   * <pre>
+   * Starting point for the search (index of the mutation within catalog version)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+   * @return The sinceIndex.
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32Value getSinceIndex() {
+    return sinceIndex_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : sinceIndex_;
+  }
+  /**
+   * <pre>
+   * Starting point for the search (index of the mutation within catalog version)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32ValueOrBuilder getSinceIndexOrBuilder() {
+    return getSinceIndex();
+  }
+
+  public static final int CONTENT_FIELD_NUMBER = 3;
   private int content_;
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 3;</code>
    * @return The enum numeric value on the wire for content.
    */
   @java.lang.Override public int getContentValue() {
     return content_;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 3;</code>
    * @return The content.
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent getContent() {
@@ -147,8 +249,14 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    if (sinceVersion_ != null) {
+      output.writeMessage(1, getSinceVersion());
+    }
+    if (sinceIndex_ != null) {
+      output.writeMessage(2, getSinceIndex());
+    }
     if (content_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.CHANGE_HEADER.getNumber()) {
-      output.writeEnum(1, content_);
+      output.writeEnum(3, content_);
     }
     unknownFields.writeTo(output);
   }
@@ -159,9 +267,17 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
+    if (sinceVersion_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(1, getSinceVersion());
+    }
+    if (sinceIndex_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(2, getSinceIndex());
+    }
     if (content_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.CHANGE_HEADER.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(1, content_);
+        .computeEnumSize(3, content_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -178,6 +294,16 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest other = (io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest) obj;
 
+    if (hasSinceVersion() != other.hasSinceVersion()) return false;
+    if (hasSinceVersion()) {
+      if (!getSinceVersion()
+          .equals(other.getSinceVersion())) return false;
+    }
+    if (hasSinceIndex() != other.hasSinceIndex()) return false;
+    if (hasSinceIndex()) {
+      if (!getSinceIndex()
+          .equals(other.getSinceIndex())) return false;
+    }
     if (content_ != other.content_) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
@@ -190,6 +316,14 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
+    if (hasSinceVersion()) {
+      hash = (37 * hash) + SINCEVERSION_FIELD_NUMBER;
+      hash = (53 * hash) + getSinceVersion().hashCode();
+    }
+    if (hasSinceIndex()) {
+      hash = (37 * hash) + SINCEINDEX_FIELD_NUMBER;
+      hash = (53 * hash) + getSinceIndex().hashCode();
+    }
     hash = (37 * hash) + CONTENT_FIELD_NUMBER;
     hash = (53 * hash) + content_;
     hash = (29 * hash) + unknownFields.hashCode();
@@ -329,6 +463,18 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
+      if (sinceVersionBuilder_ == null) {
+        sinceVersion_ = null;
+      } else {
+        sinceVersion_ = null;
+        sinceVersionBuilder_ = null;
+      }
+      if (sinceIndexBuilder_ == null) {
+        sinceIndex_ = null;
+      } else {
+        sinceIndex_ = null;
+        sinceIndexBuilder_ = null;
+      }
       content_ = 0;
 
       return this;
@@ -357,6 +503,16 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest result = new io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest(this);
+      if (sinceVersionBuilder_ == null) {
+        result.sinceVersion_ = sinceVersion_;
+      } else {
+        result.sinceVersion_ = sinceVersionBuilder_.build();
+      }
+      if (sinceIndexBuilder_ == null) {
+        result.sinceIndex_ = sinceIndex_;
+      } else {
+        result.sinceIndex_ = sinceIndexBuilder_.build();
+      }
       result.content_ = content_;
       onBuilt();
       return result;
@@ -406,6 +562,12 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest.getDefaultInstance()) return this;
+      if (other.hasSinceVersion()) {
+        mergeSinceVersion(other.getSinceVersion());
+      }
+      if (other.hasSinceIndex()) {
+        mergeSinceIndex(other.getSinceIndex());
+      }
       if (other.content_ != 0) {
         setContentValue(other.getContentValue());
       }
@@ -438,16 +600,326 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
+    private com.google.protobuf.Int64Value sinceVersion_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> sinceVersionBuilder_;
+    /**
+     * <pre>
+     * Starting point for the search (catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+     * @return Whether the sinceVersion field is set.
+     */
+    public boolean hasSinceVersion() {
+      return sinceVersionBuilder_ != null || sinceVersion_ != null;
+    }
+    /**
+     * <pre>
+     * Starting point for the search (catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+     * @return The sinceVersion.
+     */
+    public com.google.protobuf.Int64Value getSinceVersion() {
+      if (sinceVersionBuilder_ == null) {
+        return sinceVersion_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : sinceVersion_;
+      } else {
+        return sinceVersionBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Starting point for the search (catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+     */
+    public Builder setSinceVersion(com.google.protobuf.Int64Value value) {
+      if (sinceVersionBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        sinceVersion_ = value;
+        onChanged();
+      } else {
+        sinceVersionBuilder_.setMessage(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Starting point for the search (catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+     */
+    public Builder setSinceVersion(
+        com.google.protobuf.Int64Value.Builder builderForValue) {
+      if (sinceVersionBuilder_ == null) {
+        sinceVersion_ = builderForValue.build();
+        onChanged();
+      } else {
+        sinceVersionBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Starting point for the search (catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+     */
+    public Builder mergeSinceVersion(com.google.protobuf.Int64Value value) {
+      if (sinceVersionBuilder_ == null) {
+        if (sinceVersion_ != null) {
+          sinceVersion_ =
+            com.google.protobuf.Int64Value.newBuilder(sinceVersion_).mergeFrom(value).buildPartial();
+        } else {
+          sinceVersion_ = value;
+        }
+        onChanged();
+      } else {
+        sinceVersionBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Starting point for the search (catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+     */
+    public Builder clearSinceVersion() {
+      if (sinceVersionBuilder_ == null) {
+        sinceVersion_ = null;
+        onChanged();
+      } else {
+        sinceVersion_ = null;
+        sinceVersionBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Starting point for the search (catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+     */
+    public com.google.protobuf.Int64Value.Builder getSinceVersionBuilder() {
+
+      onChanged();
+      return getSinceVersionFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Starting point for the search (catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+     */
+    public com.google.protobuf.Int64ValueOrBuilder getSinceVersionOrBuilder() {
+      if (sinceVersionBuilder_ != null) {
+        return sinceVersionBuilder_.getMessageOrBuilder();
+      } else {
+        return sinceVersion_ == null ?
+            com.google.protobuf.Int64Value.getDefaultInstance() : sinceVersion_;
+      }
+    }
+    /**
+     * <pre>
+     * Starting point for the search (catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
+        getSinceVersionFieldBuilder() {
+      if (sinceVersionBuilder_ == null) {
+        sinceVersionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>(
+                getSinceVersion(),
+                getParentForChildren(),
+                isClean());
+        sinceVersion_ = null;
+      }
+      return sinceVersionBuilder_;
+    }
+
+    private com.google.protobuf.Int32Value sinceIndex_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> sinceIndexBuilder_;
+    /**
+     * <pre>
+     * Starting point for the search (index of the mutation within catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+     * @return Whether the sinceIndex field is set.
+     */
+    public boolean hasSinceIndex() {
+      return sinceIndexBuilder_ != null || sinceIndex_ != null;
+    }
+    /**
+     * <pre>
+     * Starting point for the search (index of the mutation within catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+     * @return The sinceIndex.
+     */
+    public com.google.protobuf.Int32Value getSinceIndex() {
+      if (sinceIndexBuilder_ == null) {
+        return sinceIndex_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : sinceIndex_;
+      } else {
+        return sinceIndexBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Starting point for the search (index of the mutation within catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+     */
+    public Builder setSinceIndex(com.google.protobuf.Int32Value value) {
+      if (sinceIndexBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        sinceIndex_ = value;
+        onChanged();
+      } else {
+        sinceIndexBuilder_.setMessage(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Starting point for the search (index of the mutation within catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+     */
+    public Builder setSinceIndex(
+        com.google.protobuf.Int32Value.Builder builderForValue) {
+      if (sinceIndexBuilder_ == null) {
+        sinceIndex_ = builderForValue.build();
+        onChanged();
+      } else {
+        sinceIndexBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Starting point for the search (index of the mutation within catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+     */
+    public Builder mergeSinceIndex(com.google.protobuf.Int32Value value) {
+      if (sinceIndexBuilder_ == null) {
+        if (sinceIndex_ != null) {
+          sinceIndex_ =
+            com.google.protobuf.Int32Value.newBuilder(sinceIndex_).mergeFrom(value).buildPartial();
+        } else {
+          sinceIndex_ = value;
+        }
+        onChanged();
+      } else {
+        sinceIndexBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Starting point for the search (index of the mutation within catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+     */
+    public Builder clearSinceIndex() {
+      if (sinceIndexBuilder_ == null) {
+        sinceIndex_ = null;
+        onChanged();
+      } else {
+        sinceIndex_ = null;
+        sinceIndexBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Starting point for the search (index of the mutation within catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+     */
+    public com.google.protobuf.Int32Value.Builder getSinceIndexBuilder() {
+
+      onChanged();
+      return getSinceIndexFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Starting point for the search (index of the mutation within catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+     */
+    public com.google.protobuf.Int32ValueOrBuilder getSinceIndexOrBuilder() {
+      if (sinceIndexBuilder_ != null) {
+        return sinceIndexBuilder_.getMessageOrBuilder();
+      } else {
+        return sinceIndex_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : sinceIndex_;
+      }
+    }
+    /**
+     * <pre>
+     * Starting point for the search (index of the mutation within catalog version)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        getSinceIndexFieldBuilder() {
+      if (sinceIndexBuilder_ == null) {
+        sinceIndexBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+                getSinceIndex(),
+                getParentForChildren(),
+                isClean());
+        sinceIndex_ = null;
+      }
+      return sinceIndexBuilder_;
+    }
+
     private int content_ = 0;
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 3;</code>
      * @return The enum numeric value on the wire for content.
      */
     @java.lang.Override public int getContentValue() {
       return content_;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 3;</code>
      * @param value The enum numeric value on the wire for content to set.
      * @return This builder for chaining.
      */
@@ -458,7 +930,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 3;</code>
      * @return The content.
      */
     @java.lang.Override
@@ -468,7 +940,7 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent.UNRECOGNIZED : result;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 3;</code>
      * @param value The content to set.
      * @return This builder for chaining.
      */
@@ -482,7 +954,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 3;</code>
      * @return This builder for chaining.
      */
     public Builder clearContent() {

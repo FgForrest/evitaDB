@@ -30,13 +30,14 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.core.async.DelayedAsyncTask;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.transaction.WalCacheSizeChangedEvent;
@@ -78,7 +79,7 @@ import java.util.function.LongSupplier;
  */
 @Slf4j
 @NotThreadSafe
-public class CatalogWriteAheadLog extends AbstractWriteAheadLog {
+public class CatalogWriteAheadLog extends AbstractWriteAheadLog<CatalogBoundMutation> {
 	/**
 	 * The name of the catalog.
 	 */

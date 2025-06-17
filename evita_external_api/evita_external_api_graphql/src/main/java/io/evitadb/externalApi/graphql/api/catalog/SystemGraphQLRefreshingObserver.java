@@ -57,11 +57,14 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 		final Mutation body = item.body();
 		if (body instanceof CreateCatalogSchemaMutation create) {
 			this.graphQLManager.registerCatalog(create.getCatalogName());
+			this.graphQLManager.emitObservabilityEvents(create.getCatalogName());
 		} else if (body instanceof ModifyCatalogSchemaNameMutation nameChange) {
 			this.graphQLManager.unregisterCatalog(nameChange.getCatalogName());
 			this.graphQLManager.registerCatalog(nameChange.getNewCatalogName());
+			this.graphQLManager.emitObservabilityEvents(nameChange.getCatalogName());
 		} else if (body instanceof ModifyCatalogSchemaMutation modify) {
 			this.graphQLManager.refreshCatalog(modify.getCatalogName());
+			this.graphQLManager.emitObservabilityEvents(modify.getCatalogName());
 		} else if (body instanceof RemoveCatalogSchemaMutation remove) {
 			this.graphQLManager.unregisterCatalog(remove.getCatalogName());
 		}

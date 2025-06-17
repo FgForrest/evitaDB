@@ -54,6 +54,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -77,14 +78,14 @@ import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.EntityCollection.EntityCollectionHeaderWithCollection;
-import io.evitadb.core.async.ObservableExecutorService;
-import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
+import io.evitadb.core.executor.ObservableExecutorService;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.metric.event.transaction.CatalogGoesLiveEvent;
 import io.evitadb.core.query.QueryPlan;
@@ -686,7 +687,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	}
 
 	@Override
-	public void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull Mutation mutation) throws InvalidMutationException {
+	public void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull CatalogBoundMutation mutation) throws InvalidMutationException {
 		if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
 			// apply schema mutation to the catalog
 			updateSchemaInternal(session, schemaMutation);
@@ -910,13 +911,13 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Override
 	@Nonnull
-	public Stream<Mutation> getCommittedMutationStream(long catalogVersion) {
+	public Stream<CatalogBoundMutation> getCommittedMutationStream(long catalogVersion) {
 		return this.persistenceService.getCommittedMutationStream(catalogVersion);
 	}
 
 	@Nonnull
 	@Override
-	public Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
+	public Stream<CatalogBoundMutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
 		return this.persistenceService.getReversedCommittedMutationStream(catalogVersion);
 	}
 
@@ -1248,7 +1249,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 * @return The stream of committed mutations since the given catalogVersion
 	 */
 	@Nonnull
-	public Stream<Mutation> getCommittedLiveMutationStream(long startCatalogVersion, long requestedCatalogVersion) {
+	public Stream<CatalogBoundMutation> getCommittedLiveMutationStream(long startCatalogVersion, long requestedCatalogVersion) {
 		return this.persistenceService.getCommittedLiveMutationStream(startCatalogVersion, requestedCatalogVersion);
 	}
 
@@ -1333,13 +1334,6 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 */
 	public void emitObservabilityEvents() {
 		this.persistenceService.emitObservabilityEvents();
-	}
-
-	/**
-	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.
-	 */
-	public void emitDeleteObservabilityEvents() {
-		this.persistenceService.emitDeleteObservabilityEvents();
 	}
 
 	/**

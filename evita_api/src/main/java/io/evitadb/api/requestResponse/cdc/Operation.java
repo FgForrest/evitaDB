@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ package io.evitadb.api.requestResponse.cdc;
 public enum Operation {
 
 	/**
-	 * Create or update operation - i.e. there was data with such identity before, and it was updated.
+	 * Create or update operation. If there was data with such identity before, it was updated. If not, it was created.
 	 */
 	UPSERT,
 	/**

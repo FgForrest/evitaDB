@@ -39,7 +39,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
-import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -196,7 +196,7 @@ public final class CorruptedCatalog implements CatalogContract {
 	}
 
 	@Override
-	public void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull Mutation mutation) throws InvalidMutationException {
+	public void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull CatalogBoundMutation mutation) throws InvalidMutationException {
 		throw new CatalogCorruptedException(this);
 	}
 
@@ -225,13 +225,13 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public Stream<Mutation> getCommittedMutationStream(long catalogVersion) {
+	public Stream<CatalogBoundMutation> getCommittedMutationStream(long catalogVersion) {
 		throw new CatalogCorruptedException(this);
 	}
 
 	@Nonnull
 	@Override
-	public Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
+	public Stream<CatalogBoundMutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
 		throw new CatalogCorruptedException(this);
 	}
 

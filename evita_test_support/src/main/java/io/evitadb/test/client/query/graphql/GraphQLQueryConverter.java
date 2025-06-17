@@ -121,7 +121,7 @@ public class GraphQLQueryConverter {
 		final OrderConstraintToJsonConverter orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
 		final RequireConstraintToJsonConverter requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(
 			catalogSchema,
-			this.allowedRequireConstraints::contains,
+			ALLOWED_REQUIRE_CONSTRAINTS::contains,
 			new AtomicReference<>(filterConstraintToJsonConverter),
 			new AtomicReference<>(orderConstraintToJsonConverter)
 		);

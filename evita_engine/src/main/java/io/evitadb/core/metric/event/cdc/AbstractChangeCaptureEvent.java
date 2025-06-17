@@ -24,12 +24,8 @@
 package io.evitadb.core.metric.event.cdc;
 
 import io.evitadb.api.observability.annotation.EventGroup;
-import io.evitadb.core.metric.event.CatalogRelatedEvent;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import jdk.jfr.Category;
-import jdk.jfr.Description;
-import jdk.jfr.Label;
-import jdk.jfr.Name;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -44,15 +40,7 @@ import lombok.RequiredArgsConstructor;
 @Category({"evitaDB", "CDC"})
 @RequiredArgsConstructor
 @Getter
-abstract class AbstractChangeCaptureEvent extends CustomMetricsExecutionEvent implements CatalogRelatedEvent {
+abstract class AbstractChangeCaptureEvent extends CustomMetricsExecutionEvent {
 	protected static final String PACKAGE_NAME = "io.evitadb.cdc";
-
-	/**
-	 * The name of the catalog the transaction relates to.
-	 */
-	@Label("Catalog")
-	@Name("catalogName")
-	@Description("The name of the catalog to which this event/metric is associated.")
-	final String catalogName;
 
 }

@@ -55,7 +55,7 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.core.Transaction;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.Functions;
 import io.evitadb.function.TriConsumer;

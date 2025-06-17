@@ -26,7 +26,7 @@ package io.evitadb.core.file;
 import com.google.common.collect.Lists;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.file.FileForFetch;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService.ExportFileHandle;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.test.EvitaTestSupport;

@@ -139,21 +139,8 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 		@Nonnull ChangeCaptureContent content
 	) {
 		final MutationPredicateContext context = predicate.getContext();
-		context.advance();
 		context.setEntityType(this.entityType);
-
-		final Stream<ChangeCatalogCapture> entitySchemaCapture;
-		if (predicate.test(this)) {
-			entitySchemaCapture = Stream.of(
-				ChangeCatalogCapture.schemaCapture(
-					context,
-					operation(),
-					content == ChangeCaptureContent.BODY ? this : null
-				)
-			);
-		} else {
-			entitySchemaCapture = Stream.empty();
-		}
+		final Stream<ChangeCatalogCapture> entitySchemaCapture = CombinableCatalogSchemaMutation.super.toChangeCatalogCapture(predicate, content);
 
 		if (context.getDirection() == StreamDirection.FORWARD) {
 			return Stream.concat(

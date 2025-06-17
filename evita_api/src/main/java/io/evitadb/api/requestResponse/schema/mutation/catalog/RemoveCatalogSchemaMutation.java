@@ -24,12 +24,9 @@
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.EvitaContract;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
-import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.mutation.MutationPredicate;
-import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.utils.Assert;
@@ -42,7 +39,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
-import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for removing an existing {@link CatalogSchemaContract} - or more precisely the catalog
@@ -58,6 +54,13 @@ public class RemoveCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	@Serial private static final long serialVersionUID = -8605223733449045709L;
 	@Getter @Nonnull private final String catalogName;
 
+	@Override
+	public void verifyApplicability(@Nonnull EvitaContract evita) throws InvalidMutationException {
+		if (!evita.getCatalogNames().contains(this.catalogName)) {
+			throw new InvalidSchemaMutationException("Catalog `" + this.catalogName + "` doesn't exist!");
+		}
+	}
+
 	@Nullable
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
@@ -72,28 +75,6 @@ public class RemoveCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	@Override
 	public Operation operation() {
 		return Operation.REMOVE;
-	}
-
-	@Nonnull
-	@Override
-	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
-		@Nonnull MutationPredicate predicate,
-		@Nonnull ChangeCaptureContent content
-	) {
-		if (predicate.test(this)) {
-			final MutationPredicateContext context = predicate.getContext();
-			context.advance();
-
-			return Stream.of(
-				ChangeCatalogCapture.schemaCapture(
-					context,
-					operation(),
-					content == ChangeCaptureContent.BODY ? this : null
-				)
-			);
-		} else {
-			return Stream.empty();
-		}
 	}
 
 	@Override

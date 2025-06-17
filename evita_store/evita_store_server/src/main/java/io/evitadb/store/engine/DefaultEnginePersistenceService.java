@@ -28,10 +28,10 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.schema.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.function.Functions;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
@@ -231,7 +231,8 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		this.created = false;
 		// Validate that the version is incremented by exactly one
 		Assert.isPremiseValid(
-			(this.engineState == null && engineState.version() == 1) || (this.engineState.version() + 1 == engineState.version()),
+			(this.engineState == null && engineState.version() == 1) ||
+				(this.engineState != null && this.engineState.version() + 1 == engineState.version()),
 			this.engineState == null ?
 				"Engine state version must be 1 when creating new engine state!" :
 				"Engine state version must be incremented by one when storing new engine state! " +
@@ -355,7 +356,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 	@Nonnull
 	@Override
-	public Stream<Mutation> getCommittedMutationStream(long version) {
+	public Stream<EngineMutation> getCommittedMutationStream(long version) {
 		if (this.writeAheadLog == null) {
 			// If WAL is not initialized, there are no mutations
 			return Stream.empty();
@@ -367,7 +368,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 	@Nonnull
 	@Override
-	public Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long version) {
+	public Stream<EngineMutation> getReversedCommittedMutationStream(@Nullable Long version) {
 		if (this.writeAheadLog == null) {
 			// If WAL is not initialized, there are no mutations
 			return Stream.empty();

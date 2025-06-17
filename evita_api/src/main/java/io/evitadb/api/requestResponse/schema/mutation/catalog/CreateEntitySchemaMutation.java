@@ -97,21 +97,13 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 		@Nonnull MutationPredicate predicate,
 		@Nonnull ChangeCaptureContent content
 	) {
-		if (predicate.test(this)) {
-			final MutationPredicateContext context = predicate.getContext();
-			context.advance();
-			context.setEntityType(this.entityType);
+		final MutationPredicateContext context = predicate.getContext();
+		context.setEntityType(this.entityType);
 
-			return Stream.of(
-				ChangeCatalogCapture.schemaCapture(
-					context,
-					operation(),
-					content == ChangeCaptureContent.BODY ? this : null
-				)
-			);
-		} else {
-			return Stream.empty();
-		}
+		return LocalCatalogSchemaMutation.super.toChangeCatalogCapture(
+			predicate,
+			content
+		);
 	}
 
 	@Override

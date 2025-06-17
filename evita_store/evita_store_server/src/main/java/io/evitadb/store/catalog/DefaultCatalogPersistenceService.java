@@ -34,7 +34,7 @@ import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -48,10 +48,10 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogConsumersListener;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.file.ExportFileService.ExportFileHandle;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
@@ -59,7 +59,6 @@ import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
-import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Scope;
@@ -1387,24 +1386,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 	}
 
-	@Override
-	public void emitDeleteObservabilityEvents() {
-		// emit statistics event
-		new CatalogStatisticsEvent(
-			this.catalogName,
-			0,
-			0,
-			null
-		).commit();
-		// emit WAL events if it exists
-		if (this.catalogWal != null) {
-			new WalStatisticsEvent(
-				this.catalogName,
-				null
-			).commit();
-		}
-	}
-
 	@Nonnull
 	@Override
 	public CatalogOffsetIndexStoragePartPersistenceService getStoragePartPersistenceService(long catalogVersion) {
@@ -2032,7 +2013,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public Stream<Mutation> getCommittedMutationStream(long catalogVersion) {
+	public Stream<CatalogBoundMutation> getCommittedMutationStream(long catalogVersion) {
 		if (this.catalogWal == null) {
 			return Stream.empty();
 		} else {
@@ -2042,7 +2023,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
+	public Stream<CatalogBoundMutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
 		if (this.catalogWal == null) {
 			return Stream.empty();
 		} else {
@@ -2052,7 +2033,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public Stream<Mutation> getCommittedLiveMutationStream(long startCatalogVersion, long requestedCatalogVersion) {
+	public Stream<CatalogBoundMutation> getCommittedLiveMutationStream(long startCatalogVersion, long requestedCatalogVersion) {
 		if (this.catalogWal == null) {
 			return Stream.empty();
 		} else {

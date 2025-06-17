@@ -25,8 +25,8 @@ package io.evitadb.store.kryo;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.core.async.DelayedAsyncTask;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.utils.Assert;

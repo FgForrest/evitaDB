@@ -27,11 +27,11 @@ package io.evitadb.core.cdc;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
-import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.cdc.CatalogChangeCaptureRingBuffer.OutsideScopeException;
+import io.evitadb.core.cdc.ChangeCaptureRingBuffer.OutsideScopeException;
 import io.evitadb.core.cdc.predicate.VersionAndIndexInitializingPredicate;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -98,7 +98,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * Map of active subscriptions, keyed by their unique identifier. This allows
 	 * efficient lookup and management of subscriptions.
 	 */
-	private final Map<UUID, ChangeCatalogCaptureSubscription> subscribers = CollectionUtils.createConcurrentHashMap(64);
+	private final Map<UUID, DefaultChangeCaptureSubscription<ChangeCatalogCapture>> subscribers = CollectionUtils.createConcurrentHashMap(64);
 
 	/**
 	 * Reference to the current catalog. This is updated whenever a new catalog version
@@ -110,7 +110,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * Ring buffer that stores recent change catalog captures in memory for efficient access.
 	 * When the buffer is full, older entries are evicted.
 	 */
-	private final CatalogChangeCaptureRingBuffer lastCaptures;
+	private final ChangeCaptureRingBuffer<ChangeCatalogCapture> lastCaptures;
 
 	/**
 	 * The maximum number of change catalog captures that can be buffered for each subscriber.
@@ -158,11 +158,12 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		this.cdcExecutor = cdcExecutor;
 		this.onNextConsumer = onNextConsumer;
 		// Initialize the ring buffer with the current catalog version
-		this.lastCaptures = new CatalogChangeCaptureRingBuffer(
-			// we need to use current catalog version plus one, because the current catalog version mutations will not
+		this.lastCaptures = new ChangeCaptureRingBuffer<>(
+			// we need to use the current catalog version plus one, because the current catalog version mutations will not
 			// be in memory, but only in the WAL, this version will enforce reading them from WAL
 			currentCatalogVersion + 1, 0,
-			currentCatalogVersion, bufferSize
+			currentCatalogVersion, bufferSize,
+			ChangeCatalogCapture.class
 		);
 		this.subscriberBufferSize = subscriberBufferSize;
 		this.criteria = criteria;
@@ -185,7 +186,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		this.lastCaptures.setEffectiveLastCatalogVersion(catalog.getVersion());
 		// notify all subscriptions that the catalog is now present in the live view
 		// each active subscription is notified to pull new data asynchronously from this instance
-		for (ChangeCatalogCaptureSubscription subscription : this.subscribers.values()) {
+		for (DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription : this.subscribers.values()) {
 			if (!subscription.isFinished()) {
 				subscription.notifySubscriber();
 			}
@@ -210,7 +211,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 *
 	 * @param mutation the mutation to process
 	 */
-	public void processMutation(@Nonnull Mutation mutation) {
+	public void processMutation(@Nonnull CatalogBoundMutation mutation) {
 		// we don't actively check for non-closed condition here to speed up the process
 		// only process mutations that match our criteria
 		// convert the mutation to change catalog captures (if any) and add them to the ring buffer
@@ -262,7 +263,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * {@code false} if no subscription exists for the given ID
 	 */
 	public boolean unsubscribe(@Nonnull UUID subscriptionId) {
-		final ChangeCatalogCaptureSubscription subscription = this.subscribers.get(subscriptionId);
+		final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription = this.subscribers.get(subscriptionId);
 		if (subscription != null) {
 			subscription.cancel();
 			this.subscribers.remove(subscriptionId);
@@ -287,12 +288,12 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	public void close() {
 		this.lock.lock();
 		try {
-			// Atomically set closed flag to true if it was false
+			// Atomically set the closed flag to true if it was false
 			if (this.closed.compareAndSet(false, true)) {
 				this.versionSubscribersCount.clear();
 				this.lastCaptures.clearAll();
 				// cancel all subscriptions
-				for (ChangeCatalogCaptureSubscription subscription : this.subscribers.values()) {
+				for (DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription : this.subscribers.values()) {
 					subscription.cancel();
 				}
 			}
@@ -358,10 +359,10 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * @throws InstanceTerminatedException if the publisher is closed
 	 */
 	@Nonnull
-	ChangeCatalogCaptureSubscription subscribe(@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber, @Nonnull WalPointerWithContent specification) {
+	DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscribe(@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber, @Nonnull WalPointerWithContent specification) {
 		assertActive();
 		UUID subscriberId;
-		ChangeCatalogCaptureSubscription subscription;
+		DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription;
 		final AtomicBoolean created = new AtomicBoolean(false);
 		// Keep trying until we successfully create a subscription with a unique ID
 		do {
@@ -377,7 +378,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 						(version, count) -> count == null ? 1 : count + 1
 					);
 					// this is a costly operation since it allocates a buffer
-					return new ChangeCatalogCaptureSubscription(
+					return new DefaultChangeCaptureSubscription<>(
 						uuid,
 						this.subscriberBufferSize,
 						specification,
@@ -417,7 +418,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		);
 		try (
 			// Get a stream of mutations starting from the specified WAL pointer
-			final Stream<Mutation> committedMutationStream = getCatalog().getCommittedMutationStream(walPointer.version())
+			final Stream<CatalogBoundMutation> committedMutationStream = getCatalog().getCommittedMutationStream(walPointer.version())
 		) {
 			// Track the last capture that was successfully added to the queue
 			final AtomicReference<Optional<ChangeCatalogCapture>> lastCapture = new AtomicReference<>(Optional.empty());
@@ -531,7 +532,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 */
 	private void fillBuffer(
 		@Nonnull WalPointer walPointer,
-		@Nonnull ChangeCatalogCaptureSubscription subscription,
+		@Nonnull DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription,
 		@Nonnull Queue<ChangeCatalogCapture> changeCatalogCaptures
 	) {
 		Optional<ChangeCatalogCapture> lastCapture;
@@ -600,34 +601,6 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 			nextVersion,
 			(version, count) -> count == null ? 1 : count + 1
 		);
-	}
-
-	/**
-	 * A record representing a position in the Write-Ahead Log (WAL).
-	 * It consists of a catalog version and an index within that version.
-	 *
-	 * @param version the catalog version
-	 * @param index   the index within the catalog version
-	 */
-	record WalPointer(
-		long version,
-		int index
-	) {
-	}
-
-	/**
-	 * A record extending {@link WalPointer} with content specification.
-	 * It specifies what content should be included in the change catalog captures.
-	 *
-	 * @param version the catalog version
-	 * @param index   the index within the catalog version
-	 * @param content the content specification (e.g., BODY, HEADER_ONLY)
-	 */
-	record WalPointerWithContent(
-		long version,
-		int index,
-		@Nonnull ChangeCaptureContent content
-	) {
 	}
 
 }

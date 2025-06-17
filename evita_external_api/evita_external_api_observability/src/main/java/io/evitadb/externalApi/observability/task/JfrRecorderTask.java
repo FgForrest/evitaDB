@@ -25,7 +25,7 @@ package io.evitadb.externalApi.observability.task;
 
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
-import io.evitadb.core.async.ClientInfiniteCallableTask;
+import io.evitadb.core.executor.ClientInfiniteCallableTask;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.file.ExportFileService.ExportFileHandle;
 import io.evitadb.exception.GenericEvitaInternalError;

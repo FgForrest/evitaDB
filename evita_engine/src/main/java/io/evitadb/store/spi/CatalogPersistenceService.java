@@ -29,7 +29,7 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
-import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.system.TimeFlow;
@@ -192,11 +192,6 @@ public non-sealed interface CatalogPersistenceService extends RichPersistenceSer
 	 * If we didn't postpone this initialization, events would become lost.
 	 */
 	void emitObservabilityEvents();
-
-	/**
-	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.
-	 */
-	void emitDeleteObservabilityEvents();
 
 	/**
 	 * Retrieves the {@link CatalogStoragePartPersistenceService} associated with this {@link CatalogPersistenceService}.
@@ -395,7 +390,7 @@ public non-sealed interface CatalogPersistenceService extends RichPersistenceSer
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getCommittedMutationStream(long catalogVersion);
+	Stream<CatalogBoundMutation> getCommittedMutationStream(long catalogVersion);
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
@@ -407,7 +402,7 @@ public non-sealed interface CatalogPersistenceService extends RichPersistenceSer
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion);
+	Stream<CatalogBoundMutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion);
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
@@ -419,7 +414,7 @@ public non-sealed interface CatalogPersistenceService extends RichPersistenceSer
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getCommittedLiveMutationStream(long startCatalogVersion, long requestedCatalogVersion);
+	Stream<CatalogBoundMutation> getCommittedLiveMutationStream(long startCatalogVersion, long requestedCatalogVersion);
 
 	/**
 	 * Retrieves the last catalog version written in the WAL stream.

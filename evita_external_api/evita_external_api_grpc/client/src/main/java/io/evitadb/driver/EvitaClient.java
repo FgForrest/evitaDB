@@ -45,9 +45,9 @@ import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.driver.cdc.ClientRxPublisher;
@@ -112,6 +112,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -827,6 +828,20 @@ public class EvitaClient implements EvitaContract {
 		}
 
 		return commitProgress;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<EngineMutation> getCommittedMutationStream(long version) {
+		/* TODO JNO - implement and test */
+		return Stream.empty();
+	}
+
+	@Nonnull
+	@Override
+	public Stream<EngineMutation> getReversedCommittedMutationStream(@Nullable Long version) {
+		/* TODO JNO - implement and test */
+		return Stream.empty();
 	}
 
 	@Nonnull

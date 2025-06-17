@@ -24,17 +24,18 @@
 package io.evitadb.core.cdc;
 
 import io.evitadb.api.configuration.ChangeDataCaptureOptions;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
-import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.async.DelayedAsyncTask;
-import io.evitadb.core.async.Scheduler;
-import io.evitadb.core.metric.event.cdc.ChangeCaptureStatisticsEvent;
-import io.evitadb.core.metric.event.cdc.ChangeCaptureStatisticsPerAreaEvent;
-import io.evitadb.core.metric.event.cdc.ChangeCaptureStatisticsPerEntityTypeEvent;
+import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsEvent;
+import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsPerAreaEvent;
+import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsPerEntityTypeEvent;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import jdk.jfr.FlightRecorder;
@@ -44,11 +45,12 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Implementation of the {@link CatalogChangeObserverContract} that observes and captures changes to a catalog
+ * Implementation of the {@link ChangeObserverContract} that observes and captures changes to a catalog
  * in the evitaDB system. This class is responsible for managing the Change Data Capture (CDC) mechanism that
  * allows clients to subscribe to and receive notifications about catalog mutations.
  *
@@ -68,11 +70,11 @@ import java.util.concurrent.atomic.AtomicReference;
  * TOBEDONE #879 - potential performance optimization if current one is slow
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
- * @see CatalogChangeObserverContract
+ * @see ChangeObserverContract
  * @see ChangeCatalogCapturePublisher
  * @see ChangeCatalogCaptureSharedPublisher
  */
-public class CatalogChangeObserver implements CatalogChangeObserverContract {
+public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	/**
 	 * Options for change data capture.
 	 */
@@ -107,6 +109,11 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 	 */
 	private final Map<String, AtomicLong> sentEventsByEntityType = CollectionUtils.createConcurrentHashMap(32);
 
+	/**
+	 * Whether this observer is still active and can fire new events.
+	 */
+	private final AtomicBoolean active = new AtomicBoolean(true);
+
 	public CatalogChangeObserver(
 		@Nonnull ChangeDataCaptureOptions cdcOptions,
 		@Nonnull ExecutorService cdcExecutor,
@@ -125,13 +132,14 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 			1, TimeUnit.MINUTES
 		);
 		FlightRecorder.addPeriodicEvent(
-			ChangeCaptureStatisticsEvent.class,
+			ChangeCatalogCaptureStatisticsEvent.class,
 			this::emitChangeCaptureStatistics
 		);
 	}
 
 	@Override
 	public void notifyCatalogPresentInLiveView(@Nonnull Catalog catalog) {
+		assertActive();
 		this.currentCatalog.set(catalog);
 		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
 			sharedPublisher.notifyCatalogPresentInLiveView(catalog);
@@ -139,14 +147,16 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 	}
 
 	@Override
-	public void processMutation(@Nonnull Mutation mutation) {
+	public void processMutation(@Nonnull CatalogBoundMutation mutation) {
+		assertActive();
 		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
 			sharedPublisher.processMutation(mutation);
 		}
 	}
 
 	@Override
-	public void forgetMutationsAfter(long catalogVersion) {
+	public void forgetMutationsAfter(@Nonnull Catalog catalog, long catalogVersion) {
+		assertActive();
 		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
 			sharedPublisher.forgetMutationsAfter(catalogVersion);
 		}
@@ -155,6 +165,7 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 	@Nonnull
 	@Override
 	public ChangeCapturePublisher<ChangeCatalogCapture> registerObserver(@Nonnull ChangeCatalogCaptureRequest request) {
+		assertActive();
 		final Catalog theCatalog = this.currentCatalog.get();
 		Assert.isPremiseValid(
 			theCatalog != null,
@@ -163,7 +174,7 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 
 		// Provide isolated publisher wrapping the shared one to the outside world.
 		// This way we can reuse predicate and caching logic for all subscribers with the same criteria.
-		// Specifics related to start version and index, and provided content are handled in the isolated publisher.
+		// Specifics related to the start version and index, and provided content are handled in the isolated publisher.
 		return new ChangeCatalogCapturePublisher(
 			// create or reuse the shared publisher
 			criteriaBundle -> this.uniquePublishers.computeIfAbsent(
@@ -191,12 +202,22 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 	 */
 	@Override
 	public boolean unregisterObserver(@Nonnull UUID uuid) {
+		assertActive();
 		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
 			if (sharedPublisher.unsubscribe(uuid)) {
 				return true;
 			}
 		}
 		return false;
+	}
+
+	@Override
+	public void close() throws Exception {
+		if (this.active.compareAndSet(false, true)) {
+			this.uniquePublishers.values().forEach(ChangeCatalogCaptureSharedPublisher::close);
+			this.uniquePublishers.clear();
+			this.currentCatalog.set(null);
+		}
 	}
 
 	/**
@@ -218,7 +239,7 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 
 	/**
 	 * Collects and emits statistics related to change data capture (CDC) operations.
-	 * This method creates a new instance of {@link ChangeCaptureStatisticsEvent} and populates
+	 * This method creates a new instance of {@link ChangeCatalogCaptureStatisticsEvent} and populates
 	 * it with the current catalog name, the count of unique publishers, the total number
 	 * of subscribers, the count of lagging subscribers, and the total number of events published.
 	 * After initializing the event with these metrics, it commits the event for further processing or logging.
@@ -238,7 +259,7 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 			laggingSubscriberCount += sharedPublisher.getLaggingSubscribersCount();
 		}
 		final String catalogName = this.currentCatalog.get().getName();
-		new ChangeCaptureStatisticsEvent(
+		new ChangeCatalogCaptureStatisticsEvent(
 			catalogName,
 			this.uniquePublishers.size(),
 			subscriberCount,
@@ -248,14 +269,14 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 
 		this.sentEventsByArea
 			.forEach(
-				(key, value) -> new ChangeCaptureStatisticsPerAreaEvent(
+				(key, value) -> new ChangeCatalogCaptureStatisticsPerAreaEvent(
 					catalogName, key, value.get()
 				).commit()
 			);
 
 		this.sentEventsByEntityType
 			.forEach(
-				(key, value) -> new ChangeCaptureStatisticsPerEntityTypeEvent(
+				(key, value) -> new ChangeCatalogCaptureStatisticsPerEntityTypeEvent(
 					catalogName, key, value.get()
 				).commit()
 			);
@@ -278,6 +299,15 @@ public class CatalogChangeObserver implements CatalogChangeObserverContract {
 			capture.entityType(),
 			entityType -> new AtomicLong(0)
 		).incrementAndGet();
+	}
+
+	/**
+	 * Verifies this instance is still active.
+	 */
+	private void assertActive() {
+		if (!this.active.get()) {
+			throw new InstanceTerminatedException("system change observer");
+		}
 	}
 
 }

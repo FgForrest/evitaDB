@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,37 +52,10 @@ public interface GrpcChangeSystemCaptureOrBuilder extends
 
   /**
    * <pre>
-   * the name of the catalog involved in the operation
-   * </pre>
-   *
-   * <code>.google.protobuf.StringValue catalog = 3;</code>
-   * @return Whether the catalog field is set.
-   */
-  boolean hasCatalog();
-  /**
-   * <pre>
-   * the name of the catalog involved in the operation
-   * </pre>
-   *
-   * <code>.google.protobuf.StringValue catalog = 3;</code>
-   * @return The catalog.
-   */
-  com.google.protobuf.StringValue getCatalog();
-  /**
-   * <pre>
-   * the name of the catalog involved in the operation
-   * </pre>
-   *
-   * <code>.google.protobuf.StringValue catalog = 3;</code>
-   */
-  com.google.protobuf.StringValueOrBuilder getCatalogOrBuilder();
-
-  /**
-   * <pre>
    * the operation that was performed
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
    * @return The enum numeric value on the wire for operation.
    */
   int getOperationValue();
@@ -91,35 +64,35 @@ public interface GrpcChangeSystemCaptureOrBuilder extends
    * the operation that was performed
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
    * @return The operation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation getOperation();
 
   /**
    * <pre>
-   * optional body of the operation when it is requested by the GrpcContent
+   * TODO JNO - přejmenovat, aktualizovat
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
    * @return Whether the systemMutation field is set.
    */
   boolean hasSystemMutation();
   /**
    * <pre>
-   * optional body of the operation when it is requested by the GrpcContent
+   * TODO JNO - přejmenovat, aktualizovat
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
    * @return The systemMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation getSystemMutation();
   /**
    * <pre>
-   * optional body of the operation when it is requested by the GrpcContent
+   * TODO JNO - přejmenovat, aktualizovat
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder getSystemMutationOrBuilder();
 }

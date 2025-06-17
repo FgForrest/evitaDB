@@ -23,12 +23,10 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
+import io.evitadb.api.EvitaContract;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
-import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.mutation.MutationPredicate;
-import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
@@ -44,7 +42,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
-import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for renaming an existing {@link CatalogSchemaContract}.
@@ -62,6 +59,17 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 	@Getter @Nonnull private final String catalogName;
 	@Getter @Nonnull private final String newCatalogName;
 	@Getter private final boolean overwriteTarget;
+
+	@Override
+	public void verifyApplicability(@Nonnull EvitaContract evita) throws InvalidMutationException {
+		if (!evita.getCatalogNames().contains(this.catalogName)) {
+			throw new InvalidSchemaMutationException("Catalog `" + this.catalogName + "` doesn't exist!");
+		}
+		if (evita.getCatalogNames().contains(this.newCatalogName) && !this.overwriteTarget) {
+			throw new InvalidSchemaMutationException("Catalog `" + this.newCatalogName + "` already exists! " +
+				"Use `overwriteTarget` flag to overwrite existing catalog.");
+		}
+	}
 
 	@Nullable
 	@Override
@@ -92,28 +100,6 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
-	}
-
-	@Nonnull
-	@Override
-	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
-		@Nonnull MutationPredicate predicate,
-		@Nonnull ChangeCaptureContent content
-	) {
-		final MutationPredicateContext context = predicate.getContext();
-		context.advance();
-
-		if (predicate.test(this)) {
-			return Stream.of(
-				ChangeCatalogCapture.schemaCapture(
-					context,
-					operation(),
-					content == ChangeCaptureContent.BODY ? this : null
-				)
-			);
-		} else {
-			return Stream.empty();
-		}
 	}
 
 	@Override

@@ -100,7 +100,7 @@ public class RestManager {
 		final long buildingStartTime = System.currentTimeMillis();
 
 		// listen to any evita catalog changes
-		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER))
+		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER))
 			.subscribe(new SystemRestRefreshingObserver(this));
 
 		// register initial endpoints

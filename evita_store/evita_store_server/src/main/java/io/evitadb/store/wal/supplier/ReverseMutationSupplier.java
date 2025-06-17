@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.wal.CatalogWriteAheadLog;
+import io.evitadb.store.wal.AbstractWriteAheadLog;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -43,7 +43,7 @@ import java.util.function.IntFunction;
 /**
  * This class is used to supply Mutation objects from a Write-Ahead Log (WAL) file in reverse order.
  */
-public final class ReverseMutationSupplier extends AbstractMutationSupplier {
+public final class ReverseMutationSupplier<T extends Mutation> extends AbstractMutationSupplier<T> {
 	private int mutationIndex;
 	@Nullable private FileLocation[] mappedPositions;
 
@@ -68,14 +68,15 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 
 	@Nullable
 	@Override
-	public Mutation get() {
+	public T get() {
 		if (this.transactionMutation == null) {
 			return null;
 		} else {
 			final FileLocation[] mappedPositions = getMappedPositions();
 			if (this.mutationIndex == this.transactionMutation.getMutationCount()) {
 				this.mutationIndex--;
-				return this.transactionMutation;
+				//noinspection unchecked
+				return (T) this.transactionMutation;
 			} else if (this.mutationIndex >= 0) {
 				Assert.isPremiseValid(
 					this.observableInput != null,
@@ -87,7 +88,8 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 					this.observableInput, currentLocation,
 					(stream, length, control) -> (Mutation) this.kryo.readClassAndObject(stream)
 				);
-				return storageRecord.payload();
+				//noinspection unchecked
+				return (T) storageRecord.payload();
 			} else {
 				this.transactionMutation = findPreviousTransactionMutation(this.transactionMutation);
 				this.mappedPositions = null;
@@ -178,7 +180,7 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 			examinedTxMutation
 				.map(
 					it -> it.getVersion() < previousCatalogVersion &&
-						this.filePosition + it.getTransactionSpan().recordLength() + CatalogWriteAheadLog.WAL_TAIL_LENGTH < walFileLength)
+						this.filePosition + it.getTransactionSpan().recordLength() + AbstractWriteAheadLog.WAL_TAIL_LENGTH < walFileLength)
 				.orElse(false)
 		) {
 			// move cursor to the next transaction mutation
@@ -188,7 +190,7 @@ public final class ReverseMutationSupplier extends AbstractMutationSupplier {
 			// read content length and leading transaction mutation
 			examinedTxMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
 			// if the file is shorter than the expected size of the transaction mutation, we've reached EOF
-			if (walFileLength < this.filePosition + transactionSpan.recordLength() + CatalogWriteAheadLog.WAL_TAIL_LENGTH) {
+			if (walFileLength < this.filePosition + transactionSpan.recordLength() + AbstractWriteAheadLog.WAL_TAIL_LENGTH) {
 				break;
 			}
 		}

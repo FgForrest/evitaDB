@@ -35,8 +35,8 @@ import io.evitadb.api.exception.TransactionTooBigException;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.core.async.DelayedAsyncTask;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.transaction.WalRotationEvent;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -102,7 +102,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @Slf4j
-public abstract class AbstractWriteAheadLog implements AutoCloseable {
+public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoCloseable {
 	/**
 	 * The size of a transaction mutation in the WAL file.
 	 */
@@ -958,7 +958,7 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 	 * @return a stream of committed mutations
 	 */
 	@Nonnull
-	public Stream<Mutation> getCommittedMutationStream(long startCatalogVersion) {
+	public Stream<T> getCommittedMutationStream(long startCatalogVersion) {
 		return getCommittedMutationStream(startCatalogVersion, null);
 	}
 
@@ -978,7 +978,7 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 	 * @return a stream of committed mutations
 	 */
 	@Nonnull
-	public Stream<Mutation> getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(
+	public Stream<T> getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(
 		long startCatalogVersion, long requestedCatalogVersion) {
 		return getCommittedMutationStream(startCatalogVersion, requestedCatalogVersion);
 	}
@@ -993,17 +993,17 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 	 * @return a stream of committed mutations
 	 */
 	@Nonnull
-	public Stream<Mutation> getCommittedReversedMutationStream(long version) {
+	public Stream<T> getCommittedReversedMutationStream(long version) {
 		final CurrentWalFile theCurrentWalFile = this.currentWalFile.get();
 		final File walFile = theCurrentWalFile.getWalFilePath().toFile();
 		if (!walFile.exists() || walFile.length() < 4) {
 			// WAL file does not exist or is empty, nothing to read
 			return Stream.empty();
 		} else {
-			final ReverseMutationSupplier supplier;
+			final ReverseMutationSupplier<T> supplier;
 			if (this.getFirstVersionOfCurrentWalFile() <= version) {
 				// we could start reading the current WAL file
-				supplier = new ReverseMutationSupplier(
+				supplier = new ReverseMutationSupplier<>(
 					version, this.walFileNameProvider, this.storageFolder, this.storageOptions,
 					theCurrentWalFile.getWalFileIndex(), this.kryoPool, this.transactionLocationsCache,
 					() -> emitCacheSizeEvent(this.transactionLocationsCache.size())
@@ -1011,7 +1011,7 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 			} else {
 				// we need to find older WAL file
 				final int foundWalIndex = findWalIndexFor(version);
-				supplier = new ReverseMutationSupplier(
+				supplier = new ReverseMutationSupplier<>(
 					version, this.walFileNameProvider, this.storageFolder, this.storageOptions,
 					foundWalIndex, this.kryoPool, this.transactionLocationsCache,
 					() -> emitCacheSizeEvent(this.transactionLocationsCache.size())
@@ -1374,7 +1374,7 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 	 * @return a new MutationSupplier object
 	 */
 	@Nonnull
-	MutationSupplier createSupplier(long startVersion, @Nullable Long requestedVersion) {
+	MutationSupplier<T> createSupplier(long startVersion, @Nullable Long requestedVersion) {
 		final long theFirstVersionOfCurrentWalFile = this.getFirstVersionOfCurrentWalFile();
 
 		// when requested catalog version is provided it means we may be reading the WAL file that is being appended
@@ -1385,7 +1385,7 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 
 		if (theFirstVersionOfCurrentWalFile != -1 && theFirstVersionOfCurrentWalFile <= startVersion) {
 			// we could start reading the current WAL file
-			return new MutationSupplier(
+			return new MutationSupplier<>(
 				startVersion, theRequestedCatalogVersion,
 				this.walFileNameProvider, this.storageFolder, this.storageOptions,
 				getWalFileIndex(), this.kryoPool, this.transactionLocationsCache,
@@ -1395,7 +1395,7 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 		} else {
 			// we need to find older WAL file
 			final int foundWalIndex = findWalIndexFor(startVersion);
-			return new MutationSupplier(
+			return new MutationSupplier<>(
 				startVersion, theRequestedCatalogVersion,
 				this.walFileNameProvider, this.storageFolder, this.storageOptions,
 				foundWalIndex, this.kryoPool, this.transactionLocationsCache,
@@ -1748,7 +1748,7 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 			"Invalid WAL file `" + walFile + "`!"
 		);
 		try (
-			final MutationSupplier mutationSupplier = new MutationSupplier(
+			final MutationSupplier<T> mutationSupplier = new MutationSupplier<>(
 				0L, 0L, this.walFileNameProvider, this.storageFolder, this.storageOptions,
 				AbstractWriteAheadLog.getIndexFromWalFileName(walFile.getName()),
 				this.kryoPool, this.transactionLocationsCache, false,
@@ -1776,11 +1776,11 @@ public abstract class AbstractWriteAheadLog implements AutoCloseable {
 	 * @return a stream of committed mutations
 	 */
 	@Nonnull
-	private Stream<Mutation> getCommittedMutationStream(
+	private Stream<T> getCommittedMutationStream(
 		long startVersion,
 		@Nullable Long requestedVersion
 	) {
-		final MutationSupplier supplier = createSupplier(startVersion, requestedVersion);
+		final MutationSupplier<T> supplier = createSupplier(startVersion, requestedVersion);
 		this.cutWalCacheTask.schedule();
 		return Stream.generate(supplier)
 		             .takeWhile(Objects::nonNull)

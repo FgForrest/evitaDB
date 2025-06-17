@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
-import io.evitadb.core.cdc.ChangeCatalogCaptureSharedPublisher.WalPointerWithContent;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -129,7 +128,7 @@ public class ChangeCatalogCapturePublisher implements ChangeCapturePublisher<Cha
 			theSharedPublisher = this.sharedPublisherFactory.apply(criteriaBundle);
 			this.sharedPublisher = new WeakReference<>(theSharedPublisher);
 		}
-		final ChangeCatalogCaptureSubscription subscription = theSharedPublisher.subscribe(
+		final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription = theSharedPublisher.subscribe(
 			subscriber,
 			new WalPointerWithContent(
 				ofNullable(this.request.sinceVersion()).orElse(theSharedPublisher.getCatalog().getVersion() + 1),

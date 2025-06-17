@@ -34,16 +34,17 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
-import io.evitadb.core.async.DelayedAsyncTask;
-import io.evitadb.core.async.ObservableExecutorService;
-import io.evitadb.core.async.Scheduler;
-import io.evitadb.core.async.SystemObservableExecutorService;
 import io.evitadb.core.cdc.CatalogChangeObserver;
-import io.evitadb.core.cdc.CatalogChangeObserverContract;
+import io.evitadb.core.cdc.ChangeCatalogObserverContract;
+import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.ObservableExecutorService;
+import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
 import io.evitadb.core.transaction.stage.TransactionTask;
@@ -136,7 +137,7 @@ public class TransactionManager {
 	 * Change observer that is used to notify all registered {@link io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher} about changes in the
 	 * catalog.
 	 */
-	@Getter private final CatalogChangeObserverContract changeObserver;
+	@Getter private final ChangeCatalogObserverContract changeObserver;
 	/**
 	 * Contains the last catalog version appended successfully to the WAL (i.e. {@link #lastAssignedCatalogVersion} that
 	 * finally arrived to WAL file).
@@ -275,7 +276,7 @@ public class TransactionManager {
 				scheduler,
 				catalog
 			) :
-			CatalogChangeObserverContract.NOOP;
+			ChangeCatalogObserverContract.NO_OP;
 
 		this.lastFinalizedCatalog = new AtomicReference<>(catalog);
 		this.livingCatalog = new AtomicReference<>(catalog);
@@ -312,6 +313,7 @@ public class TransactionManager {
 		long timeoutMs,
 		boolean alive
 	) {
+		/* TODO JNO - write how many transactions are not processed, and log processed progress regularly */
 		return processTransactions(
 			nextCatalogVersion,
 			timeoutMs,
@@ -645,7 +647,7 @@ public class TransactionManager {
 				final long lastFinalizedVersion = getLastFinalizedCatalogVersion();
 				final Catalog latestCatalog = getLastFinalizedCatalog();
 
-				Stream<Mutation> committedMutationStream = null;
+				Stream<CatalogBoundMutation> committedMutationStream = null;
 				try {
 					// prepare finalizer that doesn't finish the catalog automatically but on demand
 					final TransactionTrunkFinalizer transactionHandler = new TransactionTrunkFinalizer(latestCatalog);
@@ -658,7 +660,7 @@ public class TransactionManager {
 					} else {
 						committedMutationStream = latestCatalog.getCommittedMutationStream(readFromVersion);
 					}
-					final Iterator<Mutation> mutationIterator = committedMutationStream.iterator();
+					final Iterator<CatalogBoundMutation> mutationIterator = committedMutationStream.iterator();
 					if (!mutationIterator.hasNext()) {
 						// previous execution already processed all the mutations
 						return empty();
@@ -734,7 +736,8 @@ public class TransactionManager {
 				} catch (RuntimeException ex) {
 					// we need to forget about the data written to disk, but not yet propagated to indexes (volatile data)
 					latestCatalog.forgetVolatileData();
-					this.changeObserver.forgetMutationsAfter(this.lastFinalizedCatalog.get().getVersion());
+					final Catalog catalog = this.lastFinalizedCatalog.get();
+					this.changeObserver.forgetMutationsAfter(catalog, catalog.getVersion());
 
 					// rethrow the exception - we will have to re-try the transaction
 					throw ex;
@@ -917,7 +920,7 @@ public class TransactionManager {
 	private int[] replayMutationsOnCatalog(
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull Transaction transaction,
-		@Nonnull Iterator<Mutation> mutationIterator
+		@Nonnull Iterator<CatalogBoundMutation> mutationIterator
 	) {
 		return Transaction.executeInTransactionIfProvided(
 			transaction,
@@ -929,7 +932,7 @@ public class TransactionManager {
 				int atomicMutationCount = 0;
 				int localMutationCount = 0;
 				while (atomicMutationCount < transactionMutation.getMutationCount() && mutationIterator.hasNext()) {
-					final Mutation mutation = mutationIterator.next();
+					final CatalogBoundMutation mutation = mutationIterator.next();
 					log.debug("Processing mutation: {}", mutation);
 					atomicMutationCount++;
 					if (mutation instanceof EntityUpsertMutation entityUpsertMutation) {

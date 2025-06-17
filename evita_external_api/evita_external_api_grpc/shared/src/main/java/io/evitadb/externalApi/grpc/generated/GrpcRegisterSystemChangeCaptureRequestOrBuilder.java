@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,12 +31,66 @@ public interface GrpcRegisterSystemChangeCaptureRequestOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
+   * <pre>
+   * Starting point for the search (catalog version)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+   * @return Whether the sinceVersion field is set.
+   */
+  boolean hasSinceVersion();
+  /**
+   * <pre>
+   * Starting point for the search (catalog version)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+   * @return The sinceVersion.
+   */
+  com.google.protobuf.Int64Value getSinceVersion();
+  /**
+   * <pre>
+   * Starting point for the search (catalog version)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
+   */
+  com.google.protobuf.Int64ValueOrBuilder getSinceVersionOrBuilder();
+
+  /**
+   * <pre>
+   * Starting point for the search (index of the mutation within catalog version)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+   * @return Whether the sinceIndex field is set.
+   */
+  boolean hasSinceIndex();
+  /**
+   * <pre>
+   * Starting point for the search (index of the mutation within catalog version)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+   * @return The sinceIndex.
+   */
+  com.google.protobuf.Int32Value getSinceIndex();
+  /**
+   * <pre>
+   * Starting point for the search (index of the mutation within catalog version)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
+   */
+  com.google.protobuf.Int32ValueOrBuilder getSinceIndexOrBuilder();
+
+  /**
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 3;</code>
    * @return The enum numeric value on the wire for content.
    */
   int getContentValue();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 1;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 3;</code>
    * @return The content.
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent getContent();

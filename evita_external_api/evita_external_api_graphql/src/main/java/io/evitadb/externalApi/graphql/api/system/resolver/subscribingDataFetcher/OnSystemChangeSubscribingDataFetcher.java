@@ -50,6 +50,6 @@ public class OnSystemChangeSubscribingDataFetcher extends ChangeSubscribingDataF
 	@Override
 	protected Publisher<ChangeSystemCapture> createPublisher(@Nonnull DataFetchingEnvironment environment) {
 		final boolean needsBody = SelectionSetAggregator.containsImmediate(ChangeSystemCaptureDescriptor.BODY.name(), environment.getSelectionSet());
-		return this.evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(needsBody ? ChangeCaptureContent.BODY : ChangeCaptureContent.HEADER));
+		return this.evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(null, null, needsBody ? ChangeCaptureContent.BODY : ChangeCaptureContent.HEADER));
 	}
 }

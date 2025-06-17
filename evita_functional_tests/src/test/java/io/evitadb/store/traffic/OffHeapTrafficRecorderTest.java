@@ -36,7 +36,7 @@ import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssocia
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.trafficRecording.*;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.externalApi.graphql.GraphQLProvider;

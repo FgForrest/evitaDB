@@ -41,38 +41,40 @@ import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextProvider;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
-import io.evitadb.api.requestResponse.schema.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.SessionRegistry.SuspendOperation;
-import io.evitadb.core.async.ClientRunnableTask;
-import io.evitadb.core.async.EmptySettings;
-import io.evitadb.core.async.ObservableExecutorServiceWithHardDeadline;
-import io.evitadb.core.async.ObservableThreadExecutor;
-import io.evitadb.core.async.Scheduler;
-import io.evitadb.core.async.SessionKiller;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
+import io.evitadb.core.cdc.EngineStatisticsPublisher;
 import io.evitadb.core.cdc.SystemChangeObserver;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
+import io.evitadb.core.executor.ClientRunnableTask;
+import io.evitadb.core.executor.EmptySettings;
+import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.core.executor.ObservableThreadExecutor;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.system.EvitaStatisticsEvent;
 import io.evitadb.core.metric.event.system.RequestForkJoinPoolStatisticsEvent;
 import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
 import io.evitadb.core.metric.event.system.TransactionForkJoinPoolStatisticsEvent;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.task.SessionKiller;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.store.spi.EnginePersistenceService;
 import io.evitadb.store.spi.EnginePersistenceServiceFactory;
@@ -194,10 +196,6 @@ public final class Evita implements EvitaContract {
 	 */
 	private final EvitaManagement management;
 	/**
-	 * Temporary storage that keeps catalog being removed reference so that onDelete callback can still access it.
-	 */
-	private final ThreadLocal<CatalogContract> removedCatalog = new ThreadLocal<>();
-	/**
 	 * Provides the tracing context for tracking the execution flow in the application.
 	 **/
 	private final TracingContext tracingContext;
@@ -270,7 +268,12 @@ public final class Evita implements EvitaContract {
 			new HeapMemoryCacheSupervisor(configuration.cache(), this.serviceExecutor) : NoCacheSupervisor.INSTANCE;
 		this.reflectionLookup = new ReflectionLookup(configuration.cache().reflection());
 		this.tracingContext = TracingContextProvider.getContext();
-		this.changeObserver = new SystemChangeObserver();
+		this.changeObserver = new SystemChangeObserver(
+			this,
+			this.configuration.server().changeDataCapture(),
+			this.requestExecutor,
+			this.serviceExecutor
+		);
 
 		final ServiceLoader<EnginePersistenceServiceFactory> svcLoader = ServiceLoader.load(
 			EnginePersistenceServiceFactory.class);
@@ -306,6 +309,16 @@ public final class Evita implements EvitaContract {
 		}
 
 		this.readOnly = this.configuration.server().readOnly();
+
+		// register the system observer that will capture changes in the system and emit observability events
+		this.changeObserver.registerObserver(
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+		).subscribe(
+			new EngineStatisticsPublisher(
+				this::emitEvitaStatistics,
+				this::emitCatalogStatistics
+			)
+		);
 	}
 
 	/**
@@ -314,7 +327,7 @@ public final class Evita implements EvitaContract {
 	 * within the Evita instance.
 	 *
 	 * @return An instance of {@link ObservableExecutorServiceWithHardDeadline}
-	 *         that handles request execution with hard deadlines for tasks.
+	 * that handles request execution with hard deadlines for tasks.
 	 */
 	@Nonnull
 	public ObservableExecutorServiceWithHardDeadline getRequestExecutor() {
@@ -326,7 +339,7 @@ public final class Evita implements EvitaContract {
 	 * and executing transactional operations within the Evita instance.
 	 *
 	 * @return An instance of {@link ObservableExecutorServiceWithHardDeadline} that handles
-	 *         transaction execution with hard deadlines for tasks.
+	 * transaction execution with hard deadlines for tasks.
 	 */
 	@Nonnull
 	public ObservableExecutorServiceWithHardDeadline getTransactionExecutor() {
@@ -465,7 +478,6 @@ public final class Evita implements EvitaContract {
 			return false;
 		} else {
 			update(new RemoveCatalogSchemaMutation(catalogName));
-			emitEvitaStatistics();
 			return true;
 		}
 	}
@@ -477,10 +489,18 @@ public final class Evita implements EvitaContract {
 			if (this.engineStateLock.tryLock(
 				this.configuration.server().transactionTimeoutInMilliseconds(), TimeUnit.MILLISECONDS)) {
 				final EngineState theEngineState = this.engineState.get();
+
+				// verify that we can perform the mutation
+				engineMutation.verifyApplicability(this);
+
+				// first store the mutation into the persistence service
 				final WalFileReference walFileReference = this.enginePersistenceService.appendWal(
 					theEngineState.version(),
 					engineMutation
 				);
+
+				// notify system observer about the mutation
+				this.changeObserver.processMutation(engineMutation);
 				try {
 					if (engineMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
 						createCatalogInternal(createCatalogSchema);
@@ -505,7 +525,7 @@ public final class Evita implements EvitaContract {
 						throw new EvitaInvalidUsageException(
 							"Unknown engine mutation: `" + engineMutation.getClass() + "`!");
 					}
-				} finally {
+					// create new engine state with the incremented version, and store it in the persistence service
 					final EngineState newState = EngineState
 						.builder()
 						.version(theEngineState.version() + 1)
@@ -520,6 +540,11 @@ public final class Evita implements EvitaContract {
 						.build();
 					this.enginePersistenceService.storeEngineState(newState);
 					this.engineState.set(newState);
+					// finally, notify the change observer about the new version
+					this.changeObserver.notifyVersionPresentInLiveView(newState.version());
+				} catch (RuntimeException ex) {
+					// forget about the mutation in case of error
+					this.changeObserver.forgetMutationsAfter(theEngineState.version());
 				}
 			}
 		} catch (InterruptedException e) {
@@ -643,12 +668,24 @@ public final class Evita implements EvitaContract {
 		}
 	}
 
+	@Override
+	@Nonnull
+	public Stream<EngineMutation> getCommittedMutationStream(long catalogVersion) {
+		return this.enginePersistenceService.getCommittedMutationStream(catalogVersion);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<EngineMutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
+		return this.enginePersistenceService.getReversedCommittedMutationStream(catalogVersion);
+	}
+
 	@Nonnull
 	@Override
 	public ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(
 		@Nonnull ChangeSystemCaptureRequest request
 	) {
-		return this.changeObserver.registerPublisher(request);
+		return this.changeObserver.registerObserver(request);
 	}
 
 	@Nonnull
@@ -686,8 +723,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	public Optional<CatalogContract> getCatalogInstance(@Nonnull String catalog) {
-		return ofNullable(this.catalogs.get(catalog))
-			.or(() -> ofNullable(this.removedCatalog.get()));
+		return ofNullable(this.catalogs.get(catalog));
 	}
 
 	/**
@@ -711,6 +747,17 @@ public final class Evita implements EvitaContract {
 	@Nonnull
 	public <T> CompletionStage<T> executeAsyncInRequestThreadPool(@Nonnull Supplier<T> supplier) {
 		return CompletableFuture.supplyAsync(supplier, this.requestExecutor);
+	}
+
+	/**
+	 * Retrieves the current state of the Evita engine. The engine state represents
+	 * the operational condition or status of the Evita instance at the moment of invocation.
+	 *
+	 * @return the current {@link EngineState} of the Evita instance
+	 */
+	@Nonnull
+	public EngineState getEngineState() {
+		return this.engineState.get();
 	}
 
 	/**
@@ -857,9 +904,6 @@ public final class Evita implements EvitaContract {
 				}
 			}
 		);
-		this.changeObserver.notifyPublishers(catalogName, createCatalogSchema);
-		emitEvitaStatistics();
-		emitCatalogStatistics(catalogName);
 	}
 
 	/**
@@ -937,31 +981,15 @@ public final class Evita implements EvitaContract {
 				updatedSchemaWrapper.updatedCatalogSchema(),
 				catalogToBeReplaced
 			);
-			// now rewrite the original catalog with renamed contents so that the observers could access it
-			final CatalogContract previousCatalog = this.catalogs.put(catalogNameToBeReplaced, replacedCatalog);
 
-			// notify publishers about the change
-			if (previousCatalog != null) {
-				this.changeObserver.notifyPublishers(
-					catalogNameToBeReplaced, new RemoveCatalogSchemaMutation(previousCatalog.getName()));
+			this.catalogs.put(catalogNameToBeReplaced, replacedCatalog);
+			if (!catalogNameToBeReplacedWith.equals(catalogNameToBeReplaced)) {
+				this.catalogs.remove(catalogNameToBeReplacedWith);
+				this.catalogSessionRegistries.remove(catalogNameToBeReplacedWith);
 			}
-			this.changeObserver.notifyPublishers(catalogNameToBeReplacedWith, modifyCatalogSchemaName);
-
-			// now remove the catalog that was renamed to, we need observers to be still able to access it and therefore
-			// and therefore the removal only takes place here
-			final CatalogContract removedCatalog = this.catalogs.remove(catalogNameToBeReplacedWith);
-			this.catalogSessionRegistries.remove(catalogNameToBeReplacedWith);
 
 			// notify callback that it's now a live snapshot
 			((Catalog) replacedCatalog).notifyCatalogPresentInLiveView();
-
-			if (removedCatalog instanceof Catalog theCatalog) {
-				theCatalog.emitDeleteObservabilityEvents();
-			}
-
-			// we need to update catalog statistics
-			emitEvitaStatistics();
-			emitCatalogStatistics(catalogNameToBeReplaced);
 
 		} catch (RuntimeException ex) {
 			// revert session registry swap
@@ -996,16 +1024,7 @@ public final class Evita implements EvitaContract {
 		if (catalogToRemove == null) {
 			throw new CatalogNotFoundException(catalogName);
 		} else {
-			doWithPretendingCatalogStillPresent(
-				catalogToRemove,
-				() -> this.changeObserver.notifyPublishers(catalogName, removeCatalogSchema)
-			);
 			catalogToRemove.terminateAndDelete();
-			// we need to update catalog statistics
-			emitEvitaStatistics();
-			if (catalogToRemove instanceof Catalog theCatalog) {
-				theCatalog.emitDeleteObservabilityEvents();
-			}
 		}
 	}
 
@@ -1104,18 +1123,6 @@ public final class Evita implements EvitaContract {
 			() -> (Catalog) this.catalogs.get(catalogName),
 			this.sessionRegistryDataStore
 		);
-	}
-
-	/**
-	 * Method will temporarily make catalog available to be found even if it's not present in {@link #catalogs} anymore.
-	 */
-	private void doWithPretendingCatalogStillPresent(@Nonnull CatalogContract catalog, @Nonnull Runnable runnable) {
-		try {
-			this.removedCatalog.set(catalog);
-			runnable.run();
-		} finally {
-			this.removedCatalog.remove();
-		}
 	}
 
 	/**

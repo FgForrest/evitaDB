@@ -35,7 +35,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
-import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -149,7 +149,7 @@ public interface CatalogContract {
 	 * @param mutation mutation to be applied
 	 * @throws InvalidMutationException when mutation is not applicable to the catalog
 	 */
-	void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull Mutation mutation) throws InvalidMutationException;
+	void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull CatalogBoundMutation mutation) throws InvalidMutationException;
 
 	/**
 	 * Returns collection maintaining all entities of same type.
@@ -327,7 +327,7 @@ public interface CatalogContract {
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getCommittedMutationStream(long catalogVersion);
+	Stream<CatalogBoundMutation> getCommittedMutationStream(long catalogVersion);
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
@@ -341,7 +341,7 @@ public interface CatalogContract {
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion);
+	Stream<CatalogBoundMutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion);
 
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.

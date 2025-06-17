@@ -64,7 +64,9 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 			getEvitaConfiguration()
 		);
 		this.evita.defineCatalog(TEST_CATALOG);
-		this.evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.BODY)).subscribe(this.subscriber);
+		this.evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+		).subscribe(this.subscriber);
 		// todo lho implement
 //		evita.updateCatalog(
 //			TEST_CATALOG, session -> {

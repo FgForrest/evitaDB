@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
@@ -35,7 +36,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.EvitaSession;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.FileLocation;
@@ -438,7 +439,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 	private void readAndVerifyWal(
 		@Nonnull Map<Long, List<Mutation>> txInMutations, int[] transactionSizes, int startIndex) {
 		long lastCatalogVersion = startIndex;
-		final Iterator<Mutation> mutationIterator = this.wal.getCommittedMutationStream(startIndex + 1).iterator();
+		final Iterator<CatalogBoundMutation> mutationIterator = this.wal.getCommittedMutationStream(startIndex + 1).iterator();
 		int txRead = 0;
 		while (mutationIterator.hasNext()) {
 			txRead++;
@@ -474,7 +475,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 	) {
 		long firstCatalogVersion = -1L;
 		long catalogVersion = startIndex + 1;
-		final Iterator<Mutation> mutationIterator = this.wal.getCommittedReversedMutationStream(catalogVersion)
+		final Iterator<CatalogBoundMutation> mutationIterator = this.wal.getCommittedReversedMutationStream(catalogVersion)
 		                                                    .iterator();
 		int txRead = 0;
 		while (mutationIterator.hasNext()) {

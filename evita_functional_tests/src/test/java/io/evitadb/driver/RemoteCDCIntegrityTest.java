@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.HostDefinition;
@@ -109,7 +110,9 @@ public class RemoteCDCIntegrityTest {
 		final List<String> receivedCatalogs = new ArrayList<>(CATALOGS_COUNT);
 		final CountDownLatch receivedCatalogsLatch = new CountDownLatch(CATALOGS_COUNT);
 
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+		);
 		publisher.subscribe(new Subscriber<>() {
 
 			private Subscription subscription;
@@ -122,9 +125,11 @@ public class RemoteCDCIntegrityTest {
 
 			@Override
 			public void onNext(ChangeSystemCapture item) {
-				receivedCatalogs.add(item.catalog());
-				receivedCatalogsLatch.countDown();
-				log.info("Received catalog `{}` doing some fake difficult work...", item.catalog());
+				if (item.body() instanceof TopLevelCatalogSchemaMutation tlcsm) {
+					receivedCatalogs.add(tlcsm.getCatalogName());
+					receivedCatalogsLatch.countDown();
+					log.info("Received catalog `{}` doing some fake challenging work...", tlcsm.getCatalogName());
+				}
 				try {
 					// simulating slow client, which is not able to process items fast enough to keep up with the server
 					Thread.sleep(CLIENT_FAKE_WORK_TIME_FOR_SINGLE_CATALOG);

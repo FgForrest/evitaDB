@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation;
 
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 
 import javax.annotation.Nonnull;

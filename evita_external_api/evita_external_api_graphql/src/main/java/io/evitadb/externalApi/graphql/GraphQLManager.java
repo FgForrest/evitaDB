@@ -104,7 +104,7 @@ public class GraphQLManager {
 		final long buildingStartTime = System.currentTimeMillis();
 
 		// listen to any evita catalog changes
-		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.BODY))
+		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY))
 			.subscribe(new SystemGraphQLRefreshingObserver(this));
 
 		// register initial endpoints

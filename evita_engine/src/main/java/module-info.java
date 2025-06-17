@@ -27,7 +27,7 @@
 module evita.engine {
 
 	exports io.evitadb.core;
-	exports io.evitadb.core.async;
+	exports io.evitadb.core.executor;
 	exports io.evitadb.core.buffer;
 	exports io.evitadb.core.cache;
 	exports io.evitadb.core.cache.model;
@@ -109,5 +109,6 @@ module evita.engine {
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
 	opens io.evitadb.core.metric.event.storage to jdk.jfr;
 	exports io.evitadb.core.metric.event.cdc;
+	exports io.evitadb.core.task;
 
 }

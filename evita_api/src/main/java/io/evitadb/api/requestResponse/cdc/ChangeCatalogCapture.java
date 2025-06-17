@@ -23,7 +23,7 @@
 
 package io.evitadb.api.requestResponse.cdc;
 
-import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -52,7 +52,7 @@ public record ChangeCatalogCapture(
 	@Nullable String entityType,
 	@Nullable Integer entityPrimaryKey,
 	@Nonnull Operation operation,
-	@Nullable Mutation body
+	@Nullable CatalogBoundMutation body
 ) implements ChangeCapture {
 
 	/**
@@ -67,7 +67,7 @@ public record ChangeCatalogCapture(
 	public static ChangeCatalogCapture dataCapture(
 		@Nonnull MutationPredicateContext context,
 		@Nonnull Operation operation,
-		@Nullable Mutation mutation
+		@Nullable CatalogBoundMutation mutation
 	) {
 		return new ChangeCatalogCapture(
 			context.getVersion(),
@@ -93,7 +93,7 @@ public record ChangeCatalogCapture(
 	public static ChangeCatalogCapture schemaCapture(
 		@Nonnull MutationPredicateContext context,
 		@Nonnull Operation operation,
-		@Nullable Mutation mutation
+		@Nullable CatalogBoundMutation mutation
 	) {
 		return new ChangeCatalogCapture(
 			context.getVersion(),
@@ -118,7 +118,7 @@ public record ChangeCatalogCapture(
 	public static ChangeCatalogCapture infrastructureCapture(
 		@Nonnull MutationPredicateContext context,
 		@Nonnull Operation operation,
-		@Nullable Mutation mutation
+		@Nullable CatalogBoundMutation mutation
 	) {
 		return new ChangeCatalogCapture(
 			context.getVersion(),
@@ -131,14 +131,7 @@ public record ChangeCatalogCapture(
 		);
 	}
 
-	/**
-	 * Adjusts the current {@link ChangeCatalogCapture} instance based on the specified {@link ChangeCaptureContent}.
-	 * If the content is set to BODY, it ensures the body is present in the capture.
-	 * If the content is set to HEADER, it returns a capture without the body if present.
-	 *
-	 * @param content the level of detail to include in the capture, typically {@link ChangeCaptureContent#BODY} or {@link ChangeCaptureContent#HEADER}
-	 * @return the adjusted {@link ChangeCatalogCapture} instance based on the provided {@link ChangeCaptureContent}
-	 */
+	@SuppressWarnings("unchecked")
 	@Nonnull
 	public ChangeCatalogCapture as(@Nonnull ChangeCaptureContent content) {
 		switch (content) {

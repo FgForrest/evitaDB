@@ -63,12 +63,12 @@ import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaManagement;
-import io.evitadb.core.async.SessionKiller;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
+import io.evitadb.core.task.SessionKiller;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -163,7 +163,9 @@ class EvitaTest implements EvitaTestSupport {
 		this.evita.defineCatalog(TEST_CATALOG);
 		this.evitaInstanceId = this.evita.management().getSystemStatus().instanceId();
 
-		this.evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.BODY)).subscribe(this.subscriber);
+		this.evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+		).subscribe(this.subscriber);
 		// todo lho
 //		evita.updateCatalog(
 //			TEST_CATALOG,
@@ -186,7 +188,9 @@ class EvitaTest implements EvitaTestSupport {
 
 	@Test
 	void shouldNotifyBasicSubscriber() throws InterruptedException {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+		);
 
 		// subscriber is registered and wants one event when it happens
 		final MockCatalogStructuralChangeSubscriber subscriber = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(5), 1);
@@ -231,8 +235,12 @@ class EvitaTest implements EvitaTestSupport {
 
 	@Test
 	void shouldNotifyLateSubscribers() throws InterruptedException {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = this.evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = this.evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = this.evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+		);
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = this.evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+		);
 
 		// first subscriber is registered at the start, but it's not ready to receive events yet
 		final MockCatalogStructuralChangeSubscriber subscriberWithDelayedRequest = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 0);
@@ -266,11 +274,15 @@ class EvitaTest implements EvitaTestSupport {
 	@Test
 	void shouldNotifyMultipleSubscriberWithDifferentRequests() throws InterruptedException {
 		// subscribers want first future events
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = this.evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = this.evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+		);
 		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(2), 1);
 		publisher1.subscribe(subscriber1);
 
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = this.evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = this.evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+		);
 		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(2), 1);
 		publisher2.subscribe(subscriber2);
 
@@ -303,11 +315,15 @@ class EvitaTest implements EvitaTestSupport {
 
 	@Test
 	void shouldNotifyMultiplePublishers() throws InterruptedException {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = this.evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = this.evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+		);
 		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 1);
 		publisher1.subscribe(subscriber1);
 
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = this.evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(ChangeCaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = this.evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+		);
 		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 1);
 		publisher2.subscribe(subscriber2);
 

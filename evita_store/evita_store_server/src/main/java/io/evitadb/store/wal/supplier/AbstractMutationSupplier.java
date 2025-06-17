@@ -61,7 +61,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Closeable
+abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Supplier<T>, Closeable
 	permits MutationSupplier, ReverseMutationSupplier {
 	/**
 	 * The Kryo pool for serializing {@link TransactionMutation} (given by outside).
@@ -217,7 +217,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 
 	@Nullable
 	@Override
-	public abstract Mutation get();
+	public abstract T get();
 
 	@Override
 	public void close() {

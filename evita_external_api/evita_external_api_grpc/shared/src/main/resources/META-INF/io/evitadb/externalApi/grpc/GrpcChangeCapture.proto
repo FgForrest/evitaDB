@@ -78,12 +78,11 @@ message GrpcChangeSystemCapture {
   int64 version = 1;
   // the index of the event within the enclosed transaction, index 0 is the transaction lead event
   int32 index = 2;
-  // the name of the catalog involved in the operation
-  google.protobuf.StringValue catalog = 3;
   // the operation that was performed
-  GrpcChangeCaptureOperation operation = 5;
+  GrpcChangeCaptureOperation operation = 3;
   // optional body of the operation when it is requested by the GrpcContent
-  GrpcTopLevelCatalogSchemaMutation systemMutation = 6;
+  /* TODO JNO - přejmenovat, aktualizovat */
+  GrpcTopLevelCatalogSchemaMutation systemMutation = 4;
 }
 
 // The enum defines what catalog area is covered by the capture.

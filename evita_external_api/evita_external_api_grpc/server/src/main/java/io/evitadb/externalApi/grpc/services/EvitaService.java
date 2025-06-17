@@ -34,7 +34,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.core.async.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
@@ -435,13 +435,17 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	@Override
 	public void registerSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest request, StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver) {
 		final Publisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(toCaptureContent(request.getContent()))
+			new ChangeSystemCaptureRequest(
+				request.hasSinceVersion() ? request.getSinceVersion().getValue() : null,
+				request.hasSinceIndex() ? request.getSinceIndex().getValue() : null,
+				toCaptureContent(request.getContent())
+			)
 		);
 
 		final ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> observer =
 			((ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>) responseObserver);
 
-		publisher.subscribe(new ChangeSystemCOnversionSubsriber(observer));
+		publisher.subscribe(new ChangeSystemConversionSubsriber(observer));
 	}
 
 	/**
@@ -489,9 +493,9 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	}
 
 	/* todo jno - rename and document */
-	private static class ChangeSystemCOnversionSubsriber extends ConversionSubscriber<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureResponse> {
+	private static class ChangeSystemConversionSubsriber extends ConversionSubscriber<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureResponse> {
 
-		public ChangeSystemCOnversionSubsriber(@Nonnull CallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> downstream) {
+		public ChangeSystemConversionSubsriber(@Nonnull CallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> downstream) {
 			super(downstream);
 		}
 

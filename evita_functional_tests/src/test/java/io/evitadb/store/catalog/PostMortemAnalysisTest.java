@@ -36,7 +36,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.store.kryo.ObservableInput;

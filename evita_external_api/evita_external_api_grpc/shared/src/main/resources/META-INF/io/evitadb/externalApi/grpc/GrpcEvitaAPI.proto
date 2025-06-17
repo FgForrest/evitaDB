@@ -5,6 +5,7 @@ option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
 import "GrpcEnums.proto";
 import "GrpcCatalogSchemaMutation.proto";
 import "GrpcChangeCapture.proto";
@@ -129,7 +130,11 @@ message GrpcUpdateEvitaRequest {
 
 /* TODO JNO - document */
 message GrpcRegisterSystemChangeCaptureRequest {
-  GrpcChangeCaptureContent content = 1;
+  // Starting point for the search (catalog version)
+  google.protobuf.Int64Value sinceVersion = 1;
+  // Starting point for the search (index of the mutation within catalog version)
+  google.protobuf.Int32Value sinceIndex = 2;
+  GrpcChangeCaptureContent content = 3;
 }
 
 /* TODO JNO - document */

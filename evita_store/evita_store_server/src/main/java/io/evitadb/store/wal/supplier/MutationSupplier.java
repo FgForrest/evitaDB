@@ -28,7 +28,7 @@ import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.wal.CatalogWriteAheadLog;
+import io.evitadb.store.wal.AbstractWriteAheadLog;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -41,7 +41,7 @@ import java.util.function.IntFunction;
 /**
  * This class is used to supply Mutation objects from a Write-Ahead Log (WAL) file in forward order.
  */
-public final class MutationSupplier extends AbstractMutationSupplier {
+public final class MutationSupplier<T extends Mutation> extends AbstractMutationSupplier<T> {
 	/**
 	 * Contains catalog version that was requested for reading.
 	 */
@@ -69,23 +69,25 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 
 	@Nullable
 	@Override
-	public Mutation get() {
+	public T get() {
 		if (this.transactionMutation == null) {
 			return null;
 		} else if (this.transactionMutationRead == 0) {
 			this.transactionMutationRead++;
-			return this.transactionMutation;
+			//noinspection unchecked
+			return (T) this.transactionMutation;
 		} else {
 			if (this.transactionMutationRead <= this.transactionMutation.getMutationCount()) {
 				this.transactionMutationRead++;
-				return readMutation();
+				//noinspection unchecked
+				return (T) readMutation();
 			} else {
 				// advance position to the end of the last transaction
 				this.filePosition += this.transactionMutation.getTransactionSpan().recordLength();
 				try {
 					// check the entire transaction was written
 					final long currentFileLength = this.walFile.length();
-					if (currentFileLength <= this.filePosition + CatalogWriteAheadLog.WAL_TAIL_LENGTH) {
+					if (currentFileLength <= this.filePosition + AbstractWriteAheadLog.WAL_TAIL_LENGTH) {
 						// we've reached EOF
 						if (!moveToNextWalFile(1)) {
 							// we've reached EOF and there is no next WAL file
@@ -118,7 +120,8 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 						) {
 							this.transactionMutationRead = 1;
 							// return the transaction mutation
-							return this.transactionMutation;
+							//noinspection unchecked
+							return (T) this.transactionMutation;
 						} else {
 							// we've reached EOF or the tx mutation hasn't been yet completely written
 							return null;

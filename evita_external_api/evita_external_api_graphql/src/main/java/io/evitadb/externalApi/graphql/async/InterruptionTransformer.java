@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.graphql.async;
 
 import graphql.schema.DataFetcher;
-import io.evitadb.core.async.InterruptionTransformer.InterruptionAdvice;
+import io.evitadb.core.executor.InterruptionTransformer.InterruptionAdvice;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.build.Plugin;
 import net.bytebuddy.description.type.TypeDescription;

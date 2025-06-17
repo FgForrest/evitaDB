@@ -58,7 +58,7 @@ public class ServerSystemResponseObserver implements StreamObserver<GrpcRegister
     @Override
     public void onNext(GrpcRegisterSystemChangeCaptureRequest grpcRegisterSystemChangeCaptureRequest) {
         final Flow.Publisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
-                new ChangeSystemCaptureRequest(toCaptureContent(grpcRegisterSystemChangeCaptureRequest.getContent()))
+                new ChangeSystemCaptureRequest(null, null, toCaptureContent(grpcRegisterSystemChangeCaptureRequest.getContent()))
         );
 	    this.publishers.add(publisher);
     }

@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.certificate;
 
 import com.linecorp.armeria.common.TlsKeyPair;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.configuration.ApiOptions;

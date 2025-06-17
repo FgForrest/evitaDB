@@ -24,7 +24,7 @@
 package io.evitadb.store.offsetIndex.io;
 
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.UUIDUtil;

@@ -24,6 +24,10 @@
 package io.evitadb.api.mock;
 
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -115,12 +119,22 @@ public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeS
 
 	@Override
 	public void onNext(ChangeSystemCapture item) {
-		switch (item.operation()) {
-			case UPSERT -> this.catalogUpserted
-				.compute(item.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
-			case REMOVE -> this.catalogDeleted
-				.compute(item.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+		if (item.body() instanceof CreateCatalogSchemaMutation ccsm) {
+			this.catalogUpserted
+				.compute(ccsm.getCatalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+		} else if (item.body() instanceof RemoveCatalogSchemaMutation rccs) {
+			this.catalogDeleted
+				.compute(rccs.getCatalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+		} else if (item.body() instanceof ModifyCatalogSchemaNameMutation mcsnm) {
+			this.catalogDeleted
+				.compute(mcsnm.getCatalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+			this.catalogUpserted
+				.compute(mcsnm.getNewCatalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+		} else if (item.body() instanceof ModifyCatalogSchemaMutation mcsm) {
+			this.catalogUpserted
+				.compute(mcsm.getCatalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 		}
+
 		if (this.countDownLatch != null) {
 			this.countDownLatch.countDown();
 		}

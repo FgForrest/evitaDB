@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,16 +24,18 @@
 package io.evitadb.api.requestResponse.cdc;
 
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 
 /**
  * CDC event that is sent to the subscriber if it matches to the request he made.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public sealed interface ChangeCapture permits ChangeSystemCapture, ChangeCatalogCapture {
+public sealed interface ChangeCapture extends Serializable permits ChangeSystemCapture, ChangeCatalogCapture {
 
 	/**
 	 * Returns the target version of the data source to which this mutation advances it.
@@ -66,4 +68,18 @@ public sealed interface ChangeCapture permits ChangeSystemCapture, ChangeCatalog
 	 */
 	@Nullable
 	Mutation body();
+
+	/**
+	 * If the content is {@link ChangeCaptureContent#HEADER} and this instance contains non-null body, then this method
+	 * returns new instance of the same type with the body set to null. If the requested content matches the current
+	 * body contents, then this method returns the same instance. When the body is null, and the requested content
+	 * is {@link ChangeCaptureContent#BODY}, then this method throws {@link EvitaInternalError} exception.
+	 *
+	 * @param content the requested content of the capture
+	 * @return adapted instance result
+	 * @throws EvitaInternalError if the requested content is {@link ChangeCaptureContent#BODY} and the body is null
+	 */
+	@Nonnull
+	<T extends ChangeCapture> T as(@Nonnull ChangeCaptureContent content) throws EvitaInternalError;
+
 }

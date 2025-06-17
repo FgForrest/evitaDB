@@ -31,9 +31,10 @@ import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
-import io.evitadb.api.requestResponse.schema.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
@@ -46,6 +47,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * Evita is a specialized database with easy-to-use API for e-commerce systems. Purpose of this research is creating a fast
@@ -258,7 +260,10 @@ public interface EvitaContract extends AutoCloseable {
 	 * @param updater     application logic that reads and writes data
 	 * @param flags       optional flags that can be passed to the session and affect its behavior
 	 */
-	default <T> T updateCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater, @Nullable SessionFlags... flags) {
+	default <T> T updateCatalog(
+		@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater,
+		@Nullable SessionFlags... flags
+	) {
 		return updateCatalog(catalogName, updater, CommitBehavior.defaultBehaviour(), flags);
 	}
 
@@ -267,7 +272,8 @@ public interface EvitaContract extends AutoCloseable {
 	 *
 	 * @see #updateCatalog(String, Function, SessionFlags[])
 	 */
-	default void updateCatalog(@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> updater, @Nullable SessionFlags... flags) {
+	default void updateCatalog(
+		@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> updater, @Nullable SessionFlags... flags) {
 		updateCatalog(catalogName, updater, CommitBehavior.defaultBehaviour(), flags);
 	}
 
@@ -368,9 +374,9 @@ public interface EvitaContract extends AutoCloseable {
 	 * object containing futures that refer to all transaction processing phases that are completed when the transaction
 	 * processing finishes the particular processing stage.
 	 *
-	 * @param catalogName     name of the catalog
-	 * @param updater         application logic that reads and writes data
-	 * @param flags           optional flags that can be passed to the session and affect its behavior
+	 * @param catalogName name of the catalog
+	 * @param updater     application logic that reads and writes data
+	 * @param flags       optional flags that can be passed to the session and affect its behavior
 	 * @return object containing futures that refer to all transaction processing phases
 	 * @throws TransactionException when transaction fails
 	 * @see #updateCatalog(String, Function, CommitBehavior, SessionFlags[])
@@ -404,6 +410,33 @@ public interface EvitaContract extends AutoCloseable {
 		@Nonnull CommitBehavior commitBehaviour,
 		@Nullable SessionFlags... flags
 	) throws TransactionException;
+
+	/**
+	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
+	 * the engine to the given version. The stream goes through all the mutations in this transaction and continues
+	 * forward with next transaction after that until the end of the WAL.
+	 *
+	 * BEWARE! Stream implements {@link java.io.Closeable} and needs to be closed to release resources.
+	 *
+	 * @param version version of the engine to start the stream with
+	 * @return a stream containing committed mutations
+	 */
+	@Nonnull
+	Stream<EngineMutation> getCommittedMutationStream(long version);
+
+	/**
+	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
+	 * the engine to the given version. The stream goes through all the mutations in this transaction from last to
+	 * first one and continues backward with previous transaction after that until the beginning of the WAL.
+	 *
+	 * BEWARE! Stream implements {@link java.io.Closeable} and needs to be closed to release resources.
+	 *
+	 * @param version version of the engine to start the stream with, if null is provided the stream will start
+	 *                with the last committed transaction
+	 * @return a stream containing committed mutations
+	 */
+	@Nonnull
+	Stream<EngineMutation> getReversedCommittedMutationStream(@Nullable Long version);
 
 	/**
 	 * Creates new publisher that emits {@link ChangeSystemCapture}s that match the request.

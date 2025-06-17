@@ -74,9 +74,9 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
-import io.evitadb.core.async.Interruptible;
-import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
+import io.evitadb.core.executor.Interruptible;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.query.EntityEnrichEvent;
 import io.evitadb.core.metric.event.query.EntityFetchEvent;
 import io.evitadb.core.query.response.ServerEntityDecorator;

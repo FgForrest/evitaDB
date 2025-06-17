@@ -86,26 +86,13 @@ private static final long serialVersionUID = 0L;
             index_ = input.readInt32();
             break;
           }
-          case 26: {
-            com.google.protobuf.StringValue.Builder subBuilder = null;
-            if (catalog_ != null) {
-              subBuilder = catalog_.toBuilder();
-            }
-            catalog_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
-            if (subBuilder != null) {
-              subBuilder.mergeFrom(catalog_);
-              catalog_ = subBuilder.buildPartial();
-            }
-
-            break;
-          }
-          case 40: {
+          case 24: {
             int rawValue = input.readEnum();
 
             operation_ = rawValue;
             break;
           }
-          case 50: {
+          case 34: {
             io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder subBuilder = null;
             if (systemMutation_ != null) {
               subBuilder = systemMutation_.toBuilder();
@@ -180,52 +167,14 @@ private static final long serialVersionUID = 0L;
     return index_;
   }
 
-  public static final int CATALOG_FIELD_NUMBER = 3;
-  private com.google.protobuf.StringValue catalog_;
-  /**
-   * <pre>
-   * the name of the catalog involved in the operation
-   * </pre>
-   *
-   * <code>.google.protobuf.StringValue catalog = 3;</code>
-   * @return Whether the catalog field is set.
-   */
-  @java.lang.Override
-  public boolean hasCatalog() {
-    return catalog_ != null;
-  }
-  /**
-   * <pre>
-   * the name of the catalog involved in the operation
-   * </pre>
-   *
-   * <code>.google.protobuf.StringValue catalog = 3;</code>
-   * @return The catalog.
-   */
-  @java.lang.Override
-  public com.google.protobuf.StringValue getCatalog() {
-    return catalog_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : catalog_;
-  }
-  /**
-   * <pre>
-   * the name of the catalog involved in the operation
-   * </pre>
-   *
-   * <code>.google.protobuf.StringValue catalog = 3;</code>
-   */
-  @java.lang.Override
-  public com.google.protobuf.StringValueOrBuilder getCatalogOrBuilder() {
-    return getCatalog();
-  }
-
-  public static final int OPERATION_FIELD_NUMBER = 5;
+  public static final int OPERATION_FIELD_NUMBER = 3;
   private int operation_;
   /**
    * <pre>
    * the operation that was performed
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
    * @return The enum numeric value on the wire for operation.
    */
   @java.lang.Override public int getOperationValue() {
@@ -236,7 +185,7 @@ private static final long serialVersionUID = 0L;
    * the operation that was performed
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
    * @return The operation.
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation getOperation() {
@@ -245,14 +194,14 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UNRECOGNIZED : result;
   }
 
-  public static final int SYSTEMMUTATION_FIELD_NUMBER = 6;
+  public static final int SYSTEMMUTATION_FIELD_NUMBER = 4;
   private io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation_;
   /**
    * <pre>
-   * optional body of the operation when it is requested by the GrpcContent
+   * TODO JNO - přejmenovat, aktualizovat
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
    * @return Whether the systemMutation field is set.
    */
   @java.lang.Override
@@ -261,10 +210,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * optional body of the operation when it is requested by the GrpcContent
+   * TODO JNO - přejmenovat, aktualizovat
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
    * @return The systemMutation.
    */
   @java.lang.Override
@@ -273,10 +222,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * optional body of the operation when it is requested by the GrpcContent
+   * TODO JNO - přejmenovat, aktualizovat
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder getSystemMutationOrBuilder() {
@@ -303,14 +252,11 @@ private static final long serialVersionUID = 0L;
     if (index_ != 0) {
       output.writeInt32(2, index_);
     }
-    if (catalog_ != null) {
-      output.writeMessage(3, getCatalog());
-    }
     if (operation_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UPSERT.getNumber()) {
-      output.writeEnum(5, operation_);
+      output.writeEnum(3, operation_);
     }
     if (systemMutation_ != null) {
-      output.writeMessage(6, getSystemMutation());
+      output.writeMessage(4, getSystemMutation());
     }
     unknownFields.writeTo(output);
   }
@@ -329,17 +275,13 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(2, index_);
     }
-    if (catalog_ != null) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(3, getCatalog());
-    }
     if (operation_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UPSERT.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(5, operation_);
+        .computeEnumSize(3, operation_);
     }
     if (systemMutation_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(6, getSystemMutation());
+        .computeMessageSize(4, getSystemMutation());
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -360,11 +302,6 @@ private static final long serialVersionUID = 0L;
         != other.getVersion()) return false;
     if (getIndex()
         != other.getIndex()) return false;
-    if (hasCatalog() != other.hasCatalog()) return false;
-    if (hasCatalog()) {
-      if (!getCatalog()
-          .equals(other.getCatalog())) return false;
-    }
     if (operation_ != other.operation_) return false;
     if (hasSystemMutation() != other.hasSystemMutation()) return false;
     if (hasSystemMutation()) {
@@ -387,10 +324,6 @@ private static final long serialVersionUID = 0L;
         getVersion());
     hash = (37 * hash) + INDEX_FIELD_NUMBER;
     hash = (53 * hash) + getIndex();
-    if (hasCatalog()) {
-      hash = (37 * hash) + CATALOG_FIELD_NUMBER;
-      hash = (53 * hash) + getCatalog().hashCode();
-    }
     hash = (37 * hash) + OPERATION_FIELD_NUMBER;
     hash = (53 * hash) + operation_;
     if (hasSystemMutation()) {
@@ -538,12 +471,6 @@ private static final long serialVersionUID = 0L;
 
       index_ = 0;
 
-      if (catalogBuilder_ == null) {
-        catalog_ = null;
-      } else {
-        catalog_ = null;
-        catalogBuilder_ = null;
-      }
       operation_ = 0;
 
       if (systemMutationBuilder_ == null) {
@@ -580,11 +507,6 @@ private static final long serialVersionUID = 0L;
       io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture result = new io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture(this);
       result.version_ = version_;
       result.index_ = index_;
-      if (catalogBuilder_ == null) {
-        result.catalog_ = catalog_;
-      } else {
-        result.catalog_ = catalogBuilder_.build();
-      }
       result.operation_ = operation_;
       if (systemMutationBuilder_ == null) {
         result.systemMutation_ = systemMutation_;
@@ -644,9 +566,6 @@ private static final long serialVersionUID = 0L;
       }
       if (other.getIndex() != 0) {
         setIndex(other.getIndex());
-      }
-      if (other.hasCatalog()) {
-        mergeCatalog(other.getCatalog());
       }
       if (other.operation_ != 0) {
         setOperationValue(other.getOperationValue());
@@ -769,168 +688,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private com.google.protobuf.StringValue catalog_;
-    private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> catalogBuilder_;
-    /**
-     * <pre>
-     * the name of the catalog involved in the operation
-     * </pre>
-     *
-     * <code>.google.protobuf.StringValue catalog = 3;</code>
-     * @return Whether the catalog field is set.
-     */
-    public boolean hasCatalog() {
-      return catalogBuilder_ != null || catalog_ != null;
-    }
-    /**
-     * <pre>
-     * the name of the catalog involved in the operation
-     * </pre>
-     *
-     * <code>.google.protobuf.StringValue catalog = 3;</code>
-     * @return The catalog.
-     */
-    public com.google.protobuf.StringValue getCatalog() {
-      if (catalogBuilder_ == null) {
-        return catalog_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : catalog_;
-      } else {
-        return catalogBuilder_.getMessage();
-      }
-    }
-    /**
-     * <pre>
-     * the name of the catalog involved in the operation
-     * </pre>
-     *
-     * <code>.google.protobuf.StringValue catalog = 3;</code>
-     */
-    public Builder setCatalog(com.google.protobuf.StringValue value) {
-      if (catalogBuilder_ == null) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        catalog_ = value;
-        onChanged();
-      } else {
-        catalogBuilder_.setMessage(value);
-      }
-
-      return this;
-    }
-    /**
-     * <pre>
-     * the name of the catalog involved in the operation
-     * </pre>
-     *
-     * <code>.google.protobuf.StringValue catalog = 3;</code>
-     */
-    public Builder setCatalog(
-        com.google.protobuf.StringValue.Builder builderForValue) {
-      if (catalogBuilder_ == null) {
-        catalog_ = builderForValue.build();
-        onChanged();
-      } else {
-        catalogBuilder_.setMessage(builderForValue.build());
-      }
-
-      return this;
-    }
-    /**
-     * <pre>
-     * the name of the catalog involved in the operation
-     * </pre>
-     *
-     * <code>.google.protobuf.StringValue catalog = 3;</code>
-     */
-    public Builder mergeCatalog(com.google.protobuf.StringValue value) {
-      if (catalogBuilder_ == null) {
-        if (catalog_ != null) {
-          catalog_ =
-            com.google.protobuf.StringValue.newBuilder(catalog_).mergeFrom(value).buildPartial();
-        } else {
-          catalog_ = value;
-        }
-        onChanged();
-      } else {
-        catalogBuilder_.mergeFrom(value);
-      }
-
-      return this;
-    }
-    /**
-     * <pre>
-     * the name of the catalog involved in the operation
-     * </pre>
-     *
-     * <code>.google.protobuf.StringValue catalog = 3;</code>
-     */
-    public Builder clearCatalog() {
-      if (catalogBuilder_ == null) {
-        catalog_ = null;
-        onChanged();
-      } else {
-        catalog_ = null;
-        catalogBuilder_ = null;
-      }
-
-      return this;
-    }
-    /**
-     * <pre>
-     * the name of the catalog involved in the operation
-     * </pre>
-     *
-     * <code>.google.protobuf.StringValue catalog = 3;</code>
-     */
-    public com.google.protobuf.StringValue.Builder getCatalogBuilder() {
-
-      onChanged();
-      return getCatalogFieldBuilder().getBuilder();
-    }
-    /**
-     * <pre>
-     * the name of the catalog involved in the operation
-     * </pre>
-     *
-     * <code>.google.protobuf.StringValue catalog = 3;</code>
-     */
-    public com.google.protobuf.StringValueOrBuilder getCatalogOrBuilder() {
-      if (catalogBuilder_ != null) {
-        return catalogBuilder_.getMessageOrBuilder();
-      } else {
-        return catalog_ == null ?
-            com.google.protobuf.StringValue.getDefaultInstance() : catalog_;
-      }
-    }
-    /**
-     * <pre>
-     * the name of the catalog involved in the operation
-     * </pre>
-     *
-     * <code>.google.protobuf.StringValue catalog = 3;</code>
-     */
-    private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
-        getCatalogFieldBuilder() {
-      if (catalogBuilder_ == null) {
-        catalogBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
-                getCatalog(),
-                getParentForChildren(),
-                isClean());
-        catalog_ = null;
-      }
-      return catalogBuilder_;
-    }
-
     private int operation_ = 0;
     /**
      * <pre>
      * the operation that was performed
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
      * @return The enum numeric value on the wire for operation.
      */
     @java.lang.Override public int getOperationValue() {
@@ -941,7 +705,7 @@ private static final long serialVersionUID = 0L;
      * the operation that was performed
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
      * @param value The enum numeric value on the wire for operation to set.
      * @return This builder for chaining.
      */
@@ -956,7 +720,7 @@ private static final long serialVersionUID = 0L;
      * the operation that was performed
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
      * @return The operation.
      */
     @java.lang.Override
@@ -970,7 +734,7 @@ private static final long serialVersionUID = 0L;
      * the operation that was performed
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
      * @param value The operation to set.
      * @return This builder for chaining.
      */
@@ -988,7 +752,7 @@ private static final long serialVersionUID = 0L;
      * the operation that was performed
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
      * @return This builder for chaining.
      */
     public Builder clearOperation() {
@@ -1003,10 +767,10 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder> systemMutationBuilder_;
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * TODO JNO - přejmenovat, aktualizovat
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
      * @return Whether the systemMutation field is set.
      */
     public boolean hasSystemMutation() {
@@ -1014,10 +778,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * TODO JNO - přejmenovat, aktualizovat
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
      * @return The systemMutation.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation getSystemMutation() {
@@ -1029,10 +793,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * TODO JNO - přejmenovat, aktualizovat
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
      */
     public Builder setSystemMutation(io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation value) {
       if (systemMutationBuilder_ == null) {
@@ -1049,10 +813,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * TODO JNO - přejmenovat, aktualizovat
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
      */
     public Builder setSystemMutation(
         io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder builderForValue) {
@@ -1067,10 +831,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * TODO JNO - přejmenovat, aktualizovat
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
      */
     public Builder mergeSystemMutation(io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation value) {
       if (systemMutationBuilder_ == null) {
@@ -1089,10 +853,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * TODO JNO - přejmenovat, aktualizovat
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
      */
     public Builder clearSystemMutation() {
       if (systemMutationBuilder_ == null) {
@@ -1107,10 +871,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * TODO JNO - přejmenovat, aktualizovat
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder getSystemMutationBuilder() {
 
@@ -1119,10 +883,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * TODO JNO - přejmenovat, aktualizovat
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder getSystemMutationOrBuilder() {
       if (systemMutationBuilder_ != null) {
@@ -1134,10 +898,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * optional body of the operation when it is requested by the GrpcContent
+     * TODO JNO - přejmenovat, aktualizovat
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 6;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation systemMutation = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutationOrBuilder>

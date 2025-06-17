@@ -28,7 +28,7 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextReference;
 import io.evitadb.core.Evita;
-import io.evitadb.core.async.ObservableExecutorService;
+import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import lombok.extern.slf4j.Slf4j;

@@ -36,7 +36,7 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
-import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.dataType.ContainerType;
@@ -136,7 +136,7 @@ public class ChangeCaptureConverter {
 	 */
 	@Nonnull
 	public static ChangeCatalogCapture toChangeCatalogCapture(@Nonnull GrpcChangeCatalogCapture changeCatalogCapture) {
-		final Mutation mutation;
+		final CatalogBoundMutation mutation;
 		if (changeCatalogCapture.hasEntityMutation()) {
 			mutation = DelegatingEntityMutationConverter.INSTANCE.convert(changeCatalogCapture.getEntityMutation());
 		} else if (changeCatalogCapture.hasLocalMutation()) {
@@ -197,7 +197,6 @@ public class ChangeCaptureConverter {
 		return new ChangeSystemCapture(
 			changeSystemCapture.getVersion(),
 			changeSystemCapture.getIndex(),
-			changeSystemCapture.hasCatalog() ? changeSystemCapture.getCatalog().getValue() : null,
 			EvitaEnumConverter.toOperation(changeSystemCapture.getOperation()),
 			DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE.convert(changeSystemCapture.getSystemMutation())
 		);
@@ -214,9 +213,6 @@ public class ChangeCaptureConverter {
 			.setVersion(capture.version())
 			.setIndex(capture.index())
 			.setOperation(EvitaEnumConverter.toGrpcOperation(capture.operation()));
-		if (capture.catalog() != null) {
-			builder.setCatalog(StringValue.of(capture.catalog()));
-		}
 		if (capture.body() instanceof TopLevelCatalogSchemaMutation topLevelCatalogSchemaMutation) {
 			builder.setSystemMutation(
 				DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE.convert(topLevelCatalogSchemaMutation)
