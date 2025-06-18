@@ -1794,19 +1794,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							container.compute(
 								reference.getReferenceKey(),
 								(referenceKey, existingValue) -> {
+									final int epk = richEnoughEntity.getPrimaryKeyOrThrowException();
 									final int groupPrimaryKey = reference.getGroup()
 										.map(EntityClassifier::getPrimaryKeyOrThrowException)
 										.orElseThrow();
 									if (existingValue == null) {
-										return new GroupMapping(
-											groupPrimaryKey,
-											expectedSize
-										);
+										return new GroupMapping(epk, groupPrimaryKey, expectedSize);
 									} else {
-										existingValue.addMapping(
-											richEnoughEntity.getPrimaryKeyOrThrowException(),
-											groupPrimaryKey
-										);
+										existingValue.addMapping(epk, groupPrimaryKey);
 										return existingValue;
 									}
 								}
@@ -1848,7 +1843,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 */
 		@Nonnull
 		public int[] getReferencedEntityPrimaryKeys(@Nonnull String referenceName, int groupEntityPrimaryKey) {
-			return this.referenceGroupToReferencedEntitiesIndex.computeIfAbsent(referenceName, this.groupToReferencedEntityLazyRetriever).get(groupEntityPrimaryKey);
+			final Map<Integer, int[]> mapping = this.referenceGroupToReferencedEntitiesIndex.computeIfAbsent(referenceName, this.groupToReferencedEntityLazyRetriever);
+			final int[] referencedEntityPrimaryKeys = mapping.get(groupEntityPrimaryKey);
+			return referencedEntityPrimaryKeys == null ? ArrayUtils.EMPTY_INT_ARRAY : referencedEntityPrimaryKeys;
 		}
 
 	}
@@ -2111,9 +2108,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 * @param expectedElements  the expected number of elements to be stored in this mapping,
 		 *                          used for initial capacity optimization
 		 */
-		public GroupMapping(int groupPrimaryKey, int expectedElements) {
+		public GroupMapping(int entityPrimaryKey, int groupPrimaryKey, int expectedElements) {
 			this.groupPrimaryKey = groupPrimaryKey;
 			this.entityIds = new IntHashSet(expectedElements);
+			this.entityIds.add(entityPrimaryKey);
 		}
 
 		/**
