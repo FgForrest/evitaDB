@@ -89,7 +89,10 @@ public final class CorruptedCatalog implements CatalogContract {
 	}
 
 	@Override
-	public @Nonnull CatalogSchemaContract updateSchema(@Nonnull EvitaSessionContract session, @Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
+	public @Nonnull CatalogSchemaContract updateSchema(
+		@Nullable UUID sessionId,
+		@Nonnull LocalCatalogSchemaMutation... schemaMutation
+	) throws SchemaAlteringException {
 		throw new CatalogCorruptedException(this);
 	}
 
@@ -232,11 +235,6 @@ public final class CorruptedCatalog implements CatalogContract {
 	@Nonnull
 	@Override
 	public Stream<CatalogBoundMutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
-		throw new CatalogCorruptedException(this);
-	}
-
-	@Override
-	public boolean goLive() {
 		throw new CatalogCorruptedException(this);
 	}
 

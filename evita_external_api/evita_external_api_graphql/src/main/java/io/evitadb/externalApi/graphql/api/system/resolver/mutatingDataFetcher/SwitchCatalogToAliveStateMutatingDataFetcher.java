@@ -32,6 +32,7 @@ import io.evitadb.externalApi.graphql.api.system.model.SwitchCatalogToAliveState
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * Tries to switch a {@link CatalogContract} to {@link io.evitadb.api.CatalogState#ALIVE} state.
@@ -39,14 +40,17 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class SwitchCatalogToAliveStateMutatingDataFetcher implements DataFetcher<Boolean>, WriteDataFetcher {
+public class SwitchCatalogToAliveStateMutatingDataFetcher implements DataFetcher<Void>, WriteDataFetcher {
 
     private final Evita evita;
 
     @Nonnull
     @Override
-    public Boolean get(DataFetchingEnvironment environment) throws Exception {
-        final String catalogName = environment.getArgument(SwitchCatalogToAliveStateMutationHeaderDescriptor.NAME.name());
-        return this.evita.getCatalogInstanceOrThrowException(catalogName).goLive();
+    public Void get(DataFetchingEnvironment environment) throws Exception {
+        final String catalogName = Objects.requireNonNull(
+            environment.getArgument(SwitchCatalogToAliveStateMutationHeaderDescriptor.NAME.name())
+        );
+        this.evita.makeCatalogAlive(catalogName);
+        return null;
     }
 }

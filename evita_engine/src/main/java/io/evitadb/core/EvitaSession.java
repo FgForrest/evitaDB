@@ -68,6 +68,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
@@ -404,13 +405,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			!isReadOnly(),
 			ReadOnlyException::new
 		);
-		final CatalogContract theCatalog = this.catalog;
-		isTrue(!theCatalog.supportsTransaction(), "Catalog went live already and is currently in transactional mode!");
-		if (theCatalog.goLive()) {
+		if (this.catalog.getCatalogState() == CatalogState.ALIVE) {
+			return false;
+		} else {
+			this.evita.makeCatalogAlive(this.catalog.getName());
 			close();
 			return true;
 		}
-		return false;
 	}
 
 	@Nonnull
@@ -744,7 +745,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 
 		return executeInTransactionIfPossible(session -> {
-			this.catalog.updateSchema(session, schemaMutation);
+			this.evita.applyMutation(
+				new ModifyCatalogSchemaMutation(
+					this.getCatalogName(),
+					session.getId(),
+					schemaMutation
+				)
+			);
 			return getCatalogSchema().version();
 		});
 	}
@@ -759,7 +766,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			return getCatalogSchema();
 		}
 		return executeInTransactionIfPossible(session -> {
-			this.catalog.updateSchema(session, schemaMutation);
+			this.evita.applyMutation(
+				new ModifyCatalogSchemaMutation(
+					this.getCatalogName(),
+					session.getId(),
+					schemaMutation
+				)
+			);
 			return getCatalogSchema();
 		});
 	}
@@ -778,7 +791,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public SealedEntitySchema updateAndFetchEntitySchema(@Nonnull ModifyEntitySchemaMutation schemaMutation) throws SchemaAlteringException {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
-			this.catalog.updateSchema(session, schemaMutation);
+			this.evita.applyMutation(
+				new ModifyCatalogSchemaMutation(
+					this.getCatalogName(),
+					session.getId(),
+					schemaMutation
+				)
+			);
 			return getEntitySchemaOrThrowException(schemaMutation.getEntityType());
 		});
 	}

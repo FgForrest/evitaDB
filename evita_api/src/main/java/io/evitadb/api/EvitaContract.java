@@ -156,6 +156,13 @@ public interface EvitaContract extends AutoCloseable {
 	CatalogSchemaBuilder defineCatalog(@Nonnull String catalogName);
 
 	/**
+	 * Changes state of the catalog from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}.
+	 *
+	 * @see CatalogState
+	 */
+	void makeCatalogAlive(@Nonnull String catalogName);
+
+	/**
 	 * Renames existing catalog to a new name. The `newCatalogName` must not clash with any existing catalog name,
 	 * otherwise exception is thrown. If you need to rename catalog to a name of existing catalog use
 	 * the {@link #replaceCatalog(String, String)} method instead.
@@ -200,7 +207,7 @@ public interface EvitaContract extends AutoCloseable {
 	 * To revert the changes made by this mutation, you have to create a new mutation that performs the opposite operation
 	 * (e.g. if you create a new catalog with this mutation, you have to create another mutation that deletes the catalog).
 	 */
-	void update(@Nonnull EngineMutation engineMutation);
+	void applyMutation(@Nonnull EngineMutation engineMutation);
 
 	/**
 	 * Executes querying logic in the newly created Evita session. Session is safely closed at the end of this method

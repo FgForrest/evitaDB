@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog;
 
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
@@ -60,6 +60,7 @@ public class ModifyCatalogSchemaMutationConverterTest {
 	void shouldResolverInputToLocalMutation() {
 		final ModifyCatalogSchemaMutation expectedMutation = new ModifyCatalogSchemaMutation(
 			"testCatalog",
+			null,
 			new CreateEntitySchemaMutation("product")
 		);
 		final ModifyCatalogSchemaMutation convertedMutation = this.converter.convertFromInput(
@@ -107,6 +108,7 @@ public class ModifyCatalogSchemaMutationConverterTest {
 	void shouldSerializeLocalMutationToOutput() {
 		final ModifyCatalogSchemaMutation inputMutation = new ModifyCatalogSchemaMutation(
 			"testCatalog",
+			null,
 			new CreateEntitySchemaMutation("product")
 		);
 

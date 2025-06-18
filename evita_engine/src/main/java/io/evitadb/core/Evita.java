@@ -50,10 +50,11 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.SessionRegistry.SuspendOperation;
 import io.evitadb.core.cache.CacheSupervisor;
@@ -62,6 +63,7 @@ import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.cdc.EngineStatisticsPublisher;
 import io.evitadb.core.cdc.SystemChangeObserver;
 import io.evitadb.core.exception.CatalogCorruptedException;
+import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.executor.ClientRunnableTask;
 import io.evitadb.core.executor.EmptySettings;
@@ -268,12 +270,6 @@ public final class Evita implements EvitaContract {
 			new HeapMemoryCacheSupervisor(configuration.cache(), this.serviceExecutor) : NoCacheSupervisor.INSTANCE;
 		this.reflectionLookup = new ReflectionLookup(configuration.cache().reflection());
 		this.tracingContext = TracingContextProvider.getContext();
-		this.changeObserver = new SystemChangeObserver(
-			this,
-			this.configuration.server().changeDataCapture(),
-			this.requestExecutor,
-			this.serviceExecutor
-		);
 
 		final ServiceLoader<EnginePersistenceServiceFactory> svcLoader = ServiceLoader.load(
 			EnginePersistenceServiceFactory.class);
@@ -284,6 +280,14 @@ public final class Evita implements EvitaContract {
 
 		final EngineState engineState = this.enginePersistenceService.getEngineState();
 		this.engineState.set(engineState);
+
+		this.changeObserver = new SystemChangeObserver(
+			this,
+			this.configuration.server().changeDataCapture(),
+			this.requestExecutor,
+			this.serviceExecutor
+		);
+
 		this.catalogs = CollectionUtils.createConcurrentHashMap(engineState.activeCatalogs().length);
 		this.inactiveCatalogs = CollectionUtils.createHashSet(engineState.inactiveCatalogs().length);
 		Collections.addAll(this.inactiveCatalogs, engineState.inactiveCatalogs());
@@ -448,7 +452,7 @@ public final class Evita implements EvitaContract {
 	public CatalogSchemaBuilder defineCatalog(@Nonnull String catalogName) {
 		final Optional<CatalogContract> catalogInstance = getCatalogInstance(catalogName);
 		if (catalogInstance.isEmpty()) {
-			update(new CreateCatalogSchemaMutation(catalogName));
+			applyMutation(new CreateCatalogSchemaMutation(catalogName));
 			return new InternalCatalogSchemaBuilder(
 				getCatalogInstanceOrThrowException(catalogName).getSchema()
 			);
@@ -460,15 +464,21 @@ public final class Evita implements EvitaContract {
 	}
 
 	@Override
+	public void makeCatalogAlive(@Nonnull String catalogName) {
+		assertActive();
+		applyMutation(new MakeCatalogAliveMutation(catalogName));
+	}
+
+	@Override
 	public void renameCatalog(@Nonnull String catalogName, @Nonnull String newCatalogName) {
 		assertActive();
-		update(new ModifyCatalogSchemaNameMutation(catalogName, newCatalogName, false));
+		applyMutation(new ModifyCatalogSchemaNameMutation(catalogName, newCatalogName, false));
 	}
 
 	@Override
 	public void replaceCatalog(@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced) {
 		assertActive();
-		update(new ModifyCatalogSchemaNameMutation(catalogNameToBeReplacedWith, catalogNameToBeReplaced, true));
+		applyMutation(new ModifyCatalogSchemaNameMutation(catalogNameToBeReplacedWith, catalogNameToBeReplaced, true));
 	}
 
 	@Override
@@ -477,13 +487,13 @@ public final class Evita implements EvitaContract {
 		if (catalogToRemove == null) {
 			return false;
 		} else {
-			update(new RemoveCatalogSchemaMutation(catalogName));
+			applyMutation(new RemoveCatalogSchemaMutation(catalogName));
 			return true;
 		}
 	}
 
 	@Override
-	public void update(@Nonnull EngineMutation engineMutation) {
+	public void applyMutation(@Nonnull EngineMutation engineMutation) {
 		assertActiveAndWritable();
 		try {
 			if (this.engineStateLock.tryLock(
@@ -495,7 +505,7 @@ public final class Evita implements EvitaContract {
 
 				// first store the mutation into the persistence service
 				final WalFileReference walFileReference = this.enginePersistenceService.appendWal(
-					theEngineState.version(),
+					theEngineState.version() + 1,
 					engineMutation
 				);
 
@@ -512,15 +522,12 @@ public final class Evita implements EvitaContract {
 							renameCatalogInternal(modifyCatalogSchemaName);
 						}
 					} else if (engineMutation instanceof ModifyCatalogSchemaMutation modifyCatalogSchema) {
-						updateCatalog(
-							modifyCatalogSchema.getCatalogName(),
-							session -> {
-								session.updateCatalogSchema(modifyCatalogSchema.getSchemaMutations());
-							},
-							SessionFlags.READ_WRITE
-						);
+						final CatalogContract catalogContract = this.catalogs.get(modifyCatalogSchema.getCatalogName());
+						catalogContract.updateSchema(modifyCatalogSchema.getSessionId(), modifyCatalogSchema.getSchemaMutations());
 					} else if (engineMutation instanceof RemoveCatalogSchemaMutation removeCatalogSchema) {
 						removeCatalogInternal(removeCatalogSchema);
+					} else if (engineMutation instanceof MakeCatalogAliveMutation makeCatalogAliveMutation) {
+						makeCatalogAliveInternal(makeCatalogAliveMutation);
 					} else {
 						throw new EvitaInvalidUsageException(
 							"Unknown engine mutation: `" + engineMutation.getClass() + "`!");
@@ -545,6 +552,7 @@ public final class Evita implements EvitaContract {
 				} catch (RuntimeException ex) {
 					// forget about the mutation in case of error
 					this.changeObserver.forgetMutationsAfter(theEngineState.version());
+					log.error("EvitaDB failed to apply engine level mutation: {}", engineMutation, ex);
 				}
 			}
 		} catch (InterruptedException e) {
@@ -832,6 +840,27 @@ public final class Evita implements EvitaContract {
 		assertActive();
 		if (this.readOnly) {
 			throw new ReadOnlyException();
+		}
+	}
+
+	/**
+	 * Activates the specified catalog based on its current state. Throws appropriate exceptions
+	 * for inactive or corrupted catalogs or any unknown catalog type.
+	 *
+	 * @param makeCatalogAliveMutation The mutation object containing the catalog name to be activated.
+	 *                      Must be non-null and must reference a valid catalog.
+	 */
+	private void makeCatalogAliveInternal(@Nonnull MakeCatalogAliveMutation makeCatalogAliveMutation) {
+		final CatalogContract catalog = this.catalogs.get(makeCatalogAliveMutation.getCatalogName());
+		if (catalog instanceof Catalog theCatalog) {
+			theCatalog.goLive();
+		} else if (catalog instanceof InactiveCatalog inactiveCatalog) {
+			throw new CatalogInactiveException(inactiveCatalog);
+		} else if (catalog instanceof CorruptedCatalog corruptedCatalog) {
+			throw new CatalogCorruptedException(corruptedCatalog);
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Unknown catalog type: `" + catalog.getClass() + "`!");
 		}
 	}
 

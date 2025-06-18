@@ -55,7 +55,7 @@ public non-sealed class TransactionMutation implements EngineMutation, CatalogBo
 	 */
 	@Getter private final UUID transactionId;
 	/**
-	 * Represents the version the transaction is based on.
+	 * Represents the next version the transaction transitions the state to.
 	 */
 	@Getter private final long version;
 	/**

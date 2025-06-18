@@ -182,6 +182,7 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	 * @param version the version now present in the live view
 	 */
 	public void notifyVersionPresentInLiveView(long version) {
+		this.version.set(version);
 		// we don't actively check for non-closed condition here to speed up the process
 		this.lastCaptures.setEffectiveLastCatalogVersion(version);
 		// notify all subscriptions that the catalog is now present in the live view

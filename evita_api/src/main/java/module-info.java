@@ -72,6 +72,7 @@ module evita.api {
 	exports io.evitadb.api.observability;
 	exports io.evitadb.api.observability.trace;
 	exports io.evitadb.api.observability.annotation;
+	exports io.evitadb.api.requestResponse.schema.mutation.engine;
 
 	requires static lombok;
 	requires static jsr305;

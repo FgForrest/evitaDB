@@ -26,9 +26,9 @@ package io.evitadb.core.cdc;
 
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
 import lombok.RequiredArgsConstructor;

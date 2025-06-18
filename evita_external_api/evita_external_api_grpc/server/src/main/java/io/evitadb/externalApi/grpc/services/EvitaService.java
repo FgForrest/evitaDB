@@ -32,7 +32,6 @@ import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
-import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.externalApi.configuration.HeaderOptions;
@@ -44,7 +43,7 @@ import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
-import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
@@ -333,16 +332,12 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * Applies catalog mutation affecting entire catalog.
 	 */
 	@Override
-	public void update(GrpcUpdateEvitaRequest request, StreamObserver<Empty> responseObserver) {
+	public void applyMutation(GrpcApplyMutationRequest request, StreamObserver<Empty> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				final TopLevelCatalogSchemaMutation[] schemaMutations = request.getSchemaMutationsList()
-					.stream()
-					.map(DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE::convert)
-					.toArray(TopLevelCatalogSchemaMutation[]::new);
-
-				/* TODO JNO - UPDATE */
-				/*this.evita.update(schemaMutations);*/
+				this.evita.applyMutation(
+					DelegatingEngineMutationConverter.INSTANCE.convert(request.getMutation())
+				);
 				responseObserver.onNext(Empty.getDefaultInstance());
 				responseObserver.onCompleted();
 			},

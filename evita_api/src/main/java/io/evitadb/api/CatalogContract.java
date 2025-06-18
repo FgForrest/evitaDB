@@ -93,11 +93,20 @@ public interface CatalogContract {
 	SealedCatalogSchema getSchema();
 
 	/**
-	 * Alters existing schema applying passed schema mutation.
+	 * Updates the internal schema based on the provided schema mutations. This method processes a series of
+	 * {@link LocalCatalogSchemaMutation} objects to modify the current catalog schema, handling different types
+	 * of schema mutations including entity schema creation, removal, modification, and renaming. It registers
+	 * mutations with an active transaction if available, applies schema modifications, and ensures persistence
+	 * and proper rollback in the event of an error.
+	 *
+	 * @param sessionId an optional session ID that can be used to register the mutations with an active session
+	 * @param schemaMutation an array of {@link LocalCatalogSchemaMutation} objects that specify the mutations
+	 *                       to apply to the catalog schema
+	 * @return the updated {@link SealedCatalogSchema} reflecting all applied mutations
 	 */
 	@Nonnull
 	CatalogSchemaContract updateSchema(
-		@Nonnull EvitaSessionContract session,
+		@Nullable UUID sessionId,
 		@Nonnull LocalCatalogSchemaMutation... schemaMutation
 	) throws SchemaAlteringException;
 
@@ -265,13 +274,6 @@ public interface CatalogContract {
 	@Nonnull
 	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request)
 		throws CatalogNotAliveException;
-
-	/**
-	 * Changes state of the catalog from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}.
-	 *
-	 * @see CatalogState
-	 */
-	boolean goLive();
 
 	/**
 	 * Method checks whether there are new records in the WAL that haven't been incorporated into the catalog yet and

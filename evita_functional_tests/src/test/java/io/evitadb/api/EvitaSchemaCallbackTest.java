@@ -31,8 +31,8 @@ import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDescriptionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
@@ -110,9 +110,10 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogSchemaDescriptionChange() {
-		this.evita.update(
+		this.evita.applyMutation(
 			new ModifyCatalogSchemaMutation(
 				TEST_CATALOG,
+				null,
 				new ModifyCatalogSchemaDescriptionMutation("Brand new description.")
 			)
 		);
@@ -127,9 +128,10 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 
 	@Test
 	void shouldNotifyCallbackAboutEntitySchemaDescriptionChange() {
-		this.evita.update(
+		this.evita.applyMutation(
 			new ModifyCatalogSchemaMutation(
 				TEST_CATALOG,
+				null,
 				new CreateEntitySchemaMutation(Entities.PRODUCT),
 				new ModifyEntitySchemaMutation(
 					Entities.PRODUCT,

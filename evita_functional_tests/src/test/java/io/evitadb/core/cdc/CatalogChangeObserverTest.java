@@ -74,11 +74,11 @@ import static tool.ReflectionUtils.setFieldValue;
  * 3. Registers an observer to capture all mutations (even historical ones)
  * 4. Verifies that the observer correctly receives and publishes the expected number of mutations
  *
- * The test uses {@link MockSubscriber} to collect and verify the published changes.
+ * The test uses {@link MockCatalogChangeSubscriber} to collect and verify the published changes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  * @see CatalogChangeObserver
- * @see MockSubscriber
+ * @see MockCatalogChangeSubscriber
  * @see ChangeCapturePublisher
  */
 @DisplayName("CatalogChangeObserver should")
@@ -155,7 +155,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 	 * 2. Notifies the observer about the catalog being present in the live view
 	 * 3. Creates a request to capture all mutations since version 0 (the beginning)
 	 * 4. Registers an observer with this request
-	 * 5. Creates a {@link MockSubscriber} that expects to receive 40 items
+	 * 5. Creates a {@link MockCatalogChangeSubscriber} that expects to receive 40 items
 	 * 6. Subscribes the mock subscriber to the publisher
 	 * 7. Verifies that the subscriber received exactly 40 items
 	 *
@@ -192,7 +192,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 		try (
 			final ChangeCapturePublisher<ChangeCatalogCapture> publisher = tested.registerObserver(catchAllRequest)
 		) {
-			final MockSubscriber subscriber = new MockSubscriber();
+			final MockCatalogChangeSubscriber subscriber = new MockCatalogChangeSubscriber();
 
 			// Subscribe to the publisher to start receiving mutations
 			publisher.subscribe(subscriber);
@@ -212,7 +212,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 	 * 3. Creates a request to capture mutations since version 2 and index 100
 	 * 4. Applies filtering criteria to only capture attribute mutations with name "code" and operation UPSERT
 	 * 5. Registers an observer with this request
-	 * 6. Creates a {@link MockSubscriber} that expects to receive 9 items
+	 * 6. Creates a {@link MockCatalogChangeSubscriber} that expects to receive 9 items
 	 * 7. Subscribes the mock subscriber to the publisher
 	 * 8. Verifies that the subscriber received exactly 9 items
 	 *
@@ -252,7 +252,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 		try (
 			final ChangeCapturePublisher<ChangeCatalogCapture> publisher = tested.registerObserver(catchAllRequest)
 		) {
-			final MockSubscriber subscriber = new MockSubscriber();
+			final MockCatalogChangeSubscriber subscriber = new MockCatalogChangeSubscriber();
 
 			// Subscribe to the publisher to start receiving mutations
 			publisher.subscribe(subscriber);
@@ -273,7 +273,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 	 * 3. Creates a request to capture mutations starting from the next version after the current catalog version
 	 * 4. Applies filtering criteria to only capture attribute mutations with name "code" and operation UPSERT
 	 * 5. Registers an observer with this request
-	 * 6. Creates a {@link MockSubscriber} that expects to receive 10 items
+	 * 6. Creates a {@link MockCatalogChangeSubscriber} that expects to receive 10 items
 	 * 7. Subscribes the mock subscriber to the publisher
 	 * 8. Creates 10 new entities in the catalog
 	 * 9. Verifies that the subscriber received exactly 1 item (the code attribute mutation)
@@ -316,7 +316,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 		try (
 			final ChangeCapturePublisher<ChangeCatalogCapture> publisher = tested.registerObserver(catchAllRequest)
 		) {
-			final MockSubscriber subscriber = new MockSubscriber();
+			final MockCatalogChangeSubscriber subscriber = new MockCatalogChangeSubscriber();
 
 			// Subscribe to the publisher to start receiving mutations
 			publisher.subscribe(subscriber);
@@ -411,8 +411,8 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 		) {
 			// Create subscribers with expected counts
 			// For each upserted entity there are 2 mutations - entity creation and attribute update
-			final MockSubscriber entireWalSubscriber = new MockSubscriber();
-			final MockSubscriber partialWalSubscriber = new MockSubscriber();
+			final MockCatalogChangeSubscriber entireWalSubscriber = new MockCatalogChangeSubscriber();
+			final MockCatalogChangeSubscriber partialWalSubscriber = new MockCatalogChangeSubscriber();
 
 			// Subscribe to start receiving mutations
 			entireWalPublisher.subscribe(entireWalSubscriber);
@@ -462,8 +462,8 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 				final ChangeCapturePublisher<ChangeCatalogCapture> onlyNewPartialPublisher = tested.registerObserver(onlyNewPartialRequest)
 			) {
 				// Create subscribers with expected counts
-				final MockSubscriber partialOldAndNewSubscriber = new MockSubscriber();
-				final MockSubscriber onlyNewPartialSubscriber = new MockSubscriber();
+				final MockCatalogChangeSubscriber partialOldAndNewSubscriber = new MockCatalogChangeSubscriber();
+				final MockCatalogChangeSubscriber onlyNewPartialSubscriber = new MockCatalogChangeSubscriber();
 
 				// Subscribe to start receiving mutations
 				partialOldAndNewPublisher.subscribe(partialOldAndNewSubscriber);
@@ -560,7 +560,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 		// Register an observer
 		final ChangeCapturePublisher<ChangeCatalogCapture> publisher = tested.registerObserver(request);
-		final MockSubscriber subscriber = new MockSubscriber();
+		final MockCatalogChangeSubscriber subscriber = new MockCatalogChangeSubscriber();
 		publisher.subscribe(subscriber);
 
 		// Create 5 new entities
@@ -680,9 +680,9 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 		);
 
 		// Create subscribers for each publisher
-		final MockSubscriber subscriber1 = new MockSubscriber();
-		final MockSubscriber subscriber2 = new MockSubscriber();
-		final MockSubscriber subscriber3 = new MockSubscriber();
+		final MockCatalogChangeSubscriber subscriber1 = new MockCatalogChangeSubscriber();
+		final MockCatalogChangeSubscriber subscriber2 = new MockCatalogChangeSubscriber();
+		final MockCatalogChangeSubscriber subscriber3 = new MockCatalogChangeSubscriber();
 
 		// Subscribe them to the publishers
 		publisher1.subscribe(subscriber1);
@@ -720,7 +720,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 	 * @param subscriber the subscriber to check
 	 * @param minEntityId the minimum entity ID value (exclusive)
 	 */
-	private static void verifySubscriberReceivedEntityIdsGreaterThan(MockSubscriber subscriber, int minEntityId) {
+	private static void verifySubscriberReceivedEntityIdsGreaterThan(MockCatalogChangeSubscriber subscriber, int minEntityId) {
 		for (ChangeCatalogCapture capture : subscriber.getItems()) {
 			if (capture.entityPrimaryKey() != null) {
 				assertTrue(capture.entityPrimaryKey() > minEntityId,

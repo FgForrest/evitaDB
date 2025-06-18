@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.NotFoundEndpointResponse;
@@ -80,7 +81,7 @@ public class UpdateCatalogHandler extends CatalogHandler {
 
 				final CatalogContract updatedCatalog = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
 					final Optional<String> newCatalogName = renameCatalog(catalog.get(), requestBody);
-					switchCatalogToAliveState(catalog.get(), requestBody);
+					switchCatalogToAliveState(executionContext.session(), requestBody);
 
 					final String nameOfUpdateCatalog = newCatalogName.orElse(catalogName);
 					return this.restHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
@@ -127,7 +128,7 @@ public class UpdateCatalogHandler extends CatalogHandler {
 		return newCatalogName;
 	}
 
-	private static void switchCatalogToAliveState(@Nonnull CatalogContract catalog,
+	private static void switchCatalogToAliveState(@Nonnull EvitaSessionContract session,
 	                                              @Nonnull UpdateCatalogRequestDto requestBody) {
 		final Optional<CatalogState> newCatalogState = Optional.ofNullable(requestBody.catalogState());
 		if (newCatalogState.isEmpty()) {
@@ -139,11 +140,11 @@ public class UpdateCatalogHandler extends CatalogHandler {
 			() -> new RestInvalidArgumentException("A catalog can be switched only to the `ALIVE` state.")
 		);
 		Assert.isTrue(
-			catalog.getCatalogState() == CatalogState.WARMING_UP,
+			session.getCatalogState() == CatalogState.WARMING_UP,
 			() -> new RestInvalidArgumentException("Only a catalog in the `WARMING_UP` state can be switched to the `ALIVE` state.")
 		);
 
-		final boolean switched = catalog.goLive();
+		final boolean switched = session.goLiveAndClose();
 		Assert.isTrue(
 			switched,
 			() -> new RestInvalidArgumentException("A catalog couldn't be switched to the `ALIVE` state.")

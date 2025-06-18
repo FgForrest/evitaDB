@@ -198,8 +198,8 @@ class CurrentWalFile implements Closeable {
 			currentLastCatalogVersion == -1 || currentLastCatalogVersion + 1 == version,
 			() -> new CatalogWriteAheadLastTransactionMismatchException(
 				currentLastCatalogVersion,
-				"Invalid catalog version to write to the WAL file!",
-				"Invalid catalog version `" + version + "`! Expected: `" + (currentLastCatalogVersion + 1) + "`, but got `" + version + "`!"
+				"Invalid catalog version `" + version + "`! Expected: `" + (currentLastCatalogVersion + 1) + "`, but got `" + version + "`!",
+				"Invalid catalog version to write to the WAL file!"
 			)
 		);
 	}

@@ -4,8 +4,6 @@ package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
-import "google/protobuf/empty.proto";
-import "GrpcEnums.proto";
 import "GrpcEvitaDataTypes.proto";
 import "google/protobuf/wrappers.proto";
 import "GrpcTrafficRecording.proto";

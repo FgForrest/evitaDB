@@ -55,6 +55,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -628,10 +629,88 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Nonnull
 	@Override
 	public CatalogSchemaContract updateSchema(
-		@Nonnull EvitaSessionContract session,
+		@Nullable UUID sessionId,
 		@Nonnull LocalCatalogSchemaMutation... schemaMutation
 	) throws SchemaAlteringException {
-		return updateSchemaInternal(session, schemaMutation);
+		final OffsetDateTime start = OffsetDateTime.now();
+		// internal schema is expected to be produced on the server side
+		final CatalogSchema originalSchema = getInternalSchema();
+		final AtomicReference<MutationApplicationRecord> record = new AtomicReference<>();
+		try {
+			final Optional<Transaction> transactionRef = Transaction.getTransaction();
+			ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
+			CatalogSchema currentSchema = originalSchema;
+			CatalogSchemaContract updatedSchema = originalSchema;
+			final Transaction transaction = transactionRef.orElse(null);
+			for (CatalogSchemaMutation theMutation : schemaMutation) {
+				transactionRef.ifPresent(it -> it.registerMutation(theMutation));
+
+				// record the mutation
+				if (sessionId != null) {
+					record.set(
+						this.trafficRecordingEngine.recordMutation(sessionId, start, theMutation)
+					);
+				}
+
+				// if the mutation implements entity schema mutation apply it on the appropriate schema
+				if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
+					final String entityType = modifyEntitySchemaMutation.getEntityType();
+					// if the collection doesn't exist yet - create new one
+					EntityCollection entityCollection = this.entityCollections.get(entityType);
+					if (entityCollection == null) {
+						if (!getSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
+							throw new InvalidSchemaMutationException(entityType, CatalogEvolutionMode.ADDING_ENTITY_TYPES);
+						}
+						currentSchema = createEntitySchema(new CreateEntitySchemaMutation(entityType), transaction, updatedSchema);
+						entityCollection = this.entityCollections.get(entityType);
+					}
+					updatedSchema = modifyEntitySchema(modifyEntitySchemaMutation, updatedSchema, entityCollection);
+				} else if (theMutation instanceof RemoveEntitySchemaMutation removeEntitySchemaMutation) {
+					updatedSchema = removeEntitySchema(removeEntitySchemaMutation, transaction, updatedSchema);
+				} else if (theMutation instanceof CreateEntitySchemaMutation createEntitySchemaMutation) {
+					updatedSchema = createEntitySchema(createEntitySchemaMutation, transaction, updatedSchema);
+				} else if (theMutation instanceof ModifyEntitySchemaNameMutation renameEntitySchemaMutation) {
+					updatedSchema = modifyEntitySchemaName(renameEntitySchemaMutation, transaction, updatedSchema);
+				} else {
+					final CatalogSchemaWithImpactOnEntitySchemas schemaWithImpactOnEntitySchemas = modifyCatalogSchema(theMutation, updatedSchema);
+					updatedSchema = schemaWithImpactOnEntitySchemas.updatedCatalogSchema();
+					modifyEntitySchemaMutations = modifyEntitySchemaMutations == null || ArrayUtils.isEmpty(schemaWithImpactOnEntitySchemas.entitySchemaMutations()) ?
+						schemaWithImpactOnEntitySchemas.entitySchemaMutations() :
+						ArrayUtils.mergeArrays(modifyEntitySchemaMutations, schemaWithImpactOnEntitySchemas.entitySchemaMutations());
+				}
+
+				// finish the recording
+				if (sessionId != null) {
+					record.get().finish();
+				}
+
+				// exchange the current catalog schema so that additional entity schema mutations can take advantage of
+				// previous catalog mutations when validated
+				currentSchema = exchangeCatalogSchema(updatedSchema, currentSchema);
+			}
+			// alter affected entity schemas
+			if (modifyEntitySchemaMutations != null) {
+				updateSchema(sessionId, modifyEntitySchemaMutations);
+			}
+		} catch (RuntimeException ex) {
+			// revert all changes in the schema (for current transaction) if anything failed
+			this.schema.set(new CatalogSchemaDecorator(originalSchema));
+
+			// finish the recording with error
+			final MutationApplicationRecord recording = record.get();
+			if (recording != null) {
+				recording.finishWithException(ex);
+			}
+
+			throw ex;
+		} finally {
+			// finally, store the updated catalog schema to disk
+			final CatalogSchema currentSchema = getInternalSchema();
+			if (currentSchema.version() > originalSchema.version()) {
+				this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(currentSchema));
+			}
+		}
+		return getSchema();
 	}
 
 	@Override
@@ -688,9 +767,13 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Override
 	public void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull CatalogBoundMutation mutation) throws InvalidMutationException {
+		Assert.isPremiseValid(
+			!(mutation instanceof EngineMutation),
+			"Engine mutations are not allowed to be applied on the catalog level! Use the `applyMutation` method on the evitaDB instance instead."
+		);
 		if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
 			// apply schema mutation to the catalog
-			updateSchemaInternal(session, schemaMutation);
+			updateSchema(session.getId(), schemaMutation);
 		} else if (mutation instanceof EntityMutation entityMutation) {
 			getCollectionForEntityOrThrowException(entityMutation.getEntityType())
 				.applyMutation(session, entityMutation);
@@ -730,7 +813,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				if (!getSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
 					throw new InvalidSchemaMutationException(entityType, CatalogEvolutionMode.ADDING_ENTITY_TYPES);
 				}
-				updateSchema(session, new CreateEntitySchemaMutation(entityType));
+				updateSchema(session.getId(), new CreateEntitySchemaMutation(entityType));
 				return Objects.requireNonNull(this.entityCollections.get(entityType));
 			});
 	}
@@ -738,7 +821,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Override
 	public boolean deleteCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType) {
 		final SealedCatalogSchema originalSchema = getSchema();
-		final CatalogSchemaContract updatedSchema = updateSchema(session, new RemoveEntitySchemaMutation(entityType));
+		final CatalogSchemaContract updatedSchema = updateSchema(session.getId(), new RemoveEntitySchemaMutation(entityType));
 		return updatedSchema.version() > originalSchema.version();
 	}
 
@@ -746,7 +829,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	public boolean renameCollectionOfEntity(@Nonnull String entityType, @Nonnull String newName, @Nonnull EvitaSessionContract session) {
 		final SealedCatalogSchema originalSchema = getSchema();
 		final CatalogSchemaContract updatedSchema = updateSchema(
-			session,
+			session.getId(),
 			new ModifyEntitySchemaNameMutation(entityType, newName, false)
 		);
 		return updatedSchema.version() > originalSchema.version();
@@ -756,7 +839,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	public boolean replaceCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith) {
 		final SealedCatalogSchema originalSchema = getSchema();
 		final CatalogSchemaContract updatedSchema = updateSchema(
-			session,
+			session.getId(),
 			new ModifyEntitySchemaNameMutation(entityTypeToBeReplacedWith, entityTypeToBeReplaced, true)
 		);
 		return updatedSchema.version() > originalSchema.version();
@@ -830,8 +913,13 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			.map(EntityCollection::getSchema);
 	}
 
-	@Override
-	public boolean goLive() {
+	/**
+	 * Transitions the catalog to the "live" state, ensuring it’s only called once and
+	 * verifying the current state is WARMING_UP. This method creates a new catalog
+	 * in the ALIVE state, copies relevant components into the new catalog, and
+	 * emits a `CatalogGoesLiveEvent` upon successful transition.
+	 */
+	public void goLive() {
 		try {
 			Assert.isTrue(
 				this.goingLive.compareAndSet(false, true),
@@ -865,8 +953,6 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 			// emit the event
 			event.finish().commit();
-
-			return true;
 		} finally {
 			this.goingLive.set(false);
 		}
@@ -997,7 +1083,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	public void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException {
 		if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
 			// apply schema mutation to the catalog
-			updateSchemaInternal(null, schemaMutation);
+			updateSchema(null, schemaMutation);
 		} else if (mutation instanceof EntityMutation entityMutation) {
 			getCollectionForEntityOrThrowException(entityMutation.getEntityType())
 				.applyMutation(entityMutation);
@@ -1415,105 +1501,6 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	/*
 		PRIVATE METHODS
 	 */
-
-	/**
-	 * Updates the internal schema based on the provided schema mutations. This method processes a series of
-	 * {@link LocalCatalogSchemaMutation} objects to modify the current catalog schema, handling different types
-	 * of schema mutations including entity schema creation, removal, modification, and renaming. It registers
-	 * mutations with an active transaction if available, applies schema modifications, and ensures persistence
-	 * and proper rollback in the event of an error.
-	 *
-	 * @param session        an optional {@link EvitaSessionContract} that may be used to record schema mutations,
-	 *                       if present
-	 * @param schemaMutation an array of {@link LocalCatalogSchemaMutation} objects that specify the mutations
-	 *                       to apply to the catalog schema
-	 * @return the updated {@link SealedCatalogSchema} reflecting all applied mutations
-	 */
-	@Nonnull
-	private SealedCatalogSchema updateSchemaInternal(
-		@Nullable EvitaSessionContract session,
-		@Nonnull LocalCatalogSchemaMutation... schemaMutation
-	) {
-		final OffsetDateTime start = OffsetDateTime.now();
-		// internal schema is expected to be produced on the server side
-		final CatalogSchema originalSchema = getInternalSchema();
-		final AtomicReference<MutationApplicationRecord> record = new AtomicReference<>();
-		try {
-			final Optional<Transaction> transactionRef = Transaction.getTransaction();
-			ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
-			CatalogSchema currentSchema = originalSchema;
-			CatalogSchemaContract updatedSchema = originalSchema;
-			final Transaction transaction = transactionRef.orElse(null);
-			for (CatalogSchemaMutation theMutation : schemaMutation) {
-				transactionRef.ifPresent(it -> it.registerMutation(theMutation));
-
-				// record the mutation
-				if (session != null) {
-					record.set(
-						this.trafficRecordingEngine.recordMutation(session.getId(), start, theMutation)
-					);
-				}
-
-				// if the mutation implements entity schema mutation apply it on the appropriate schema
-				if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
-					final String entityType = modifyEntitySchemaMutation.getEntityType();
-					// if the collection doesn't exist yet - create new one
-					EntityCollection entityCollection = this.entityCollections.get(entityType);
-					if (entityCollection == null) {
-						if (!getSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
-							throw new InvalidSchemaMutationException(entityType, CatalogEvolutionMode.ADDING_ENTITY_TYPES);
-						}
-						currentSchema = createEntitySchema(new CreateEntitySchemaMutation(entityType), transaction, updatedSchema);
-						entityCollection = this.entityCollections.get(entityType);
-					}
-					updatedSchema = modifyEntitySchema(modifyEntitySchemaMutation, updatedSchema, entityCollection);
-				} else if (theMutation instanceof RemoveEntitySchemaMutation removeEntitySchemaMutation) {
-					updatedSchema = removeEntitySchema(removeEntitySchemaMutation, transaction, updatedSchema);
-				} else if (theMutation instanceof CreateEntitySchemaMutation createEntitySchemaMutation) {
-					updatedSchema = createEntitySchema(createEntitySchemaMutation, transaction, updatedSchema);
-				} else if (theMutation instanceof ModifyEntitySchemaNameMutation renameEntitySchemaMutation) {
-					updatedSchema = modifyEntitySchemaName(renameEntitySchemaMutation, transaction, updatedSchema);
-				} else {
-					final CatalogSchemaWithImpactOnEntitySchemas schemaWithImpactOnEntitySchemas = modifyCatalogSchema(theMutation, updatedSchema);
-					updatedSchema = schemaWithImpactOnEntitySchemas.updatedCatalogSchema();
-					modifyEntitySchemaMutations = modifyEntitySchemaMutations == null || ArrayUtils.isEmpty(schemaWithImpactOnEntitySchemas.entitySchemaMutations()) ?
-						schemaWithImpactOnEntitySchemas.entitySchemaMutations() :
-						ArrayUtils.mergeArrays(modifyEntitySchemaMutations, schemaWithImpactOnEntitySchemas.entitySchemaMutations());
-				}
-
-				// finish the recording
-				if (session != null) {
-					record.get().finish();
-				}
-
-				// exchange the current catalog schema so that additional entity schema mutations can take advantage of
-				// previous catalog mutations when validated
-				currentSchema = exchangeCatalogSchema(updatedSchema, currentSchema);
-			}
-			// alter affected entity schemas
-			if (modifyEntitySchemaMutations != null) {
-				updateSchemaInternal(session, modifyEntitySchemaMutations);
-			}
-		} catch (RuntimeException ex) {
-			// revert all changes in the schema (for current transaction) if anything failed
-			this.schema.set(new CatalogSchemaDecorator(originalSchema));
-
-			// finish the recording with error
-			final MutationApplicationRecord recording = record.get();
-			if (recording != null) {
-				recording.finishWithException(ex);
-			}
-
-			throw ex;
-		} finally {
-			// finally, store the updated catalog schema to disk
-			final CatalogSchema currentSchema = getInternalSchema();
-			if (currentSchema.version() > originalSchema.version()) {
-				this.dataStoreBuffer.update(getVersion(), new CatalogSchemaStoragePart(currentSchema));
-			}
-		}
-		return getSchema();
-	}
 
 	/**
 	 * Method transparently updates the contents of {@link #entityCollections} map with the new collection, if the

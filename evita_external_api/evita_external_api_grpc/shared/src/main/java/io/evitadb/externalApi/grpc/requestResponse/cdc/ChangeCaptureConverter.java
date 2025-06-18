@@ -51,8 +51,8 @@ import io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocalMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEntitySchemaMutationConverter;
-import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -198,7 +198,7 @@ public class ChangeCaptureConverter {
 			changeSystemCapture.getVersion(),
 			changeSystemCapture.getIndex(),
 			EvitaEnumConverter.toOperation(changeSystemCapture.getOperation()),
-			DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE.convert(changeSystemCapture.getSystemMutation())
+			DelegatingEngineMutationConverter.INSTANCE.convert(changeSystemCapture.getSystemMutation())
 		);
 	}
 
@@ -215,7 +215,7 @@ public class ChangeCaptureConverter {
 			.setOperation(EvitaEnumConverter.toGrpcOperation(capture.operation()));
 		if (capture.body() instanceof TopLevelCatalogSchemaMutation topLevelCatalogSchemaMutation) {
 			builder.setSystemMutation(
-				DelegatingTopLevelCatalogSchemaMutationConverter.INSTANCE.convert(topLevelCatalogSchemaMutation)
+				DelegatingEngineMutationConverter.INSTANCE.convert(topLevelCatalogSchemaMutation)
 			);
 		}
 		return builder.build();

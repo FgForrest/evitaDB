@@ -5,10 +5,10 @@ option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
 import "google/protobuf/wrappers.proto";
+import "GrpcEngineMutation.proto";
 import "GrpcEntityMutation.proto";
 import "GrpcLocalMutation.proto";
 import "GrpcEntitySchemaMutation.proto";
-import "GrpcCatalogSchemaMutation.proto";
 
 // Record for the criteria of the capture request allowing to limit mutations to specific area of interest an its
 // properties.
@@ -81,8 +81,7 @@ message GrpcChangeSystemCapture {
   // the operation that was performed
   GrpcChangeCaptureOperation operation = 3;
   // optional body of the operation when it is requested by the GrpcContent
-  /* TODO JNO - přejmenovat, aktualizovat */
-  GrpcTopLevelCatalogSchemaMutation systemMutation = 4;
+  GrpcEngineMutation systemMutation = 4;
 }
 
 // The enum defines what catalog area is covered by the capture.

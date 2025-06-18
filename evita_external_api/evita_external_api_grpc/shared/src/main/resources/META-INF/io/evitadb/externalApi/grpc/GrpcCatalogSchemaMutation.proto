@@ -71,17 +71,3 @@ message GrpcLocalCatalogSchemaMutation {
     GrpcRemoveEntitySchemaMutation removeEntitySchemaMutation = 33;
   }
 }
-
-// This structure encapsulates all mutations that needs to be executed on entire evitaDB level and not locally to
-// single catalog schema instance.
-message GrpcTopLevelCatalogSchemaMutation {
-  // The top level catalog mutation to be executed.
-  oneof mutation {
-    // Mutation is responsible for setting up a new CatalogSchema.
-    GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;
-    // Mutation is responsible for renaming an existing CatalogSchema.
-    GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;
-    // Mutation is responsible for removing an existing CatalogSchema.
-    GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 3;
-  }
-}

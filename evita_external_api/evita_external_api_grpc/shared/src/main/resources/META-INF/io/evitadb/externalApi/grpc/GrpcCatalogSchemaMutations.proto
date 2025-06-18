@@ -8,27 +8,11 @@ import "GrpcEnums.proto";
 import "GrpcEntitySchemaMutation.proto";
 import "google/protobuf/wrappers.proto";
 
-// Mutation is responsible for setting up a new CatalogSchema.
-message GrpcCreateCatalogSchemaMutation {
-  // Name of newly created catalog schema.
-  string catalogName = 1;
-}
-
 // Mutation is responsible for setting value to a `CatalogSchema.description` in `CatalogSchema`.
 message GrpcModifyCatalogSchemaDescriptionMutation {
   // Contains description of the model is optional but helps authors of the schema / client API to better
   // explain the original purpose of the model to the consumers.
   google.protobuf.StringValue description = 1;
-}
-
-// Mutation is responsible for renaming an existing CatalogSchema.
-message GrpcModifyCatalogSchemaNameMutation {
-  // Name of the catalog schema the mutation is targeting (will rename).
-  string catalogName = 1;
-  // The new name of the catalog schema.
-  string newCatalogName = 2;
-  // Flag indicating whether to replace the existing catalog or just to rename it.
-  bool overwriteTarget = 3;
 }
 
 // Mutation is responsible for adding one or more modes to a `CatalogSchema.catalogEvolutionMode` in `CatalogSchema`.
@@ -45,12 +29,6 @@ message GrpcDisallowEvolutionModeInCatalogSchemaMutation {
   // presented to her for the first time. When no evolution mode is set, each violation of the `CatalogSchema` is
   // reported by an error. This behaviour can be changed by this evolution mode, however.
   repeated GrpcCatalogEvolutionMode evolutionModes = 1;
-}
-
-// Mutation is responsible for removing an existing CatalogSchema.
-message GrpcRemoveCatalogSchemaMutation {
-  // Name of catalog schema to remove.
-  string catalogName = 1;
 }
 
 // Mutation is responsible for setting up a new `EntitySchema` - or more precisely the collection within catalog.

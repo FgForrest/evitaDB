@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog;
 
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
@@ -78,6 +78,7 @@ public class ModifyCatalogSchemaMutationConverter extends TopLevelCatalogSchemaM
 
 		return new ModifyCatalogSchemaMutation(
 			input.getProperty(ModifyCatalogSchemaMutationDescriptor.CATALOG_NAME),
+			null,
 			localCatalogSchemaMutations
 		);
 	}

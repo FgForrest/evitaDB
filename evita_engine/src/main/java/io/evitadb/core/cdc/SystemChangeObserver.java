@@ -51,20 +51,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class SystemChangeObserver implements ChangeObserverContract<ChangeSystemCaptureRequest, ChangeSystemCapture, EngineMutation> {
-	/**
-	 * The evita instance that this publisher is associated with. It provides access to the engine mutations.
-	 * TODO JNO - covert to local?
-	 */
-	private final Evita evita;
-	/**
-	 * Options for change data capture.
-	 */
-	private final ChangeDataCaptureOptions cdcOptions;
-	/**
-	 * Executor to be used in new publishers.
-	 */
-	private final ExecutorService cdcExecutor;
+public class SystemChangeObserver
+	implements ChangeObserverContract<ChangeSystemCaptureRequest, ChangeSystemCapture, EngineMutation> {
+
 	/**
 	 * Single shared publisher to process engine mutations and notify all subscribers. There is always only one instance
 	 * because it's at least used by internal subscribers and there are no complex request criteria that would require
@@ -91,14 +80,11 @@ public class SystemChangeObserver implements ChangeObserverContract<ChangeSystem
 		@Nonnull ExecutorService cdcExecutor,
 		@Nonnull Scheduler scheduler
 	) {
-		this.evita = evita;
-		this.cdcOptions = cdcOptions;
-		this.cdcExecutor = cdcExecutor;
 		this.sharedPublisher = new ChangeSystemCaptureSharedPublisher(
-			this.evita,
-			this.cdcExecutor,
-			this.cdcOptions.recentEventsCacheLimit(),
-			this.cdcOptions.subscriberBufferSize(),
+			evita,
+			cdcExecutor,
+			cdcOptions.recentEventsCacheLimit(),
+			cdcOptions.subscriberBufferSize(),
 			this::updateStatistics
 		);
 		this.cleaner = new DelayedAsyncTask(
@@ -172,13 +158,22 @@ public class SystemChangeObserver implements ChangeObserverContract<ChangeSystem
 	}
 
 	/**
+	 * Retrieves the total number of active subscribers currently registered in the publisher.
+	 *
+	 * @return the count of active subscribers
+	 */
+	public int getSubscribersCount() {
+		return this.sharedPublisher.getSubscribersCount();
+	}
+
+	/**
 	 * Cleans up inactive or unnecessary subscribers from the shared publisher.
 	 * It checks if there are any subscribers left using the shared publisher's
 	 * checkSubscribersLeft method, and ensures proper cleanup when no subscribers remain.
 	 *
 	 * @return the milliseconds deviation to the next scheduled run (always zero)
 	 */
-	private long cleanSubscribers() {
+	long cleanSubscribers() {
 		this.sharedPublisher.checkSubscribersLeft();
 		return 0L;
 	}

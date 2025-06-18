@@ -42,8 +42,8 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionMode
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.MutationEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -313,7 +313,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	public Optional<ModifyCatalogSchemaMutation> toMutation() {
 		return this.mutations.isEmpty() ?
 			Optional.empty() :
-			Optional.of(new ModifyCatalogSchemaMutation(getName(), this.mutations.toArray(EMPTY_ARRAY)));
+			Optional.of(new ModifyCatalogSchemaMutation(getName(), null, this.mutations.toArray(EMPTY_ARRAY)));
 	}
 
 	@Delegate(types = CatalogSchemaContract.class, excludes = {NamedSchemaContract.class, EntitySchemaProvider.class})

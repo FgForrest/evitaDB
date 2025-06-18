@@ -69,8 +69,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.task.Task;
 import io.evitadb.dataType.Scope;
@@ -747,10 +747,19 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 			catalogSchemaBuilder.getName().equals(getCatalogName()),
 			"Schema builder targets `" + catalogSchemaBuilder.getName() + "` catalog, but the session targets `" + getCatalogName() + "` catalog!"
 		);
-		return catalogSchemaBuilder.toMutation()
-			.map(ModifyCatalogSchemaMutation::getSchemaMutations)
-			.map(this::updateCatalogSchema)
-			.orElseGet(() -> getCatalogSchema().version());
+		catalogSchemaBuilder
+			.toMutation()
+			.ifPresent(
+				mutation -> this.getEvita().applyMutation(
+					new ModifyCatalogSchemaMutation(
+						mutation.getCatalogName(),
+						this.getId(),
+						mutation.getSchemaMutations()
+					)
+				)
+			);
+		// schema should be already updated in the evitaDB instance, so we can just return the version
+		return getCatalogSchema().version();
 	}
 
 	/**

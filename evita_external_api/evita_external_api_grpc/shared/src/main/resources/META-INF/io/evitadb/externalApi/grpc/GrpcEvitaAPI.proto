@@ -7,7 +7,7 @@ option csharp_namespace = "EvitaDB";
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 import "GrpcEnums.proto";
-import "GrpcCatalogSchemaMutation.proto";
+import "GrpcEngineMutation.proto";
 import "GrpcChangeCapture.proto";
 
 // Response to a server status request.
@@ -122,10 +122,10 @@ message GrpcDeleteCatalogIfExistsResponse {
   bool success = 1;
 }
 
-// Request to update the catalog.
-message GrpcUpdateEvitaRequest {
-  // Collection of top level catalog schema mutations to be applied.
-  repeated GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;
+// Request to apply mutation on engine level.
+message GrpcApplyMutationRequest {
+  // Single engine level mutation to be applied.
+  GrpcEngineMutation mutation = 1;
 }
 
 /* TODO JNO - document */
@@ -166,7 +166,7 @@ service EvitaService {
   // Procedure used to delete an existing catalog.
   rpc DeleteCatalogIfExists(GrpcDeleteCatalogIfExistsRequest) returns (GrpcDeleteCatalogIfExistsResponse);
   // Procedure used to update the catalog with a set of mutations.
-  rpc Update(GrpcUpdateEvitaRequest) returns (google.protobuf.Empty);
+  rpc ApplyMutation(GrpcApplyMutationRequest) returns (google.protobuf.Empty);
   // Procedure used to rename an existing catalog.
   rpc RenameCatalog(GrpcRenameCatalogRequest) returns (GrpcRenameCatalogResponse);
   // Procedure used to replace an existing catalog.

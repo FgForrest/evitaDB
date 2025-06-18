@@ -23,24 +23,12 @@
 
 package io.evitadb.api.requestResponse.schema.mutation;
 
-import io.evitadb.api.requestResponse.mutation.EngineMutation;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-
-import javax.annotation.Nonnull;
-
 /**
  * This interface marks all mutations that needs to be executed on entire evitaDB level and not locally to
- * single catalog schema instance.
+ * a single catalog schema instance.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface TopLevelCatalogSchemaMutation extends CatalogSchemaMutation, EngineMutation {
-
-	/**
-	 * Returns the name of the modified catalog schema.
-	 * @see CatalogSchemaContract#getName()
-	 */
-	@Nonnull
-	String getCatalogName();
+public interface TopLevelCatalogSchemaMutation extends CatalogSchemaMutation, TopLevelCatalogMutation {
 
 }
