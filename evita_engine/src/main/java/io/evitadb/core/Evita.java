@@ -45,6 +45,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
@@ -67,6 +68,7 @@ import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.executor.ClientRunnableTask;
 import io.evitadb.core.executor.EmptySettings;
+import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.core.executor.ObservableThreadExecutor;
 import io.evitadb.core.executor.Scheduler;
@@ -179,7 +181,7 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Change observer that is used to notify all registered subscribers about changes in the catalogs.
 	 */
-	private final SystemChangeObserver changeObserver;
+	@Getter private final SystemChangeObserver changeObserver;
 	/**
 	 * Executor service that handles all requests to the Evita instance.
 	 */
@@ -249,17 +251,21 @@ public final class Evita implements EvitaContract {
 	public Evita(@Nonnull EvitaConfiguration configuration) {
 		this.configuration = configuration;
 
-		this.serviceExecutor = new Scheduler(
-			configuration.server().serviceThreadPool()
-		);
+		this.serviceExecutor = DevelopmentConstants.isTestRun() ?
+			// in test environment we use immediate (synchronous) executor to avoid race conditions
+			new Scheduler(new ImmediateScheduledThreadPoolExecutor()) :
+			// in standard environment we use a scheduled thread pool executor
+			new Scheduler(configuration.server().serviceThreadPool());
 		this.requestExecutor = new ObservableThreadExecutor(
 			"request", configuration.server().requestThreadPool(),
 			this.serviceExecutor,
 			configuration.server().queryTimeoutInMilliseconds()
 		);
 		this.transactionExecutor = new ObservableThreadExecutor(
-			"transaction", configuration.server().transactionThreadPool(),
-			this.serviceExecutor, configuration.server().transactionTimeoutInMilliseconds()
+			"transaction",
+			configuration.server().transactionThreadPool(),
+			this.serviceExecutor,
+			configuration.server().transactionTimeoutInMilliseconds()
 		);
 
 		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())

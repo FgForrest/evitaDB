@@ -25,6 +25,7 @@ package io.evitadb.core.executor;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import jdk.jfr.Event;
@@ -73,7 +74,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	/**
 	 * Java based fork join pool that does the heavy lifting.
 	 */
-	private final ForkJoinPool forkJoinPool;
+	private final ExecutorService executorService;
 	/**
 	 * Counter monitoring the number of tasks submitted to the executor service.
 	 */
@@ -108,18 +109,22 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	) {
 		this.name = name;
 		final int processorsCount = Runtime.getRuntime().availableProcessors();
-		this.forkJoinPool = new ForkJoinPool(
-			Math.min(options.minThreadCount(), processorsCount),
-			pool -> new EvitaWorkerThread(pool, name, options.threadPriority()),
-			LoggingUncaughtExceptionHandler.INSTANCE,
-			true,
-			options.minThreadCount(),
-			options.maxThreadCount(),
-			1,
-			null,
-			60,
-			TimeUnit.SECONDS
-		);
+		this.executorService = DevelopmentConstants.isTestRun() ?
+			// in test environment we use a simplified executor that runs tasks immediately (synchronously)
+			new ImmediateExecutorService() :
+			// in standard environment we use a ForkJoinPool that allows to run tasks asynchronously
+			new ForkJoinPool(
+				Math.min(options.minThreadCount(), processorsCount),
+				pool -> new EvitaWorkerThread(pool, name, options.threadPriority()),
+				LoggingUncaughtExceptionHandler.INSTANCE,
+				true,
+				options.minThreadCount(),
+				options.maxThreadCount(),
+				1,
+				null,
+				60,
+				TimeUnit.SECONDS
+			);
 		this.rejectedExecutionHandler = new EvitaRejectingExecutorHandler(name, this.rejectedTaskCount::incrementAndGet);
 		this.timeoutInMilliseconds = timeoutInMilliseconds;
 		// create queue with double the size of the configured queue size to have some breathing room
@@ -135,16 +140,6 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 				TimeUnit.MILLISECONDS
 			);
 		}
-	}
-
-	/**
-	 * Returns the internal fork join pool. This method is intended for observability purposes only.
-	 *
-	 * @return the internal fork join pool
-	 */
-	@Nonnull
-	public ForkJoinPool getForkJoinPoolInternal() {
-		return this.forkJoinPool;
 	}
 
 	@Override
@@ -164,7 +159,8 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
 		return new ObservableRunnable(
 			stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown",
-			lambda, this.timeoutInMilliseconds);
+			lambda, this.timeoutInMilliseconds
+		);
 	}
 
 	@Override
@@ -179,7 +175,8 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
 		return new ObservableRunnable(
 			stackTrace.length > 1 ? stackTrace[1].toString() : "Unknown",
-			lambda, timeoutInMilliseconds);
+			lambda, timeoutInMilliseconds
+		);
 	}
 
 	@Override
@@ -227,7 +224,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	@Override
 	public void execute(@Nonnull Runnable command) {
 		try {
-			this.forkJoinPool.execute(registerTask(command, this.timeoutInMilliseconds));
+			this.executorService.execute(registerTask(command, this.timeoutInMilliseconds));
 			this.submittedTaskCount.incrementAndGet();
 		} catch (RejectedExecutionException e) {
 			this.rejectedExecutionHandler.rejectedExecution();
@@ -236,23 +233,23 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 
 	@Override
 	public void shutdown() {
-		this.forkJoinPool.shutdown();
+		this.executorService.shutdown();
 	}
 
 	@Nonnull
 	@Override
 	public List<Runnable> shutdownNow() {
-		return this.forkJoinPool.shutdownNow();
+		return this.executorService.shutdownNow();
 	}
 
 	@Override
 	public boolean isShutdown() {
-		return this.forkJoinPool.isShutdown();
+		return this.executorService.isShutdown();
 	}
 
 	@Override
 	public boolean isTerminated() {
-		return this.forkJoinPool.isTerminated();
+		return this.executorService.isTerminated();
 	}
 
 	/*
@@ -261,14 +258,14 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 
 	@Override
 	public boolean awaitTermination(long timeout, @Nonnull TimeUnit unit) throws InterruptedException {
-		return this.forkJoinPool.awaitTermination(timeout, unit);
+		return this.executorService.awaitTermination(timeout, unit);
 	}
 
 	@Nonnull
 	@Override
-	public <T> ForkJoinTask<T> submit(@Nonnull Callable<T> task) {
+	public <T> Future<T> submit(@Nonnull Callable<T> task) {
 		try {
-			final ForkJoinTask<T> result = this.forkJoinPool.submit(registerTask(task, this.timeoutInMilliseconds));
+			final Future<T> result = this.executorService.submit(registerTask(task, this.timeoutInMilliseconds));
 			this.submittedTaskCount.incrementAndGet();
 			return result;
 		} catch (RejectedExecutionException e) {
@@ -279,9 +276,9 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 
 	@Nonnull
 	@Override
-	public <T> ForkJoinTask<T> submit(@Nonnull Runnable task, T result) {
+	public <T> Future<T> submit(@Nonnull Runnable task, T result) {
 		try {
-			final ForkJoinTask<T> forkJoinTask = this.forkJoinPool.submit(registerTask(task, this.timeoutInMilliseconds), result);
+			final Future<T> forkJoinTask = this.executorService.submit(registerTask(task, this.timeoutInMilliseconds), result);
 			this.submittedTaskCount.incrementAndGet();
 			return forkJoinTask;
 		} catch (RejectedExecutionException e) {
@@ -292,9 +289,9 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 
 	@Nonnull
 	@Override
-	public ForkJoinTask<?> submit(@Nonnull Runnable task) {
+	public Future<?> submit(@Nonnull Runnable task) {
 		try {
-			final ForkJoinTask<?> forkJoinTask = this.forkJoinPool.submit(registerTask(task, this.timeoutInMilliseconds));
+			final Future<?> forkJoinTask = this.executorService.submit(registerTask(task, this.timeoutInMilliseconds));
 			this.submittedTaskCount.incrementAndGet();
 			return forkJoinTask;
 		} catch (RejectedExecutionException e) {
@@ -308,12 +305,15 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks) {
 		try {
 			final List<Callable<T>> tasksToSubmit = tasks.stream().map(it -> this.registerTask(it, this.timeoutInMilliseconds)).toList();
-			final List<Future<T>> futures = this.forkJoinPool.invokeAll(tasksToSubmit);
+			final List<Future<T>> futures = this.executorService.invokeAll(tasksToSubmit);
 			this.submittedTaskCount.addAndGet(futures.size());
 			return futures;
 		} catch (RejectedExecutionException e) {
 			this.rejectedExecutionHandler.rejectedExecution();
 			throw e;
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new RejectedExecutionException("Thread was interrupted while waiting for tasks to complete.", e);
 		}
 	}
 
@@ -323,12 +323,15 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 		try {
 			final long theTimeout = Math.min(this.timeoutInMilliseconds, unit.toMillis(timeout));
 			final List<Callable<T>> tasksToSubmit = tasks.stream().map(it -> this.registerTask(it, theTimeout)).toList();
-			final List<Future<T>> futures = this.forkJoinPool.invokeAll(tasksToSubmit);
+			final List<Future<T>> futures = this.executorService.invokeAll(tasksToSubmit);
 			this.submittedTaskCount.addAndGet(futures.size());
 			return futures;
 		} catch (RejectedExecutionException e) {
 			this.rejectedExecutionHandler.rejectedExecution();
 			throw e;
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new RejectedExecutionException("Thread was interrupted while waiting for tasks to complete.", e);
 		}
 	}
 
@@ -337,7 +340,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
 		try {
 			final List<Callable<T>> tasksToSubmit = tasks.stream().map(it -> this.registerTask(it, this.timeoutInMilliseconds)).toList();
-			final T result = this.forkJoinPool.invokeAny(tasksToSubmit);
+			final T result = this.executorService.invokeAny(tasksToSubmit);
 			this.submittedTaskCount.incrementAndGet();
 			return result;
 		} catch (RejectedExecutionException e) {
@@ -351,7 +354,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 		try {
 			final long theTimeout = Math.min(this.timeoutInMilliseconds, unit.toMillis(timeout));
 			final List<Callable<T>> tasksToSubmit = tasks.stream().map(it -> this.registerTask(it, theTimeout)).toList();
-			final T result = this.forkJoinPool.invokeAny(tasksToSubmit);
+			final T result = this.executorService.invokeAny(tasksToSubmit);
 			this.submittedTaskCount.incrementAndGet();
 			return result;
 		} catch (RejectedExecutionException e) {
@@ -364,9 +367,14 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	 * Emits statistics of the ForkJoinPool associated with the request executor.
 	 */
 	public void emitPoolStatistics(@Nonnull BiFunction<ForkJoinPool, Long, Event> eventFactory) {
-		final long currentStealCount = this.forkJoinPool.getStealCount();
-		eventFactory.apply(this.forkJoinPool, currentStealCount - this.executorSteals).commit();
-		this.executorSteals = currentStealCount;
+		if (this.executorService instanceof ForkJoinPool fjp) {
+			// emit statistics of the pool
+			final long currentStealCount = fjp.getStealCount();
+			eventFactory.apply(fjp, currentStealCount - this.executorSteals).commit();
+			this.executorSteals = currentStealCount;
+		} else {
+			// emit no statistics if the pool is not a ForkJoinPool
+		}
 	}
 
 	/**

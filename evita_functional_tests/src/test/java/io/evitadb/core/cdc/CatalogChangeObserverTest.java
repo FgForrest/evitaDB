@@ -170,7 +170,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 		// Get and reconfigure the CatalogChangeObserver
 		final CatalogChangeObserver tested = (CatalogChangeObserver) catalog.getTransactionManager().getChangeObserver();
-		setFieldValue(tested, "cdcExecutor", ImmediateExecutorService.INSTANCE);
+		setFieldValue(tested, "cdcExecutor", new ImmediateExecutorService());
 
 		// Notify the observer about the catalog being present in the live view
 		// This is required for the observer to start reading mutations
@@ -225,7 +225,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 		// Get and reconfigure the CatalogChangeObserver
 		final CatalogChangeObserver tested = (CatalogChangeObserver) catalog.getTransactionManager().getChangeObserver();
-		setFieldValue(tested, "cdcExecutor", ImmediateExecutorService.INSTANCE);
+		setFieldValue(tested, "cdcExecutor", new ImmediateExecutorService());
 
 		// Notify the observer about the catalog being present in the live view
 		// This is required for the observer to start reading mutations
@@ -291,7 +291,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 		// Get and reconfigure the CatalogChangeObserver
 		final CatalogChangeObserver tested = (CatalogChangeObserver) catalog.getTransactionManager().getChangeObserver();
-		setFieldValue(tested, "cdcExecutor", ImmediateExecutorService.INSTANCE);
+		setFieldValue(tested, "cdcExecutor", new ImmediateExecutorService());
 
 		// Notify the observer about the catalog being present in the live view
 		// This is required for the observer to start reading mutations
@@ -379,7 +379,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 		// Get and reconfigure the CatalogChangeObserver
 		final CatalogChangeObserver tested = (CatalogChangeObserver) catalog.getTransactionManager().getChangeObserver();
-		setFieldValue(tested, "cdcExecutor", ImmediateExecutorService.INSTANCE);
+		setFieldValue(tested, "cdcExecutor", new ImmediateExecutorService());
 
 		// Notify the observer about the catalog being present in the live view
 		tested.notifyCatalogPresentInLiveView(catalog);
@@ -542,7 +542,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 		// Get and reconfigure the CatalogChangeObserver
 		final CatalogChangeObserver tested = (CatalogChangeObserver) catalog.getTransactionManager().getChangeObserver();
-		setFieldValue(tested, "cdcExecutor", ImmediateExecutorService.INSTANCE);
+		setFieldValue(tested, "cdcExecutor", new ImmediateExecutorService());
 
 		// Notify the observer about the catalog being present in the live view
 		tested.notifyCatalogPresentInLiveView(catalog);
@@ -633,7 +633,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 		// Get and reconfigure the CatalogChangeObserver
 		final CatalogChangeObserver tested = (CatalogChangeObserver) catalog.getTransactionManager().getChangeObserver();
-		setFieldValue(tested, "cdcExecutor", ImmediateExecutorService.INSTANCE);
+		setFieldValue(tested, "cdcExecutor", new ImmediateExecutorService());
 
 		// Get the uniquePublishers map
 		final Map<ChangeCatalogCriteriaBundle, ChangeCatalogCaptureSharedPublisher> uniquePublishers =

@@ -24,9 +24,6 @@
 package io.evitadb.core.executor;
 
 
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -43,9 +40,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class ImmediateExecutorService implements ExecutorService {
-	public static final ImmediateExecutorService INSTANCE = new ImmediateExecutorService();
 	private boolean shutdown = false;
 
 	/**

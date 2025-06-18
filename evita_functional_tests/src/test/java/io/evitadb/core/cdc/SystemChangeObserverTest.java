@@ -24,7 +24,6 @@
 package io.evitadb.core.cdc;
 
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
@@ -36,8 +35,6 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.core.executor.ImmediateExecutorService;
-import io.evitadb.core.executor.Scheduler;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -47,7 +44,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import tool.ImmediateScheduledThreadPoolExecutor;
 
 import javax.annotation.Nonnull;
 import java.util.HashSet;
@@ -57,7 +53,6 @@ import java.util.UUID;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static tool.ReflectionUtils.getNonnullFieldValue;
 
@@ -91,6 +86,35 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 	 * to manage test data lifecycle.
 	 */
 	private static final String SYSTEM_CDC_TRANSACTIONS = "systemCdcTransactions";
+
+	/**
+	 * Processes the recorded events captured by the provided subscriber and updates the set of expected operations
+	 * by removing operations that have been completed based on the type of mutation observed.
+	 *
+	 * @param subscriber         the {@link MockSystemChangeSubscriber} instance that captures mutation events
+	 * @param expectedOperations the set of operation IDs that are expected to be processed, which are
+	 *                           updated by removing operations corresponding to the processed events
+	 */
+	private static void processRecordedEvents(
+		@Nonnull MockSystemChangeSubscriber subscriber,
+		@Nonnull Set<String> expectedOperations
+	) {
+		for (ChangeSystemCapture capture : subscriber.getItems()) {
+			EngineMutation mutation = capture.body();
+			if (mutation instanceof CreateCatalogSchemaMutation ccsm) {
+				expectedOperations.remove("create_" + ccsm.getCatalogName());
+			} else if (mutation instanceof ModifyCatalogSchemaMutation mcsm) {
+				expectedOperations.remove("modify_" + mcsm.getCatalogName());
+			} else if (mutation instanceof ModifyCatalogSchemaNameMutation mcsnm) {
+				expectedOperations.remove("remove_" + mcsnm.getCatalogName());
+				expectedOperations.remove("create_" + mcsnm.getNewCatalogName());
+			} else if (mutation instanceof RemoveCatalogSchemaMutation rccsm) {
+				expectedOperations.remove("remove_" + rccsm.getCatalogName());
+			} else if (mutation instanceof MakeCatalogAliveMutation glcm) {
+				expectedOperations.remove("goLive_" + glcm.getCatalogName());
+			}
+		}
+	}
 
 	/**
 	 * Sets up the test data for CDC (Change Data Capture) testing.
@@ -181,21 +205,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 				)
 			);
 
-			for (ChangeSystemCapture capture : subscriber.getItems()) {
-				EngineMutation mutation = capture.body();
-				if (mutation instanceof CreateCatalogSchemaMutation ccsm) {
-					expectedOperations.remove("create_" + ccsm.getCatalogName());
-				} else if (mutation instanceof ModifyCatalogSchemaMutation mcsm) {
-					expectedOperations.remove("modify_" + mcsm.getCatalogName());
-				} else if (mutation instanceof ModifyCatalogSchemaNameMutation mcsnm) {
-					expectedOperations.remove("remove_" + mcsnm.getCatalogName());
-					expectedOperations.remove("create_" + mcsnm.getNewCatalogName());
-				} else if (mutation instanceof RemoveCatalogSchemaMutation rccsm) {
-					expectedOperations.remove("remove_" + rccsm.getCatalogName());
-				} else if (mutation instanceof MakeCatalogAliveMutation glcm) {
-					expectedOperations.remove("goLive_" + glcm.getCatalogName());
-				}
-			}
+			processRecordedEvents(subscriber, expectedOperations);
 
 			// Verify that all expected operations were received
 			assertTrue(
@@ -250,20 +260,26 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 			evita.defineCatalog(newCatalog);
 			evita.updateCatalog(newCatalog, EvitaSessionContract::goLiveAndClose);
 
-			// Verify that the subscriber received exactly 1 item (the catalog creation mutation)
-			assertEquals(1, subscriber.getItems().size(), "Should receive 1 mutation for the new catalog creation");
-
-			// Verify that the mutation is a CreateCatalogSchemaMutation
-			EngineMutation mutation = subscriber.getItems().get(0).body();
-			assertInstanceOf(
-				CreateCatalogSchemaMutation.class, mutation, "The mutation should be a CreateCatalogSchemaMutation");
-
-			// Verify that the catalog name matches
-			CreateCatalogSchemaMutation createMutation = (CreateCatalogSchemaMutation) mutation;
-			assertEquals(
-				newCatalog, createMutation.getCatalogName(),
-				"The catalog name should match the newly created catalog"
+			// Define the expected operations for the new catalog
+			final Set<String> expectedOperations = new HashSet<>(
+				Set.of(
+					"create_" + newCatalog, // create new catalog
+					"goLive_" + newCatalog // make catalog go live
+				)
 			);
+
+			// Verify the mutations received by the subscriber
+			processRecordedEvents(subscriber, expectedOperations);
+
+			// Verify that all expected operations were received
+			assertTrue(
+				expectedOperations.isEmpty(),
+				"All expected operations should be received by the subscriber. " +
+					"Remaining: " + String.join(",", expectedOperations)
+			);
+
+			// Verify that the subscriber received exactly 4 items (2x transaction mutation, create and go live)
+			assertEquals(4, subscriber.getItems().size(), "Should receive 4 mutations");
 		}
 	}
 
@@ -284,22 +300,8 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 	@Test
 	@DisplayName("unregister an observer correctly")
 	void shouldUnregisterObserverCorrectly(@Nonnull Evita evita) {
-		// Create a new SystemChangeObserver with an immediate executor service
-		final SystemChangeObserver tested = new SystemChangeObserver(
-			evita,
-			ChangeDataCaptureOptions
-				.builder()
-				.enabled(true)
-				.build(),
-			ImmediateExecutorService.INSTANCE,
-			new Scheduler(new ImmediateScheduledThreadPoolExecutor())
-		);
-
 		// Get the current engine version
 		final long currentVersion = evita.getEngineState().version();
-
-		// Notify the observer about the engine version being present in the live view
-		tested.notifyVersionPresentInLiveView(currentVersion);
 
 		// Create a request to capture mutations
 		final ChangeSystemCaptureRequest request = new ChangeSystemCaptureRequest(
@@ -309,7 +311,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 		);
 
 		// Register an observer
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher = tested.registerObserver(request);
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(request);
 		final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
 		publisher.subscribe(subscriber);
 
@@ -318,11 +320,28 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 		evita.defineCatalog(firstCatalog);
 		evita.updateCatalog(firstCatalog, EvitaSessionContract::goLiveAndClose);
 
-		// Notify the observer about the new engine version
-		tested.notifyVersionPresentInLiveView(evita.getEngineState().version());
+		// Define the expected operations for the first catalog
+		final Set<String> expectedOperations = new HashSet<>(
+			Set.of(
+				"create_" + firstCatalog, // create first catalog
+				"goLive_" + firstCatalog // make catalog go live
+			)
+		);
 
-		// Verify the subscriber received the mutation
-		assertEquals(1, subscriber.getItems().size(), "Should receive 1 mutation for the first catalog creation");
+		// Verify the mutations received by the subscriber
+		processRecordedEvents(subscriber, expectedOperations);
+
+		// Verify that all expected operations were received
+		assertTrue(
+			expectedOperations.isEmpty(),
+			"All expected operations should be received by the subscriber. " +
+				"Remaining: " + String.join(",", expectedOperations)
+		);
+
+		// Verify the subscriber received the mutations (2x transaction mutation, create and go live)
+		assertEquals(4, subscriber.getItems().size(), "Should receive 4 mutations");
+
+		final SystemChangeObserver tested = evita.getChangeObserver();
 
 		// Unregister the observer
 		assertTrue(
@@ -344,13 +363,10 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 		evita.defineCatalog(secondCatalog);
 		evita.updateCatalog(secondCatalog, EvitaSessionContract::goLiveAndClose);
 
-		// Notify the observer about the new engine version
-		tested.notifyVersionPresentInLiveView(evita.getEngineState().version());
-
 		// Verify the subscriber still has only the original mutation
 		assertEquals(
-			1, subscriber.getItems().size(),
-			"Should still have only 1 mutation after unregistering"
+			4, subscriber.getItems().size(),
+			"Should still have only 4 mutations after unregistering"
 		);
 	}
 
@@ -398,18 +414,22 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 
 		// Check initial subscriber count
 		final int initialCount = systemChangeObserver.getSubscribersCount();
-		assertEquals(3, initialCount, "Should have 3 subscribers initially");
+		assertEquals(4, initialCount, "Should have 3 + 1 subscribers initially");
 
 		// Close some publishers to make them inactive
 		publisher1.close();
 		publisher2.close();
+
+		assertTrue(subscriber1.isCompleted(), "Subscriber 1 should be completed after cleaning");
+		assertTrue(subscriber2.isCompleted(), "Subscriber 2 should be completed after cleaning");
+		assertFalse(subscriber3.isCompleted(), "Subscriber 3 should not be completed after cleaning");
 
 		// Call cleanSubscribers
 		systemChangeObserver.cleanSubscribers();
 
 		// Verify that inactive publishers are removed
 		final int countAfterClean = systemChangeObserver.getSubscribersCount();
-		assertEquals(1, countAfterClean, "Should have 1 subscriber after cleaning");
+		assertEquals(2, countAfterClean, "Should have 1 + 1 subscriber after cleaning");
 
 		// Close the last publisher
 		publisher3.close();
@@ -417,8 +437,11 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 		// Clean again
 		systemChangeObserver.cleanSubscribers();
 
-		// Verify all publishers are removed
-		assertEquals(0, systemChangeObserver.getSubscribersCount(), "All subscribers should be removed after cleaning");
+		// Verify all publishers are removed (except the system publisher)
+		assertEquals(1, systemChangeObserver.getSubscribersCount(), "All subscribers except system one should be removed after cleaning");
+		assertTrue(subscriber1.isCompleted(), "Subscriber 1 should be completed after cleaning");
+		assertTrue(subscriber2.isCompleted(), "Subscriber 2 should be completed after cleaning");
+		assertTrue(subscriber3.isCompleted(), "Subscriber 3 should be completed after cleaning");
 	}
 
 	/**
@@ -456,10 +479,10 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 
 		// Register the subscribers
 		try (
-			final ChangeCapturePublisher<ChangeSystemCapture> entireWalPublisher = evita.registerSystemChangeCapture(
-				entireWalRequest);
-			final ChangeCapturePublisher<ChangeSystemCapture> newMutationsPublisher = evita.registerSystemChangeCapture(
-				newMutationsRequest)
+			final ChangeCapturePublisher<ChangeSystemCapture> entireWalPublisher =
+				evita.registerSystemChangeCapture(entireWalRequest);
+			final ChangeCapturePublisher<ChangeSystemCapture> newMutationsPublisher =
+				evita.registerSystemChangeCapture(newMutationsRequest)
 		) {
 			// Create subscribers
 			final MockSystemChangeSubscriber entireWalSubscriber = new MockSystemChangeSubscriber();
@@ -469,11 +492,32 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 			entireWalPublisher.subscribe(entireWalSubscriber);
 			newMutationsPublisher.subscribe(newMutationsSubscriber);
 
-			// Verify initial subscribers received expected data
-			// The entireWalSubscriber should have received all existing mutations
+			// Define the expected operations for the initial state
+			final Set<String> expectedInitialOperations = new HashSet<>(
+				Set.of(
+					"create_" + TEST_CATALOG, // create catalog
+					"modify_" + TEST_CATALOG, // modify catalog schema (description change)
+					"goLive_" + TEST_CATALOG, // go live operation for the first catalog
+					"create_" + TEST_CATALOG + "_second", // create second catalog
+					"goLive_" + TEST_CATALOG + "_second", // go live operation for the second catalog
+					"remove_" + TEST_CATALOG + "_second" // remove second catalog
+				)
+			);
+
+			// Verify the mutations received by the entireWalSubscriber
+			processRecordedEvents(entireWalSubscriber, expectedInitialOperations);
+
+			// Verify that all expected initial operations were received by entireWalSubscriber
 			assertTrue(
-				entireWalSubscriber.getItems().size() >= 4,
-				"Should receive at least 4 mutations from the beginning"
+				expectedInitialOperations.isEmpty(),
+				"All expected initial operations should be received by the entireWalSubscriber. " +
+					"Remaining: " + String.join(",", expectedInitialOperations)
+			);
+
+			// Verify that entireWalSubscriber received new 12 mutations
+			assertEquals(
+				12, entireWalSubscriber.getItems().size(),
+				"entireWalSubscriber should receive 12 mutations"
 			);
 
 			// The newMutationsSubscriber should not have received any mutations yet
@@ -487,16 +531,43 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 			evita.defineCatalog(firstNewCatalog);
 			evita.updateCatalog(firstNewCatalog, EvitaSessionContract::goLiveAndClose);
 
-			// Verify both subscribers received the new mutation
-			assertEquals(
-				entireWalSubscriber.getItems().size(),
-				newMutationsSubscriber.getItems().size() + 4,
-				"entireWalSubscriber should have 4 more mutations than newMutationsSubscriber"
+			// Define the expected operations for the first new catalog
+			final Set<String> expectedFirstNewOperations = new HashSet<>(
+				Set.of(
+					"create_" + firstNewCatalog, // create first new catalog
+					"goLive_" + firstNewCatalog // make first new catalog go live
+				)
+			);
+			final Set<String> expectedFirstNewOperationsCopy = new HashSet<>(expectedFirstNewOperations);
+
+			// Verify the mutations received by the newMutationsSubscriber
+			processRecordedEvents(entireWalSubscriber, expectedFirstNewOperations);
+			processRecordedEvents(newMutationsSubscriber, expectedFirstNewOperationsCopy);
+
+			// Verify that all expected operations for the first new catalog were received by entireWalSubscriber
+			assertTrue(
+				expectedFirstNewOperations.isEmpty(),
+				"All expected operations for the first new catalog should be received by the entireWalSubscriber. " +
+					"Remaining: " + String.join(",", expectedFirstNewOperations)
 			);
 
+			// Verify that all expected operations for the first new catalog were received by newMutationsSubscriber
+			assertTrue(
+				expectedFirstNewOperationsCopy.isEmpty(),
+				"All expected operations for the first new catalog should be received by the newMutationsSubscriber. " +
+					"Remaining: " + String.join(",", expectedFirstNewOperationsCopy)
+			);
+
+			// Verify that entireWalSubscriber received new 4 mutations (2x transaction mutation, create and go live)
 			assertEquals(
-				1, newMutationsSubscriber.getItems().size(),
-				"newMutationsSubscriber should receive 1 mutation"
+				16, entireWalSubscriber.getItems().size(),
+				"entireWalSubscriber should receive 16 mutations"
+			);
+
+			// Verify that entireWalSubscriber received 4 mutations (2x transaction mutation, create and go live)
+			assertEquals(
+				4, newMutationsSubscriber.getItems().size(),
+				"newMutationsSubscriber should receive 4 mutations"
 			);
 
 			// Create a third subscriber that starts from the current version
@@ -518,29 +589,30 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 				evita.defineCatalog(secondNewCatalog);
 				evita.updateCatalog(secondNewCatalog, EvitaSessionContract::goLiveAndClose);
 
-				// Verify all subscribers received the new mutation
-				assertEquals(
-					entireWalSubscriber.getItems().size() - 5,
-					newMutationsSubscriber.getItems().size() - 1,
-					"Both subscribers should receive the same number of new mutations"
+				// Define the expected operations for the second new catalog
+				final Set<String> expectedSecondNewOperations = new HashSet<>(
+					Set.of(
+						"goLive_" + firstNewCatalog, // make first new catalog go live
+						"create_" + secondNewCatalog, // create second new catalog
+						"goLive_" + secondNewCatalog // make second new catalog go live
+					)
 				);
 
-				assertEquals(
-					1, latestMutationsSubscriber.getItems().size(),
-					"latestMutationsSubscriber should receive 1 mutation"
+				// Verify the mutations received by the latestMutationsSubscriber
+				processRecordedEvents(latestMutationsSubscriber, expectedSecondNewOperations);
+
+				// Verify that all expected operations for the second new catalog were received
+				assertTrue(
+					expectedSecondNewOperations.isEmpty(),
+					"All expected operations for the second new catalog should be received by the latestMutationsSubscriber. " +
+						"Remaining: " + String.join(",", expectedSecondNewOperations)
 				);
 
-				// Verify the mutation is a CreateCatalogSchemaMutation for the second new catalog
-				EngineMutation mutation = latestMutationsSubscriber.getItems().get(0).body();
-				assertInstanceOf(
-					CreateCatalogSchemaMutation.class, mutation,
-					"The mutation should be a CreateCatalogSchemaMutation"
-				);
-
-				CreateCatalogSchemaMutation createMutation = (CreateCatalogSchemaMutation) mutation;
+				// Verify that latestMutationsSubscriber received new 4 mutations (2x transaction mutation, create and go live)
+				// and two from the previous version (transaction + go live of the first new catalog)
 				assertEquals(
-					secondNewCatalog, createMutation.getCatalogName(),
-					"The catalog name should match the second newly created catalog"
+					6, latestMutationsSubscriber.getItems().size(),
+					"latestMutationsSubscriber should receive 6 mutations"
 				);
 			}
 		}

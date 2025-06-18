@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssocia
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.trafficRecording.*;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
+import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -49,7 +50,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import tool.ImmediateScheduledThreadPoolExecutor;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;

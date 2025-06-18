@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package tool;
+package io.evitadb.core.executor;
 
 
 import lombok.EqualsAndHashCode;
@@ -29,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Delayed;
@@ -49,6 +50,7 @@ import java.util.concurrent.TimeUnit;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class ImmediateScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor {
+	private boolean shutdown = false;
 
 	public ImmediateScheduledThreadPoolExecutor() {
 		super(1);
@@ -109,6 +111,35 @@ public class ImmediateScheduledThreadPoolExecutor extends ScheduledThreadPoolExe
 		} catch (Exception e) {
 			return CompletableFuture.failedFuture(e);
 		}
+	}
+
+	@Override
+	public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+		return true; // Always terminated since tasks are executed immediately
+	}
+
+	@Override
+	public boolean isTerminated() {
+		return this.shutdown; // Terminated if shutdown has been called
+	}
+
+	@Override
+	public boolean isShutdown() {
+		return this.shutdown;
+	}
+
+	@Nonnull
+	@Override
+	public List<Runnable> shutdownNow() {
+		this.shutdown = true;
+		super.shutdownNow();
+		return List.of(); // No pending tasks to return
+	}
+
+	@Override
+	public void shutdown() {
+		this.shutdown = true;
+		super.shutdown();
 	}
 
 	@RequiredArgsConstructor
