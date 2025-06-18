@@ -24,6 +24,8 @@
 package io.evitadb.core.query;
 
 import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.IntIntHashMap;
+import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.IntSet;
@@ -52,6 +54,7 @@ import io.evitadb.api.requestResponse.chunk.OffsetAndLimit;
 import io.evitadb.api.requestResponse.chunk.PageTransformer;
 import io.evitadb.api.requestResponse.chunk.Slicer;
 import io.evitadb.api.requestResponse.chunk.StripTransformer;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -90,6 +93,7 @@ import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.function.TriFunction;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -121,6 +125,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -1055,7 +1060,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					.filter(it -> it.getGroup().map(GroupEntityReference::primaryKey).map(groupId::equals).orElse(false))
 					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
 					.toArray(),
-			(referenceName, referencedEntityId) ->
+			(entityPrimaryKey, referenceName, referencedEntityId) ->
 				theEntity.getReference(referenceName, referencedEntityId)
 					.flatMap(ReferenceContract::getGroup)
 					.map(GroupEntityReference::getPrimaryKey)
@@ -1242,7 +1247,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull ExistingEntityProvider existingEntityRetriever,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
 		@Nonnull BiFunction<String, Integer, int[]> groupToReferencedEntityIdTranslator,
-		@Nonnull BiFunction<String, Integer, Integer> referencedEntityToGroupIdTranslator,
+		@Nonnull TriFunction<Integer, String, Integer, Integer> referencedEntityToGroupIdTranslator,
 		@Nonnull Map<Scope, int[]> entityPrimaryKey
 	) {
 		final AtomicReference<FilterByVisitor> filterByVisitor = new AtomicReference<>();
@@ -1750,7 +1755,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		/**
 		 * This index contains mapping: referenceKey -> groupId
 		 */
-		private final Map<ReferenceKey, Integer> referenceReferencedEntitiesToGroupIndex;
+		private final Map<ReferenceKey, GroupMapping> referenceReferencedEntitiesToGroupIndex;
 		/**
 		 * This set contains keys of all reference names for which the results in `referenceReferencedEntitiesToGroupIndex`
 		 * are present.
@@ -1758,9 +1763,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		private final Set<String> referenceReferencedEntitiesToGroupCalculationIndex;
 		/**
 		 * This function is used for lazy computation of the `referenceKey -> groupId` mapping
-		 * when the mapping is not yet present in the index for certain reference name.
+		 * when the mapping is not yet present in the index for a certain reference name.
 		 */
-		private final Function<String, Map<ReferenceKey, Integer>> referenceReferencedEntitiesToGroupLazyRetriever;
+		private final BiConsumer<String, Map<ReferenceKey, GroupMapping>> referenceReferencedEntitiesToGroupLazyRetriever;
 
 		public ReferenceMapping(int expectedSize, @Nonnull List<? extends SealedEntity> richEnoughEntities) {
 			this.referenceGroupToReferencedEntitiesIndex = CollectionUtils.createHashMap(expectedSize);
@@ -1782,20 +1787,29 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 			this.referenceReferencedEntitiesToGroupIndex = CollectionUtils.createHashMap(expectedSize * 5);
 			this.referenceReferencedEntitiesToGroupCalculationIndex = new HashSet<>(5);
-			this.referenceReferencedEntitiesToGroupLazyRetriever = referenceName -> richEnoughEntities
-				.stream()
-				.flatMap(it -> it.getReferences(referenceName).stream())
-				.filter(it -> it.getGroup().isPresent())
-				.collect(
-					Collectors.toMap(
-						ReferenceContract::getReferenceKey,
-						it -> it.getGroup().get().getPrimaryKey(),
-						(g1, g2) -> {
-							Assert.isPremiseValid(g1.equals(g2), "Group primary keys must be the same.");
-							return g1;
+			this.referenceReferencedEntitiesToGroupLazyRetriever = (referenceName, container) -> {
+				for (SealedEntity richEnoughEntity : richEnoughEntities) {
+					for (ReferenceContract reference : richEnoughEntity.getReferences(referenceName)) {
+						if (reference.getGroup().isPresent()) {
+							container.compute(
+								reference.getReferenceKey(),
+								(referenceKey, existingValue) -> {
+									final int epk = richEnoughEntity.getPrimaryKeyOrThrowException();
+									final int groupPrimaryKey = reference.getGroup()
+										.map(EntityClassifier::getPrimaryKeyOrThrowException)
+										.orElseThrow();
+									if (existingValue == null) {
+										return new GroupMapping(epk, groupPrimaryKey, expectedSize);
+									} else {
+										existingValue.addMapping(epk, groupPrimaryKey);
+										return existingValue;
+									}
+								}
+							);
 						}
-					)
-				);
+					}
+				}
+			};
 		}
 
 		/**
@@ -1808,16 +1822,19 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 * @return the group identifier for the provided reference name and primary key, or {@code null} if no group mapping exists
 		 */
 		@Nullable
-		public Integer getGroup(@Nonnull String referenceName, @Nonnull Integer referencedPrimaryKey) {
+		public Integer getGroup(int entityPrimaryKey, @Nonnull String referenceName, @Nonnull Integer referencedPrimaryKey) {
 			if (!this.referenceReferencedEntitiesToGroupCalculationIndex.contains(referenceName)) {
-				this.referenceReferencedEntitiesToGroupIndex.putAll(this.referenceReferencedEntitiesToGroupLazyRetriever.apply(referenceName));
+				this.referenceReferencedEntitiesToGroupLazyRetriever.accept(
+					referenceName, this.referenceReferencedEntitiesToGroupIndex
+				);
 				this.referenceReferencedEntitiesToGroupCalculationIndex.add(referenceName);
 			}
-			return this.referenceReferencedEntitiesToGroupIndex.get(new ReferenceKey(referenceName, referencedPrimaryKey));
+			final GroupMapping groupMapping = this.referenceReferencedEntitiesToGroupIndex.get(new ReferenceKey(referenceName, referencedPrimaryKey));
+			return groupMapping == null ? null : groupMapping.getGroupId(entityPrimaryKey);
 		}
 
 		/**
-		 * Returns (and lazily computes) array of referenced entity primary keys for passed `groupEntityPrimaryKey` of
+		 * Returns (and lazily computes) an array of referenced entity primary keys for passed `groupEntityPrimaryKey` of
 		 * group entity.
 		 *
 		 * @param referenceName         name of the reference
@@ -1826,7 +1843,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 */
 		@Nonnull
 		public int[] getReferencedEntityPrimaryKeys(@Nonnull String referenceName, int groupEntityPrimaryKey) {
-			return this.referenceGroupToReferencedEntitiesIndex.computeIfAbsent(referenceName, this.groupToReferencedEntityLazyRetriever).get(groupEntityPrimaryKey);
+			final Map<Integer, int[]> mapping = this.referenceGroupToReferencedEntitiesIndex.computeIfAbsent(referenceName, this.groupToReferencedEntityLazyRetriever);
+			final int[] referencedEntityPrimaryKeys = mapping.get(groupEntityPrimaryKey);
+			return referencedEntityPrimaryKeys == null ? ArrayUtils.EMPTY_INT_ARRAY : referencedEntityPrimaryKeys;
 		}
 
 	}
@@ -1882,13 +1901,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 * Function that accepts `referenceName` and `referencedEntityId` and returns the group primary key
 		 * for the given referenced entity primary key.
 		 */
-		@Nonnull private final BiFunction<String, Integer, Integer> referencedEntityToGroupIdTranslator;
+		@Nonnull private final TriFunction<Integer, String, Integer, Integer> referencedEntityToGroupIdTranslator;
 		/**
 		 * Function that accepts the bitmap of referenced entity ids and returns the sliced bitmap to be fetched.
 		 */
 		@Nonnull private final Function<Bitmap, Bitmap> chunker;
 		/**
-		 * Contains cache of groups indexed by entity primary key.
+		 * Contains a cache of groups indexed by entity primary key.
 		 */
 		private Map<Integer, int[]> groupsForEntity = Collections.emptyMap();
 
@@ -1896,7 +1915,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			@Nonnull Map<Scope, int[]> entityPrimaryKey,
 			@Nonnull String referenceName,
 			@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
-			@Nonnull BiFunction<String, Integer, Integer> referencedEntityToGroupIdTranslator,
+			@Nonnull TriFunction<Integer, String, Integer, Integer> referencedEntityToGroupIdTranslator,
 			@Nonnull ChunkTransformer chunkTransformer
 		) {
 			this.entityPrimaryKey = entityPrimaryKey;
@@ -1944,7 +1963,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						this.groupsForEntity.put(
 							epk,
 							filteredReferenceEntityIds.stream()
-								.mapToObj(refId -> this.referencedEntityToGroupIdTranslator.apply(this.referenceName, refId))
+								.mapToObj(refId -> (Integer)this.referencedEntityToGroupIdTranslator.apply(epk, this.referenceName, refId))
 								.filter(Objects::nonNull)
 								.mapToInt(Integer::intValue)
 								.toArray()
@@ -1966,7 +1985,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					this.groupsForEntity.put(
 						epk,
 						referenceEntityIds.stream()
-							.mapToObj(refId -> this.referencedEntityToGroupIdTranslator.apply(this.referenceName, refId))
+							.mapToObj(refId -> this.referencedEntityToGroupIdTranslator.apply(epk, this.referenceName, refId))
 							.filter(Objects::nonNull)
 							.mapToInt(Integer::intValue)
 							.toArray()
@@ -2066,6 +2085,72 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 		}
 
+	}
+
+	/**
+	 * This class provides an efficient mapping between entity primary keys and their associated group primary keys.
+	 * It optimizes storage by using different data structures for different mapping scenarios:
+	 *
+	 * - When an entity is associated with the default group primary key, it's stored in a simple set
+	 * - When an entity is associated with a different group primary key, it's stored in a map
+	 *
+	 * This approach reduces memory usage while maintaining fast lookup performance.
+	 */
+	private static class GroupMapping {
+		private final int groupPrimaryKey;
+		private final IntSet entityIds;
+		private IntIntMap entityToGroupMapping;
+
+		/**
+		 * Creates a new GroupMapping instance with the specified default group primary key.
+		 *
+		 * @param groupPrimaryKey   the default group primary key for this mapping
+		 * @param expectedElements  the expected number of elements to be stored in this mapping,
+		 *                          used for initial capacity optimization
+		 */
+		public GroupMapping(int entityPrimaryKey, int groupPrimaryKey, int expectedElements) {
+			this.groupPrimaryKey = groupPrimaryKey;
+			this.entityIds = new IntHashSet(expectedElements);
+			this.entityIds.add(entityPrimaryKey);
+		}
+
+		/**
+		 * Adds a mapping between an entity and its associated group.
+		 * <p>
+		 * If the group primary key matches the default group primary key for this mapping,
+		 * the entity ID is added to the entity set. Otherwise, the entity-to-group mapping
+		 * is stored in a separate map.
+		 *
+		 * @param entityPrimaryKey  the primary key of the entity
+		 * @param groupPrimaryKey   the primary key of the group associated with the entity
+		 */
+		public void addMapping(int entityPrimaryKey, int groupPrimaryKey) {
+			if (groupPrimaryKey != this.groupPrimaryKey) {
+				this.entityIds.add(entityPrimaryKey);
+			} else {
+				if (this.entityToGroupMapping == null) {
+					this.entityToGroupMapping = new IntIntHashMap();
+				}
+				this.entityToGroupMapping.put(entityPrimaryKey, groupPrimaryKey);
+			}
+		}
+
+		/**
+		 * Retrieves the group ID associated with the specified entity primary key.
+		 *
+		 * @param entityPrimaryKey  the primary key of the entity for which to retrieve the group ID
+		 * @return the group ID associated with the entity, or {@code null} if no mapping exists
+		 */
+		@Nullable
+		public Integer getGroupId(int entityPrimaryKey) {
+			if (this.entityIds.contains(entityPrimaryKey)) {
+				return this.groupPrimaryKey;
+			} else if (this.entityToGroupMapping == null) {
+				return null;
+			} else {
+				return this.entityToGroupMapping.get(entityPrimaryKey);
+			}
+		}
 	}
 
 }
