@@ -895,6 +895,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(this.propertyDataTypeBuilderTransformer, entitySchema))
 			.argument(OnSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
 			.argument(OnSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
+			.argument(OnSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(

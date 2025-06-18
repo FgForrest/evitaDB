@@ -108,17 +108,17 @@ duration of the probe.</dd>
 #### CDC
 
 <dl>
-  <dt><code>io_evitadb_cdc_change_capture_statistics_events_published_total</code> (COUNTER)</dt>
+  <dt><code>io_evitadb_cdc_change_catalog_capture_statistics_events_published_total</code> (COUNTER)</dt>
   <dd><strong>Published events</strong>: The number of events published to all subscribers.</dd>
-  <dt><code>io_evitadb_cdc_change_capture_statistics_lagging_subscribers_total</code> (GAUGE)</dt>
+  <dt><code>io_evitadb_cdc_change_catalog_capture_statistics_lagging_subscribers_total</code> (GAUGE)</dt>
   <dd><strong>Lagging subscribers</strong>: The number of subscribers fetching the WAL records.</dd>
-  <dt><code>io_evitadb_cdc_change_capture_statistics_per_area_events_published_total</code> (COUNTER)</dt>
+  <dt><code>io_evitadb_cdc_change_catalog_capture_statistics_per_area_events_published_total</code> (COUNTER)</dt>
   <dd><strong>Published events</strong>: The number of events published to all subscribers.<br/><br/><strong>Labels:</strong> <Term>area</Term><br/></dd>
-  <dt><code>io_evitadb_cdc_change_capture_statistics_per_entity_type_events_published_total</code> (COUNTER)</dt>
+  <dt><code>io_evitadb_cdc_change_catalog_capture_statistics_per_entity_type_events_published_total</code> (COUNTER)</dt>
   <dd><strong>Published events</strong>: The number of events published to all subscribers.<br/><br/><strong>Labels:</strong> <Term>entityType</Term><br/></dd>
-  <dt><code>io_evitadb_cdc_change_capture_statistics_shared_publishers_total</code> (GAUGE)</dt>
+  <dt><code>io_evitadb_cdc_change_catalog_capture_statistics_shared_publishers_total</code> (GAUGE)</dt>
   <dd><strong>Publisher count</strong>: The number of shared publishers active in the system.</dd>
-  <dt><code>io_evitadb_cdc_change_capture_statistics_subscribers_total</code> (GAUGE)</dt>
+  <dt><code>io_evitadb_cdc_change_catalog_capture_statistics_subscribers_total</code> (GAUGE)</dt>
   <dd><strong>Subscriber count</strong>: The number of subscribers active in the system.</dd>
 </dl>
 

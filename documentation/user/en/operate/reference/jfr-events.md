@@ -28,11 +28,11 @@
 #### CDC
 
 <dl>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/cdc/ChangeCaptureStatisticsEvent.java</SourceClass> Overall CDC statistics</dt>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/cdc/ChangeCatalogCaptureStatisticsEvent.java</SourceClass> Overall CDC - catalog statistics</dt>
   <dd>Event that is fired in regular intervals capturing base statistics of CDC.</dd>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/cdc/ChangeCaptureStatisticsPerAreaEvent.java</SourceClass> CDC statistics per area</dt>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/cdc/ChangeCatalogCaptureStatisticsPerAreaEvent.java</SourceClass> CDC catalog statistics per area</dt>
   <dd>Event that is fired in regular intervals capturing base statistics of CDC per area.</dd>
-  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/cdc/ChangeCaptureStatisticsPerEntityTypeEvent.java</SourceClass> CDC statistics per entity type</dt>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/cdc/ChangeCatalogCaptureStatisticsPerEntityTypeEvent.java</SourceClass> CDC catalog statistics per entity type</dt>
   <dd>Event that is fired in regular intervals capturing base statistics of CDC per entity type.</dd>
 </dl>
 

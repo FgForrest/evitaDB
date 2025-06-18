@@ -25,7 +25,6 @@ package io.evitadb.core.executor;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.observability.trace.TracingContext;
-import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import jdk.jfr.Event;
@@ -105,11 +104,12 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 		@Nonnull String name,
 		@Nonnull ThreadPoolOptions options,
 		@Nonnull Scheduler scheduler,
-		long timeoutInMilliseconds
+		long timeoutInMilliseconds,
+		boolean immediateExecutorService
 	) {
 		this.name = name;
 		final int processorsCount = Runtime.getRuntime().availableProcessors();
-		this.executorService = DevelopmentConstants.isTestRun() ?
+		this.executorService = immediateExecutorService ?
 			// in test environment we use a simplified executor that runs tasks immediately (synchronously)
 			new ImmediateExecutorService() :
 			// in standard environment we use a ForkJoinPool that allows to run tasks asynchronously

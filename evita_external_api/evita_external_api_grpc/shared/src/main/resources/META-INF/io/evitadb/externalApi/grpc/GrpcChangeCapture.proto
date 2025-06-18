@@ -130,8 +130,10 @@ enum GrpcChangeCaptureContent {
   CHANGE_BODY = 1;
 }
 
-/* TODO JNO - document me */
+// Enum specifying the type of response that is sent to the subscriber.
 enum GrpcCaptureResponseType {
+  // The response contains only the acknowledgement of the subscription.
   ACKNOWLEDGEMENT = 0;
+  // The response contains the change event that was captured.
   CHANGE = 1;
 }

@@ -153,13 +153,6 @@ public class GraphQLManager {
 			!this.registeredCatalogs.contains(catalogName),
 			() -> new GraphQLInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
-		// todo jno: uncomment after the catalog captures are implemented
-//		catalog.registerChangeCatalogCapture(
-//			new ChangeCatalogCaptureRequest(
-//				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
-//				catalog.getLastCommittedTransactionId()
-//			)
-//		).subscribe(new CatalogGraphQLRefreshingObserver(this));
 
 		try {
 			// build data API instance

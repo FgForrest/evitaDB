@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,19 +37,40 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface OnChangeHeaderDescriptor {
 
-	PropertyDescriptor OPERATION = PropertyDescriptor.builder()
+	PropertyDescriptor OPERATION = PropertyDescriptor
+		.builder()
 		.name("operation")
 		.description("""
-			The intercepted type of operation
-			""")
+			             The intercepted type of operation
+			             """)
 		.type(nullable(Operation[].class))
 		.build();
-	PropertyDescriptor SINCE_VERSION = PropertyDescriptor.builder()
+	PropertyDescriptor SINCE_VERSION = PropertyDescriptor
+		.builder()
 		.name("sinceVersion")
 		.description("""
-			Specifies the initial capture point for the CDC stream, it must always provide a last
-			known transaction id from the client point of view.
-			""")
+			             Specifies the initial capture point for the CDC stream, it must always provide a last
+			             known transaction id from the client point of view.
+			             """)
 		.type(nonNull(Long.class))
+		.build();
+	PropertyDescriptor SINCE_INDEX = PropertyDescriptor
+		.builder()
+		.name("sinceIndex")
+		.description("""
+			             Specifies the initial capture point within the transaction for the CDC stream. The index zero
+			             means that the stream will start from the first event in the transaction (the transaction mutation).
+			             Greater than zero index means that the stream will start from the event with the given index.
+			             """)
+		.type(nonNull(Integer.class))
+		.build();
+	PropertyDescriptor CONTAINER_NAME = PropertyDescriptor
+		.builder()
+		.name("containerName")
+		.description("""
+			             Specifies zero or more container names that should be captured. E.g. name of the entity type,
+			             attribute, reference or associated data container (depending on the container type property).
+			             """)
+		.type(nonNull(String[].class))
 		.build();
 }

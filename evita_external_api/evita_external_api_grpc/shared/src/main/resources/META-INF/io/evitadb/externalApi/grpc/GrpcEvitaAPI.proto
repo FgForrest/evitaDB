@@ -128,18 +128,26 @@ message GrpcApplyMutationRequest {
   GrpcEngineMutation mutation = 1;
 }
 
-/* TODO JNO - document */
+// Request to register a system change capture.
 message GrpcRegisterSystemChangeCaptureRequest {
   // Starting point for the search (catalog version)
   google.protobuf.Int64Value sinceVersion = 1;
   // Starting point for the search (index of the mutation within catalog version)
   google.protobuf.Int32Value sinceIndex = 2;
+  // Requested content of the capture - i.e. whether client wants to receive only the simple notification about the change
+  // or whether he wants to receive the full content of the change
   GrpcChangeCaptureContent content = 3;
 }
 
-/* TODO JNO - document */
+// Response to GrpcRegisterSystemChangeCapture request.
 message GrpcRegisterSystemChangeCaptureResponse {
-  GrpcChangeSystemCapture capture = 1;
+  // Identification of the registered capture
+  string uuid = 1;
+  // The list of mutations (CDC events) that match the criteria
+  GrpcChangeSystemCapture capture = 2;
+  // The type of the response - when subscription is set-up, acknowledgement is sent
+  // Then with each capture event, the type is set to `change`
+  GrpcCaptureResponseType responseType = 3;
 }
 
 // This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
@@ -171,7 +179,7 @@ service EvitaService {
   rpc RenameCatalog(GrpcRenameCatalogRequest) returns (GrpcRenameCatalogResponse);
   // Procedure used to replace an existing catalog.
   rpc ReplaceCatalog(GrpcReplaceCatalogRequest) returns (GrpcReplaceCatalogResponse);
-  /* TODO JNO - document me */
+  // Procedure used to register a system change capture.
   rpc RegisterSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest) returns (stream GrpcRegisterSystemChangeCaptureResponse);
 
 }

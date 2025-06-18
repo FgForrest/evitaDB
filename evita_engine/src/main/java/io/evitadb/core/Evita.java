@@ -259,13 +259,17 @@ public final class Evita implements EvitaContract {
 		this.requestExecutor = new ObservableThreadExecutor(
 			"request", configuration.server().requestThreadPool(),
 			this.serviceExecutor,
-			configuration.server().queryTimeoutInMilliseconds()
+			configuration.server().queryTimeoutInMilliseconds(),
+			DevelopmentConstants.isTestRun()
 		);
 		this.transactionExecutor = new ObservableThreadExecutor(
 			"transaction",
 			configuration.server().transactionThreadPool(),
 			this.serviceExecutor,
-			configuration.server().transactionTimeoutInMilliseconds()
+			configuration.server().transactionTimeoutInMilliseconds(),
+			// transaction handling must always run in a separate thread pool, even in tests
+			// because it uses thread local variables for transaction management
+			false
 		);
 
 		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())

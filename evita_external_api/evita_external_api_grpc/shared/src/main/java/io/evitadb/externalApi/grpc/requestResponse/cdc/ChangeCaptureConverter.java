@@ -27,6 +27,7 @@ import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
@@ -42,12 +43,14 @@ import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutat
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest;
 import io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest;
+import io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureDataSite;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureSchemaSite;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture;
+import io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocalMutationConverter;
@@ -213,12 +216,44 @@ public class ChangeCaptureConverter {
 			.setVersion(capture.version())
 			.setIndex(capture.index())
 			.setOperation(EvitaEnumConverter.toGrpcOperation(capture.operation()));
+		/* TODO JNO - TADY ROZŠÍŘIT MINIMÁLNĚ O GO LIVE */
 		if (capture.body() instanceof TopLevelCatalogSchemaMutation topLevelCatalogSchemaMutation) {
 			builder.setSystemMutation(
 				DelegatingEngineMutationConverter.INSTANCE.convert(topLevelCatalogSchemaMutation)
 			);
 		}
 		return builder.build();
+	}
+
+	/**
+	 * Converts a {@link GrpcRegisterChangeCatalogCaptureRequest} to a {@link ChangeCatalogCaptureRequest}.
+	 *
+	 * @param request the gRPC request to convert
+	 * @return the converted {@link ChangeCatalogCaptureRequest} instance
+	 */
+	@Nonnull
+	public static ChangeCatalogCaptureRequest toChangeCatalogCaptureRequest(
+		@Nonnull GrpcRegisterChangeCatalogCaptureRequest request
+	) {
+		final ChangeCatalogCaptureRequest.Builder requestBuilder = ChangeCatalogCaptureRequest.builder();
+		if (request.hasSinceVersion()) {
+			requestBuilder.sinceVersion(request.getSinceVersion().getValue());
+		}
+		if (request.hasSinceIndex()) {
+			requestBuilder.sinceIndex(request.getSinceIndex().getValue());
+		}
+		final GrpcChangeCaptureContent content = request.getContent();
+		if (content == GrpcChangeCaptureContent.CHANGE_BODY) {
+			requestBuilder.content(ChangeCaptureContent.BODY);
+		} else {
+			requestBuilder.content(ChangeCaptureContent.HEADER);
+		}
+		requestBuilder.criteria(
+			request.getCriteriaList().stream()
+				.map(ChangeCaptureConverter::toChangeCaptureCriteria)
+				.toArray(ChangeCatalogCaptureCriteria[]::new)
+		);
+		return requestBuilder.build();
 	}
 
 	/**

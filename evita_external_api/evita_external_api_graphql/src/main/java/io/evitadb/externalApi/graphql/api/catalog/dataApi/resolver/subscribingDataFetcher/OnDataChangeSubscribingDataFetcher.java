@@ -43,7 +43,6 @@ import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.api.resolver.subscribingDataFetcher.ChangeSubscribingDataFetcher;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Flow.Publisher;
@@ -60,7 +59,7 @@ public class OnDataChangeSubscribingDataFetcher extends ChangeSubscribingDataFet
 	 */
 	@Nonnull private final EntitySchemaContract entitySchema;
 
-	public OnDataChangeSubscribingDataFetcher(@Nonnull Evita evita, @Nullable EntitySchemaContract entitySchema) {
+	public OnDataChangeSubscribingDataFetcher(@Nonnull Evita evita, @Nonnull EntitySchemaContract entitySchema) {
 		super(evita);
 		this.entitySchema = entitySchema;
 	}
@@ -71,14 +70,15 @@ public class OnDataChangeSubscribingDataFetcher extends ChangeSubscribingDataFet
 		final Integer entityPrimaryKey = environment.getArgument(OnDataChangeHeaderDescriptor.ENTITY_PRIMARY_KEY.name());
 		final List<ContainerType> containerType = environment.getArgument(OnDataChangeHeaderDescriptor.CONTAINER_TYPE.name());
 		final List<Operation> operation = environment.getArgument(OnChangeHeaderDescriptor.OPERATION.name());
-		final long sinceVersion = environment.getArgument(OnChangeHeaderDescriptor.SINCE_VERSION.name());
+		final Long sinceVersion = environment.getArgument(OnChangeHeaderDescriptor.SINCE_VERSION.name());
+		final Integer sinceIndex = environment.getArgument(OnChangeHeaderDescriptor.SINCE_INDEX.name());
+		final List<String> containerName = environment.getArgument(OnChangeHeaderDescriptor.CONTAINER_NAME.name());
 		final boolean needsBody = SelectionSetAggregator.containsImmediate(ChangeCatalogCaptureDescriptor.BODY.name(), environment.getSelectionSet());
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 		return evitaSession.registerChangeCatalogCapture(new ChangeCatalogCaptureRequest(
 			sinceVersion,
-			/* TODO JNO - ADD SINCE INDEX */
-			null,
+			sinceIndex,
 			new ChangeCatalogCaptureCriteria[]{
 				new ChangeCatalogCaptureCriteria(
 					CaptureArea.DATA,
@@ -87,7 +87,7 @@ public class OnDataChangeSubscribingDataFetcher extends ChangeSubscribingDataFet
 						entityPrimaryKey,
 						Optional.ofNullable(operation).map(it -> it.toArray(Operation[]::new)).orElse(null),
 						Optional.ofNullable(containerType).map(it -> it.toArray(ContainerType[]::new)).orElse(null),
-						/* TODO JNO- ADD CONTAINER NAME */null
+						Optional.ofNullable(containerName).map(it -> it.toArray(String[]::new)).orElse(null)
 					)
 				)
 			},

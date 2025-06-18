@@ -35,9 +35,11 @@ import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.ContainerType;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.OnSchemaChangeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.OnDataChangeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.model.OnChangeHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.api.resolver.subscribingDataFetcher.ChangeSubscribingDataFetcher;
 
@@ -72,23 +74,23 @@ public class OnSchemaChangeSubscribingDataFetcher extends ChangeSubscribingDataF
 	@Override
 	protected Publisher<ChangeCatalogCapture> createPublisher(@Nonnull DataFetchingEnvironment environment) {
 		// todo lho this is not being called for some reason
-		final List<Operation> operation = environment.getArgument(OnSchemaChangeHeaderDescriptor.OPERATION.name());
-		final long sinceVersion = environment.getArgument(OnSchemaChangeHeaderDescriptor.SINCE_VERSION.name());
+		final List<Operation> operation = environment.getArgument(OnChangeHeaderDescriptor.OPERATION.name());
+		final List<ContainerType> containerType = environment.getArgument(OnDataChangeHeaderDescriptor.CONTAINER_TYPE.name());
+		final Long sinceVersion = environment.getArgument(OnChangeHeaderDescriptor.SINCE_VERSION.name());
+		final Integer sinceIndex = environment.getArgument(OnChangeHeaderDescriptor.SINCE_INDEX.name());
 		final boolean needsBody = SelectionSetAggregator.containsImmediate(ChangeCatalogCaptureDescriptor.BODY.name(), environment.getSelectionSet());
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 		return evitaSession.registerChangeCatalogCapture(new ChangeCatalogCaptureRequest(
 			sinceVersion,
-			/* TODO JNO - add since index */
-			null,
+			sinceIndex,
 			new ChangeCatalogCaptureCriteria[] {
 				new ChangeCatalogCaptureCriteria(
 					CaptureArea.SCHEMA,
 					new SchemaSite(
 						Optional.ofNullable(this.entitySchema).map(NamedSchemaContract::getName).orElse(null),
 						Optional.ofNullable(operation).map(it -> it.toArray(Operation[]::new)).orElse(null),
-						/* TODO JNO - ADD container type */
-						null
+						Optional.ofNullable(containerType).map(it -> it.toArray(ContainerType[]::new)).orElse(null)
 					)
 				)
 			},

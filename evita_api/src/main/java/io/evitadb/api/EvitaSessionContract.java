@@ -814,7 +814,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	default int updateEntitySchema(@Nonnull EntitySchemaBuilder entitySchemaBuilder) throws SchemaAlteringException {
 		return entitySchemaBuilder.toMutation()
 			.map(this::updateEntitySchema)
-			.orElseGet(() -> getEntitySchemaOrThrow(entitySchemaBuilder.getName()).version());
+			.orElseGet(() -> getEntitySchemaOrThrowException(entitySchemaBuilder.getName()).version());
 	}
 
 	/**
@@ -829,7 +829,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	default SealedEntitySchema updateAndFetchEntitySchema(@Nonnull EntitySchemaBuilder entitySchemaBuilder) throws SchemaAlteringException {
 		return entitySchemaBuilder.toMutation()
 			.map(this::updateAndFetchEntitySchema)
-			.orElseGet(() -> getEntitySchemaOrThrow(entitySchemaBuilder.getName()));
+			.orElseGet(() -> getEntitySchemaOrThrowException(entitySchemaBuilder.getName()));
 	}
 
 	/**
@@ -1128,41 +1128,46 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	SealedEntity[] deleteSealedEntitiesAndReturnBodies(@Nonnull Query query);
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
+	 * Method moves existing entity from Live Scope to Archived Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
 	 * {@link ReflectedReference} which are removed. The reflected references are set up automatically by the system
 	 * when the main reference is created and that's why they are removed automatically when the main reference is removed.
 	 *
-	 * BEWARE: this method represents the hard delete operation and the entity will be removed from the catalog permanently.
-	 * If you need to archive the entity instead of removing it, use the {@link #archiveEntity(String, int)} method.
+	 * Archived Scope has usually fewer indexes for searching and sorting, which means the data occupies less memory compared to Live Scope.
 	 *
-	 * @return true if entity existed and was removed
+	 * @return true if entity existed and was archived
 	 */
 	boolean archiveEntity(@Nonnull String entityType, int primaryKey);
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method moves existing entity from Live Scope to Archived Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @return true if entity existed and was removed
+	 * Archived Scope has usually fewer indexes for searching and sorting, which means the data occupies less memory compared to Live Scope.
+	 *
+	 * @return true if entity existed and was archived
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	boolean archiveEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException;
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method moves existing entity from Live Scope to Archived Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @return removed entity fetched according to `require` definition
+	 * Archived Scope has usually fewer indexes for searching and sorting, which means the data occupies less memory compared to Live Scope.
+	 *
+	 * @return archived entity fetched according to `require` definition
 	 */
 	@Nonnull
 	Optional<SealedEntity> archiveEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method moves existing entity from Live Scope to Archived Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @return removed entity fetched according to `require` definition
+	 * Archived Scope has usually fewer indexes for searching and sorting, which means the data occupies less memory compared to Live Scope.
+	 *
+	 * @return archived entity fetched according to `require` definition
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	@Nonnull
@@ -1170,36 +1175,44 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 		throws EntityClassInvalidException;
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method moves existing entity from Archived Scope to Live Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @return true if entity existed and was removed
+	 * Live Scope has usually more indexes for searching and sorting, which means the data occupies more memory compared to Archived Scope.
+	 *
+	 * @return true if entity existed and was restored
 	 */
 	boolean restoreEntity(@Nonnull String entityType, int primaryKey);
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method moves existing entity from Archived Scope to Live Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @return true if entity existed and was removed
+	 * Live Scope has usually more indexes for searching and sorting, which means the data occupies more memory compared to Archived Scope.
+	 *
+	 * @return true if entity existed and was restored
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	boolean restoreEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException;
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method moves existing entity from Archived Scope to Live Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @return removed entity fetched according to `require` definition
+	 * Live Scope has usually more indexes for searching and sorting, which means the data occupies more memory compared to Archived Scope.
+	 *
+	 * @return restored entity fetched according to `require` definition
 	 */
 	@Nonnull
 	Optional<SealedEntity> restoreEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method moves existing entity from Archived Scope to Live Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @return removed entity fetched according to `require` definition
+	 * Live Scope has usually more indexes for searching and sorting, which means the data occupies more memory compared to Archived Scope.
+	 *
+	 * @return restored entity fetched according to `require` definition
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	@Nonnull

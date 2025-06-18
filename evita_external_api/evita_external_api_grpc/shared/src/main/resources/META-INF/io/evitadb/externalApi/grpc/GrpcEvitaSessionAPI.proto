@@ -95,8 +95,9 @@ message GrpcRegisterChangeCatalogCaptureResponse {
   // Identification of the registered capture
   string uuid = 1;
   // The list of mutations (CDC events) that match the criteria
-  repeated GrpcChangeCatalogCapture capture = 2;
-  // ??? TODO JNO - document me
+  GrpcChangeCatalogCapture capture = 2;
+  // The type of the response - when subscription is set-up, acknowledgement is sent
+  // Then with each capture event, the type is set to `change`
   GrpcCaptureResponseType responseType = 3;
 }
 

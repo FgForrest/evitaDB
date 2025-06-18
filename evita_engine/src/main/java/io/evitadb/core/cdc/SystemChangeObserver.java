@@ -45,8 +45,27 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Main implementation class handling notification of all created {@link ChangeCapturePublisher}s.
- * TODO JNO - update documentation here
+ * The `SystemChangeObserver` is responsible for capturing and distributing system-level changes
+ * within the evitaDB engine. It acts as a central hub for Change Data Capture (CDC) operations
+ * at the system level.
+ *
+ * This class implements the `ChangeObserverContract` interface for system-level changes, handling:
+ *
+ * - Processing of engine mutations
+ * - Registration and management of change capture publishers
+ * - Distribution of change events to subscribers
+ * - Maintenance of subscriber connections
+ *
+ * The observer uses a shared publisher model where a single `ChangeSystemCaptureSharedPublisher`
+ * processes all mutations, and individual publishers are created for each subscriber with their
+ * specific filtering criteria. This approach optimizes resource usage while allowing for
+ * customized event delivery.
+ *
+ * The class also provides mechanisms for:
+ * - Notifying when versions are available in the live view
+ * - Cleaning up inactive subscribers
+ * - Collecting and emitting performance statistics
+ * - Managing memory usage by forgetting processed mutations
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
