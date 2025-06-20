@@ -7,6 +7,7 @@ option csharp_namespace = "EvitaDB";
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 import "GrpcEnums.proto";
+import "GrpcEvitaDataTypes.proto";
 import "GrpcEngineMutation.proto";
 import "GrpcChangeCapture.proto";
 
@@ -142,7 +143,7 @@ message GrpcRegisterSystemChangeCaptureRequest {
 // Response to GrpcRegisterSystemChangeCapture request.
 message GrpcRegisterSystemChangeCaptureResponse {
   // Identification of the registered capture
-  string uuid = 1;
+  GrpcUuid uuid = 1;
   // The list of mutations (CDC events) that match the criteria
   GrpcChangeSystemCapture capture = 2;
   // The type of the response - when subscription is set-up, acknowledgement is sent

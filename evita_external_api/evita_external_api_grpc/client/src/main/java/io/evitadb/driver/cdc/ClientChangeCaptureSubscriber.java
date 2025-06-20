@@ -34,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.UUID;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -68,6 +69,12 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * This is the actual subscriber that the client code provided to receive the change events.
 	 */
 	private final Flow.Subscriber<? super C> delegate;
+
+	/**
+	 * Function that converts the raw gRPC response into an assigned UUID for acknowledging the subscription setup
+	 * on the server side.
+	 */
+	private final Function<RES, UUID> deserializeAcknowledgeResponse;
 
 	/**
 	 * Function that converts the raw gRPC response into a typed change capture object.
@@ -137,9 +144,14 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 */
 	@Override
 	public void onNext(RES itemResponse) {
-		this.subscription.produce(
-			this.deserializeCaptureResponse.apply(itemResponse)
-		);
+		if (this.subscription.getSubscriptionId() == null) {
+			// first item is always subscription acknowledge response
+			this.subscription.setSubscriptionId(this.deserializeAcknowledgeResponse.apply(itemResponse));
+		} else {
+			this.subscription.produce(
+				this.deserializeCaptureResponse.apply(itemResponse)
+			);
+		}
 	}
 
 	/**
@@ -215,4 +227,12 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			this.serverObserver.cancel("Closed manually by the client.", new PublisherClosedByClientException());
 		}
 	}
+
+	@Override
+	public String toString() {
+		return this.subscription == null || this.subscription.getSubscriptionId() == null ?
+			"Change capture not yet started or acknowledged." :
+			"Change capture: " + this.subscription.getSubscriptionId();
+	}
+
 }

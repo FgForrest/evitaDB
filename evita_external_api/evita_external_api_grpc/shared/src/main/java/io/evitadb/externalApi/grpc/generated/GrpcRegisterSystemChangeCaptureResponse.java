@@ -43,7 +43,6 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcRegisterSystemChangeCaptureResponse() {
-    uuid_ = "";
     responseType_ = 0;
   }
 
@@ -78,9 +77,16 @@ private static final long serialVersionUID = 0L;
             done = true;
             break;
           case 10: {
-            java.lang.String s = input.readStringRequireUtf8();
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder subBuilder = null;
+            if (uuid_ != null) {
+              subBuilder = uuid_.toBuilder();
+            }
+            uuid_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(uuid_);
+              uuid_ = subBuilder.buildPartial();
+            }
 
-            uuid_ = s;
             break;
           }
           case 18: {
@@ -135,49 +141,41 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int UUID_FIELD_NUMBER = 1;
-  private volatile java.lang.Object uuid_;
+  private io.evitadb.externalApi.grpc.generated.GrpcUuid uuid_;
   /**
    * <pre>
    * Identification of the registered capture
    * </pre>
    *
-   * <code>string uuid = 1;</code>
-   * @return The uuid.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
+   * @return Whether the uuid field is set.
    */
   @java.lang.Override
-  public java.lang.String getUuid() {
-    java.lang.Object ref = uuid_;
-    if (ref instanceof java.lang.String) {
-      return (java.lang.String) ref;
-    } else {
-      com.google.protobuf.ByteString bs =
-          (com.google.protobuf.ByteString) ref;
-      java.lang.String s = bs.toStringUtf8();
-      uuid_ = s;
-      return s;
-    }
+  public boolean hasUuid() {
+    return uuid_ != null;
   }
   /**
    * <pre>
    * Identification of the registered capture
    * </pre>
    *
-   * <code>string uuid = 1;</code>
-   * @return The bytes for uuid.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
+   * @return The uuid.
    */
   @java.lang.Override
-  public com.google.protobuf.ByteString
-      getUuidBytes() {
-    java.lang.Object ref = uuid_;
-    if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
-          com.google.protobuf.ByteString.copyFromUtf8(
-              (java.lang.String) ref);
-      uuid_ = b;
-      return b;
-    } else {
-      return (com.google.protobuf.ByteString) ref;
-    }
+  public io.evitadb.externalApi.grpc.generated.GrpcUuid getUuid() {
+    return uuid_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : uuid_;
+  }
+  /**
+   * <pre>
+   * Identification of the registered capture
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getUuidOrBuilder() {
+    return getUuid();
   }
 
   public static final int CAPTURE_FIELD_NUMBER = 2;
@@ -261,8 +259,8 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(uuid_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, uuid_);
+    if (uuid_ != null) {
+      output.writeMessage(1, getUuid());
     }
     if (capture_ != null) {
       output.writeMessage(2, getCapture());
@@ -279,8 +277,9 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(uuid_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, uuid_);
+    if (uuid_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(1, getUuid());
     }
     if (capture_ != null) {
       size += com.google.protobuf.CodedOutputStream
@@ -305,8 +304,11 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse other = (io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse) obj;
 
-    if (!getUuid()
-        .equals(other.getUuid())) return false;
+    if (hasUuid() != other.hasUuid()) return false;
+    if (hasUuid()) {
+      if (!getUuid()
+          .equals(other.getUuid())) return false;
+    }
     if (hasCapture() != other.hasCapture()) return false;
     if (hasCapture()) {
       if (!getCapture()
@@ -324,8 +326,10 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + UUID_FIELD_NUMBER;
-    hash = (53 * hash) + getUuid().hashCode();
+    if (hasUuid()) {
+      hash = (37 * hash) + UUID_FIELD_NUMBER;
+      hash = (53 * hash) + getUuid().hashCode();
+    }
     if (hasCapture()) {
       hash = (37 * hash) + CAPTURE_FIELD_NUMBER;
       hash = (53 * hash) + getCapture().hashCode();
@@ -469,8 +473,12 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      uuid_ = "";
-
+      if (uuidBuilder_ == null) {
+        uuid_ = null;
+      } else {
+        uuid_ = null;
+        uuidBuilder_ = null;
+      }
       if (captureBuilder_ == null) {
         capture_ = null;
       } else {
@@ -505,7 +513,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse result = new io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse(this);
-      result.uuid_ = uuid_;
+      if (uuidBuilder_ == null) {
+        result.uuid_ = uuid_;
+      } else {
+        result.uuid_ = uuidBuilder_.build();
+      }
       if (captureBuilder_ == null) {
         result.capture_ = capture_;
       } else {
@@ -560,9 +572,8 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse.getDefaultInstance()) return this;
-      if (!other.getUuid().isEmpty()) {
-        uuid_ = other.uuid_;
-        onChanged();
+      if (other.hasUuid()) {
+        mergeUuid(other.getUuid());
       }
       if (other.hasCapture()) {
         mergeCapture(other.getCapture());
@@ -599,25 +610,33 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private java.lang.Object uuid_ = "";
+    private io.evitadb.externalApi.grpc.generated.GrpcUuid uuid_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> uuidBuilder_;
     /**
      * <pre>
      * Identification of the registered capture
      * </pre>
      *
-     * <code>string uuid = 1;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
+     * @return Whether the uuid field is set.
+     */
+    public boolean hasUuid() {
+      return uuidBuilder_ != null || uuid_ != null;
+    }
+    /**
+     * <pre>
+     * Identification of the registered capture
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
      * @return The uuid.
      */
-    public java.lang.String getUuid() {
-      java.lang.Object ref = uuid_;
-      if (!(ref instanceof java.lang.String)) {
-        com.google.protobuf.ByteString bs =
-            (com.google.protobuf.ByteString) ref;
-        java.lang.String s = bs.toStringUtf8();
-        uuid_ = s;
-        return s;
+    public io.evitadb.externalApi.grpc.generated.GrpcUuid getUuid() {
+      if (uuidBuilder_ == null) {
+        return uuid_ == null ? io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : uuid_;
       } else {
-        return (java.lang.String) ref;
+        return uuidBuilder_.getMessage();
       }
     }
     /**
@@ -625,39 +644,37 @@ private static final long serialVersionUID = 0L;
      * Identification of the registered capture
      * </pre>
      *
-     * <code>string uuid = 1;</code>
-     * @return The bytes for uuid.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
      */
-    public com.google.protobuf.ByteString
-        getUuidBytes() {
-      java.lang.Object ref = uuid_;
-      if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
-            com.google.protobuf.ByteString.copyFromUtf8(
-                (java.lang.String) ref);
-        uuid_ = b;
-        return b;
+    public Builder setUuid(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
+      if (uuidBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        uuid_ = value;
+        onChanged();
       } else {
-        return (com.google.protobuf.ByteString) ref;
+        uuidBuilder_.setMessage(value);
       }
+
+      return this;
     }
     /**
      * <pre>
      * Identification of the registered capture
      * </pre>
      *
-     * <code>string uuid = 1;</code>
-     * @param value The uuid to set.
-     * @return This builder for chaining.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
      */
     public Builder setUuid(
-        java.lang.String value) {
-      if (value == null) {
-    throw new NullPointerException();
-  }
+        io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder builderForValue) {
+      if (uuidBuilder_ == null) {
+        uuid_ = builderForValue.build();
+        onChanged();
+      } else {
+        uuidBuilder_.setMessage(builderForValue.build());
+      }
 
-      uuid_ = value;
-      onChanged();
       return this;
     }
     /**
@@ -665,13 +682,39 @@ private static final long serialVersionUID = 0L;
      * Identification of the registered capture
      * </pre>
      *
-     * <code>string uuid = 1;</code>
-     * @return This builder for chaining.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
+     */
+    public Builder mergeUuid(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
+      if (uuidBuilder_ == null) {
+        if (uuid_ != null) {
+          uuid_ =
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.newBuilder(uuid_).mergeFrom(value).buildPartial();
+        } else {
+          uuid_ = value;
+        }
+        onChanged();
+      } else {
+        uuidBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Identification of the registered capture
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
      */
     public Builder clearUuid() {
+      if (uuidBuilder_ == null) {
+        uuid_ = null;
+        onChanged();
+      } else {
+        uuid_ = null;
+        uuidBuilder_ = null;
+      }
 
-      uuid_ = getDefaultInstance().getUuid();
-      onChanged();
       return this;
     }
     /**
@@ -679,20 +722,47 @@ private static final long serialVersionUID = 0L;
      * Identification of the registered capture
      * </pre>
      *
-     * <code>string uuid = 1;</code>
-     * @param value The bytes for uuid to set.
-     * @return This builder for chaining.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
      */
-    public Builder setUuidBytes(
-        com.google.protobuf.ByteString value) {
-      if (value == null) {
-    throw new NullPointerException();
-  }
-  checkByteStringIsUtf8(value);
+    public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getUuidBuilder() {
 
-      uuid_ = value;
       onChanged();
-      return this;
+      return getUuidFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Identification of the registered capture
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getUuidOrBuilder() {
+      if (uuidBuilder_ != null) {
+        return uuidBuilder_.getMessageOrBuilder();
+      } else {
+        return uuid_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance() : uuid_;
+      }
+    }
+    /**
+     * <pre>
+     * Identification of the registered capture
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
+        getUuidFieldBuilder() {
+      if (uuidBuilder_ == null) {
+        uuidBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>(
+                getUuid(),
+                getParentForChildren(),
+                isClean());
+        uuid_ = null;
+      }
+      return uuidBuilder_;
     }
 
     private io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture_;

@@ -94,7 +94,7 @@ message GrpcRegisterChangeCatalogCaptureRequest {
 // Response to RegisterChangeCatalogCapture request.
 message GrpcRegisterChangeCatalogCaptureResponse {
   // Identification of the registered capture
-  string uuid = 1;
+  GrpcUuid uuid = 1;
   // The list of mutations (CDC events) that match the criteria
   GrpcChangeCatalogCapture capture = 2;
   // The type of the response - when subscription is set-up, acknowledgement is sent

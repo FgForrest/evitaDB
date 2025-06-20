@@ -35,20 +35,27 @@ public interface GrpcRegisterSystemChangeCaptureResponseOrBuilder extends
    * Identification of the registered capture
    * </pre>
    *
-   * <code>string uuid = 1;</code>
-   * @return The uuid.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
+   * @return Whether the uuid field is set.
    */
-  java.lang.String getUuid();
+  boolean hasUuid();
   /**
    * <pre>
    * Identification of the registered capture
    * </pre>
    *
-   * <code>string uuid = 1;</code>
-   * @return The bytes for uuid.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
+   * @return The uuid.
    */
-  com.google.protobuf.ByteString
-      getUuidBytes();
+  io.evitadb.externalApi.grpc.generated.GrpcUuid getUuid();
+  /**
+   * <pre>
+   * Identification of the registered capture
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getUuidOrBuilder();
 
   /**
    * <pre>

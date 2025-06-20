@@ -40,6 +40,7 @@ import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
@@ -475,7 +476,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 			final GrpcRegisterSystemChangeCaptureResponse.Builder response = GrpcRegisterSystemChangeCaptureResponse
 				.newBuilder();
 			if (subscription instanceof ChangeCaptureSubscription ccs) {
-				response.setUuid(ccs.getSubscriptionId().toString());
+				response.setUuid(EvitaDataTypesConverter.toGrpcUuid(ccs.getSubscriptionId()));
 			}
 			this.responseObserver.onNext(
 				response

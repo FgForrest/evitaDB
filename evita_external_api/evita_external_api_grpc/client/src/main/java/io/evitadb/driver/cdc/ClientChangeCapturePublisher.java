@@ -29,6 +29,8 @@ import io.evitadb.driver.exception.ChangeDataCaptureClientCannotKeepUpException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
 import io.grpc.stub.ClientResponseObserver;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -36,12 +38,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
@@ -115,7 +119,6 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	 */
 	private final AtomicBoolean active = new AtomicBoolean(true);
 
-
 	public ClientChangeCapturePublisher(
 		int queueSize,
 		@Nonnull ExecutorService executorService,
@@ -143,6 +146,7 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	public void subscribe(Subscriber<? super C> subscriber) {
 		final ClientChangeCaptureSubscriber<C, REQ, RES> internalSubscriber = new ClientChangeCaptureSubscriber<>(
 			subscriber,
+			this::deserializeAcknowledgementResponse,
 			this::deserializeCaptureResponse
 		);
 
@@ -222,6 +226,16 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	}
 
 	/**
+	 * Takes the response from the server representing a single capture and deserializes it into a UUID identification
+	 * of the subscriber. The response must be of type acknowledgement, otherwise an exception is thrown.
+	 *
+	 * @param itemResponse the response received from the server
+	 * @return the deserialized UUID of the subscriber
+	 */
+	@Nonnull
+	protected abstract UUID deserializeAcknowledgementResponse(RES itemResponse);
+
+	/**
 	 * Takes the response from the server representing a single capture and deserializes it into a specific {@link ChangeCapture}.
 	 *
 	 * This method must be implemented by subclasses to handle the specific type of response received from the server.
@@ -229,6 +243,7 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	 * @param itemResponse the response received from the server
 	 * @return the deserialized change capture
 	 */
+	@Nonnull
 	protected abstract C deserializeCaptureResponse(RES itemResponse);
 
 	/**
@@ -248,6 +263,11 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		 * Used for ordering and equality comparisons.
 		 */
 		private final long id;
+
+		/**
+		 * Id assigned to this subscription on the server side.
+		 */
+		@Getter @Setter private UUID subscriptionId;
 
 		/**
 		 * Executor service used to process captures asynchronously.
@@ -278,6 +298,11 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		 * Callback to be executed when the subscription is closed.
 		 */
 		private final Consumer<ClientSubscription<C, REQ, RES>> onCloseCallback;
+		/**
+		 * This reference is used to hold an exception that will be thrown when the queue overflow occurs and contains
+		 * exception that will be executed when the queue is depleted, after this fact - subscriber is closed.
+		 */
+		private final AtomicReference<Throwable> walkingDead = new AtomicReference<>(null);
 
 		/**
 		 * Creates a new subscription for the specified subscriber.
@@ -340,8 +365,9 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		 * @throws ChangeDataCaptureClientCannotKeepUpException if the queue is full
 		 */
 		public void produce(@Nonnull C item) {
-			if (!this.items.offer(item)) {
-				this.internalSubscriber.onError(
+			if (this.walkingDead.get() != null || !this.items.offer(item)) {
+				this.walkingDead.compareAndSet(
+					null,
 					new ChangeDataCaptureClientCannotKeepUpException(item.version(), item.index())
 				);
 			}
@@ -359,9 +385,24 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 			if (this.currentlyConsuming.compareAndSet(false, true)) {
 				this.executorService.execute(
 					() -> {
-						while (!this.items.isEmpty() && this.requested.getAndUpdate(counter -> counter > 0 ? counter - 1 : 0) > 0) {
-							this.internalSubscriber.onDelegateNext(
-								Objects.requireNonNull(this.items.poll())
+						try {
+							while (!this.items.isEmpty() && this.requested.getAndUpdate(
+								counter -> counter > 0 ? counter - 1 : 0) > 0) {
+								this.internalSubscriber.onDelegateNext(
+									Objects.requireNonNull(this.items.poll())
+								);
+							}
+						} catch (Throwable ex) {
+							// if an error occurs during consumption, we need to report it to the subscriber
+							// clear the items queue and set the walking dead exception
+							this.items.clear();
+							this.walkingDead.compareAndSet(null, ex);
+						}
+						// if there are no more items in the queue and the walking dead exception is set,
+						// we need to notify the subscriber about the error (which effectively closes the subscription)
+						if (this.items.isEmpty() && this.walkingDead.get() != null) {
+							this.internalSubscriber.onError(
+								this.walkingDead.get()
 							);
 						}
 						Assert.isPremiseValid(

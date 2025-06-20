@@ -24,11 +24,15 @@
 package io.evitadb.driver.cdc;
 
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
+import io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse;
+import io.evitadb.utils.Assert;
 import io.grpc.stub.ClientResponseObserver;
 
 import javax.annotation.Nonnull;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
@@ -51,8 +55,23 @@ public class ClientChangeSystemCaptureProcessor extends
 		super(queueSize, executorService, streamInitializer, onCloseCallback);
 	}
 
+	@Nonnull
+	@Override
+	protected UUID deserializeAcknowledgementResponse(GrpcRegisterSystemChangeCaptureResponse itemResponse) {
+		Assert.isPremiseValid(
+			itemResponse.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT,
+			"Response type must be ACKNOWLEDGEMENT for ChangeSystemCapture, but was: " + itemResponse.getResponseType()
+		);
+		return EvitaDataTypesConverter.toUuid(itemResponse.getUuid());
+	}
+
+	@Nonnull
 	@Override
 	protected ChangeSystemCapture deserializeCaptureResponse(GrpcRegisterSystemChangeCaptureResponse itemResponse) {
+		Assert.isPremiseValid(
+			itemResponse.getResponseType() == GrpcCaptureResponseType.CHANGE,
+			"Response type must be CHANGE for ChangeSystemCapture, but was: " + itemResponse.getResponseType()
+		);
 		return toChangeSystemCapture(itemResponse.getCapture());
 	}
 }

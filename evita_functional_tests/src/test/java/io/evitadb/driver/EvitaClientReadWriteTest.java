@@ -379,7 +379,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 						.criteria(
 							ChangeCatalogCaptureCriteria
 								.builder()
-								.area(CaptureArea.SCHEMA)
+								.schemaArea()
 								.build()
 						)
 						.content(ChangeCaptureContent.BODY)

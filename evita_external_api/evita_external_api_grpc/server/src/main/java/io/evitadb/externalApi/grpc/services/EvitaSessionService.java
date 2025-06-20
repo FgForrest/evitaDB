@@ -1913,7 +1913,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			final GrpcRegisterChangeCatalogCaptureResponse.Builder response = GrpcRegisterChangeCatalogCaptureResponse
 				.newBuilder();
 			if (subscription instanceof ChangeCaptureSubscription ccs) {
-				response.setUuid(ccs.getSubscriptionId().toString());
+				response.setUuid(toGrpcUuid(ccs.getSubscriptionId()));
 			}
 			this.responseObserver.onNext(
 				response
