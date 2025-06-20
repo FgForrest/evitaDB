@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,22 +26,29 @@ package io.evitadb.driver.cdc;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse;
+import io.grpc.stub.ClientResponseObserver;
 
 import javax.annotation.Nonnull;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 import static io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter.toChangeSystemCapture;
 
 /**
- * Implementation of {@link ClientChangeCaptureProcessor} for the {@link ChangeSystemCapture}.
+ * Implementation of {@link ClientChangeCapturePublisher} for the {@link ChangeSystemCapture}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Jan Novotný, FG Forrest a.s. (c) 2025
  */
-// todo jno: implement similar publisher for catalog captures
-public class ClientChangeSystemCaptureProcessor extends ClientChangeCaptureProcessor<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureRequest, GrpcRegisterSystemChangeCaptureResponse> {
+public class ClientChangeSystemCaptureProcessor extends
+	ClientChangeCapturePublisher<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureRequest, GrpcRegisterSystemChangeCaptureResponse> {
 
-	public ClientChangeSystemCaptureProcessor(@Nonnull Executor executor) {
-		super(executor);
+	public ClientChangeSystemCaptureProcessor(
+		int queueSize,
+		@Nonnull ExecutorService executorService,
+		@Nonnull Consumer<ClientResponseObserver<GrpcRegisterSystemChangeCaptureRequest, GrpcRegisterSystemChangeCaptureResponse>> streamInitializer,
+		@Nonnull Consumer<ClientChangeCapturePublisher<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureRequest, GrpcRegisterSystemChangeCaptureResponse>> onCloseCallback
+	) {
+		super(queueSize, executorService, streamInitializer, onCloseCallback);
 	}
 
 	@Override

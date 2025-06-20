@@ -26,8 +26,12 @@ package io.evitadb.api;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.mock.MockCatalogStructuralChangeSubscriber;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.mock.MockCatalogChangeCaptureSubscriber;
+import io.evitadb.api.mock.MockEngineChangeCaptureSubscriber;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
@@ -44,6 +48,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * This test contains various integration tests for {@link Evita}.
@@ -54,7 +59,8 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 	public static final String DIR_EVITA_NOTIFICATION_TEST = "evitaNotificationTest";
 	public static final String DIR_EVITA_NOTIFICATION_TEST_EXPORT = "evitaNotificationTest_export";
 	private Evita evita;
-	private final MockCatalogStructuralChangeSubscriber subscriber = new MockCatalogStructuralChangeSubscriber();
+	private final MockEngineChangeCaptureSubscriber engineSubscriber = new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
+	private final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
 
 	@BeforeEach
 	void setUp() {
@@ -64,15 +70,37 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 			getEvitaConfiguration()
 		);
 		this.evita.defineCatalog(TEST_CATALOG);
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.goLiveAndClose();
+				return null;
+			}
+		);
+
 		this.evita.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
-		).subscribe(this.subscriber);
-		// todo lho implement
-//		evita.updateCatalog(
-//			TEST_CATALOG, session -> {
-//				session.registerChangeCatalogCapture(new ChangeCatalogCaptureRequest(CaptureArea.SCHEMA, null, CaptureContent.BODY, 0L), subscriber);
-//			}
-//		);
+		).subscribe(this.engineSubscriber);
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.registerChangeCatalogCapture(
+					ChangeCatalogCaptureRequest
+						.builder()
+						.content(ChangeCaptureContent.BODY)
+						.criteria(
+							ChangeCatalogCaptureCriteria
+								.builder()
+								.schemaArea()
+								.build()
+						)
+						.build()
+				).subscribe(this.catalogSubscriber);
+				return null;
+			}
+		);
 	}
 
 	@AfterEach
@@ -86,14 +114,14 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 	void shouldNotifyCallbackAboutCatalogCreation() {
 		this.evita.defineCatalog("newCatalog");
 
-		assertEquals(1, this.subscriber.getCatalogUpserted("newCatalog"));
+		assertEquals(1, this.engineSubscriber.getCatalogCreated("newCatalog"));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogDelete() {
 		this.evita.deleteCatalogIfExists(TEST_CATALOG);
 
-		assertEquals(1, this.subscriber.getCatalogDeleted(TEST_CATALOG));
+		assertEquals(1, this.engineSubscriber.getCatalogDeleted(TEST_CATALOG));
 	}
 
 	@Test
@@ -105,20 +133,21 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 				.updateVia(session);
 		});
 
-		assertEquals(1, this.subscriber.getCatalogSchemaUpdated(TEST_CATALOG));
+		assertEquals(1, this.engineSubscriber.getCatalogUpdated(TEST_CATALOG));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogSchemaDescriptionChange() {
-		this.evita.applyMutation(
-			new ModifyCatalogSchemaMutation(
-				TEST_CATALOG,
-				null,
-				new ModifyCatalogSchemaDescriptionMutation("Brand new description.")
-			)
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.updateCatalogSchema(
+					new ModifyCatalogSchemaDescriptionMutation("Brand new description.")
+				);
+			}
 		);
 
-		assertEquals(1, this.subscriber.getCatalogSchemaUpdated(TEST_CATALOG));
+		assertEquals(1, this.engineSubscriber.getCatalogUpdated(TEST_CATALOG));
 
 		assertEquals(
 			"Brand new description.",
@@ -127,17 +156,38 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldFailToUpdateCatalogSchemaWithoutExistingSession() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> {
+				this.evita.applyMutation(
+					new ModifyCatalogSchemaMutation(
+						TEST_CATALOG,
+						null,
+						new CreateEntitySchemaMutation(Entities.PRODUCT),
+						new ModifyEntitySchemaMutation(
+							Entities.PRODUCT,
+							new ModifyEntitySchemaDescriptionMutation("Brand new description.")
+						)
+					)
+				);
+			}
+		);
+	}
+
+	@Test
 	void shouldNotifyCallbackAboutEntitySchemaDescriptionChange() {
-		this.evita.applyMutation(
-			new ModifyCatalogSchemaMutation(
-				TEST_CATALOG,
-				null,
-				new CreateEntitySchemaMutation(Entities.PRODUCT),
-				new ModifyEntitySchemaMutation(
-					Entities.PRODUCT,
-					new ModifyEntitySchemaDescriptionMutation("Brand new description.")
-				)
-			)
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.updateCatalogSchema(
+					new CreateEntitySchemaMutation(Entities.PRODUCT),
+					new ModifyEntitySchemaMutation(
+						Entities.PRODUCT,
+						new ModifyEntitySchemaDescriptionMutation("Brand new description.")
+					)
+				);
+			}
 		);
 
 		assertEquals(
@@ -145,7 +195,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 			this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG).getEntitySchema(Entities.PRODUCT).orElseThrow().getDescription()
 		);
 
-		assertEquals(1, this.subscriber.getEntityCollectionCreated(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, this.catalogSubscriber.getEntityCollectionCreated(Entities.PRODUCT));
 	}
 
 	@Test
@@ -160,7 +210,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 				.updateVia(session);
 		});
 
-		assertEquals(1, this.subscriber.getCatalogSchemaUpdated(TEST_CATALOG));
+		assertEquals(1, this.engineSubscriber.getCatalogUpdated(TEST_CATALOG));
 	}
 
 	@Test
@@ -169,7 +219,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 			session.defineEntitySchema("newEntity");
 		});
 
-		assertEquals(1, this.subscriber.getEntityCollectionCreated(TEST_CATALOG, "newEntity"));
+		assertEquals(1, this.catalogSubscriber.getEntityCollectionCreated("newEntity"));
 	}
 
 	@Test
@@ -181,7 +231,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 			session.defineEntitySchema("newEntity");
 		});
 
-		assertEquals(1, this.subscriber.getEntityCollectionCreated(TEST_CATALOG, "newEntity"));
+		assertEquals(1, this.catalogSubscriber.getEntityCollectionCreated("newEntity"));
 	}
 
 	@Test
@@ -190,13 +240,13 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 			session.defineEntitySchema(Entities.PRODUCT);
 		});
 
-		this.subscriber.reset();
+		this.engineSubscriber.reset();
 
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.deleteCollection(Entities.PRODUCT);
 		});
 
-		assertEquals(1, this.subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, this.catalogSubscriber.getEntityCollectionDeleted(Entities.PRODUCT));
 	}
 
 	@Test
@@ -209,7 +259,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 			session.deleteCollection(Entities.PRODUCT);
 		});
 
-		assertEquals(1, this.subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, this.catalogSubscriber.getEntityCollectionDeleted(Entities.PRODUCT));
 	}
 
 	@Test
@@ -218,7 +268,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 			session.defineEntitySchema(Entities.PRODUCT);
 		});
 
-		this.subscriber.reset();
+		this.engineSubscriber.reset();
 
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.PRODUCT)
@@ -226,7 +276,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 				.updateVia(session);
 		});
 
-		assertEquals(1, this.subscriber.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, this.catalogSubscriber.getEntityCollectionSchemaUpdated(Entities.PRODUCT));
 	}
 
 	@Test
@@ -242,7 +292,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 				.updateVia(session);
 		});
 
-		assertEquals(1, this.subscriber.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, this.catalogSubscriber.getEntityCollectionSchemaUpdated(Entities.PRODUCT));
 	}
 
 	@Nonnull

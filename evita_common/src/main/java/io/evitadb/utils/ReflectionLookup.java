@@ -330,7 +330,6 @@ public class ReflectionLookup {
 			for (RecordComponent recordComponent : recordComponents) {
 				final String propertyName = recordComponent.getName();
 				final Field propertyField = mapField(onClass, propertyName);
-				// todo lho discuss with JNO
 				registerPropertyDescriptor(result, recordComponent.getAccessor(), propertyName, true, propertyField);
 			}
 		} else {
@@ -524,7 +523,13 @@ public class ReflectionLookup {
 	 * @param isGetter      flag indicating if the method is a getter
 	 * @param propertyField the field associated with the property descriptor, may be null
 	 */
-	private static void registerPropertyDescriptor(@Nonnull Map<String, PropertyDescriptor> result, @Nonnull Method method, @Nonnull String propertyName, boolean isGetter, @Nullable Field propertyField) {
+	private static void registerPropertyDescriptor(
+		@Nonnull Map<String, PropertyDescriptor> result,
+		@Nonnull Method method,
+		@Nonnull String propertyName,
+		boolean isGetter,
+		@Nullable Field propertyField
+	) {
 		final PropertyDescriptor existingTuple = result.get(propertyName);
 		if (existingTuple == null) {
 			result.put(

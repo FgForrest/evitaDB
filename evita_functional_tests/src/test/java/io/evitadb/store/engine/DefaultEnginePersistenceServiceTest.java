@@ -218,7 +218,7 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 		EngineMutation mutation = createTestEngineMutation();
 
 		// Call appendWal
-		WalFileReference result = this.service.appendWal(1L, mutation);
+		WalFileReference result = this.service.appendWal(1L, mutation).walFileReference();
 
 		// Verify the result
 		assertNotNull(result);

@@ -310,7 +310,7 @@ public class EntityConverter {
 			grpcReference.hasReferencedEntityReference() ?
 				grpcReference.getReferencedEntityReference().getEntityType() :
 				grpcReference.getReferencedEntity().getEntityType(),
-			EvitaEnumConverter.toCardinality(grpcReference.getReferenceCardinality()),
+			EvitaEnumConverter.toCardinality(grpcReference.getReferenceCardinality()).orElse(null),
 			group,
 			toAttributeValues(
 				grpcReference.getGlobalAttributesMap(),

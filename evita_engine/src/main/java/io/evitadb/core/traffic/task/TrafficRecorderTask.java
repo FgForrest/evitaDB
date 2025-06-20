@@ -212,7 +212,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 			if (exportSessionSink != null) {
 				IOUtils.close(
 					() -> new UnexpectedIOException("Failed to close export session sink."),
-					exportSessionSink::close
+					(IOUtils.IOExceptionThrowingRunnable) exportSessionSink::close
 				);
 			}
 		}

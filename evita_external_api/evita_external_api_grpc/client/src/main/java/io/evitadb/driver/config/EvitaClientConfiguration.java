@@ -34,6 +34,7 @@ import javax.annotation.Nullable;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
+import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -64,6 +65,8 @@ import java.util.concurrent.TimeUnit;
  *                                  forcefully.
  * @param timeoutUnit               Time unit for {@link EvitaClientConfiguration#timeout property}.
  * @param trackedTaskLimit		    The maximum number of server tasks that can be tracked by the client.
+ * @param changeCaptureQueueSize    The maximum number of change capture events that can be buffered for each subscriber.
+ *                                  If this limit is reached, an error is reported to the subscriber.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record EvitaClientConfiguration(
@@ -85,7 +88,8 @@ public record EvitaClientConfiguration(
 	long timeout,
 	@Nonnull TimeUnit timeoutUnit,
 	@Nullable Object openTelemetryInstance,
-	int trackedTaskLimit
+	int trackedTaskLimit,
+	int changeCaptureQueueSize
 ) {
 	private static final int DEFAULT_PORT = 5555;
 
@@ -131,6 +135,7 @@ public record EvitaClientConfiguration(
 		private ReflectionCachingBehaviour reflectionCachingBehaviour = ReflectionCachingBehaviour.CACHE;
 		@Nullable private Object openTelemetryInstance = null;
 		private int trackedTaskLimit = 100;
+		private int changeCaptureQueueSize = Flow.defaultBufferSize();
 
 		Builder() {
 			try {
@@ -268,11 +273,17 @@ public record EvitaClientConfiguration(
 			return this;
 		}
 
-		@Nonnull
-		public EvitaClientConfiguration.Builder trackedTaskLimit(int trackedTaskLimit) {
-			this.trackedTaskLimit = trackedTaskLimit;
-			return this;
-		}
+ 	@Nonnull
+ 	public EvitaClientConfiguration.Builder trackedTaskLimit(int trackedTaskLimit) {
+ 		this.trackedTaskLimit = trackedTaskLimit;
+ 		return this;
+ 	}
+
+ 	@Nonnull
+ 	public EvitaClientConfiguration.Builder changeCaptureQueueSize(int changeCaptureQueueSize) {
+ 		this.changeCaptureQueueSize = changeCaptureQueueSize;
+ 		return this;
+ 	}
 
 		public EvitaClientConfiguration build() {
 			return new EvitaClientConfiguration(
@@ -294,7 +305,8 @@ public record EvitaClientConfiguration(
 				this.timeout,
 				this.timeoutUnit,
 				this.openTelemetryInstance,
-				this.trackedTaskLimit
+				this.trackedTaskLimit,
+				this.changeCaptureQueueSize
 			);
 		}
 

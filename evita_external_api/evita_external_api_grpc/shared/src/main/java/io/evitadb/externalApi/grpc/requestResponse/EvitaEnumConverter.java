@@ -64,10 +64,13 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Optional;
 
 import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.*;
 import static io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent.TRAFFIC_RECORDING_BODY;
 import static io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent.TRAFFIC_RECORDING_HEADER;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * Class contains static methods for converting enums from and to gRPC representation.
@@ -586,13 +589,13 @@ public class EvitaEnumConverter {
 	 * @throws EvitaInternalError if the grpcCardinality is unrecognized
 	 */
 	@Nonnull
-	public static Cardinality toCardinality(@Nonnull GrpcCardinality grpcCardinality) {
+	public static Optional<Cardinality> toCardinality(@Nonnull GrpcCardinality grpcCardinality) {
 		return switch (grpcCardinality.getNumber()) {
-			case 1 -> Cardinality.ZERO_OR_ONE;
-			case 2 -> Cardinality.EXACTLY_ONE;
-			case 3 -> Cardinality.ZERO_OR_MORE;
-			case 4 -> Cardinality.ONE_OR_MORE;
-			default -> throw new GenericEvitaInternalError("Unrecognized remote cardinality: " + grpcCardinality);
+			case 1 -> of(Cardinality.ZERO_OR_ONE);
+			case 2 -> of(Cardinality.EXACTLY_ONE);
+			case 3 -> of(Cardinality.ZERO_OR_MORE);
+			case 4 -> of(Cardinality.ONE_OR_MORE);
+			default -> empty();
 		};
 	}
 

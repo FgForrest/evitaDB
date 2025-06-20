@@ -105,6 +105,20 @@ public record ChangeCatalogCaptureCriteria(
 
 		/**
 		 * Configures the data area for the capture request by accepting a modifier for the {@link DataSite.Builder}.
+		 * The capture will consume all data changes in the catalog.
+		 *
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public ChangeCatalogCaptureCriteria.Builder dataArea() {
+			final DataSite.Builder builder = DataSite.builder();
+			this.area = CaptureArea.DATA;
+			this.site = builder.build();
+			return this;
+		}
+
+		/**
+		 * Configures the data area for the capture request by accepting a modifier for the {@link DataSite.Builder}.
 		 *
 		 * @param configurer a consumer that configures the {@link DataSite.Builder}
 		 * @return this builder instance
@@ -114,6 +128,20 @@ public record ChangeCatalogCaptureCriteria(
 			final DataSite.Builder builder = DataSite.builder();
 			configurer.accept(builder);
 			this.area = CaptureArea.DATA;
+			this.site = builder.build();
+			return this;
+		}
+
+		/**
+		 * Configures the data area for the capture request by accepting a modifier for the {@link SchemaSite.Builder}.
+		 * The capture will consume all schema changes in the catalog.
+		 *
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public ChangeCatalogCaptureCriteria.Builder schemaArea() {
+			final SchemaSite.Builder builder = SchemaSite.builder();
+			this.area = CaptureArea.SCHEMA;
 			this.site = builder.build();
 			return this;
 		}

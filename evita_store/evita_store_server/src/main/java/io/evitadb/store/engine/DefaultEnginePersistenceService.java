@@ -43,7 +43,7 @@ import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.EnginePersistenceService;
 import io.evitadb.store.spi.model.EngineState;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
 import io.evitadb.store.wal.EngineWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.ArrayUtils;
@@ -240,7 +240,8 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		);
 
 		// Initialize handle for writing engine state data to file
-		final Path tmpFile = this.bootstrapFilePath.getParent().resolve(this.bootstrapFilePath.getName(this.bootstrapFilePath.getNameCount() - 1) + ".tmp");
+		final Path tmpFile = this.bootstrapFilePath.getParent().resolve(
+			this.bootstrapFilePath.getName(this.bootstrapFilePath.getNameCount() - 1) + ".tmp");
 		FileUtils.deleteFileIfExists(tmpFile);
 		try (
 			final WriteOnlyFileHandle writeHandle = new WriteOnlyFileHandle(
@@ -284,7 +285,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 	@Nonnull
 	@Override
-	public WalFileReference appendWal(long version, @Nonnull EngineMutation mutation) {
+	public TransactionMutationWithWalFileReference appendWal(long version, @Nonnull EngineMutation mutation) {
 		// Initialize WAL if it doesn't exist yet
 		if (this.writeAheadLog == null) {
 			this.writeAheadLog = new EngineWriteAheadLog(
@@ -333,10 +334,13 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		);
 
 		// Append the transaction mutation to the WAL
-		return this.writeAheadLog.append(
-			transactionMutation,
-			// when reading is done, the off-heap memory will be released automatically
-			this.walWriteHandle.toReadOffHeapReference()
+		return new TransactionMutationWithWalFileReference(
+			this.writeAheadLog.append(
+				transactionMutation,
+				// when reading is done, the off-heap memory will be released automatically
+				this.walWriteHandle.toReadOffHeapReference()
+			),
+			transactionMutation
 		);
 	}
 

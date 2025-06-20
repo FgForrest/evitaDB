@@ -38,6 +38,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextProvider;
@@ -56,6 +57,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMut
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.SessionRegistry.SuspendOperation;
 import io.evitadb.core.cache.CacheSupervisor;
@@ -83,7 +85,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.store.spi.EnginePersistenceService;
 import io.evitadb.store.spi.EnginePersistenceServiceFactory;
 import io.evitadb.store.spi.model.EngineState;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -514,13 +516,15 @@ public final class Evita implements EvitaContract {
 				engineMutation.verifyApplicability(this);
 
 				// first store the mutation into the persistence service
-				final WalFileReference walFileReference = this.enginePersistenceService.appendWal(
+				final TransactionMutationWithWalFileReference txMutationWithWalFileReference = this.enginePersistenceService.appendWal(
 					theEngineState.version() + 1,
 					engineMutation
 				);
 
 				// notify system observer about the mutation
+				this.changeObserver.processMutation(txMutationWithWalFileReference.transactionMutation());
 				this.changeObserver.processMutation(engineMutation);
+
 				try {
 					if (engineMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
 						createCatalogInternal(createCatalogSchema);
@@ -532,6 +536,13 @@ public final class Evita implements EvitaContract {
 							renameCatalogInternal(modifyCatalogSchemaName);
 						}
 					} else if (engineMutation instanceof ModifyCatalogSchemaMutation modifyCatalogSchema) {
+						Assert.isTrue(
+							modifyCatalogSchema.getSessionId() != null,
+							() -> new InvalidSchemaMutationException(
+								"Cannot modify catalog schema outside an existing session! " +
+									"Please use methods available on `EvitaSessionContract` interface."
+							)
+						);
 						final CatalogContract catalogContract = this.catalogs.get(modifyCatalogSchema.getCatalogName());
 						catalogContract.updateSchema(modifyCatalogSchema.getSessionId(), modifyCatalogSchema.getSchemaMutations());
 					} else if (engineMutation instanceof RemoveCatalogSchemaMutation removeCatalogSchema) {
@@ -553,7 +564,7 @@ public final class Evita implements EvitaContract {
 							             .toArray(String[]::new)
 						)
 						.inactiveCatalogs(this.inactiveCatalogs.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
-						.walFileReference(walFileReference)
+						.walFileReference(txMutationWithWalFileReference.walFileReference())
 						.build();
 					this.enginePersistenceService.storeEngineState(newState);
 					this.engineState.set(newState);
@@ -562,7 +573,7 @@ public final class Evita implements EvitaContract {
 				} catch (RuntimeException ex) {
 					// forget about the mutation in case of error
 					this.changeObserver.forgetMutationsAfter(theEngineState.version());
-					log.error("EvitaDB failed to apply engine level mutation: {}", engineMutation, ex);
+					throw ex;
 				}
 			}
 		} catch (InterruptedException e) {
@@ -686,16 +697,35 @@ public final class Evita implements EvitaContract {
 		}
 	}
 
-	@Override
+	/**
+	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
+	 * the engine to the given version. The stream goes through all the mutations in this transaction and continues
+	 * forward with next transaction after that until the end of the WAL.
+	 *
+	 * BEWARE! Stream implements {@link java.io.Closeable} and needs to be closed to release resources.
+	 *
+	 * @param version version of the engine to start the stream with
+	 * @return a stream containing committed mutations
+	 */
 	@Nonnull
-	public Stream<EngineMutation> getCommittedMutationStream(long catalogVersion) {
-		return this.enginePersistenceService.getCommittedMutationStream(catalogVersion);
+	public Stream<EngineMutation> getCommittedMutationStream(long version) {
+		return this.enginePersistenceService.getCommittedMutationStream(version);
 	}
 
+	/**
+	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
+	 * the engine to the given version. The stream goes through all the mutations in this transaction from last to
+	 * first one and continues backward with previous transaction after that until the beginning of the WAL.
+	 *
+	 * BEWARE! Stream implements {@link java.io.Closeable} and needs to be closed to release resources.
+	 *
+	 * @param version version of the engine to start the stream with, if null is provided the stream will start
+	 *                with the last committed transaction
+	 * @return a stream containing committed mutations
+	 */
 	@Nonnull
-	@Override
-	public Stream<EngineMutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
-		return this.enginePersistenceService.getReversedCommittedMutationStream(catalogVersion);
+	public Stream<EngineMutation> getReversedCommittedMutationStream(@Nullable Long version) {
+		return this.enginePersistenceService.getReversedCommittedMutationStream(version);
 	}
 
 	@Nonnull

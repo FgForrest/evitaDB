@@ -27,6 +27,7 @@ package io.evitadb.core.cdc;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
@@ -85,6 +86,8 @@ public class EngineStatisticsPublisher implements Flow.Subscriber<ChangeSystemCa
 				emitDeleteObservabilityEvents(mcsnm.getCatalogName());
 			}
 			this.emitCatalogStatistics.accept(mcsnm.getNewCatalogName());
+		} else if (mutation instanceof ModifyCatalogSchemaMutation mcsm) {
+			this.emitCatalogStatistics.accept(mcsm.getCatalogName());
 		}
 
 		this.subscription.request(1);

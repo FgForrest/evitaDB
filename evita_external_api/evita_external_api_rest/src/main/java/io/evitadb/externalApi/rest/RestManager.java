@@ -159,14 +159,6 @@ public class RestManager {
 		try {
 			final long instanceBuildStartTime = System.currentTimeMillis();
 
-			// todo jno: uncomment this after the catalog captures are implemented
-			//		catalog.registerChangeCatalogCapture(
-			//			new ChangeCatalogCaptureRequest(
-			//				CaptureArea.SCHEMA, new SchemaSite(Operation.values()), CaptureContent.HEADER,
-			//				catalog.getLastCommittedTransactionId()
-			//			)
-			//		).subscribe(new CatalogRestRefreshingObserver(this));
-
 			final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(this.restOptions, this.headerOptions, this.evita, catalog);
 			final long schemaBuildStartTime = System.currentTimeMillis();
 			final Rest api = catalogRestBuilder.build();

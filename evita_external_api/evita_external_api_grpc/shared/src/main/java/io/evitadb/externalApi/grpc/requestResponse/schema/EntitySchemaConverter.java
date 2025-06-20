@@ -683,7 +683,7 @@ public class EntitySchemaConverter {
 	 */
 	@Nonnull
 	private static ReferenceSchemaContract toReferenceSchema(@Nonnull GrpcReferenceSchema referenceSchema) {
-		final Cardinality cardinality = toCardinality(referenceSchema.getCardinality());
+		final Cardinality cardinality = toCardinality(referenceSchema.getCardinality()).orElse(null);
 		final Scope[] indexedInScopes = referenceSchema.getIndexedInScopesList().isEmpty() ?
 			(referenceSchema.getIndexed() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:

@@ -295,10 +295,12 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 			capture.area(),
 			area -> new AtomicLong(0)
 		).incrementAndGet();
-		this.sentEventsByEntityType.computeIfAbsent(
-			capture.entityType(),
-			entityType -> new AtomicLong(0)
-		).incrementAndGet();
+		if (capture.entityType() != null) {
+			this.sentEventsByEntityType.computeIfAbsent(
+				capture.entityType(),
+				entityType -> new AtomicLong(0)
+			).incrementAndGet();
+		}
 	}
 
 	/**

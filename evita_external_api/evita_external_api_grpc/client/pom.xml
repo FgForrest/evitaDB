@@ -60,10 +60,6 @@
 			<artifactId>armeria-grpc</artifactId>
 			<version>${armeria.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>com.salesforce.servicelibs</groupId>
-			<artifactId>reactive-grpc-common</artifactId>
-		</dependency>
 	</dependencies>
 	<build>
 		<plugins>

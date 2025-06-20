@@ -25,7 +25,11 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.MutationPredicate;
+import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
@@ -41,6 +45,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for removing an existing {@link EntitySchemaContract} - or more precisely the entity
@@ -78,6 +83,17 @@ public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 	@Override
 	public Operation operation() {
 		return Operation.REMOVE;
+	}
+
+	@Override
+	@Nonnull
+	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
+		@Nonnull MutationPredicate predicate,
+		@Nonnull ChangeCaptureContent content
+	) {
+		final MutationPredicateContext context = predicate.getContext();
+		context.setEntityType(this.name);
+		return LocalCatalogSchemaMutation.super.toChangeCatalogCapture(predicate, content);
 	}
 
 	@Override

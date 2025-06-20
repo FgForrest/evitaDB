@@ -72,6 +72,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.AnalysisResult;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -88,6 +89,8 @@ import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.task.Task;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.Scope;
+import io.evitadb.driver.cdc.ClientChangeCapturePublisher;
+import io.evitadb.driver.cdc.ClientChangeCatalogCaptureProcessor;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
@@ -112,6 +115,7 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingLocalCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.grpc.ClientCall;
 import io.grpc.stub.ClientCalls;
@@ -132,6 +136,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -178,6 +183,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Evita instance this session is connected to.
 	 */
 	@Getter private final EvitaClient evita;
+	/**
+	 * Executor service used for asynchronous operations.
+	 */
+	private final ExecutorService executor;
 	/**
 	 * Service class used for tracking tasks on the server side.
 	 */
@@ -258,6 +267,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	private CompletableFuture<CommitVersions> closedFuture;
 	/**
+	 * Index of the opened and active {@link ClientChangeCapturePublisher} indexed by their unique {@link ChangeCatalogCaptureRequest}.
+	 */
+	private final Map<ChangeCatalogCaptureRequest, ClientChangeCatalogCaptureProcessor> activePublishers = CollectionUtils.createConcurrentHashMap(16);
+	/**
 	 * Timestamp of the last session activity (call).
 	 */
 	private long lastCall;
@@ -321,6 +334,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	public EvitaClientSession(
 		@Nonnull EvitaClient evita,
+		@Nonnull ExecutorService executor,
 		@Nonnull EvitaClientManagement management,
 		@Nonnull EvitaEntitySchemaCache schemaCache,
 		@Nonnull GrpcClientBuilder grpcClientBuilder,
@@ -334,6 +348,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull Timeout timeout
 	) {
 		this.evita = evita;
+		this.executor = executor;
 		this.management = management;
 		this.reflectionLookup = evita.getReflectionLookup();
 		this.proxyFactory = schemaCache.getProxyFactory();
@@ -461,51 +476,30 @@ public class EvitaClientSession implements EvitaSessionContract {
 		return this.closedFuture;
 	}
 
-	// todo jno: reimplement
 	@Nonnull
 	@Override
 	public ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request) {
-		throw new GenericEvitaInternalError("Not implemented yet");
+		//noinspection SuspiciousMethodCalls
+		return this.activePublishers.compute(
+			request,
+			(theRequest, existingInstance) ->
+				existingInstance == null || existingInstance.isClosed() ?
+					new ClientChangeCatalogCaptureProcessor(
+						this.evita.getConfiguration().changeCaptureQueueSize(),
+						this.executor,
+						subscriber -> executeWithAsyncEvitaSessionService(
+							evitaService -> {
+								evitaService.registerChangeCatalogCapture(
+									ChangeCaptureConverter.toGrpcChangeCatalogCaptureRequest(theRequest),
+									subscriber
+								);
+								return null;
+							}
+						),
+						publisher -> this.activePublishers.remove(theRequest, publisher)
+					) : existingInstance
+		);
 	}
-//	@Nonnull
-//	@Override
-//	public UUID registerChangeDataCapture(@Nonnull ChangeDataCaptureRequest request, @Nonnull ChangeDataCaptureObserver callback) {
-//		final AtomicReference<UUID> uuid = new AtomicReference<>();
-//		final GrpcRegisterChangeDataCaptureRequest.Builder builder = GrpcRegisterChangeDataCaptureRequest.newBuilder();
-//		if (request.site() instanceof DataSite dataSite) {
-//			builder.setDataSite(ChangeDataCaptureConverter.toGrpcDataSite(dataSite));
-//		} else if (request.site() instanceof SchemaSite schemaSite) {
-//			builder.setSchemaSite(ChangeDataCaptureConverter.toGrpcSchemaSite(schemaSite));
-//		}
-//
-//		SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
-//		final Iterator<GrpcRegisterChangeDataCaptureResponse> responseIterator = EvitaSessionServiceGrpc.newBlockingStub(cdcChannel)
-//			.registerChangeDataCapture(builder
-//				.setArea(EvitaEnumConverter.toGrpcCaptureArea(request.area()))
-//				.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()))
-//				/* TODO TPO - redesign */
-//				/*.setSince(ChangeDataCaptureConverter.toGrpcCaptureSince(request.since()))*/
-//				.build()
-//			);
-//
-//		this.executor.execute(() -> responseIterator.forEachRemaining(it -> {
-//			if (it.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT) {
-//				uuid.set(UUID.fromString(it.getUuid()));
-//				activeDataCaptures.add(uuid.get());
-//			} else {
-//				callback.onTransactionCommit(
-//					it.getTransactionalId(),
-//					it.getCaptureList().stream().map(ChangeDataCaptureConverter::toChangeDataCapture).collect(Collectors.toList())
-//				);
-//			}
-//		}));
-//
-//		while (uuid.get() == null) {
-//
-//		}
-//		SessionIdHolder.reset();
-//		return uuid.get();
-//	}
 
 	@Nonnull
 	@Override
@@ -555,6 +549,82 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 		}
 		return this.commitProgress;
+	}
+
+	@Override
+	public int updateCatalogSchema(@Nonnull CatalogSchemaBuilder catalogSchemaBuilder) throws SchemaAlteringException {
+		assertActive();
+		return catalogSchemaBuilder
+			.toMutation()
+			.map(
+				modifyMutation ->
+					executeInTransactionIfPossible(
+						session -> {
+							final LocalCatalogSchemaMutation[] schemaMutations = modifyMutation.getSchemaMutations();
+							final GrpcUpdateCatalogSchemaRequest.Builder builder = GrpcUpdateCatalogSchemaRequest.newBuilder();
+							final GrpcUpdateCatalogSchemaRequest request = builder
+								.addAllSchemaMutations(
+									Arrays.stream(schemaMutations)
+									      .map(
+										      DelegatingLocalCatalogSchemaMutationConverter.INSTANCE::convert)
+									      .collect(Collectors.toList())
+								)
+								.build();
+							final GrpcUpdateCatalogSchemaResponse response = executeWithBlockingEvitaSessionService(
+								evitaSessionService -> evitaSessionService.updateCatalogSchema(request)
+							);
+							this.schemaCache.analyzeMutations(schemaMutations);
+							return response.getVersion();
+						}
+					)
+			)
+			.orElseGet(
+				() -> this.schemaCache.getLatestCatalogSchema(
+					this::fetchCatalogSchema,
+					this.clientEntitySchemaAccessor
+				).version()
+			);
+	}
+
+	@Nonnull
+	@Override
+	public SealedCatalogSchema updateAndFetchCatalogSchema(
+		@Nonnull CatalogSchemaBuilder catalogSchemaBuilder
+	) throws SchemaAlteringException {
+		assertActive();
+		return catalogSchemaBuilder
+			.toMutation()
+			.map(
+				modifyMutation ->
+					executeInTransactionIfPossible(
+						session -> {
+							final LocalCatalogSchemaMutation[] schemaMutations = modifyMutation.getSchemaMutations();
+							final GrpcUpdateCatalogSchemaRequest.Builder builder = GrpcUpdateCatalogSchemaRequest.newBuilder();
+							final GrpcUpdateCatalogSchemaRequest request = builder
+								.addAllSchemaMutations(
+									Arrays.stream(schemaMutations)
+									      .map(
+										      DelegatingLocalCatalogSchemaMutationConverter.INSTANCE::convert)
+									      .collect(Collectors.toList())
+								)
+								.build();
+							final GrpcUpdateAndFetchCatalogSchemaResponse response = executeWithBlockingEvitaSessionService(
+								evitaSessionService -> evitaSessionService.updateAndFetchCatalogSchema(request)
+							);
+							this.schemaCache.analyzeMutations(schemaMutations);
+							return (SealedCatalogSchema) new ClientCatalogSchemaDecorator(
+								CatalogSchemaConverter.convert(response.getCatalogSchema(), this.clientEntitySchemaAccessor),
+								this.clientEntitySchemaAccessor
+							);
+						}
+					)
+			)
+			.orElseGet(
+				() -> this.schemaCache.getLatestCatalogSchema(
+					this::fetchCatalogSchema,
+					this.clientEntitySchemaAccessor
+				)
+			);
 	}
 
 	@Nonnull

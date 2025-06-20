@@ -38,6 +38,7 @@ message GrpcCatalogVersionAtResponse {
   GrpcOffsetDateTime introducedAt = 2;
 }
 
+/* TODO JNO - align with traffic recording request */
 // Request to GetMutationsHistoryPage request.
 message GetMutationsHistoryPageRequest {
   // The page number starting with 1
@@ -556,6 +557,7 @@ message GrpcTransactionResponse {
 // includes their creating, updating and deleting. Same operations could be done with entities, which in addition could
 // be fetched by specifying a complex queries.
 service EvitaSessionService {
+
   // Procedure that returns the current (the one on which the used session operates) catalog schema.
   rpc GetCatalogSchema(GrpcGetCatalogSchemaRequest) returns (GrpcCatalogSchemaResponse);
   // Procedure that returns the current state of the catalog.

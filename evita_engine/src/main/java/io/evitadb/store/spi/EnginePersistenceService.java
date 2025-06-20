@@ -27,7 +27,7 @@ package io.evitadb.store.spi;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.store.spi.model.EngineState;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -94,7 +94,7 @@ public non-sealed interface EnginePersistenceService extends PersistenceService 
 	 * @return the number of Bytes written
 	 */
 	@Nonnull
-	WalFileReference appendWal(long version, @Nonnull EngineMutation mutation);
+	TransactionMutationWithWalFileReference appendWal(long version, @Nonnull EngineMutation mutation);
 
 	/**
 	 * Retrieves the first non-processed transaction in the WAL.

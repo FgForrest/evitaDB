@@ -26,31 +26,14 @@ package io.evitadb.externalApi.grpc.requestResponse.cdc;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
 import com.google.protobuf.StringValue;
-import io.evitadb.api.requestResponse.cdc.CaptureArea;
-import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
-import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.cdc.DataSite;
-import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.cdc.SchemaSite;
+import io.evitadb.api.requestResponse.cdc.*;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.dataType.ContainerType;
-import io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest;
-import io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest;
-import io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent;
-import io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria;
-import io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureDataSite;
-import io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureSchemaSite;
-import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture;
+import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder;
-import io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture;
-import io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocalMutationConverter;
@@ -62,6 +45,7 @@ import java.util.Arrays;
 
 /**
  * This class contains conversion methods for CDC (Change Data Capture) requests and responses.
+ * TODO JNO - unify requests?!
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -79,9 +63,9 @@ public class ChangeCaptureConverter {
 			request.getSinceVersion(),
 			request.getSinceIndex(),
 			request.getCriteriaList()
-				.stream()
-				.map(ChangeCaptureConverter::toChangeCaptureCriteria)
-				.toArray(ChangeCatalogCaptureCriteria[]::new),
+			       .stream()
+			       .map(ChangeCaptureConverter::toChangeCaptureCriteria)
+			       .toArray(ChangeCatalogCaptureCriteria[]::new),
 			EvitaEnumConverter.toCaptureContent(request.getContent())
 		);
 	}
@@ -98,22 +82,49 @@ public class ChangeCaptureConverter {
 			request.hasSinceVersion() ? request.getSinceVersion().getValue() : null,
 			request.hasSinceIndex() ? request.getSinceIndex().getValue() : null,
 			request.getCriteriaList()
-				.stream()
-				.map(ChangeCaptureConverter::toChangeCaptureCriteria)
-				.toArray(ChangeCatalogCaptureCriteria[]::new),
+			       .stream()
+			       .map(ChangeCaptureConverter::toChangeCaptureCriteria)
+			       .toArray(ChangeCatalogCaptureCriteria[]::new),
 			EvitaEnumConverter.toCaptureContent(request.getContent())
 		);
 	}
 
 	/**
-	 * Converts a {@link ChangeCatalogCaptureRequest} to a {@link GetMutationsHistoryPageRequest}.
+	 * Converts a {@link ChangeSystemCaptureRequest} to a {@link GrpcRegisterSystemChangeCaptureRequest}.
 	 *
 	 * @param request the request to convert
 	 * @return the converted request
 	 */
 	@Nonnull
-	public static GetMutationsHistoryRequest toGrpcChangeCaptureRequest(@Nonnull ChangeCatalogCaptureRequest request) {
-		final GetMutationsHistoryRequest.Builder builder = GetMutationsHistoryRequest.newBuilder()
+	public static GrpcRegisterSystemChangeCaptureRequest toGrpcChangeSystemCaptureRequest(
+		@Nonnull ChangeSystemCaptureRequest request
+	) {
+		final GrpcRegisterSystemChangeCaptureRequest.Builder builder = GrpcRegisterSystemChangeCaptureRequest
+			.newBuilder()
+			.setContent(EvitaEnumConverter.toGrpcChangeCaptureContent(request.content()));
+
+		if (request.sinceVersion() != null) {
+			builder.setSinceVersion(Int64Value.of(request.sinceVersion()));
+		}
+		if (request.sinceIndex() != null) {
+			builder.setSinceIndex(Int32Value.of(request.sinceIndex()));
+		}
+
+		return builder.build();
+	}
+
+	/**
+	 * Converts a {@link ChangeCatalogCaptureRequest} to a {@link GrpcRegisterChangeCatalogCaptureRequest}.
+	 *
+	 * @param request the request to convert
+	 * @return the converted request
+	 */
+	@Nonnull
+	public static GrpcRegisterChangeCatalogCaptureRequest toGrpcChangeCatalogCaptureRequest(
+		@Nonnull ChangeCatalogCaptureRequest request
+	) {
+		final GrpcRegisterChangeCatalogCaptureRequest.Builder builder = GrpcRegisterChangeCatalogCaptureRequest
+			.newBuilder()
 			.setContent(EvitaEnumConverter.toGrpcChangeCaptureContent(request.content()));
 
 		if (request.sinceVersion() != null) {
@@ -124,8 +135,37 @@ public class ChangeCaptureConverter {
 		}
 		if (request.criteria() != null) {
 			Arrays.stream(request.criteria())
-				.map(ChangeCaptureConverter::toGrpcChangeCaptureCriteria)
-				.forEach(builder::addCriteria);
+			      .map(ChangeCaptureConverter::toGrpcChangeCaptureCriteria)
+			      .forEach(builder::addCriteria);
+		}
+
+		return builder.build();
+	}
+
+	/**
+	 * Converts a {@link ChangeCatalogCaptureRequest} to a {@link GetMutationsHistoryPageRequest}.
+	 *
+	 * @param request the request to convert
+	 * @return the converted request
+	 */
+	@Nonnull
+	public static GetMutationsHistoryRequest toGrpcChangeCaptureRequest(@Nonnull ChangeCatalogCaptureRequest request) {
+		final GetMutationsHistoryRequest.Builder builder = GetMutationsHistoryRequest
+			.newBuilder()
+			.setContent(
+				EvitaEnumConverter.toGrpcChangeCaptureContent(
+					request.content()));
+
+		if (request.sinceVersion() != null) {
+			builder.setSinceVersion(Int64Value.of(request.sinceVersion()));
+		}
+		if (request.sinceIndex() != null) {
+			builder.setSinceIndex(Int32Value.of(request.sinceIndex()));
+		}
+		if (request.criteria() != null) {
+			Arrays.stream(request.criteria())
+			      .map(ChangeCaptureConverter::toGrpcChangeCaptureCriteria)
+			      .forEach(builder::addCriteria);
 		}
 
 		return builder.build();
@@ -145,7 +185,8 @@ public class ChangeCaptureConverter {
 		} else if (changeCatalogCapture.hasLocalMutation()) {
 			mutation = DelegatingLocalMutationConverter.INSTANCE.convert(changeCatalogCapture.getLocalMutation());
 		} else if (changeCatalogCapture.hasSchemaMutation()) {
-			mutation = DelegatingEntitySchemaMutationConverter.INSTANCE.convert(changeCatalogCapture.getSchemaMutation());
+			mutation = DelegatingEntitySchemaMutationConverter.INSTANCE.convert(
+				changeCatalogCapture.getSchemaMutation());
 		} else {
 			mutation = null;
 		}
@@ -167,12 +208,17 @@ public class ChangeCaptureConverter {
 	 * @return the converted request
 	 */
 	@Nonnull
-	public static GrpcChangeCatalogCapture toGrpcChangeCatalogCapture(@Nonnull ChangeCatalogCapture changeCatalogCapture) {
-		final Builder builder = GrpcChangeCatalogCapture.newBuilder()
+	public static GrpcChangeCatalogCapture toGrpcChangeCatalogCapture(
+		@Nonnull ChangeCatalogCapture changeCatalogCapture
+	) {
+		final Builder builder = GrpcChangeCatalogCapture
+			.newBuilder()
 			.setVersion(changeCatalogCapture.version())
 			.setIndex(changeCatalogCapture.index())
-			.setArea(EvitaEnumConverter.toGrpcChangeCaptureArea(changeCatalogCapture.area()))
-			.setOperation(EvitaEnumConverter.toGrpcOperation(changeCatalogCapture.operation()));
+			.setArea(EvitaEnumConverter.toGrpcChangeCaptureArea(
+				changeCatalogCapture.area()))
+			.setOperation(EvitaEnumConverter.toGrpcOperation(
+				changeCatalogCapture.operation()));
 		if (changeCatalogCapture.entityType() != null) {
 			builder.setEntityType(StringValue.of(changeCatalogCapture.entityType()));
 		}
@@ -207,19 +253,22 @@ public class ChangeCaptureConverter {
 
 	/**
 	 * Converts a {@link ChangeSystemCapture} to a {@link GrpcChangeSystemCapture}.
+	 *
 	 * @param capture the capture to convert
 	 * @return the converted request
 	 */
 	@Nonnull
 	public static GrpcChangeSystemCapture toGrpcChangeSystemCapture(@Nonnull ChangeSystemCapture capture) {
-		final GrpcChangeSystemCapture.Builder builder = GrpcChangeSystemCapture.newBuilder()
+		final GrpcChangeSystemCapture.Builder builder = GrpcChangeSystemCapture
+			.newBuilder()
 			.setVersion(capture.version())
 			.setIndex(capture.index())
-			.setOperation(EvitaEnumConverter.toGrpcOperation(capture.operation()));
-		/* TODO JNO - TADY ROZŠÍŘIT MINIMÁLNĚ O GO LIVE */
-		if (capture.body() instanceof TopLevelCatalogSchemaMutation topLevelCatalogSchemaMutation) {
+			.setOperation(
+				EvitaEnumConverter.toGrpcOperation(
+					capture.operation()));
+		if (capture.body() != null) {
 			builder.setSystemMutation(
-				DelegatingEngineMutationConverter.INSTANCE.convert(topLevelCatalogSchemaMutation)
+				DelegatingEngineMutationConverter.INSTANCE.convert(capture.body())
 			);
 		}
 		return builder.build();
@@ -250,8 +299,8 @@ public class ChangeCaptureConverter {
 		}
 		requestBuilder.criteria(
 			request.getCriteriaList().stream()
-				.map(ChangeCaptureConverter::toChangeCaptureCriteria)
-				.toArray(ChangeCatalogCaptureCriteria[]::new)
+			       .map(ChangeCaptureConverter::toChangeCaptureCriteria)
+			       .toArray(ChangeCatalogCaptureCriteria[]::new)
 		);
 		return requestBuilder.build();
 	}
@@ -263,7 +312,9 @@ public class ChangeCaptureConverter {
 	 * @return the converted request
 	 */
 	@Nonnull
-	private static GrpcChangeCaptureCriteria toGrpcChangeCaptureCriteria(@Nonnull ChangeCatalogCaptureCriteria criteria) {
+	private static GrpcChangeCaptureCriteria toGrpcChangeCaptureCriteria(
+		@Nonnull ChangeCatalogCaptureCriteria criteria
+	) {
 		final GrpcChangeCaptureCriteria.Builder builder = GrpcChangeCaptureCriteria.newBuilder();
 		if (criteria.area() != null) {
 			builder.setArea(EvitaEnumConverter.toGrpcChangeCaptureArea(criteria.area()));
@@ -283,11 +334,15 @@ public class ChangeCaptureConverter {
 	 * @return the converted request
 	 */
 	@Nonnull
-	private static ChangeCatalogCaptureCriteria toChangeCaptureCriteria(@Nonnull GrpcChangeCaptureCriteria grpcCaptureCriteria) {
+	private static ChangeCatalogCaptureCriteria toChangeCaptureCriteria(
+		@Nonnull GrpcChangeCaptureCriteria grpcCaptureCriteria
+	) {
 		final CaptureArea captureArea = EvitaEnumConverter.toCaptureArea(grpcCaptureCriteria.getArea());
 		return new ChangeCatalogCaptureCriteria(
 			captureArea,
-			captureArea == CaptureArea.SCHEMA ? toSchemaSite(grpcCaptureCriteria.getSchemaSite()) : toDataSite(grpcCaptureCriteria.getDataSite())
+			captureArea == CaptureArea.SCHEMA ?
+				toSchemaSite(grpcCaptureCriteria.getSchemaSite()) :
+				toDataSite(grpcCaptureCriteria.getDataSite())
 		);
 	}
 
@@ -303,7 +358,10 @@ public class ChangeCaptureConverter {
 			dataSite.hasEntityType() ? dataSite.getEntityType().getValue() : null,
 			dataSite.hasEntityPrimaryKey() ? dataSite.getEntityPrimaryKey().getValue() : null,
 			dataSite.getOperationList().stream().map(EvitaEnumConverter::toOperation).toArray(Operation[]::new),
-			dataSite.getContainerTypeList().stream().map(EvitaEnumConverter::toContainerType).toArray(ContainerType[]::new),
+			dataSite.getContainerTypeList()
+			        .stream()
+			        .map(EvitaEnumConverter::toContainerType)
+			        .toArray(ContainerType[]::new),
 			dataSite.getContainerNameList().toArray(new String[0])
 		);
 	}
@@ -327,7 +385,8 @@ public class ChangeCaptureConverter {
 			Arrays.stream(dataSite.operation()).map(EvitaEnumConverter::toGrpcOperation).forEach(builder::addOperation);
 		}
 		if (dataSite.containerType() != null) {
-			Arrays.stream(dataSite.containerType()).map(EvitaEnumConverter::toGrpcChangeCaptureContainerType).forEach(builder::addContainerType);
+			Arrays.stream(dataSite.containerType()).map(EvitaEnumConverter::toGrpcChangeCaptureContainerType).forEach(
+				builder::addContainerType);
 		}
 		if (dataSite.containerName() != null) {
 			builder.addAllContainerName(Arrays.asList(dataSite.containerName()));
@@ -346,7 +405,10 @@ public class ChangeCaptureConverter {
 		return new SchemaSite(
 			schemaSite.hasEntityType() ? schemaSite.getEntityType().getValue() : null,
 			schemaSite.getOperationList().stream().map(EvitaEnumConverter::toOperation).toArray(Operation[]::new),
-			schemaSite.getContainerTypeList().stream().map(EvitaEnumConverter::toContainerType).toArray(ContainerType[]::new)
+			schemaSite.getContainerTypeList()
+			          .stream()
+			          .map(EvitaEnumConverter::toContainerType)
+			          .toArray(ContainerType[]::new)
 		);
 	}
 
@@ -363,10 +425,12 @@ public class ChangeCaptureConverter {
 			builder.setEntityType(StringValue.of(schemaSite.entityType()));
 		}
 		if (schemaSite.operation() != null) {
-			Arrays.stream(schemaSite.operation()).map(EvitaEnumConverter::toGrpcOperation).forEach(builder::addOperation);
+			Arrays.stream(schemaSite.operation()).map(EvitaEnumConverter::toGrpcOperation).forEach(
+				builder::addOperation);
 		}
 		if (schemaSite.containerType() != null) {
-			Arrays.stream(schemaSite.containerType()).map(EvitaEnumConverter::toGrpcChangeCaptureContainerType).forEach(builder::addContainerType);
+			Arrays.stream(schemaSite.containerType()).map(EvitaEnumConverter::toGrpcChangeCaptureContainerType).forEach(
+				builder::addContainerType);
 		}
 		return builder.build();
 	}

@@ -33,7 +33,6 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 
@@ -42,71 +41,41 @@ import java.util.concurrent.Flow.Subscription;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeSystemCapture> {
-
-	@Getter
-	private final CountDownLatch countDownLatch;
+public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSystemCapture> {
 	private final int initialRequestCount;
 	private Subscription subscription;
 
-	private final Map<String, Integer> catalogUpserted = new HashMap<>();
+	private final Map<String, Integer> catalogCreated = new HashMap<>();
 	private final Map<String, Integer> catalogDeleted = new HashMap<>();
-	private final Map<String, Integer> catalogSchemaUpdated = new HashMap<>();
-	private final Map<EntityCollectionCatalogRecord, Integer> entityCollectionCreated = new HashMap<>();
-	private final Map<EntityCollectionCatalogRecord, Integer> entityCollectionUpdated = new HashMap<>();
-	private final Map<EntityCollectionCatalogRecord, Integer> entityCollectionDeleted = new HashMap<>();
+	private final Map<String, Integer> catalogUpdated = new HashMap<>();
+	@Getter private int received = 0;
 	@Getter private int completed = 0;
 	@Getter private int errors = 0;
 
-	public MockCatalogStructuralChangeSubscriber() {
+	public MockEngineChangeCaptureSubscriber() {
 		this(Integer.MAX_VALUE);
 	}
 
-	public MockCatalogStructuralChangeSubscriber(int initialRequestCount) {
-		this(null, initialRequestCount);
-	}
-
-	public MockCatalogStructuralChangeSubscriber(@Nonnull CountDownLatch countDownLatch, int initialRequestCount) {
-		this.countDownLatch = countDownLatch;
+	public MockEngineChangeCaptureSubscriber(int initialRequestCount) {
 		this.initialRequestCount = initialRequestCount;
 	}
 
 	public void reset() {
-		this.catalogUpserted.clear();
+		this.catalogCreated.clear();
 		this.catalogDeleted.clear();
-		this.catalogSchemaUpdated.clear();
-		this.entityCollectionCreated.clear();
-		this.entityCollectionUpdated.clear();
-		this.entityCollectionDeleted.clear();
-		this.entityCollectionUpdated.clear();
+		this.catalogUpdated.clear();
 	}
 
-	public int getCatalogUpserted(@Nonnull String catalogName) {
-		return this.catalogUpserted.getOrDefault(catalogName, 0);
+	public int getCatalogCreated(@Nonnull String catalogName) {
+		return this.catalogCreated.getOrDefault(catalogName, 0);
 	}
 
 	public int getCatalogDeleted(@Nonnull String catalogName) {
 		return this.catalogDeleted.getOrDefault(catalogName, 0);
 	}
 
-	public int getCatalogSchemaUpdated(@Nonnull String catalogName) {
-		return this.catalogSchemaUpdated.getOrDefault(catalogName, 0);
-	}
-
-	public int getEntityCollectionCreated(@Nonnull String catalogName, @Nonnull String entityType) {
-		return this.entityCollectionCreated.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
-	}
-
-	public int getEntityCollectionUpdated(@Nonnull String catalogName, @Nonnull String entityType) {
-		return this.entityCollectionUpdated.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
-	}
-
-	public int getEntityCollectionDeleted(@Nonnull String catalogName, @Nonnull String entityType) {
-		return this.entityCollectionDeleted.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
-	}
-
-	public int getEntityCollectionSchemaUpdated(@Nonnull String catalogName, @Nonnull String entityType) {
-		return this.entityCollectionUpdated.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
+	public int getCatalogUpdated(@Nonnull String catalogName) {
+		return this.catalogUpdated.getOrDefault(catalogName, 0);
 	}
 
 	@Override
@@ -119,8 +88,9 @@ public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeS
 
 	@Override
 	public void onNext(ChangeSystemCapture item) {
+		this.received++;
 		if (item.body() instanceof CreateCatalogSchemaMutation ccsm) {
-			this.catalogUpserted
+			this.catalogCreated
 				.compute(ccsm.getCatalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 		} else if (item.body() instanceof RemoveCatalogSchemaMutation rccs) {
 			this.catalogDeleted
@@ -128,15 +98,16 @@ public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeS
 		} else if (item.body() instanceof ModifyCatalogSchemaNameMutation mcsnm) {
 			this.catalogDeleted
 				.compute(mcsnm.getCatalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
-			this.catalogUpserted
-				.compute(mcsnm.getNewCatalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+			if (mcsnm.isOverwriteTarget()) {
+				this.catalogUpdated
+					.compute(mcsnm.getNewCatalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+			} else {
+				this.catalogCreated
+					.compute(mcsnm.getNewCatalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+			}
 		} else if (item.body() instanceof ModifyCatalogSchemaMutation mcsm) {
-			this.catalogUpserted
+			this.catalogUpdated
 				.compute(mcsm.getCatalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
-		}
-
-		if (this.countDownLatch != null) {
-			this.countDownLatch.countDown();
 		}
 	}
 
@@ -157,9 +128,6 @@ public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeS
 
 	public void cancel() {
 		this.subscription.cancel();
-	}
-
-	private record EntityCollectionCatalogRecord(@Nonnull String catalogName, @Nonnull String entityType) {
 	}
 
 }

@@ -265,6 +265,40 @@ public class IOUtils {
 	}
 
 	/**
+	 * Closes multiple resources encapsulated in {@link Runnable} instances, suppressing
+	 * and aggregating any {@link Throwable} that occurs during execution. If any exceptions are thrown, they
+	 * are encapsulated and re-thrown as a single exception provided by the {@code exceptionFactory}.
+	 *
+	 * Unlike {@link #close(Supplier, IOExceptionThrowingRunnable...)}, this method catches any {@link Throwable}
+	 * rather than just {@link Exception}, providing a more robust safety net for resource cleanup.
+	 *
+	 * @param <T>               the type of exception that will be thrown if any exception occurs
+	 * @param exceptionFactory  a supplier that provides an exception of type {@code T}, used to wrap any
+	 *                          exception thrown during the execution of the provided runnables
+	 * @param runnable          varargs of {@link Runnable} instances which encapsulate
+	 *                          the resources/actions to be closed or executed
+	 * @throws T                the consolidated exception containing any exceptions that were
+	 *                          thrown by the provided runnables
+	 */
+	public static <T extends RuntimeException> void closeSafely(
+		@Nonnull Supplier<T> exceptionFactory,
+		@Nonnull Runnable... runnable
+	) throws T {
+		T exception = null;
+		for (Runnable lambda : runnable) {
+			try {
+				lambda.run();
+			} catch (Throwable e) {
+				exception = exception == null ? exceptionFactory.get() : exception;
+				exception.addSuppressed(e);
+			}
+		}
+		if (exception != null) {
+			throw exception;
+		}
+	}
+
+	/**
 	 * Executes the provided {@link IOExceptionThrowingRunnable} instances, ensuring that exceptions thrown
 	 * during their execution are logged but not propagated. This method is typically used for safely closing
 	 * resources without allowing individual close failures to disrupt the overall process.
@@ -282,6 +316,33 @@ public class IOUtils {
 			try {
 				lambda.run();
 			} catch (Exception e) {
+				// ignore exception, it should not be propagated
+				log.debug("An exception occurred while closing a resource: {}", e.getMessage(), e);
+			}
+		}
+	}
+
+	/**
+	 * Executes the provided {@link Runnable} instances, ensuring that exceptions thrown
+	 * during their execution are logged but not propagated. This method is typically used for safely closing
+	 * resources without allowing individual close failures to disrupt the overall process.
+	 *
+	 * Unlike {@link #closeQuietly(IOExceptionThrowingRunnable...)}, this method catches any {@link Throwable}
+	 * rather than just {@link Exception}, providing a more robust safety net for resource cleanup.
+	 *
+	 * @param runnable the runnable instances, which may throw any exception during execution
+	 *                 and will be logged if an exception occurs
+	 * @param <T>      the type parameter extending {@link RuntimeException} that represents any potential runtime exception
+	 *                 to be thrown
+	 * @throws T if a runtime exception specific to the implementation needs propagation
+	 */
+	public static <T extends RuntimeException> void closeSafely(
+		@Nonnull Runnable... runnable
+	) throws T {
+		for (Runnable lambda : runnable) {
+			try {
+				lambda.run();
+			} catch (Throwable e) {
 				// ignore exception, it should not be propagated
 				log.debug("An exception occurred while closing a resource: {}", e.getMessage(), e);
 			}

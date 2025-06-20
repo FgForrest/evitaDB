@@ -41,7 +41,6 @@ import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.TransactionException;
-import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
@@ -51,7 +50,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
-import io.evitadb.driver.cdc.ClientRxPublisher;
+import io.evitadb.driver.cdc.ClientChangeCapturePublisher;
+import io.evitadb.driver.cdc.ClientChangeSystemCaptureProcessor;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
@@ -67,13 +67,16 @@ import io.evitadb.exception.InvalidEvitaVersionException;
 import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager.Builder;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
+import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceStub;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
+import io.evitadb.function.Functions;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils;
@@ -81,9 +84,7 @@ import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.reactivestreams.FlowAdapters;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -103,9 +104,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Flow.Subscriber;
-import java.util.concurrent.Flow.Subscription;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -114,7 +112,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -143,6 +140,10 @@ public class EvitaClient implements EvitaContract {
 	 */
 	private final EvitaServiceFutureStub evitaServiceFutureStub;
 	/**
+	 * Created evita service stub that returns streaming calls.
+	 */
+	private final EvitaServiceStub evitaServiceStub;
+	/**
 	 * The configuration of the evitaDB client.
 	 */
 	@Getter private final EvitaClientConfiguration configuration;
@@ -163,6 +164,11 @@ public class EvitaClient implements EvitaContract {
 	 * Index of the opened and active {@link EvitaClientSession} indexed by their unique {@link UUID}
 	 */
 	private final Map<UUID, EvitaSessionContract> activeSessions = CollectionUtils.createConcurrentHashMap(16);
+	/**
+	 * Index of the opened and active {@link ClientChangeCapturePublisher} indexed by their unique {@link ChangeSystemCaptureRequest}.
+	 */
+	private final Map<ChangeSystemCaptureRequest, ClientChangeSystemCaptureProcessor> activePublishers = CollectionUtils.createConcurrentHashMap(
+		16);
 	/**
 	 * Executor service used for asynchronous operations.
 	 */
@@ -348,6 +354,7 @@ public class EvitaClient implements EvitaContract {
 		ofNullable(grpcConfigurator).ifPresent(it -> it.accept(grpcClientBuilder));
 		this.grpcClientBuilder = grpcClientBuilder;
 		this.evitaServiceFutureStub = grpcClientBuilder.build(EvitaServiceFutureStub.class);
+		this.evitaServiceStub = grpcClientBuilder.build(EvitaServiceStub.class);
 		this.reflectionLookup = new ReflectionLookup(configuration.reflectionLookupBehaviour());
 		this.timeout = ThreadLocal.withInitial(() -> {
 			final LinkedList<Timeout> timeouts = new LinkedList<>();
@@ -424,23 +431,24 @@ public class EvitaClient implements EvitaContract {
 		assertActive();
 		final GrpcEvitaSessionResponse grpcResponse;
 
-		final GrpcEvitaSessionRequest.Builder sessionBuilder = GrpcEvitaSessionRequest.newBuilder()
-		                                                                              .setCatalogName(
-			                                                                              traits.catalogName())
-		                                                                              .setDryRun(traits.isDryRun());
+		final GrpcEvitaSessionRequest.Builder sessionBuilder = GrpcEvitaSessionRequest
+			.newBuilder()
+			.setCatalogName(
+				traits.catalogName())
+			.setDryRun(traits.isDryRun());
 
 		if (traits.isReadWrite()) {
 			if (traits.commitBehaviour() != null) {
 				sessionBuilder.setCommitBehavior(EvitaEnumConverter.toGrpcCommitBehavior(traits.commitBehaviour()));
 			}
 			if (traits.isBinary()) {
-				grpcResponse = executeWithEvitaService(
+				grpcResponse = executeWithEvitaFutureService(
 					evitaService -> evitaService.createBinaryReadWriteSession(
 						sessionBuilder.build()
 					)
 				);
 			} else {
-				grpcResponse = executeWithEvitaService(
+				grpcResponse = executeWithEvitaFutureService(
 					evitaService -> evitaService.createReadWriteSession(
 						sessionBuilder.build()
 					)
@@ -448,13 +456,13 @@ public class EvitaClient implements EvitaContract {
 			}
 		} else {
 			if (traits.isBinary()) {
-				grpcResponse = executeWithEvitaService(
+				grpcResponse = executeWithEvitaFutureService(
 					evitaService -> evitaService.createBinaryReadOnlySession(
 						sessionBuilder.build()
 					)
 				);
 			} else {
-				grpcResponse = executeWithEvitaService(
+				grpcResponse = executeWithEvitaFutureService(
 					evitaService -> evitaService.createReadOnlySession(
 						sessionBuilder.build()
 					)
@@ -463,6 +471,7 @@ public class EvitaClient implements EvitaContract {
 		}
 		final EvitaClientSession evitaClientSession = new EvitaClientSession(
 			this,
+			this.executor,
 			this.management,
 			this.entitySchemaCache.computeIfAbsent(
 				traits.catalogName(),
@@ -513,7 +522,7 @@ public class EvitaClient implements EvitaContract {
 	@Override
 	public Set<String> getCatalogNames() {
 		assertActive();
-		final GrpcCatalogNamesResponse grpcResponse = executeWithEvitaService(
+		final GrpcCatalogNamesResponse grpcResponse = executeWithEvitaFutureService(
 			evitaService -> evitaService.getCatalogNames(Empty.newBuilder().build())
 		);
 		return new LinkedHashSet<>(
@@ -525,7 +534,7 @@ public class EvitaClient implements EvitaContract {
 	@Override
 	public Optional<CatalogState> getCatalogState(@Nonnull String catalogName) {
 		assertActive();
-		final GrpcGetCatalogStateResponse grpcResponse = executeWithEvitaService(
+		final GrpcGetCatalogStateResponse grpcResponse = executeWithEvitaFutureService(
 			evitaService -> evitaService.getCatalogState(
 				GrpcGetCatalogStateRequest.newBuilder().setCatalogName(catalogName).build())
 		);
@@ -564,7 +573,7 @@ public class EvitaClient implements EvitaContract {
 		                                                                 .setCatalogName(catalogName)
 		                                                                 .setNewCatalogName(newCatalogName)
 		                                                                 .build();
-		final GrpcRenameCatalogResponse grpcResponse = executeWithEvitaService(
+		final GrpcRenameCatalogResponse grpcResponse = executeWithEvitaFutureService(
 			evitaService -> evitaService.renameCatalog(request)
 		);
 		final boolean success = grpcResponse.getSuccess();
@@ -584,7 +593,7 @@ public class EvitaClient implements EvitaContract {
 			                                                                   catalogNameToBeReplaced)
 		                                                                   .build();
 
-		final GrpcReplaceCatalogResponse grpcResponse = executeWithEvitaService(
+		final GrpcReplaceCatalogResponse grpcResponse = executeWithEvitaFutureService(
 			evitaService -> evitaService.replaceCatalog(request)
 		);
 		final boolean success = grpcResponse.getSuccess();
@@ -602,7 +611,7 @@ public class EvitaClient implements EvitaContract {
 		                                                                                 .setCatalogName(catalogName)
 		                                                                                 .build();
 
-		final GrpcDeleteCatalogIfExistsResponse grpcResponse = executeWithEvitaService(
+		final GrpcDeleteCatalogIfExistsResponse grpcResponse = executeWithEvitaFutureService(
 			evitaService -> evitaService.deleteCatalogIfExists(request)
 		);
 		final boolean success = grpcResponse.getSuccess();
@@ -625,7 +634,7 @@ public class EvitaClient implements EvitaContract {
 			)
 			.build();
 
-		executeWithEvitaService(
+		executeWithEvitaFutureService(
 			evitaService -> evitaService.applyMutation(request)
 		);
 	}
@@ -773,44 +782,29 @@ public class EvitaClient implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public Stream<EngineMutation> getCommittedMutationStream(long version) {
-		/* TODO JNO - implement and test */
-		return Stream.empty();
-	}
-
-	@Nonnull
-	@Override
-	public Stream<EngineMutation> getReversedCommittedMutationStream(@Nullable Long version) {
-		/* TODO JNO - implement and test */
-		return Stream.empty();
-	}
-
-	@Nonnull
-	@Override
 	public ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(
 		@Nonnull ChangeSystemCaptureRequest request
 	) {
-		/* TODO JNO - complete rewrite!! */
-		// todo jno: use this as an inspiration for the implementation of the catalog changes
-//		final ClientChangeSystemCaptureProcessor clientPublisher = new ClientChangeSystemCaptureProcessor(executor);
-
-//		final ClientRxPublisher<GrpcRegisterSystemChangeCaptureResponse> publisher = new ClientRxPublisher<>(null, null);
-
-		// todo lho proper queue
-		final ClientRxPublisher<GrpcRegisterSystemChangeCaptureResponse> publisher = new ClientRxPublisher<>(
-			new LinkedBlockingQueue<>());
-		final ChangeSystemConversionPublisher changeSystemConversionPublisher = new ChangeSystemConversionPublisher(
-			publisher);
-
-		/*executeWithStreamingEvitaService(stub ->
-			stub.registerSystemChangeCapture(
-				GrpcRegisterSystemChangeCaptureRequest.newBuilder()
-					.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()))
-					.build(),
-				publisher
-			)
-		);*/
-		return changeSystemConversionPublisher;
+		//noinspection SuspiciousMethodCalls
+		return this.activePublishers.compute(
+			request,
+			(theRequest, existingInstance) ->
+				existingInstance == null || existingInstance.isClosed() ?
+					new ClientChangeSystemCaptureProcessor(
+						this.configuration.changeCaptureQueueSize(),
+						this.executor,
+						subscriber -> executeWithEvitaService(
+							evitaService -> {
+								evitaService.registerSystemChangeCapture(
+									ChangeCaptureConverter.toGrpcChangeSystemCaptureRequest(theRequest),
+									subscriber
+								);
+								return null;
+							}
+						),
+						publisher -> this.activePublishers.remove(theRequest, publisher)
+					) : existingInstance
+		);
 	}
 
 	@Nonnull
@@ -822,12 +816,11 @@ public class EvitaClient implements EvitaContract {
 	@Override
 	public void close() {
 		if (this.active.compareAndSet(true, false)) {
-			this.activeSessions.values().forEach(EvitaSessionContract::close);
+			this.activeSessions.values().forEach(it -> IOUtils.closeSafely(it::close));
 			this.activeSessions.clear();
-			// todo jno: reimplement to publishers
-//			this.activeSubscriptions.forEach(ClientSubscription::cancel);
-			this.management.close();
-			this.clientFactory.close();
+			this.activePublishers.forEach((key, it) -> IOUtils.closeSafely(it::close));
+			IOUtils.closeSafely(this.management::close);
+			IOUtils.closeSafely(this.clientFactory::close);
 		}
 	}
 
@@ -899,6 +892,37 @@ public class EvitaClient implements EvitaContract {
 	 * @return result of the applied function
 	 */
 	private <T> T executeWithEvitaService(
+		@Nonnull AsyncCallFunction<EvitaServiceStub, T> lambda
+	) {
+		final Timeout timeout = Objects.requireNonNull(this.timeout.get().peek());
+		try {
+			return lambda.apply(
+				this.evitaServiceStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit())
+			);
+		} catch (ExecutionException e) {
+			throw EvitaClient.transformException(
+				e.getCause() == null ? e : e.getCause(),
+				Functions.noOpRunnable()
+			);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new EvitaClientServerCallException("Server call interrupted.", e);
+		} catch (TimeoutException e) {
+			throw new EvitaClientTimedOutException(
+				timeout.timeout(), timeout.timeoutUnit()
+			);
+		}
+	}
+
+	/**
+	 * Method that is called within the {@link EvitaClientSession} to apply the wanted logic on a channel retrieved
+	 * from a channel pool.
+	 *
+	 * @param lambda function that holds a logic passed by the caller
+	 * @param <T>    return type of the function
+	 * @return result of the applied function
+	 */
+	private <T> T executeWithEvitaFutureService(
 		@Nonnull AsyncCallFunction<EvitaServiceFutureStub, ListenableFuture<T>> lambda
 	) {
 		final Timeout timeout = Objects.requireNonNull(this.timeout.get().peek());
@@ -919,89 +943,6 @@ public class EvitaClient implements EvitaContract {
 				timeout.timeout(), timeout.timeoutUnit()
 			);
 		}
-	}
-
-	private static abstract class ConversionPublisher<C extends ChangeCapture, G> implements ChangeCapturePublisher<C> {
-
-		private final ClientRxPublisher<G> delegate;
-
-		public ConversionPublisher(ClientRxPublisher<G> delegate) {
-			this.delegate = delegate;
-		}
-
-		@Override
-		public void close() {
-			this.delegate.cancel();
-		}
-
-		@Override
-		public void subscribe(Subscriber<? super C> subscriber) {
-			this.delegate.subscribe(FlowAdapters.toSubscriber(createConversionSubscriber(subscriber)));
-		}
-
-		@Nullable
-		protected abstract ConversionSubscriber<C, G> createConversionSubscriber(
-			@Nullable Subscriber<? super C> subscriber
-		);
-	}
-
-	private static class ChangeSystemConversionPublisher
-		extends ConversionPublisher<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureResponse> {
-
-		public ChangeSystemConversionPublisher(ClientRxPublisher<GrpcRegisterSystemChangeCaptureResponse> delegate) {
-			super(delegate);
-		}
-
-		@Nullable
-		@Override
-		protected ConversionSubscriber<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureResponse> createConversionSubscriber(
-			@Nullable Subscriber<? super ChangeSystemCapture> subscriber
-		) {
-			return new ChangeSystemConversionSubscriber(subscriber);
-		}
-	}
-
-	private static class ChangeSystemConversionSubscriber
-		extends ConversionSubscriber<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureResponse> {
-
-		public ChangeSystemConversionSubscriber(@Nonnull Subscriber<? super ChangeSystemCapture> delegate) {
-			super(delegate);
-		}
-
-		@Nullable
-		@Override
-		protected ChangeSystemCapture convertCapture(@Nullable GrpcRegisterSystemChangeCaptureResponse item) {
-			return ChangeCaptureConverter.toChangeSystemCapture(item.getCapture());
-		}
-	}
-
-	@RequiredArgsConstructor
-	private static abstract class ConversionSubscriber<C, G> implements Subscriber<G> {
-
-		@Nonnull private final Subscriber<? super C> delegate;
-
-		@Override
-		public void onSubscribe(Subscription subscription) {
-			this.delegate.onSubscribe(subscription);
-		}
-
-		@Override
-		public void onNext(G item) {
-			this.delegate.onNext(convertCapture(item));
-		}
-
-		@Override
-		public void onError(Throwable throwable) {
-			this.delegate.onError(throwable);
-		}
-
-		@Override
-		public void onComplete() {
-			this.delegate.onComplete();
-		}
-
-		@Nullable
-		protected abstract C convertCapture(@Nullable G item);
 	}
 
 }

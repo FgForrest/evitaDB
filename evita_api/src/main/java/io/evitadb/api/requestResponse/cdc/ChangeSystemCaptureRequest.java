@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.cdc;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 
 /**
  * Record describing the capture request for the {@link ChangeCapturePublisher} of {@link ChangeSystemCapture}s.
@@ -44,4 +45,21 @@ public record ChangeSystemCaptureRequest(
 	@Nullable Integer sinceIndex,
 	@Nonnull ChangeCaptureContent content
 ) implements ChangeCaptureRequest {
+
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof final ChangeSystemCaptureRequest that)) return false;
+
+		return Objects.equals(this.sinceVersion, that.sinceVersion) && Objects.equals(
+			this.sinceIndex, that.sinceIndex) && this.content == that.content;
+	}
+
+	@Override
+	public int hashCode() {
+		int result = Objects.hashCode(this.sinceVersion);
+		result = 31 * result + Objects.hashCode(this.sinceIndex);
+		result = 31 * result + this.content.hashCode();
+		return result;
+	}
+
 }

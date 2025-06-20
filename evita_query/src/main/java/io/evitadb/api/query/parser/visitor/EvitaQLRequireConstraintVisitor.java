@@ -1552,6 +1552,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
+	public RequireConstraint visitAccompanyingPriceContentDefaultConstraint(AccompanyingPriceContentDefaultConstraintContext ctx) {
+		return parse(
+			ctx,
+			AccompanyingPriceContent::new
+		);
+	}
+
+	@Override
 	public RequireConstraint visitAccompanyingPriceContentConstraint(AccompanyingPriceContentConstraintContext ctx) {
 		return parse(
 			ctx,

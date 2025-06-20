@@ -60,8 +60,6 @@ public class RestProviderRegistrar implements ExternalApiProviderRegistrar<RestO
 		@Nonnull RestOptions restConfiguration
 	) {
 		final RestManager restManager = new RestManager(evita, apiOptions.headers(), restConfiguration);
-		/* TODO JNO - verify */
-		/*evita.registerStructuralChangeObserver(new CatalogRestRefreshingObserver(restManager));*/
 		return new RestProvider(restConfiguration, restManager, apiOptions.requestTimeoutInMillis());
 	}
 }

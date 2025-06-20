@@ -40,7 +40,8 @@ import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.file.FileForFetch;
-import io.evitadb.api.mock.MockCatalogStructuralChangeSubscriber;
+import io.evitadb.api.mock.MockCatalogChangeCaptureSubscriber;
+import io.evitadb.api.mock.MockEngineChangeCaptureSubscriber;
 import io.evitadb.api.mock.ProductInterface;
 import io.evitadb.api.mock.ProductParameterInterface;
 import io.evitadb.api.query.order.OrderDirection;
@@ -48,6 +49,7 @@ import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -149,9 +151,9 @@ class EvitaTest implements EvitaTestSupport {
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String PRICE_LIST_VIP = "vip";
-	private final MockCatalogStructuralChangeSubscriber subscriber = new MockCatalogStructuralChangeSubscriber();
+	private final MockEngineChangeCaptureSubscriber engineSubscriber = new MockEngineChangeCaptureSubscriber(
+		Integer.MAX_VALUE);
 	private Evita evita;
-	private String evitaInstanceId;
 
 	@BeforeEach
 	void setUp() {
@@ -161,22 +163,10 @@ class EvitaTest implements EvitaTestSupport {
 			getEvitaConfiguration()
 		);
 		this.evita.defineCatalog(TEST_CATALOG);
-		this.evitaInstanceId = this.evita.management().getSystemStatus().instanceId();
 
 		this.evita.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
-		).subscribe(this.subscriber);
-		// todo lho
-//		evita.updateCatalog(
-//			TEST_CATALOG,
-//			session -> {
-//				session.registerChangeCatalogCapture(
-//					new ChangeCatalogCaptureRequest(CaptureArea.SCHEMA, new SchemaSite(), CaptureContent.BODY, 0L),
-//					subscriber
-//				);
-//			}
-//		);
-		this.evitaInstanceId = this.evita.management().getSystemStatus().instanceId();
+		).subscribe(this.engineSubscriber);
 	}
 
 	@AfterEach
@@ -187,25 +177,25 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldNotifyBasicSubscriber() throws InterruptedException {
+	void shouldNotifyBasicSubscriber() {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
 		);
 
 		// subscriber is registered and wants one event when it happens
-		final MockCatalogStructuralChangeSubscriber subscriber = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(5), 1);
+		final MockEngineChangeCaptureSubscriber subscriber = new MockEngineChangeCaptureSubscriber(2);
 		publisher.subscribe(subscriber);
 
 		this.evita.defineCatalog("newCatalog1");
 		this.evita.defineCatalog("newCatalog2");
 
 		// subscriber wants more events now, should receive `newCatalog2` and future `newCatalog3`
-		subscriber.request(2);
+		subscriber.request(4);
 
 		this.evita.defineCatalog("newCatalog3");
 
-		// subscriber should receive 2 future events
-		subscriber.request(2);
+		// subscriber should receive 4 future events
+		subscriber.request(4);
 
 		this.evita.defineCatalog("newCatalog4");
 		this.evita.defineCatalog("newCatalog5");
@@ -213,17 +203,14 @@ class EvitaTest implements EvitaTestSupport {
 		// subscriber requested 2 events, this is third one, so it should be ignored
 		this.evita.defineCatalog("newCatalog6");
 
-		assertTrue(subscriber.getCountDownLatch().await(2000, TimeUnit.MILLISECONDS));
-		Thread.sleep(100); // we need to manually wait to really make sure that no more events came
-
 		// subscriber received one requested event
-		assertEquals(1, subscriber.getCatalogUpserted("newCatalog1"));
-		assertEquals(1, subscriber.getCatalogUpserted("newCatalog2"));
-		assertEquals(1, subscriber.getCatalogUpserted("newCatalog3"));
-		assertEquals(1, subscriber.getCatalogUpserted("newCatalog4"));
-		assertEquals(1, subscriber.getCatalogUpserted("newCatalog5"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog2"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog3"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog4"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog5"));
 		// subscriber didn't ask for more events, so it didn't receive any new events
-		assertEquals(0, subscriber.getCatalogUpserted("newCatalog6"));
+		assertEquals(0, subscriber.getCatalogCreated("newCatalog6"));
 
 		this.evita.deleteCatalogIfExists("newCatalog1");
 		this.evita.deleteCatalogIfExists("newCatalog2");
@@ -234,106 +221,104 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldNotifyLateSubscribers() throws InterruptedException {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
-		);
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+	void shouldNotifyLateSubscribers() {
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
 		);
 
 		// first subscriber is registered at the start, but it's not ready to receive events yet
-		final MockCatalogStructuralChangeSubscriber subscriberWithDelayedRequest = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 0);
-		publisher1.subscribe(subscriberWithDelayedRequest);
+		final MockEngineChangeCaptureSubscriber subscriberWithDelayedRequest = new MockEngineChangeCaptureSubscriber(0);
+		publisher.subscribe(subscriberWithDelayedRequest);
 
 		// should be ignored by both subscribers
 		this.evita.defineCatalog("newCatalog1");
 
 		// second subscriber is registered later but ready to receive events
-		final MockCatalogStructuralChangeSubscriber subscriberWithDelayedRegistration = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 1);
-		publisher2.subscribe(subscriberWithDelayedRegistration);
+		final MockEngineChangeCaptureSubscriber subscriberWithDelayedRegistration = new MockEngineChangeCaptureSubscriber(
+			Integer.MAX_VALUE);
+		publisher.subscribe(subscriberWithDelayedRegistration);
 
 		// first subscriber is ready to receive events now, should get one
-		subscriberWithDelayedRequest.request(1);
+		subscriberWithDelayedRequest.request(Integer.MAX_VALUE);
 
 		this.evita.defineCatalog("newCatalog2");
-
-		assertTrue(subscriberWithDelayedRequest.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
-		assertTrue(subscriberWithDelayedRegistration.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
 
 		// both should receive one late event
-		assertEquals(1, subscriberWithDelayedRequest.getCatalogUpserted("newCatalog1"));
-		assertEquals(0, subscriberWithDelayedRequest.getCatalogUpserted("newCatalog2"));
-		assertEquals(0, subscriberWithDelayedRegistration.getCatalogUpserted("newCatalog1"));
-		assertEquals(1, subscriberWithDelayedRegistration.getCatalogUpserted("newCatalog2"));
+		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog2"));
+		assertEquals(0, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog2"));
 
 		this.evita.deleteCatalogIfExists("newCatalog1");
 		this.evita.deleteCatalogIfExists("newCatalog2");
+
+		// cancel both subscribers
+		subscriberWithDelayedRequest.cancel();
+		subscriberWithDelayedRegistration.cancel();
 	}
 
 	@Test
-	void shouldNotifyMultipleSubscriberWithDifferentRequests() throws InterruptedException {
-		// subscribers want first future events
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+	void shouldNotifyLateSubscribersWithFixedInitialVersion() {
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(this.evita.getEngineState().version(), null, ChangeCaptureContent.BODY)
 		);
-		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(2), 1);
-		publisher1.subscribe(subscriber1);
 
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
-		);
-		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(2), 1);
-		publisher2.subscribe(subscriber2);
+		// first subscriber is registered at the start, but it's not ready to receive events yet
+		final MockEngineChangeCaptureSubscriber subscriberWithDelayedRequest = new MockEngineChangeCaptureSubscriber(0);
+		publisher.subscribe(subscriberWithDelayedRequest);
 
-		// first events should be received by both subscribers
+		// should be ignored by both subscribers
 		this.evita.defineCatalog("newCatalog1");
 
-		// the next event is desired only by first subscriber
-		subscriber1.request(1);
+		// second subscriber is registered later but ready to receive events
+		final MockEngineChangeCaptureSubscriber subscriberWithDelayedRegistration = new MockEngineChangeCaptureSubscriber(
+			Integer.MAX_VALUE);
+		publisher.subscribe(subscriberWithDelayedRegistration);
+
+		// first subscriber is ready to receive events now, should get one
+		subscriberWithDelayedRequest.request(Integer.MAX_VALUE);
+
 		this.evita.defineCatalog("newCatalog2");
 
-		// the next event is desired only by second subscriber
-		subscriber2.request(1);
-		this.evita.defineCatalog("newCatalog3");
-
-		assertTrue(subscriber1.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
-		assertTrue(subscriber2.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
-		Thread.sleep(100); // we need to manually wait to really make sure that no more events came
-
-		assertEquals(1, subscriber1.getCatalogUpserted("newCatalog1"));
-		assertEquals(1, subscriber2.getCatalogUpserted("newCatalog1"));
-		assertEquals(1, subscriber1.getCatalogUpserted("newCatalog2"));
-		assertEquals(1, subscriber2.getCatalogUpserted("newCatalog2"));
-		assertEquals(0, subscriber1.getCatalogUpserted("newCatalog3"));
-		assertEquals(0, subscriber2.getCatalogUpserted("newCatalog3"));
+		// both should receive one late event
+		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog2"));
+		assertEquals(1, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog2"));
 
 		this.evita.deleteCatalogIfExists("newCatalog1");
 		this.evita.deleteCatalogIfExists("newCatalog2");
-		this.evita.deleteCatalogIfExists("newCatalog3");
+
+		// cancel both subscribers
+		subscriberWithDelayedRequest.cancel();
+		subscriberWithDelayedRegistration.cancel();
 	}
 
 	@Test
-	void shouldNotifyMultiplePublishers() throws InterruptedException {
+	void shouldNotifyMultiplePublishers() {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = this.evita.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
 		);
-		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 1);
+		final MockEngineChangeCaptureSubscriber subscriber1 = new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
 		publisher1.subscribe(subscriber1);
 
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
 		);
-		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 1);
+		final MockEngineChangeCaptureSubscriber subscriber2 = new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
 		publisher2.subscribe(subscriber2);
 
 		this.evita.defineCatalog("newCatalog1");
 
-		assertTrue(subscriber1.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
-		assertTrue(subscriber2.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
-
-		assertEquals(1, subscriber1.getCatalogUpserted("newCatalog1"));
-		assertEquals(1, subscriber2.getCatalogUpserted("newCatalog1"));
+		assertEquals(
+			0,
+			subscriber1.getCatalogCreated("newCatalog1")
+		); // subscriber1 is subscribed to HEADER content, so it cannot recognize catalog name
+		assertEquals(
+			2,
+			subscriber1.getReceived()
+		); // at least 2 events should be received (transaction and create catalog mutation)
+		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1"));
 
 		this.evita.deleteCatalogIfExists("newCatalog1");
 	}
@@ -374,16 +359,16 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldFailGracefullyWhenTryingToFilterByNonIndexedReference() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.defineEntitySchema(Entities.PRODUCT)
-				.withoutGeneratedPrimaryKey()
-				.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE)
-				.updateVia(session);
+			       .withoutGeneratedPrimaryKey()
+			       .withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE)
+			       .updateVia(session);
 
 			session.createNewEntity(
-					Entities.PRODUCT,
-					1
-				)
-				.setReference(Entities.BRAND, 1)
-				.upsertVia(session);
+				       Entities.PRODUCT,
+				       1
+			       )
+			       .setReference(Entities.BRAND, 1)
+			       .upsertVia(session);
 
 			assertThrows(
 				ReferenceNotIndexedException.class,
@@ -407,16 +392,16 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldFailGracefullyWhenTryingToSummarizeByNonFacetedReference() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.defineEntitySchema(Entities.PRODUCT)
-				.withoutGeneratedPrimaryKey()
-				.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE)
-				.updateVia(session);
+			       .withoutGeneratedPrimaryKey()
+			       .withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE)
+			       .updateVia(session);
 
 			session.createNewEntity(
-					Entities.PRODUCT,
-					1
-				)
-				.setReference(Entities.BRAND, 1)
-				.upsertVia(session);
+				       Entities.PRODUCT,
+				       1
+			       )
+			       .setReference(Entities.BRAND, 1)
+			       .upsertVia(session);
 
 			assertThrows(
 				ReferenceNotFacetedException.class,
@@ -428,7 +413,8 @@ class EvitaTest implements EvitaTestSupport {
 								facetSummaryOfReference(
 									Entities.BRAND,
 									FacetStatisticsDepth.COUNTS,
-									entityFetch(entityFetchAllContent()))
+									entityFetch(entityFetchAllContent())
+								)
 							)
 						),
 						EntityClassifier.class
@@ -446,12 +432,13 @@ class EvitaTest implements EvitaTestSupport {
 				InvalidSchemaMutationException.class,
 				() -> {
 					session.defineEntitySchema(Entities.PRODUCT)
-						.withoutGeneratedPrimaryKey()
-						.withReferenceTo(
-							Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-							whichIs -> whichIs.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::filterable)
-						)
-						.updateVia(session);
+					       .withoutGeneratedPrimaryKey()
+					       .withReferenceTo(
+						       Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+						       whichIs -> whichIs.withAttribute(
+							       ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::filterable)
+					       )
+					       .updateVia(session);
 				}
 			);
 
@@ -459,12 +446,13 @@ class EvitaTest implements EvitaTestSupport {
 				InvalidSchemaMutationException.class,
 				() -> {
 					session.defineEntitySchema(Entities.PRODUCT)
-						.withoutGeneratedPrimaryKey()
-						.withReferenceTo(
-							Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-							whichIs -> whichIs.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::unique)
-						)
-						.updateVia(session);
+					       .withoutGeneratedPrimaryKey()
+					       .withReferenceTo(
+						       Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+						       whichIs -> whichIs.withAttribute(
+							       ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::unique)
+					       )
+					       .updateVia(session);
 				}
 			);
 
@@ -472,12 +460,13 @@ class EvitaTest implements EvitaTestSupport {
 				InvalidSchemaMutationException.class,
 				() -> {
 					session.defineEntitySchema(Entities.PRODUCT)
-						.withoutGeneratedPrimaryKey()
-						.withReferenceTo(
-							Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-							whichIs -> whichIs.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::sortable)
-						)
-						.updateVia(session);
+					       .withoutGeneratedPrimaryKey()
+					       .withReferenceTo(
+						       Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+						       whichIs -> whichIs.withAttribute(
+							       ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::sortable)
+					       )
+					       .updateVia(session);
 				}
 			);
 		}
@@ -487,16 +476,16 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldFailGracefullyWhenTryingToFilterByNonFilterableAttribute() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.defineEntitySchema(Entities.PRODUCT)
-				.withoutGeneratedPrimaryKey()
-				.withAttribute(ATTRIBUTE_NAME, String.class)
-				.updateVia(session);
+			       .withoutGeneratedPrimaryKey()
+			       .withAttribute(ATTRIBUTE_NAME, String.class)
+			       .updateVia(session);
 
 			session.createNewEntity(
-					Entities.PRODUCT,
-					1
-				)
-				.setAttribute(ATTRIBUTE_NAME, "It's me")
-				.upsertVia(session);
+				       Entities.PRODUCT,
+				       1
+			       )
+			       .setAttribute(ATTRIBUTE_NAME, "It's me")
+			       .upsertVia(session);
 
 			assertThrows(
 				AttributeNotFilterableException.class,
@@ -520,19 +509,19 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldFailGracefullyWhenTryingToFilterByNonFilterableReferenceAttribute() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.defineEntitySchema(Entities.PRODUCT)
-				.withoutGeneratedPrimaryKey()
-				.withReferenceTo(
-					Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-					whichIs -> whichIs.indexed().withAttribute(ATTRIBUTE_NAME, String.class)
-				)
-				.updateVia(session);
+			       .withoutGeneratedPrimaryKey()
+			       .withReferenceTo(
+				       Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				       whichIs -> whichIs.indexed().withAttribute(ATTRIBUTE_NAME, String.class)
+			       )
+			       .updateVia(session);
 
 			session.createNewEntity(
-					Entities.PRODUCT,
-					1
-				)
-				.setReference(Entities.BRAND, 1, thatIs -> thatIs.setAttribute(ATTRIBUTE_NAME, "It's me"))
-				.upsertVia(session);
+				       Entities.PRODUCT,
+				       1
+			       )
+			       .setReference(Entities.BRAND, 1, thatIs -> thatIs.setAttribute(ATTRIBUTE_NAME, "It's me"))
+			       .upsertVia(session);
 
 			assertThrows(
 				AttributeNotFilterableException.class,
@@ -559,16 +548,16 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldFailGracefullyWhenTryingToOrderByNonSortableAttribute() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.defineEntitySchema(Entities.PRODUCT)
-				.withoutGeneratedPrimaryKey()
-				.withAttribute(ATTRIBUTE_NAME, String.class)
-				.updateVia(session);
+			       .withoutGeneratedPrimaryKey()
+			       .withAttribute(ATTRIBUTE_NAME, String.class)
+			       .updateVia(session);
 
 			session.createNewEntity(
-					Entities.PRODUCT,
-					1
-				)
-				.setAttribute(ATTRIBUTE_NAME, "It's me")
-				.upsertVia(session);
+				       Entities.PRODUCT,
+				       1
+			       )
+			       .setAttribute(ATTRIBUTE_NAME, "It's me")
+			       .upsertVia(session);
 
 			assertThrows(
 				AttributeNotSortableException.class,
@@ -592,19 +581,19 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldFailGracefullyWhenTryingToOrderByNonSortableReferenceAttribute() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.defineEntitySchema(Entities.PRODUCT)
-				.withoutGeneratedPrimaryKey()
-				.withReferenceTo(
-					Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-					whichIs -> whichIs.indexed().withAttribute(ATTRIBUTE_NAME, String.class)
-				)
-				.updateVia(session);
+			       .withoutGeneratedPrimaryKey()
+			       .withReferenceTo(
+				       Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				       whichIs -> whichIs.indexed().withAttribute(ATTRIBUTE_NAME, String.class)
+			       )
+			       .updateVia(session);
 
 			session.createNewEntity(
-					Entities.PRODUCT,
-					1
-				)
-				.setReference(Entities.BRAND, 1, thatIs -> thatIs.setAttribute(ATTRIBUTE_NAME, "It's me"))
-				.upsertVia(session);
+				       Entities.PRODUCT,
+				       1
+			       )
+			       .setReference(Entities.BRAND, 1, thatIs -> thatIs.setAttribute(ATTRIBUTE_NAME, "It's me"))
+			       .upsertVia(session);
 
 			assertThrows(
 				AttributeNotSortableException.class,
@@ -710,15 +699,28 @@ class EvitaTest implements EvitaTestSupport {
 				);
 
 				assertEquals(50, firstPageResult.getTotalRecordCount());
-				assertArrayEquals(new int[]{1, 2, 3, 4, 5}, firstPageResult.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).toArray());
+				assertArrayEquals(
+					new int[]{1, 2, 3, 4, 5}, firstPageResult.getRecordData()
+					                                         .stream()
+					                                         .mapToInt(EntityReference::getPrimaryKey)
+					                                         .toArray()
+				);
 
 				final EvitaResponse<SealedEntity> thirdPageResult = session.query(
-					query(collection(Entities.BRAND), filterBy(entityPrimaryKeyInSet(pks)), require(page(3, 5), entityFetch())),
+					query(
+						collection(Entities.BRAND), filterBy(entityPrimaryKeyInSet(pks)),
+						require(page(3, 5), entityFetch())
+					),
 					SealedEntity.class
 				);
 
 				assertEquals(50, thirdPageResult.getTotalRecordCount());
-				assertArrayEquals(new int[]{11, 12, 13, 14, 15}, thirdPageResult.getRecordData().stream().mapToInt(SealedEntity::getPrimaryKey).toArray());
+				assertArrayEquals(
+					new int[]{11, 12, 13, 14, 15}, thirdPageResult.getRecordData()
+					                                              .stream()
+					                                              .mapToInt(SealedEntity::getPrimaryKey)
+					                                              .toArray()
+				);
 
 				assertThrows(
 					UnexpectedResultException.class,
@@ -777,7 +779,7 @@ class EvitaTest implements EvitaTestSupport {
 
 	@Test
 	void shouldCreateAndDropCatalog() {
-		this.subscriber.reset();
+		this.engineSubscriber.reset();
 
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -793,7 +795,7 @@ class EvitaTest implements EvitaTestSupport {
 
 		this.evita.deleteCatalogIfExists(TEST_CATALOG);
 
-		assertEquals(1, this.subscriber.getCatalogDeleted(TEST_CATALOG));
+		assertEquals(1, this.engineSubscriber.getCatalogDeleted(TEST_CATALOG));
 
 		assertFalse(this.evita.getCatalogNames().contains(TEST_CATALOG));
 	}
@@ -868,15 +870,20 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateAndDropCollection() {
 		setupCatalogWithProductAndCategory();
 
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.deleteCollection(Entities.PRODUCT);
-		});
+		this.evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				session.deleteCollection(Entities.PRODUCT);
+			}
+		);
 
-		this.evita.queryCatalog(TEST_CATALOG, session -> {
-			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
-			assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
-			return null;
-		});
+		this.evita.queryCatalog(
+			TEST_CATALOG, session -> {
+				assertThrows(
+					CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
+				assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
+				return null;
+			}
+		);
 	}
 
 	@Test
@@ -884,27 +891,27 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(
+				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
-		this.subscriber.reset();
+		this.evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				session.renameCollection(Entities.PRODUCT, Entities.STORE);
+				assertEquals(Entities.STORE, session.getEntitySchemaOrThrowException(Entities.STORE).getName());
+			}
+		);
 
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.renameCollection(Entities.PRODUCT, Entities.STORE);
-			assertEquals(Entities.STORE, session.getEntitySchemaOrThrow(Entities.STORE).getName());
-		});
-
-		// todo jno implement
-//		assertEquals(1, subscriber.getEntityCollectionCreated(TEST_CATALOG, Entities.STORE));
-//		assertEquals(1, subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
-
-		this.evita.queryCatalog(TEST_CATALOG, session -> {
-			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
-			assertEquals(1, session.getEntityCollectionSize(Entities.STORE));
-			assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
-			return null;
-		});
+		this.evita.queryCatalog(
+			TEST_CATALOG, session -> {
+				assertThrows(
+					CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
+				assertEquals(1, session.getEntityCollectionSize(Entities.STORE));
+				assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
+				return null;
+			}
+		);
 
 		// the original file was immediately removed from the file system (we're in warm-up mode)
 		assertFalse(theCollectionFile.exists());
@@ -915,23 +922,29 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(
+				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.renameCollection(Entities.PRODUCT, Entities.BRAND);
-		});
+		this.evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				session.renameCollection(Entities.PRODUCT, Entities.BRAND);
+			}
+		);
 
-		this.evita.queryCatalog(TEST_CATALOG, session -> {
-			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
-			assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
-			assertEquals(1, session.getEntityCollectionSize(Entities.BRAND));
-			final Optional<SealedEntity> brand = session.getEntity(Entities.BRAND, 1, entityFetchAllContent());
-			assertTrue(brand.isPresent());
-			assertEquals("The product", brand.get().getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
-			return null;
-		});
+		this.evita.queryCatalog(
+			TEST_CATALOG, session -> {
+				assertThrows(
+					CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
+				assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
+				assertEquals(1, session.getEntityCollectionSize(Entities.BRAND));
+				final Optional<SealedEntity> brand = session.getEntity(Entities.BRAND, 1, entityFetchAllContent());
+				assertTrue(brand.isPresent());
+				assertEquals("The product", brand.get().getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+				return null;
+			}
+		);
 	}
 
 	@Test
@@ -939,16 +952,19 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(
+				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			assertThrows(
-				EntityTypeAlreadyPresentInCatalogSchemaException.class,
-				() -> session.renameCollection(Entities.PRODUCT, Entities.CATEGORY)
-			);
-		});
+		this.evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				assertThrows(
+					EntityTypeAlreadyPresentInCatalogSchemaException.class,
+					() -> session.renameCollection(Entities.PRODUCT, Entities.CATEGORY)
+				);
+			}
+		);
 	}
 
 	@Test
@@ -956,25 +972,25 @@ class EvitaTest implements EvitaTestSupport {
 		setupCatalogWithProductAndCategory();
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(
+				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
-		this.subscriber.reset();
+		this.evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				session.replaceCollection(Entities.CATEGORY, Entities.PRODUCT);
+			}
+		);
 
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.replaceCollection(Entities.CATEGORY, Entities.PRODUCT);
-		});
-
-		// todo jno implement
-//		assertEquals(1, subscriber.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.CATEGORY));
-//		assertEquals(1, subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
-
-		this.evita.queryCatalog(TEST_CATALOG, session -> {
-			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
-			assertEquals(1, session.getEntityCollectionSize(Entities.CATEGORY));
-			return null;
-		});
+		this.evita.queryCatalog(
+			TEST_CATALOG, session -> {
+				assertThrows(
+					CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
+				assertEquals(1, session.getEntityCollectionSize(Entities.CATEGORY));
+				return null;
+			}
+		);
 
 		// the original file was immediately removed from the file system (we're in warm-up mode)
 		assertFalse(theCollectionFile.exists());
@@ -984,36 +1000,56 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateAndRenameCollectionInTransaction() {
 		setupCatalogWithProductAndCategory();
 
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.goLiveAndClose();
-		});
+		this.evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				session.goLiveAndClose();
+			}
+		);
+
+		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.registerChangeCatalogCapture(
+					ChangeCatalogCaptureRequest
+						.builder()
+						.content(ChangeCaptureContent.BODY)
+						.build()
+				).subscribe(catalogSubscriber);
+				return null;
+			}
+		);
 
 		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+			.resolve(
+				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
-
-		this.subscriber.reset();
 
 		try (final EvitaSessionContract oldSession = this.evita.createReadOnlySession(TEST_CATALOG)) {
 			log.info("Old session catalog version: " + oldSession.getCatalogVersion());
 
-			this.evita.updateCatalog(TEST_CATALOG, session -> {
-				session.renameCollection(Entities.PRODUCT, Entities.STORE);
-				assertEquals(Entities.STORE, session.getEntitySchemaOrThrow(Entities.STORE).getName());
-			});
+			this.evita.updateCatalog(
+				TEST_CATALOG, session -> {
+					session.renameCollection(Entities.PRODUCT, Entities.STORE);
+					assertEquals(Entities.STORE, session.getEntitySchemaOrThrowException(Entities.STORE).getName());
+				}
+			);
 
-		// todo jno implement
-//		assertEquals(1, subscriber.getEntityCollectionCreated(TEST_CATALOG, Entities.STORE));
-//		assertEquals(1, subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+			assertEquals(1, catalogSubscriber.getEntityCollectionCreated(Entities.STORE));
+			assertEquals(1, catalogSubscriber.getEntityCollectionDeleted(Entities.PRODUCT));
 
-			this.evita.queryCatalog(TEST_CATALOG, session -> {
-				assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
-				assertEquals(1, session.getEntityCollectionSize(Entities.STORE));
-				assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
-				log.info("New session catalog version: " + session.getCatalogVersion());
-				return null;
-			});
+			this.evita.queryCatalog(
+				TEST_CATALOG, session -> {
+					assertThrows(
+						CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
+					assertEquals(1, session.getEntityCollectionSize(Entities.STORE));
+					assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
+					log.info("New session catalog version: " + session.getCatalogVersion());
+					return null;
+				}
+			);
 
 			// the file needs to remain on disk for the old session to be able to read it
 			assertTrue(theCollectionFile.exists());
@@ -1038,44 +1074,87 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateAndReplaceCollectionInTransaction() {
 		setupCatalogWithProductAndCategory();
 
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.goLiveAndClose();
-		});
+		this.evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				session.goLiveAndClose();
+			}
+		);
 
-		this.subscriber.reset();
+		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
 
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.replaceCollection(Entities.CATEGORY, Entities.PRODUCT);
-		});
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.registerChangeCatalogCapture(
+					ChangeCatalogCaptureRequest
+						.builder()
+						.content(ChangeCaptureContent.BODY)
+						.build()
+				).subscribe(catalogSubscriber);
+				return null;
+			}
+		);
 
-		// todo jno implement
-//		assertEquals(1, subscriber.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.CATEGORY));
-//		assertEquals(1, subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		this.evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				session.replaceCollection(Entities.CATEGORY, Entities.PRODUCT);
+			}
+		);
 
-		this.evita.queryCatalog(TEST_CATALOG, session -> {
-			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
-			assertEquals(1, session.getEntityCollectionSize(Entities.CATEGORY));
-			return null;
-		});
+		assertEquals(1, catalogSubscriber.getEntityCollectionSchemaUpdated(Entities.CATEGORY));
+		assertEquals(1, catalogSubscriber.getEntityCollectionDeleted(Entities.PRODUCT));
+
+		this.evita.queryCatalog(
+			TEST_CATALOG, session -> {
+				assertThrows(
+					CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
+				assertEquals(1, session.getEntityCollectionSize(Entities.CATEGORY));
+				return null;
+			}
+		);
 	}
 
 	@Test
 	void shouldCreateAndDropCollectionsInTransaction() {
 		setupCatalogWithProductAndCategory();
 
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.goLiveAndClose();
-		});
+		this.evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				session.goLiveAndClose();
+			}
+		);
 
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.deleteCollection(Entities.PRODUCT);
-		});
+		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
 
-		this.evita.queryCatalog(TEST_CATALOG, session -> {
-			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
-			assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
-			return null;
-		});
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.registerChangeCatalogCapture(
+					ChangeCatalogCaptureRequest
+						.builder()
+						.content(ChangeCaptureContent.BODY)
+						.build()
+				).subscribe(catalogSubscriber);
+				return null;
+			}
+		);
+
+		this.evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				session.deleteCollection(Entities.PRODUCT);
+			}
+		);
+
+		assertEquals(1, catalogSubscriber.getEntityCollectionDeleted(Entities.PRODUCT));
+
+		this.evita.queryCatalog(
+			TEST_CATALOG, session -> {
+				assertThrows(
+					CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
+				assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
+				return null;
+			}
+		);
 	}
 
 	@Test
@@ -1084,9 +1163,9 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.getCatalogSchema()
-					.openForWrite()
-					.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
-					.updateVia(session);
+				       .openForWrite()
+				       .withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+				       .updateVia(session);
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
@@ -1094,24 +1173,38 @@ class EvitaTest implements EvitaTestSupport {
 					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
 					.updateVia(session);
 
-				final EntityAttributeSchemaContract firstAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT).getAttribute(ATTRIBUTE_URL).orElseThrow();
+				final EntityAttributeSchemaContract firstAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT)
+				                                                            .getAttribute(ATTRIBUTE_URL)
+				                                                            .orElseThrow();
 				assertInstanceOf(GlobalAttributeSchemaContract.class, firstAttribute);
 				assertTrue(firstAttribute.isLocalized());
-				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG, ((GlobalAttributeSchemaContract) firstAttribute).getGlobalUniquenessType());
+				assertEquals(
+					GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG,
+					((GlobalAttributeSchemaContract) firstAttribute).getGlobalUniquenessType()
+				);
 
 				session.getCatalogSchema()
-					.openForWrite()
-					.withAttribute(ATTRIBUTE_URL, String.class, GlobalAttributeSchemaEditor::uniqueGloballyWithinLocale)
-					.updateVia(session);
+				       .openForWrite()
+				       .withAttribute(
+					       ATTRIBUTE_URL, String.class, GlobalAttributeSchemaEditor::uniqueGloballyWithinLocale)
+				       .updateVia(session);
 
 				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
 				assertTrue(catalogSchema.getAttribute(ATTRIBUTE_URL).isPresent());
-				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE, catalogSchema.getAttribute(ATTRIBUTE_URL).orElseThrow().getGlobalUniquenessType());
+				assertEquals(
+					GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE, catalogSchema.getAttribute(
+						ATTRIBUTE_URL).orElseThrow().getGlobalUniquenessType()
+				);
 
-				final EntityAttributeSchemaContract secondAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT).getAttribute(ATTRIBUTE_URL).orElseThrow();
+				final EntityAttributeSchemaContract secondAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT)
+				                                                             .getAttribute(ATTRIBUTE_URL)
+				                                                             .orElseThrow();
 				assertInstanceOf(GlobalAttributeSchemaContract.class, secondAttribute);
 				assertTrue(secondAttribute.isLocalized());
-				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE, ((GlobalAttributeSchemaContract) secondAttribute).getGlobalUniquenessType());
+				assertEquals(
+					GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE,
+					((GlobalAttributeSchemaContract) secondAttribute).getGlobalUniquenessType()
+				);
 			}
 		);
 	}
@@ -1122,9 +1215,9 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.getCatalogSchema()
-					.openForWrite()
-					.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
-					.updateVia(session);
+				       .openForWrite()
+				       .withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+				       .updateVia(session);
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
@@ -1144,14 +1237,16 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				final EntityAttributeSchemaContract productUrl = session.getEntitySchema(Entities.PRODUCT).orElseThrow()
-					.getAttribute(ATTRIBUTE_URL).orElseThrow();
+				                                                        .getAttribute(ATTRIBUTE_URL).orElseThrow();
 				assertNull(productUrl.getDescription());
 				assertTrue(productUrl.isLocalized());
 				assertTrue(productUrl.isUnique());
 				assertTrue(productUrl instanceof GlobalAttributeSchemaContract ga && ga.isUniqueGlobally());
 
-				final EntityAttributeSchemaContract categoryUrl = session.getEntitySchema(Entities.CATEGORY).orElseThrow()
-					.getAttribute(ATTRIBUTE_URL).orElseThrow();
+				final EntityAttributeSchemaContract categoryUrl = session.getEntitySchema(Entities.CATEGORY)
+				                                                         .orElseThrow()
+				                                                         .getAttribute(ATTRIBUTE_URL)
+				                                                         .orElseThrow();
 				assertNull(categoryUrl.getDescription());
 				assertTrue(categoryUrl.isLocalized());
 				assertTrue(categoryUrl.isUnique());
@@ -1163,15 +1258,15 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.getCatalogSchema()
-					.openForWrite()
-					.withAttribute(
-						ATTRIBUTE_URL, String.class,
-						whichIs -> whichIs
-							.withDescription("URL of the entity")
-							.localized(() -> false)
-							.uniqueGloballyWithinLocale()
-					)
-					.updateVia(session);
+				       .openForWrite()
+				       .withAttribute(
+					       ATTRIBUTE_URL, String.class,
+					       whichIs -> whichIs
+						       .withDescription("URL of the entity")
+						       .localized(() -> false)
+						       .uniqueGloballyWithinLocale()
+				       )
+				       .updateVia(session);
 			}
 		);
 
@@ -1179,18 +1274,21 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				final EntityAttributeSchemaContract productUrl = session.getEntitySchema(Entities.PRODUCT).orElseThrow()
-					.getAttribute(ATTRIBUTE_URL).orElseThrow();
+				                                                        .getAttribute(ATTRIBUTE_URL).orElseThrow();
 				assertEquals("URL of the entity", productUrl.getDescription());
 				assertFalse(productUrl.isLocalized());
 				assertTrue(productUrl.isUnique());
 				assertTrue(productUrl instanceof GlobalAttributeSchemaContract ga && ga.isUniqueGloballyWithinLocale());
 
-				final EntityAttributeSchemaContract categoryUrl = session.getEntitySchema(Entities.CATEGORY).orElseThrow()
-					.getAttribute(ATTRIBUTE_URL).orElseThrow();
+				final EntityAttributeSchemaContract categoryUrl = session.getEntitySchema(Entities.CATEGORY)
+				                                                         .orElseThrow()
+				                                                         .getAttribute(ATTRIBUTE_URL)
+				                                                         .orElseThrow();
 				assertEquals("URL of the entity", categoryUrl.getDescription());
 				assertFalse(categoryUrl.isLocalized());
 				assertTrue(categoryUrl.isUnique());
-				assertTrue(categoryUrl instanceof GlobalAttributeSchemaContract ga && ga.isUniqueGloballyWithinLocale());
+				assertTrue(
+					categoryUrl instanceof GlobalAttributeSchemaContract ga && ga.isUniqueGloballyWithinLocale());
 			}
 		);
 	}
@@ -1202,13 +1300,13 @@ class EvitaTest implements EvitaTestSupport {
 			session -> {
 				// we can create reflected reference even before the main one is created
 				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(
-						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
-						whichIs -> whichIs.withAttributesInheritedExcept("note")
-							.withFacetedInherited()
-							.withAttribute("customNote", String.class)
-					)
-					.updateVia(session);
+				       .withReflectedReferenceToEntity(
+					       REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+					       whichIs -> whichIs.withAttributesInheritedExcept("note")
+					                         .withFacetedInherited()
+					                         .withAttribute("customNote", String.class)
+				       )
+				       .updateVia(session);
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
@@ -1225,9 +1323,10 @@ class EvitaTest implements EvitaTestSupport {
 					.updateVia(session);
 
 				final SealedEntitySchema categorySchema = session.getEntitySchema(Entities.CATEGORY)
-					.orElseThrow();
+				                                                 .orElseThrow();
 
-				final ReferenceSchemaContract reflectedReference = categorySchema.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
+				final ReferenceSchemaContract reflectedReference = categorySchema.getReference(
+					REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
 				assertInstanceOf(ReflectedReferenceSchemaContract.class, reflectedReference);
 
 				assertEquals("Assigned category.", reflectedReference.getDescription());
@@ -1260,9 +1359,10 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				final SealedEntitySchema categorySchema = session.getEntitySchema(Entities.CATEGORY)
-					.orElseThrow();
+				                                                 .orElseThrow();
 
-				final ReferenceSchemaContract reflectedReference = categorySchema.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
+				final ReferenceSchemaContract reflectedReference = categorySchema.getReference(
+					REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
 				assertInstanceOf(ReflectedReferenceSchemaContract.class, reflectedReference);
 
 				assertEquals("Assigned category.", reflectedReference.getDescription());
@@ -1304,9 +1404,10 @@ class EvitaTest implements EvitaTestSupport {
 					.updateVia(session);
 
 				final SealedEntitySchema categorySchema = session.getEntitySchema(Entities.CATEGORY)
-					.orElseThrow();
+				                                                 .orElseThrow();
 
-				final ReferenceSchemaContract reflectedReference = categorySchema.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
+				final ReferenceSchemaContract reflectedReference = categorySchema.getReference(
+					REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
 				assertInstanceOf(ReflectedReferenceSchemaContract.class, reflectedReference);
 
 				assertEquals("Assigned category (updated).", reflectedReference.getDescription());
@@ -1342,9 +1443,10 @@ class EvitaTest implements EvitaTestSupport {
 					.updateVia(session);
 
 				final SealedEntitySchema categorySchema = session.getEntitySchema(Entities.CATEGORY)
-					.orElseThrow();
+				                                                 .orElseThrow();
 
-				final ReferenceSchemaContract newReference = categorySchema.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
+				final ReferenceSchemaContract newReference = categorySchema.getReference(
+					REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
 				assertFalse(newReference instanceof ReflectedReferenceSchemaContract);
 
 				assertNull(newReference.getDescription());
@@ -1367,18 +1469,19 @@ class EvitaTest implements EvitaTestSupport {
 			session -> {
 				// we can create reflected reference even before the main one is created
 				session.defineEntitySchema(Entities.CATEGORY)
-					.withoutReferenceTo(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY)
-					.withReflectedReferenceToEntity(
-						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
-						whichIs -> whichIs.withAttributesInheritedExcept("note")
-							.withAttribute("customNote", String.class)
-					)
-					.updateVia(session);
+				       .withoutReferenceTo(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY)
+				       .withReflectedReferenceToEntity(
+					       REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+					       whichIs -> whichIs.withAttributesInheritedExcept("note")
+					                         .withAttribute("customNote", String.class)
+				       )
+				       .updateVia(session);
 
 				final SealedEntitySchema categorySchema = session.getEntitySchema(Entities.CATEGORY)
-					.orElseThrow();
+				                                                 .orElseThrow();
 
-				final ReferenceSchemaContract reflectedReference = categorySchema.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
+				final ReferenceSchemaContract reflectedReference = categorySchema.getReference(
+					REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY).orElseThrow();
 				assertInstanceOf(ReflectedReferenceSchemaContract.class, reflectedReference);
 
 				assertEquals("Assigned category.", reflectedReference.getDescription());
@@ -1406,15 +1509,18 @@ class EvitaTest implements EvitaTestSupport {
 					TEST_CATALOG,
 					session -> {
 						session.defineEntitySchema(Entities.CATEGORY)
-							.withReflectedReferenceToEntity(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY)
-							.updateVia(session);
+						       .withReflectedReferenceToEntity(
+							       REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT,
+							       REFERENCE_PRODUCT_CATEGORY
+						       )
+						       .updateVia(session);
 
 						session.defineEntitySchema(Entities.PRODUCT)
-							.withReferenceToEntity(
-								REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-								ReferenceSchemaEditor::nonIndexed
-							)
-							.updateVia(session);
+						       .withReferenceToEntity(
+							       REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+							       ReferenceSchemaEditor::nonIndexed
+						       )
+						       .updateVia(session);
 					}
 				)
 		);
@@ -1428,15 +1534,16 @@ class EvitaTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.PRODUCT)
-						.withReferenceToEntity(
-							REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-							ReferenceSchemaEditor::nonIndexed
-						)
-						.updateVia(session);
+					       .withReferenceToEntity(
+						       REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						       ReferenceSchemaEditor::nonIndexed
+					       )
+					       .updateVia(session);
 
 					session.defineEntitySchema(Entities.CATEGORY)
-						.withReflectedReferenceToEntity(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY)
-						.updateVia(session);
+					       .withReflectedReferenceToEntity(
+						       REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY)
+					       .updateVia(session);
 				}
 			)
 		);
@@ -1450,7 +1557,7 @@ class EvitaTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.CATEGORY)
-						.updateVia(session);
+					       .updateVia(session);
 
 					session
 						.defineEntitySchema(Entities.PRODUCT)
@@ -1485,7 +1592,7 @@ class EvitaTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.PARAMETER_GROUP)
-						.updateVia(session);
+					       .updateVia(session);
 
 					session
 						.defineEntitySchema(Entities.PRODUCT)
@@ -1630,10 +1737,10 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(
-						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
-					)
-					.updateVia(session);
+				       .withReflectedReferenceToEntity(
+					       REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
+				       )
+				       .updateVia(session);
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
@@ -1667,10 +1774,10 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(
-						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
-					)
-					.updateVia(session);
+				       .withReflectedReferenceToEntity(
+					       REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY
+				       )
+				       .updateVia(session);
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
@@ -1705,8 +1812,9 @@ class EvitaTest implements EvitaTestSupport {
 			session -> {
 
 				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY)
-					.updateVia(session);
+				       .withReflectedReferenceToEntity(
+					       REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY)
+				       .updateVia(session);
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
@@ -1745,11 +1853,11 @@ class EvitaTest implements EvitaTestSupport {
 			session -> {
 
 				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(
-						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
-						ReflectedReferenceSchemaEditor::withAttributesInherited
-					)
-					.updateVia(session);
+				       .withReflectedReferenceToEntity(
+					       REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+					       ReflectedReferenceSchemaEditor::withAttributesInherited
+				       )
+				       .updateVia(session);
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
@@ -1788,11 +1896,11 @@ class EvitaTest implements EvitaTestSupport {
 			session -> {
 
 				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(
-						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
-						ReflectedReferenceSchemaEditor::withAttributesInherited
-					)
-					.updateVia(session);
+				       .withReflectedReferenceToEntity(
+					       REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+					       ReflectedReferenceSchemaEditor::withAttributesInherited
+				       )
+				       .updateVia(session);
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
@@ -1831,11 +1939,11 @@ class EvitaTest implements EvitaTestSupport {
 			session -> {
 
 				session.defineEntitySchema(Entities.CATEGORY)
-					.withReflectedReferenceToEntity(
-						REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
-						ReflectedReferenceSchemaEditor::withAttributesInherited
-					)
-					.updateVia(session);
+				       .withReflectedReferenceToEntity(
+					       REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
+					       ReflectedReferenceSchemaEditor::withAttributesInherited
+				       )
+				       .updateVia(session);
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
@@ -1872,9 +1980,9 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.getCatalogSchema()
-					.openForWrite()
-					.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
-					.updateVia(session);
+				       .openForWrite()
+				       .withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+				       .updateVia(session);
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
@@ -1884,10 +1992,10 @@ class EvitaTest implements EvitaTestSupport {
 
 				session.upsertEntity(
 					session.createNewEntity(Entities.PRODUCT, 1)
-						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Hence, product")
-						.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Hle, produkt")
-						.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theProduct")
-						.setAttribute(ATTRIBUTE_URL, LOCALE_CZ, "/tenProdukt")
+					       .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Hence, product")
+					       .setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Hle, produkt")
+					       .setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theProduct")
+					       .setAttribute(ATTRIBUTE_URL, LOCALE_CZ, "/tenProdukt")
 				);
 
 				final SealedEntity result = session.queryOneSealedEntity(
@@ -1914,9 +2022,9 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.getCatalogSchema()
-					.openForWrite()
-					.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
-					.updateVia(session);
+				       .openForWrite()
+				       .withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+				       .updateVia(session);
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
@@ -1926,18 +2034,18 @@ class EvitaTest implements EvitaTestSupport {
 
 				session.upsertEntity(
 					session.createNewEntity(Entities.PRODUCT, 1)
-						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Hence, product")
-						.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Hle, produkt")
-						.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theProduct")
-						.setAttribute(ATTRIBUTE_URL, LOCALE_CZ, "/tenProdukt")
+					       .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Hence, product")
+					       .setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Hle, produkt")
+					       .setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theProduct")
+					       .setAttribute(ATTRIBUTE_URL, LOCALE_CZ, "/tenProdukt")
 				);
 
 				session.upsertEntity(
 					session.createNewEntity(Entities.PRODUCT, 2)
-						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Hence, slightly different product")
-						.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Hle, trochu jiný produkt")
-						.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theOtherProduct")
-						.setAttribute(ATTRIBUTE_URL, LOCALE_CZ, "/tenJinýProdukt")
+					       .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Hence, slightly different product")
+					       .setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Hle, trochu jiný produkt")
+					       .setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theOtherProduct")
+					       .setAttribute(ATTRIBUTE_URL, LOCALE_CZ, "/tenJinýProdukt")
 				);
 
 				final List<SealedEntity> result = session.queryListOfSealedEntities(
@@ -1950,8 +2058,14 @@ class EvitaTest implements EvitaTestSupport {
 
 				assertNotNull(result);
 
-				final SealedEntity firstProduct = result.stream().filter(it -> Objects.equals(it.getPrimaryKey(), 1)).findFirst().orElse(null);
-				final SealedEntity secondProduct = result.stream().filter(it -> Objects.equals(it.getPrimaryKey(), 2)).findFirst().orElse(null);
+				final SealedEntity firstProduct = result.stream()
+				                                        .filter(it -> Objects.equals(it.getPrimaryKey(), 1))
+				                                        .findFirst()
+				                                        .orElse(null);
+				final SealedEntity secondProduct = result.stream()
+				                                         .filter(it -> Objects.equals(it.getPrimaryKey(), 2))
+				                                         .findFirst()
+				                                         .orElse(null);
 				assertNotNull(firstProduct);
 				assertNotNull(secondProduct);
 
@@ -1976,25 +2090,26 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.CATEGORY)
-					.withoutGeneratedPrimaryKey()
-					.updateVia(session);
+				       .withoutGeneratedPrimaryKey()
+				       .updateVia(session);
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
 					.withPrice(2)
-					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, ReferenceSchemaEditor::indexed)
+					.withReferenceToEntity(
+						Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, ReferenceSchemaEditor::indexed)
 					.updateVia(session);
 
 				session.createNewEntity(Entities.CATEGORY, 1).upsertVia(session);
 				session.createNewEntity(Entities.PRODUCT, 1)
-					.setReference(Entities.CATEGORY, 1)
-					.setPrice(1, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
-					.upsertVia(session);
+				       .setReference(Entities.CATEGORY, 1)
+				       .setPrice(1, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+				       .upsertVia(session);
 
 				session.createNewEntity(Entities.PRODUCT, 2)
-					.setReference(Entities.CATEGORY, 1)
-					.setPrice(2, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
-					.upsertVia(session);
+				       .setReference(Entities.CATEGORY, 1)
+				       .setPrice(2, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
+				       .upsertVia(session);
 
 				session.goLiveAndClose();
 			}
@@ -2004,10 +2119,10 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.getEntity(Entities.PRODUCT, 1, priceContentAll())
-					.orElseThrow()
-					.openForWrite()
-					.setPrice(1, "basic", CURRENCY_CZK, null, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, false)
-					.upsertVia(session);
+				       .orElseThrow()
+				       .openForWrite()
+				       .setPrice(1, "basic", CURRENCY_CZK, null, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, false)
+				       .upsertVia(session);
 			}
 		);
 
@@ -2015,9 +2130,13 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				final SealedEntity sealedEntity = session.getEntity(Entities.PRODUCT, 1, priceContentAll())
-					.orElseThrow();
+				                                         .orElseThrow();
 
-				assertEquals(BigDecimal.TEN, sealedEntity.getPrice(1, "basic", CURRENCY_CZK).orElseThrow().priceWithTax());
+				assertEquals(
+					BigDecimal.TEN, sealedEntity.getPrice(1, "basic", CURRENCY_CZK)
+					                            .orElseThrow()
+					                            .priceWithTax()
+				);
 			}
 		);
 	}
@@ -2044,12 +2163,12 @@ class EvitaTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema("someEntity")
-						.withReferenceToEntity(
-							"someReference",
-							"nonExistingEntity",
-							Cardinality.ONE_OR_MORE
-						)
-						.updateVia(session);
+					       .withReferenceToEntity(
+						       "someReference",
+						       "nonExistingEntity",
+						       Cardinality.ONE_OR_MORE
+					       )
+					       .updateVia(session);
 				}
 			)
 		);
@@ -2063,15 +2182,15 @@ class EvitaTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(
-							"someEntity"
-						)
-						.withReferenceTo(
-							"someReference",
-							"nonExistingEntityNonManagedEntity",
-							Cardinality.ONE_OR_MORE,
-							whichIs -> whichIs.withGroupTypeRelatedToEntity("nonExistingGroup")
-						)
-						.updateVia(session);
+						       "someEntity"
+					       )
+					       .withReferenceTo(
+						       "someReference",
+						       "nonExistingEntityNonManagedEntity",
+						       Cardinality.ONE_OR_MORE,
+						       whichIs -> whichIs.withGroupTypeRelatedToEntity("nonExistingGroup")
+					       )
+					       .updateVia(session);
 				}
 			)
 		);
@@ -2083,14 +2202,14 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(
-						"someEntity"
-					)
-					.withReferenceTo(
-						"someReference",
-						"nonExistingEntityNonManagedEntity",
-						Cardinality.ONE_OR_MORE,
-						whichIs -> whichIs.withGroupType("nonExistingNonManagedGroup")
-					).updateVia(session);
+					       "someEntity"
+				       )
+				       .withReferenceTo(
+					       "someReference",
+					       "nonExistingEntityNonManagedEntity",
+					       Cardinality.ONE_OR_MORE,
+					       whichIs -> whichIs.withGroupType("nonExistingNonManagedGroup")
+				       ).updateVia(session);
 
 				assertNotNull(session.getEntitySchema("someEntity"));
 			}
@@ -2103,18 +2222,24 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				final ModifyEntitySchemaMutation categoryMutation = session.defineEntitySchema(
-						Entities.CATEGORY
-					)
-					.withReferenceToEntity(Entities.PRODUCT, Entities.PRODUCT, Cardinality.ONE_OR_MORE)
-					.toMutation()
-					.orElseThrow();
+					                                                           Entities.CATEGORY
+				                                                           )
+				                                                           .withReferenceToEntity(
+					                                                           Entities.PRODUCT, Entities.PRODUCT,
+					                                                           Cardinality.ONE_OR_MORE
+				                                                           )
+				                                                           .toMutation()
+				                                                           .orElseThrow();
 
 				final ModifyEntitySchemaMutation productMutation = session.defineEntitySchema(
-						Entities.PRODUCT
-					)
-					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE)
-					.toMutation()
-					.orElseThrow();
+					                                                          Entities.PRODUCT
+				                                                          )
+				                                                          .withReferenceToEntity(
+					                                                          Entities.CATEGORY, Entities.CATEGORY,
+					                                                          Cardinality.ONE_OR_MORE
+				                                                          )
+				                                                          .toMutation()
+				                                                          .orElseThrow();
 
 				session.updateCatalogSchema(
 					categoryMutation, productMutation
@@ -2163,13 +2288,13 @@ class EvitaTest implements EvitaTestSupport {
 					.updateVia(session);
 
 				session.createNewEntity(Entities.PRODUCT, 1)
-					.setAttribute(
-						"range",
-						new IntegerNumberRange[]{
-							IntegerNumberRange.between(1, 5),
-							IntegerNumberRange.between(5, 10),
-						}
-					).upsertVia(session);
+				       .setAttribute(
+					       "range",
+					       new IntegerNumberRange[]{
+						       IntegerNumberRange.between(1, 5),
+						       IntegerNumberRange.between(5, 10),
+					       }
+				       ).upsertVia(session);
 
 				IntFunction<EntityReference> getInRange = (threshold) -> session.queryOneEntityReference(
 					query(
@@ -2188,10 +2313,10 @@ class EvitaTest implements EvitaTestSupport {
 				);
 
 				session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
-					.orElseThrow()
-					.openForWrite()
-					.setAttribute("range", new IntegerNumberRange[]{IntegerNumberRange.between(1, 5)})
-					.upsertVia(session);
+				       .orElseThrow()
+				       .openForWrite()
+				       .setAttribute("range", new IntegerNumberRange[]{IntegerNumberRange.between(1, 5)})
+				       .upsertVia(session);
 
 				assertEquals(
 					new EntityReference(Entities.PRODUCT, 1),
@@ -2211,8 +2336,8 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
-					.withAttribute("someAttribute", String.class)
-					.updateVia(session);
+				       .withAttribute("someAttribute", String.class)
+				       .updateVia(session);
 				session.goLiveAndClose();
 			}
 		);
@@ -2223,17 +2348,17 @@ class EvitaTest implements EvitaTestSupport {
 			session -> {
 				assertTrue(session.isTransactionOpen());
 				session.getCatalogSchema()
-					.openForWrite()
-					.withDescription("This is my beautiful catalog.")
-					.updateVia(session);
+				       .openForWrite()
+				       .withDescription("This is my beautiful catalog.")
+				       .updateVia(session);
 
 				session.getEntitySchema(Entities.PRODUCT)
-					.orElseThrow()
-					.openForWrite()
-					.withDescription("This is my beautiful product collection.")
-					.withAttribute("someAttribute", String.class, thatIs -> thatIs.localized().filterable())
-					.withAttribute("differentAttribute", Integer.class)
-					.updateVia(session);
+				       .orElseThrow()
+				       .openForWrite()
+				       .withDescription("This is my beautiful product collection.")
+				       .withAttribute("someAttribute", String.class, thatIs -> thatIs.localized().filterable())
+				       .withAttribute("differentAttribute", Integer.class)
+				       .updateVia(session);
 
 				// create different session in parallel (original session is not yet committed)
 				final CountDownLatch latch = new CountDownLatch(1);
@@ -2244,7 +2369,8 @@ class EvitaTest implements EvitaTestSupport {
 							parallelSession -> {
 								assertNull(parallelSession.getCatalogSchema().getDescription());
 
-								final SealedEntitySchema productSchema = parallelSession.getEntitySchema(Entities.PRODUCT).orElseThrow();
+								final SealedEntitySchema productSchema = parallelSession.getEntitySchema(
+									Entities.PRODUCT).orElseThrow();
 								assertNull(productSchema.getDescription());
 
 								final AttributeSchemaContract someAttributeSchema = productSchema
@@ -2308,8 +2434,8 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
-					.withAttribute("someAttribute", String.class)
-					.updateVia(session);
+				       .withAttribute("someAttribute", String.class)
+				       .updateVia(session);
 				session.goLiveAndClose();
 			}
 		);
@@ -2322,46 +2448,54 @@ class EvitaTest implements EvitaTestSupport {
 		);
 
 		// create two parallel sessions
-		final EvitaSessionContract session1 = this.evita.createSession(new SessionTraits(TEST_CATALOG, SessionFlags.READ_WRITE));
-		final EvitaSessionContract session2 = this.evita.createSession(new SessionTraits(TEST_CATALOG, SessionFlags.READ_WRITE));
+		final EvitaSessionContract session1 = this.evita.createSession(
+			new SessionTraits(TEST_CATALOG, SessionFlags.READ_WRITE));
+		final EvitaSessionContract session2 = this.evita.createSession(
+			new SessionTraits(TEST_CATALOG, SessionFlags.READ_WRITE));
 
 		// in both modify entity schema
 		session1.getEntitySchema(Entities.PRODUCT)
-			.orElseThrow()
-			.openForWrite()
-			.withDescription("This is my beautiful product collection.")
-			.updateVia(session1);
+		        .orElseThrow()
+		        .openForWrite()
+		        .withDescription("This is my beautiful product collection.")
+		        .updateVia(session1);
 
 		session2.getEntitySchema(Entities.PRODUCT)
-			.orElseThrow()
-			.openForWrite()
-			.withAttribute("someAttribute", String.class, thatIs -> thatIs.localized().filterable())
-			.updateVia(session2);
+		        .orElseThrow()
+		        .openForWrite()
+		        .withAttribute("someAttribute", String.class, thatIs -> thatIs.localized().filterable())
+		        .updateVia(session2);
 
 		final List<String> worklog = new CopyOnWriteArrayList<>();
 
 		// commit second first
 		final CommitProgress session2CommitProgress = session2.closeNowWithProgress();
-		session2CommitProgress.onConflictResolved().thenAccept(commitVersions -> worklog.add("Session 2 conflict resolved: " + commitVersions));
-		session2CommitProgress.onWalAppended().thenAccept(commitVersions -> worklog.add("Session 2 WAL appended: " + commitVersions));
+		session2CommitProgress.onConflictResolved().thenAccept(
+			commitVersions -> worklog.add("Session 2 conflict resolved: " + commitVersions));
+		session2CommitProgress.onWalAppended().thenAccept(
+			commitVersions -> worklog.add("Session 2 WAL appended: " + commitVersions));
 
 		// commit first
 		final CommitProgress session1CommitProgress = session1.closeNowWithProgress();
-		session1CommitProgress.onConflictResolved().thenAccept(commitVersions -> worklog.add("Session 1 conflict resolved: " + commitVersions));
-		session1CommitProgress.onWalAppended().thenAccept(commitVersions -> worklog.add("Session 1 WAL appended: " + commitVersions));
+		session1CommitProgress.onConflictResolved().thenAccept(
+			commitVersions -> worklog.add("Session 1 conflict resolved: " + commitVersions));
+		session1CommitProgress.onWalAppended().thenAccept(
+			commitVersions -> worklog.add("Session 1 WAL appended: " + commitVersions));
 
 		final CompletableFuture<CommitVersions> session1Future = session1CommitProgress.onChangesVisible()
-			.thenApply(commitVersions -> {
-				worklog.add("Session 1 changes visible: " + commitVersions);
-				return commitVersions;
-			})
-			.toCompletableFuture();
+		                                                                               .thenApply(commitVersions -> {
+			                                                                               worklog.add(
+				                                                                               "Session 1 changes visible: " + commitVersions);
+			                                                                               return commitVersions;
+		                                                                               })
+		                                                                               .toCompletableFuture();
 		final CompletableFuture<CommitVersions> session2Future = session2CommitProgress.onChangesVisible()
-			.thenApply(commitVersions -> {
-				worklog.add("Session 2 changes visible: " + commitVersions);
-				return commitVersions;
-			})
-			.toCompletableFuture();
+		                                                                               .thenApply(commitVersions -> {
+			                                                                               worklog.add(
+				                                                                               "Session 2 changes visible: " + commitVersions);
+			                                                                               return commitVersions;
+		                                                                               })
+		                                                                               .toCompletableFuture();
 
 		CompletableFuture.allOf(
 			session1Future,
@@ -2408,19 +2542,20 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
-					.withAttribute("testAttribute", String.class)
-					.updateVia(session);
+				       .withAttribute("testAttribute", String.class)
+				       .updateVia(session);
 				session.goLiveAndClose();
 			}
 		);
 
 		// create a session and make a change
-		final EvitaSessionContract session = this.evita.createSession(new SessionTraits(TEST_CATALOG, SessionFlags.READ_WRITE));
+		final EvitaSessionContract session = this.evita.createSession(
+			new SessionTraits(TEST_CATALOG, SessionFlags.READ_WRITE));
 
 		// create an entity
 		session.upsertEntity(
 			session.createNewEntity(Entities.PRODUCT, 1)
-				.setAttribute("testAttribute", "Test value")
+			       .setAttribute("testAttribute", "Test value")
 		);
 
 		// throw exception in onWalAppended completion stage
@@ -2485,7 +2620,7 @@ class EvitaTest implements EvitaTestSupport {
 		assertTrue(this.evita.getCatalogState(TEST_CATALOG + "_1").isEmpty());
 
 		this.evita.defineCatalog(TEST_CATALOG + "_1")
-			.updateViaNewSession(this.evita);
+		          .updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
 			TEST_CATALOG + "_1",
 			session -> {
@@ -2499,7 +2634,7 @@ class EvitaTest implements EvitaTestSupport {
 		);
 
 		this.evita.defineCatalog(TEST_CATALOG + "_2")
-			.updateViaNewSession(this.evita);
+		          .updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
 			TEST_CATALOG + "_2",
 			session -> {
@@ -2518,7 +2653,8 @@ class EvitaTest implements EvitaTestSupport {
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+			final Path productCollectionFile = getEvitaTestDirectory().resolve(
+				TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -2537,15 +2673,15 @@ class EvitaTest implements EvitaTestSupport {
 			try (ExternalApiServer externalApiServer = new ExternalApiServer(
 				this.evita,
 				ApiOptions.builder()
-					.certificate(
-						CertificateOptions.builder()
-							.folderPath(getEvitaTestDirectory() + "-certificates")
-							.build()
-					)
-					.enable(GraphQLProvider.CODE, new GraphQLOptions(":" + ports[0]))
-					.enable(GrpcProvider.CODE, new GrpcOptions(":" + ports[1]))
-					.enable(RestProvider.CODE, new RestOptions(":" + ports[2]))
-					.build()
+				          .certificate(
+					          CertificateOptions.builder()
+					                            .folderPath(getEvitaTestDirectory() + "-certificates")
+					                            .build()
+				          )
+				          .enable(GraphQLProvider.CODE, new GraphQLOptions(":" + ports[0]))
+				          .enable(GrpcProvider.CODE, new GrpcOptions(":" + ports[1]))
+				          .enable(RestProvider.CODE, new RestOptions(":" + ports[2]))
+				          .build()
 			)) {
 				externalApiServer.start();
 			}
@@ -2569,31 +2705,36 @@ class EvitaTest implements EvitaTestSupport {
 			assertNotNull(catalogStatistics);
 			assertEquals(3, catalogStatistics.length);
 
-			final CatalogStatistics statistics = Arrays.stream(catalogStatistics).filter(it -> TEST_CATALOG.equals(it.catalogName())).findFirst().orElseThrow();
+			final CatalogStatistics statistics = Arrays.stream(catalogStatistics).filter(
+				it -> TEST_CATALOG.equals(it.catalogName())).findFirst().orElseThrow();
 			assertTrue(
 				statistics.sizeOnDiskInBytes() > 400L && statistics.sizeOnDiskInBytes() < 600L,
 				"Expected size on disk to be between 400 and 600 bytes, but was " + statistics.sizeOnDiskInBytes()
 			);
 			assertEquals(
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG, false, CatalogState.WARMING_UP, 0L, 0, 1, statistics.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
+					UUIDUtil.randomUUID(), TEST_CATALOG, false, CatalogState.WARMING_UP, 0L, 0, 1,
+					statistics.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
 				),
 				statistics
 			);
 
-			final CatalogStatistics statistics1 = Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_1").equals(it.catalogName())).findFirst().orElseThrow();
+			final CatalogStatistics statistics1 = Arrays.stream(catalogStatistics).filter(
+				it -> (TEST_CATALOG + "_1").equals(it.catalogName())).findFirst().orElseThrow();
 			assertTrue(
 				statistics1.sizeOnDiskInBytes() > 900L && statistics1.sizeOnDiskInBytes() < 1200L,
 				"Expected size on disk to be between 900 and 1200 bytes, but was " + statistics1.sizeOnDiskInBytes()
 			);
 			assertEquals(
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1, statistics1.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1,
+					statistics1.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
 				),
 				statistics1
 			);
 
-			final CatalogStatistics statistics2 = Arrays.stream(catalogStatistics).filter(it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow();
+			final CatalogStatistics statistics2 = Arrays.stream(catalogStatistics).filter(
+				it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow();
 			assertTrue(
 				statistics2.sizeOnDiskInBytes() > 1000L && statistics2.sizeOnDiskInBytes() < 1700L,
 				"Expected size on disk to be between 1000 and 1700 bytes, but was " + statistics2.sizeOnDiskInBytes()
@@ -2605,7 +2746,8 @@ class EvitaTest implements EvitaTestSupport {
 			);
 			assertEquals(
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2, statistics2.sizeOnDiskInBytes(),
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2,
+					statistics2.sizeOnDiskInBytes(),
 					new EntityCollectionStatistics[]{
 						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, productStatistics.sizeOnDiskInBytes())
 					}
@@ -2621,7 +2763,7 @@ class EvitaTest implements EvitaTestSupport {
 	@Test
 	void shouldCreateCatalogEvenIfOneCatalogIsCorrupted() {
 		this.evita.defineCatalog(TEST_CATALOG + "_1")
-			.updateViaNewSession(this.evita);
+		          .updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
 			TEST_CATALOG + "_1",
 			session -> {
@@ -2635,7 +2777,7 @@ class EvitaTest implements EvitaTestSupport {
 		);
 
 		this.evita.defineCatalog(TEST_CATALOG + "_2")
-			.updateViaNewSession(this.evita);
+		          .updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
 			TEST_CATALOG + "_2",
 			session -> {
@@ -2652,7 +2794,8 @@ class EvitaTest implements EvitaTestSupport {
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+			final Path productCollectionFile = getEvitaTestDirectory().resolve(
+				TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -2669,15 +2812,15 @@ class EvitaTest implements EvitaTestSupport {
 			try (ExternalApiServer externalApiServer = new ExternalApiServer(
 				this.evita,
 				ApiOptions.builder()
-					.certificate(
-						CertificateOptions.builder()
-							.folderPath(getEvitaTestDirectory() + "-certificates")
-							.build()
-					)
-					.enable(GraphQLProvider.CODE, new GraphQLOptions(":" + ports[0]))
-					.enable(GrpcProvider.CODE, new GrpcOptions(":" + ports[1]))
-					.enable(RestProvider.CODE, new RestOptions(":" + ports[2]))
-					.build()
+				          .certificate(
+					          CertificateOptions.builder()
+					                            .folderPath(getEvitaTestDirectory() + "-certificates")
+					                            .build()
+				          )
+				          .enable(GraphQLProvider.CODE, new GraphQLOptions(":" + ports[0]))
+				          .enable(GrpcProvider.CODE, new GrpcOptions(":" + ports[1]))
+				          .enable(RestProvider.CODE, new RestOptions(":" + ports[2]))
+				          .build()
 			)) {
 				externalApiServer.start();
 			}
@@ -2699,7 +2842,7 @@ class EvitaTest implements EvitaTestSupport {
 
 			// but allow creating new catalog
 			this.evita.defineCatalog(TEST_CATALOG + "_3")
-				.updateViaNewSession(this.evita);
+			          .updateViaNewSession(this.evita);
 
 			assertTrue(this.evita.getCatalogNames().contains(TEST_CATALOG + "_3"));
 
@@ -2711,7 +2854,7 @@ class EvitaTest implements EvitaTestSupport {
 	@Test
 	void shouldReplaceCorruptedCatalogWithCorrectOne() {
 		this.evita.defineCatalog(TEST_CATALOG + "_1")
-			.updateViaNewSession(this.evita);
+		          .updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
 			TEST_CATALOG + "_1",
 			session -> {
@@ -2725,7 +2868,7 @@ class EvitaTest implements EvitaTestSupport {
 		);
 
 		this.evita.defineCatalog(TEST_CATALOG + "_2")
-			.updateViaNewSession(this.evita);
+		          .updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
 			TEST_CATALOG + "_2",
 			session -> {
@@ -2742,7 +2885,8 @@ class EvitaTest implements EvitaTestSupport {
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+			final Path productCollectionFile = getEvitaTestDirectory().resolve(
+				TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -2759,15 +2903,15 @@ class EvitaTest implements EvitaTestSupport {
 			try (ExternalApiServer externalApiServer = new ExternalApiServer(
 				this.evita,
 				ApiOptions.builder()
-					.certificate(
-						CertificateOptions.builder()
-							.folderPath(getEvitaTestDirectory() + "-certificates")
-							.build()
-					)
-					.enable(GraphQLProvider.CODE, new GraphQLOptions(":" + ports[0]))
-					.enable(GrpcProvider.CODE, new GrpcOptions(":" + ports[1]))
-					.enable(RestProvider.CODE, new RestOptions(":" + ports[2]))
-					.build()
+				          .certificate(
+					          CertificateOptions.builder()
+					                            .folderPath(getEvitaTestDirectory() + "-certificates")
+					                            .build()
+				          )
+				          .enable(GraphQLProvider.CODE, new GraphQLOptions(":" + ports[0]))
+				          .enable(GrpcProvider.CODE, new GrpcOptions(":" + ports[1]))
+				          .enable(RestProvider.CODE, new RestOptions(":" + ports[2]))
+				          .build()
 			)) {
 				externalApiServer.start();
 			}
@@ -2789,7 +2933,7 @@ class EvitaTest implements EvitaTestSupport {
 
 			// but allow creating new catalog
 			this.evita.defineCatalog(TEST_CATALOG + "_3")
-				.updateViaNewSession(this.evita);
+			          .updateViaNewSession(this.evita);
 
 			assertTrue(this.evita.getCatalogNames().contains(TEST_CATALOG + "_3"));
 			this.evita.replaceCatalog(TEST_CATALOG + "_3", TEST_CATALOG + "_1");
@@ -2816,34 +2960,34 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.BRAND)
-					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable())
-					.updateVia(session);
+				       .withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable())
+				       .updateVia(session);
 
 				session.defineEntitySchema(Entities.PRODUCT)
-					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable())
-					.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ONE_OR_MORE)
-					.withReferenceTo(Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE)
-					.updateVia(session);
+				       .withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable())
+				       .withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ONE_OR_MORE)
+				       .withReferenceTo(Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE)
+				       .updateVia(session);
 
 				session.createNewEntity(Entities.BRAND, 1)
-					.setAttribute(ATTRIBUTE_NAME, "Siemens")
-					.upsertVia(session);
+				       .setAttribute(ATTRIBUTE_NAME, "Siemens")
+				       .upsertVia(session);
 
 				session.createNewEntity(Entities.PRODUCT, 1)
-					.setAttribute(ATTRIBUTE_NAME, "Mixer")
-					.setReference(Entities.BRAND, 1)
-					.setReference(Entities.BRAND, 2)
-					.setReference(Entities.PARAMETER, 3)
-					.upsertVia(session);
+				       .setAttribute(ATTRIBUTE_NAME, "Mixer")
+				       .setReference(Entities.BRAND, 1)
+				       .setReference(Entities.BRAND, 2)
+				       .setReference(Entities.PARAMETER, 3)
+				       .upsertVia(session);
 
 				final SealedEntity fullEntity = session.getEntity(
-						Entities.PRODUCT, 1,
-						entityFetchAllContentAnd(
-							referenceContent(Entities.BRAND, entityFetchAll()),
-							referenceContent(Entities.PARAMETER, entityFetchAll())
-						)
-					)
-					.orElseThrow();
+					                                       Entities.PRODUCT, 1,
+					                                       entityFetchAllContentAnd(
+						                                       referenceContent(Entities.BRAND, entityFetchAll()),
+						                                       referenceContent(Entities.PARAMETER, entityFetchAll())
+					                                       )
+				                                       )
+				                                       .orElseThrow();
 
 				// we get only single brand because when brand with PK=2 was fetched it was not found, yet it should
 				// be present since entity maps to evita managed entity
@@ -2854,7 +2998,7 @@ class EvitaTest implements EvitaTestSupport {
 				assertFalse(fullEntity.getReference(Entities.BRAND, 2).orElseThrow().getReferencedEntity().isPresent());
 
 				final SealedEntity shortEntity = session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
-					.orElseThrow();
+				                                        .orElseThrow();
 
 				// we get both brands because their bodies were not fetched and we had no chance to find out that
 				// the brand with PK=2 is not (yet) present in the evita storage
@@ -2884,22 +3028,25 @@ class EvitaTest implements EvitaTestSupport {
 				session
 					.defineEntitySchema(Entities.PRODUCT)
 					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
-					.withReferenceToEntity(Entities.PARAMETER, Entities.PARAMETER, Cardinality.ZERO_OR_MORE, whichIs -> whichIs.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP))
+					.withReferenceToEntity(
+						Entities.PARAMETER, Entities.PARAMETER, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
+					)
 					.updateVia(session);
 
 				session.createNewEntity(Entities.PARAMETER_GROUP, 1)
-					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Group")
-					.upsertVia(session);
+				       .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Group")
+				       .upsertVia(session);
 
 				session.createNewEntity(Entities.PARAMETER, 1)
-					.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Parametr")
-					.setReference(Entities.PARAMETER_GROUP, 1)
-					.upsertVia(session);
+				       .setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Parametr")
+				       .setReference(Entities.PARAMETER_GROUP, 1)
+				       .upsertVia(session);
 
 				session.createNewEntity(Entities.PRODUCT, 1)
-					.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Produkt")
-					.setReference(Entities.PARAMETER, 1, whichIs -> whichIs.setGroup(1))
-					.upsertVia(session);
+				       .setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Produkt")
+				       .setReference(Entities.PARAMETER, 1, whichIs -> whichIs.setGroup(1))
+				       .upsertVia(session);
 
 				final SealedEntity product = session.queryOneSealedEntity(
 					query(
@@ -2951,8 +3098,8 @@ class EvitaTest implements EvitaTestSupport {
 	@Test
 	void shouldCorrectlyLocalizeGloballyUniqueAttribute() {
 		this.evita.defineCatalog(TEST_CATALOG)
-			.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
-			.updateViaNewSession(this.evita);
+		          .withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+		          .updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2963,7 +3110,7 @@ class EvitaTest implements EvitaTestSupport {
 
 				session.upsertEntity(
 					session.createNewEntity(Entities.PRODUCT, 1)
-						.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theProduct")
+					       .setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theProduct")
 				);
 			}
 		);
@@ -2975,7 +3122,7 @@ class EvitaTest implements EvitaTestSupport {
 				session -> {
 					session.upsertEntity(
 						session.createNewEntity(Entities.PRODUCT, 2)
-							.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theProduct")
+						       .setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, "/theProduct")
 					);
 				}
 			)
@@ -3039,12 +3186,14 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateBackupAndRestoreCatalog() throws IOException, ExecutionException, InterruptedException {
 		setupCatalogWithProductAndCategory();
 
-		final CompletableFuture<FileForFetch> backupPathFuture = this.evita.management().backupCatalog(TEST_CATALOG, null, null, true);
+		final CompletableFuture<FileForFetch> backupPathFuture = this.evita.management().backupCatalog(
+			TEST_CATALOG, null, null, true);
 		final Path backupPath = backupPathFuture.join().path(this.evita.getConfiguration().storage().exportDirectory());
 
 		assertTrue(backupPath.toFile().exists());
 
-		try (final BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(backupPath.toFile()))) {
+		try (final BufferedInputStream inputStream = new BufferedInputStream(
+			new FileInputStream(backupPath.toFile()))) {
 			final CompletableFuture<Void> future = this.evita.management().restoreCatalog(
 				TEST_CATALOG + "_restored",
 				Files.size(backupPath),
@@ -3055,10 +3204,12 @@ class EvitaTest implements EvitaTestSupport {
 			future.get();
 		}
 
-		this.evita.queryCatalog(TEST_CATALOG,
+		this.evita.queryCatalog(
+			TEST_CATALOG,
 			session -> {
 				// compare contents of both catalogs
-				this.evita.queryCatalog(TEST_CATALOG + "_restored",
+				this.evita.queryCatalog(
+					TEST_CATALOG + "_restored",
 					session2 -> {
 						final Set<String> allEntityTypes1 = session.getAllEntityTypes();
 						final Set<String> allEntityTypes2 = session2.getAllEntityTypes();
@@ -3079,8 +3230,10 @@ class EvitaTest implements EvitaTestSupport {
 								assertEquals(entity, entity2);
 							});
 						}
-					});
-			});
+					}
+				);
+			}
+		);
 	}
 
 	@Test
@@ -3098,20 +3251,22 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
-					.orElseThrow()
-					.openForWrite()
-					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Changed name")
-					.upsertVia(session);
+				       .orElseThrow()
+				       .openForWrite()
+				       .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Changed name")
+				       .upsertVia(session);
 			}
 		);
 
 		final EvitaManagement management = this.evita.management();
-		final CompletableFuture<FileForFetch> backupPathFuture = management.backupCatalog(TEST_CATALOG, null, null, true);
+		final CompletableFuture<FileForFetch> backupPathFuture = management.backupCatalog(
+			TEST_CATALOG, null, null, true);
 		final Path backupPath = backupPathFuture.join().path(this.evita.getConfiguration().storage().exportDirectory());
 
 		assertTrue(backupPath.toFile().exists());
 
-		try (final BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(backupPath.toFile()))) {
+		try (final BufferedInputStream inputStream = new BufferedInputStream(
+			new FileInputStream(backupPath.toFile()))) {
 			final CompletableFuture<Void> future = management.restoreCatalog(
 				TEST_CATALOG + "_restored",
 				Files.size(backupPath),
@@ -3122,10 +3277,12 @@ class EvitaTest implements EvitaTestSupport {
 			future.get();
 		}
 
-		this.evita.queryCatalog(TEST_CATALOG,
+		this.evita.queryCatalog(
+			TEST_CATALOG,
 			session -> {
 				// compare contents of both catalogs
-				this.evita.queryCatalog(TEST_CATALOG + "_restored",
+				this.evita.queryCatalog(
+					TEST_CATALOG + "_restored",
 					session2 -> {
 						final Set<String> allEntityTypes1 = session.getAllEntityTypes();
 						final Set<String> allEntityTypes2 = session2.getAllEntityTypes();
@@ -3146,18 +3303,20 @@ class EvitaTest implements EvitaTestSupport {
 								assertEquals(entity, entity2);
 							});
 						}
-					});
-			});
+					}
+				);
+			}
+		);
 
 		// verify we can write to the original catalog again
 		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
-					.orElseThrow()
-					.openForWrite()
-					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Changed name again")
-					.upsertVia(session);
+				       .orElseThrow()
+				       .openForWrite()
+				       .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Changed name again")
+				       .upsertVia(session);
 			}
 		);
 
@@ -3166,10 +3325,10 @@ class EvitaTest implements EvitaTestSupport {
 			TEST_CATALOG + "_restored",
 			session -> {
 				session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
-					.orElseThrow()
-					.openForWrite()
-					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Changed name again")
-					.upsertVia(session);
+				       .orElseThrow()
+				       .openForWrite()
+				       .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Changed name again")
+				       .upsertVia(session);
 			}
 		);
 	}
@@ -3188,7 +3347,8 @@ class EvitaTest implements EvitaTestSupport {
 		ExecutorService executorService = Executors.newFixedThreadPool(numberOfTasks);
 
 		// Step 2: Generate backup tasks using the custom executor
-		final List<CompletableFuture<CompletableFuture<FileForFetch>>> backupTasks = Stream.generate(
+		final List<CompletableFuture<CompletableFuture<FileForFetch>>> backupTasks = Stream
+			.generate(
 				() -> CompletableFuture.supplyAsync(
 					() -> management.backupCatalog(TEST_CATALOG, null, null, true),
 					executorService
@@ -3204,14 +3364,15 @@ class EvitaTest implements EvitaTestSupport {
 		management.listTaskStatuses(1, numberOfTasks, null);
 
 		// cancel 7 of them immediately
-		final List<Boolean> cancellationResult = Stream.concat(
+		final List<Boolean> cancellationResult = Stream
+			.concat(
 				management.listTaskStatuses(1, 1, null)
-					.getData()
-					.stream()
-					.map(it -> management.cancelTask(it.taskId())),
+				          .getData()
+				          .stream()
+				          .map(it -> management.cancelTask(it.taskId())),
 				backupTasks.subList(3, numberOfTasks - 1)
-					.stream()
-					.map(task -> task.getNow(null).cancel(true))
+				           .stream()
+				           .map(task -> task.getNow(null).cancel(true))
 			)
 			.toList();
 
@@ -3230,9 +3391,16 @@ class EvitaTest implements EvitaTestSupport {
 		assertEquals(numberOfTasks, taskStatuses.getTotalRecordCount());
 		final int cancelled = cancellationResult.stream().mapToInt(b -> b ? 1 : 0).sum();
 		// there is small chance, that cancelled task will finish after all (if it was cancelled in terminal stage)
-		final long finishedTasks = taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FINISHED).count();
+		final long finishedTasks = taskStatuses.getData().stream().filter(
+			task -> task.simplifiedState() == TaskSimplifiedState.FINISHED).count();
 		assertTrue(Math.abs((backupTasks.size() - cancelled) - finishedTasks) < numberOfTasks * 0.1);
-		assertEquals(numberOfTasks - finishedTasks, taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FAILED).count());
+		assertEquals(
+			numberOfTasks - finishedTasks, taskStatuses.getData()
+			                                           .stream()
+			                                           .filter(
+				                                           task -> task.simplifiedState() == TaskSimplifiedState.FAILED)
+			                                           .count()
+		);
 
 		// fetch all tasks by their ids
 		management.getTaskStatuses(
@@ -3268,14 +3436,16 @@ class EvitaTest implements EvitaTestSupport {
 		// delete them
 		final Set<UUID> deletedFiles = CollectionUtils.createHashSet(exportedFiles.getData().size());
 		exportedFiles.getData()
-			.forEach(file -> {
-				management.deleteFile(file.fileId());
-				deletedFiles.add(file.fileId());
-			});
+		             .forEach(file -> {
+			             management.deleteFile(file.fileId());
+			             deletedFiles.add(file.fileId());
+		             });
 
 		// list them again and there should be none of them
-		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(1, numberOfTasks, null);
-		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
+		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(
+			1, numberOfTasks, null);
+		assertTrue(
+			exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 
 	private void doRenameCatalog(@Nonnull CatalogState catalogState) {
@@ -3293,10 +3463,12 @@ class EvitaTest implements EvitaTestSupport {
 		final String renamedCatalogName = TEST_CATALOG + "_renamed";
 		final AtomicInteger versionBeforeRename = new AtomicInteger();
 		if (catalogState == CatalogState.ALIVE) {
-			this.evita.updateCatalog(TEST_CATALOG, session -> {
-				versionBeforeRename.set(session.getCatalogSchema().version());
-				session.goLiveAndClose();
-			});
+			this.evita.updateCatalog(
+				TEST_CATALOG, session -> {
+					versionBeforeRename.set(session.getCatalogSchema().version());
+					session.goLiveAndClose();
+				}
+			);
 		} else {
 			this.evita.queryCatalog(
 				TEST_CATALOG,
@@ -3366,10 +3538,12 @@ class EvitaTest implements EvitaTestSupport {
 
 		final AtomicInteger versionBeforeRename = new AtomicInteger();
 		if (catalogState == CatalogState.ALIVE) {
-			this.evita.updateCatalog(temporaryCatalogName, session -> {
-				versionBeforeRename.set(session.getCatalogSchema().version());
-				session.goLiveAndClose();
-			});
+			this.evita.updateCatalog(
+				temporaryCatalogName, session -> {
+					versionBeforeRename.set(session.getCatalogSchema().version());
+					session.goLiveAndClose();
+				}
+			);
 		} else {
 			this.evita.queryCatalog(
 				temporaryCatalogName,
@@ -3437,34 +3611,49 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	private void setupCatalogWithProductAndCategory() {
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.defineEntitySchema(Entities.PRODUCT);
+		this.evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				session.defineEntitySchema(Entities.PRODUCT);
 
-			session
-				.defineEntitySchema(Entities.PRODUCT)
-				.verifySchemaButCreateOnTheFly()
-				.updateVia(session);
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.verifySchemaButCreateOnTheFly()
+					.updateVia(session);
 
-			final EntityBuilder product = session.createNewEntity(Entities.PRODUCT, 1)
-				.setPriceInnerRecordHandling(PriceInnerRecordHandling.NONE)
-				.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
-				.setPrice(2, PRICE_LIST_BASIC, CURRENCY_EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
-				.setPrice(3, PRICE_LIST_VIP, CURRENCY_CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
-				.setPrice(4, PRICE_LIST_VIP, CURRENCY_EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
-				.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "The product");
+				final EntityBuilder product = session
+					.createNewEntity(Entities.PRODUCT, 1)
+					.setPriceInnerRecordHandling(PriceInnerRecordHandling.NONE)
+					.setPrice(
+						1, PRICE_LIST_BASIC, CURRENCY_CZK, BigDecimal.ONE,
+						BigDecimal.ZERO, BigDecimal.ONE, true
+					)
+					.setPrice(
+						2, PRICE_LIST_BASIC, CURRENCY_EUR, BigDecimal.ONE,
+						BigDecimal.ZERO, BigDecimal.ONE, true
+					)
+					.setPrice(
+						3, PRICE_LIST_VIP, CURRENCY_CZK, BigDecimal.ONE,
+						BigDecimal.ZERO, BigDecimal.ONE, true
+					)
+					.setPrice(
+						4, PRICE_LIST_VIP, CURRENCY_EUR, BigDecimal.ONE,
+						BigDecimal.ZERO, BigDecimal.ONE, true
+					)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "The product");
 
-			session.upsertEntity(product);
+				session.upsertEntity(product);
 
-			session.defineEntitySchema(Entities.CATEGORY);
+				session.defineEntitySchema(Entities.CATEGORY);
 
-			session
-				.defineEntitySchema(Entities.CATEGORY)
-				.withHierarchy()
-				.updateVia(session);
+				session
+					.defineEntitySchema(Entities.CATEGORY)
+					.withHierarchy()
+					.updateVia(session);
 
-			session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
-			session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2));
-		});
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2));
+			}
+		);
 	}
 
 	@Nonnull
@@ -3474,11 +3663,14 @@ class EvitaTest implements EvitaTestSupport {
 
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration(int inactivityTimeoutInSeconds) {
-		return EvitaConfiguration.builder()
+		return EvitaConfiguration
+			.builder()
 			.server(
-				ServerOptions.builder()
+				ServerOptions
+					.builder()
 					.serviceThreadPool(
-						ThreadPoolOptions.serviceThreadPoolBuilder()
+						ThreadPoolOptions
+							.serviceThreadPoolBuilder()
 							.minThreadCount(1)
 							.maxThreadCount(1)
 							.queueSize(10_000)
@@ -3488,10 +3680,12 @@ class EvitaTest implements EvitaTestSupport {
 					.build()
 			)
 			.storage(
-				StorageOptions.builder()
+				StorageOptions
+					.builder()
 					.storageDirectory(getEvitaTestDirectory())
 					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_TEST_EXPORT))
 					.timeTravelEnabled(false)
+					.maxOpenedReadHandles(100)
 					.build()
 			)
 			.build();

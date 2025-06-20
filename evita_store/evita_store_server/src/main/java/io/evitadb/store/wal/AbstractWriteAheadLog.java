@@ -97,7 +97,35 @@ import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
- * TODO JNO - document me
+ * AbstractWriteAheadLog is a base class that provides shared functionality for implementing Write-Ahead Logging (WAL)
+ * in the evitaDB system. It contains common logic used by both Catalog and Engine WAL implementations.
+ *
+ * A Write-Ahead Log is a durability mechanism used in database systems to ensure that transaction data is preserved
+ * even in the event of system failures. The fundamental principle is that changes are written to the log before they
+ * are applied to the database itself, hence the name "write-ahead".
+ *
+ * Databases use write-ahead logging as the first step of committed transactions for several key reasons:
+ *
+ * 1. Durability - By writing changes to a sequential log file before modifying the actual database structures,
+ *    the system ensures that committed transactions can be recovered even if a crash occurs during the actual
+ *    data modification process.
+ *
+ * 2. Atomicity - The WAL allows the database to ensure that transactions are atomic (either fully completed or
+ *    not applied at all) by tracking the state of each transaction.
+ *
+ * 3. Performance - Sequential writes to a log file are typically faster than writes to multiple database structures,
+ *    allowing for quicker transaction commits while maintaining durability guarantees.
+ *
+ * This abstract class provides functionality for:
+ * - Creating and managing WAL files
+ * - Appending transaction mutations to the WAL
+ * - Rotating WAL files when they reach a certain size
+ * - Reading mutations from the WAL for recovery purposes
+ * - Cleaning up obsolete WAL files
+ * - Handling WAL file corruption
+ *
+ * Concrete implementations of this class (CatalogWriteAheadLog and EngineWriteAheadLog) provide specific
+ * functionality for different parts of the evitaDB system.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */

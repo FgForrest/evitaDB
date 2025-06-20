@@ -71,7 +71,7 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 			mutation.getName(),
 			mutation.hasDescription() ? mutation.getDescription().getValue() : null,
 			mutation.hasDeprecationNotice() ? mutation.getDeprecationNotice().getValue() : null,
-			toCardinality(mutation.getCardinality()),
+			toCardinality(mutation.getCardinality()).orElse(null),
 			mutation.getReferencedEntityType(),
 			mutation.getReflectedReferenceName(),
 			mutation.getIndexedInherited() ? null : indexedInScopes,

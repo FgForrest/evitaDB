@@ -34,7 +34,8 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.mock.CategoryInterface;
-import io.evitadb.api.mock.MockCatalogStructuralChangeSubscriber;
+import io.evitadb.api.mock.MockCatalogChangeCaptureSubscriber;
+import io.evitadb.api.mock.MockEngineChangeCaptureSubscriber;
 import io.evitadb.api.mock.ProductInterface;
 import io.evitadb.api.mock.TestEntity;
 import io.evitadb.api.query.Query;
@@ -103,7 +104,6 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -120,7 +120,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -362,24 +361,37 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			);
 		}
 
-		final MockCatalogStructuralChangeSubscriber subscriber = new MockCatalogStructuralChangeSubscriber();
+		final MockEngineChangeCaptureSubscriber engineSubscriber = new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
+		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
+
 		final EvitaClient evitaClient = new EvitaClient(evitaClientConfiguration);
+
 		evitaClient.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
-		).subscribe(subscriber);
-		// todo jno: reimplement
-//		evitaClient.updateCatalog(
-//			TEST_CATALOG,
-//			session -> {
-//				session.registerChangeDataCapture(
-//					new ChangeDataCaptureRequest(CaptureArea.SCHEMA, new SchemaSite(), CaptureContent.BODY, 0L),
-//					subscriber
-//				);
-//			}
-//		);
+		).subscribe(engineSubscriber);
+
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.registerChangeCatalogCapture(
+					ChangeCatalogCaptureRequest
+						.builder()
+						.criteria(
+							ChangeCatalogCaptureCriteria
+								.builder()
+								.area(CaptureArea.SCHEMA)
+								.build()
+						)
+						.content(ChangeCaptureContent.BODY)
+						.build()
+				).subscribe(catalogSubscriber);
+				return null;
+			}
+		);
 		return new DataCarrier(
 			"evitaClient", evitaClient,
-			"subscriber", subscriber,
+			"engineSubscriber", engineSubscriber,
+			"catalogSubscriber", catalogSubscriber,
 			"products", products.get(),
 			"productSchema", productSchema.get()
 		);
@@ -762,7 +774,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
 		);
-		final MockCatalogStructuralChangeSubscriber subscriber = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(5), 1);
+		final MockEngineChangeCaptureSubscriber subscriber = new MockEngineChangeCaptureSubscriber(1);
 		publisher.subscribe(subscriber);
 
 		evitaClient.defineCatalog("newCatalog1");
@@ -782,17 +794,14 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		// subscriber requested 2 events, this is third one, so it should be ignored
 		evitaClient.defineCatalog("newCatalog6");
 
-		assertTrue(subscriber.getCountDownLatch().await(2000, TimeUnit.MILLISECONDS));
-		Thread.sleep(100); // we need to manually wait to really make sure that no more events came
-
 		// subscriber received one requested event
-		assertEquals(1, subscriber.getCatalogUpserted("newCatalog1"));
-		assertEquals(1, subscriber.getCatalogUpserted("newCatalog2"));
-		assertEquals(1, subscriber.getCatalogUpserted("newCatalog3"));
-		assertEquals(1, subscriber.getCatalogUpserted("newCatalog4"));
-		assertEquals(1, subscriber.getCatalogUpserted("newCatalog5"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog2"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog3"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog4"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog5"));
 		// subscriber didn't ask for more events, so it didn't receive any new events
-		assertEquals(0, subscriber.getCatalogUpserted("newCatalog6"));
+		assertEquals(0, subscriber.getCatalogCreated("newCatalog6"));
 
 		evitaClient.deleteCatalogIfExists("newCatalog1");
 		evitaClient.deleteCatalogIfExists("newCatalog2");
@@ -809,7 +818,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evitaClient.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
 		);
-		final MockCatalogStructuralChangeSubscriber subscriberWithDelayedRequest = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 0);
+		final MockEngineChangeCaptureSubscriber subscriberWithDelayedRequest = new MockEngineChangeCaptureSubscriber(0);
 		publisher1.subscribe(subscriberWithDelayedRequest);
 
 		// should be ignored by both subscribers
@@ -819,7 +828,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evitaClient.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
 		);
-		final MockCatalogStructuralChangeSubscriber subscriberWithDelayedRegistration = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 1);
+		final MockEngineChangeCaptureSubscriber subscriberWithDelayedRegistration = new MockEngineChangeCaptureSubscriber(1);
 		publisher2.subscribe(subscriberWithDelayedRegistration);
 
 		// first subscriber is ready to receive events now, should get one
@@ -827,14 +836,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 		evitaClient.defineCatalog("newCatalog2");
 
-		assertTrue(subscriberWithDelayedRequest.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
-		assertTrue(subscriberWithDelayedRegistration.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
-
 		// both should receive one late event
-		assertEquals(1, subscriberWithDelayedRequest.getCatalogUpserted("newCatalog1"));
-		assertEquals(0, subscriberWithDelayedRequest.getCatalogUpserted("newCatalog2"));
-		assertEquals(0, subscriberWithDelayedRegistration.getCatalogUpserted("newCatalog1"));
-		assertEquals(1, subscriberWithDelayedRegistration.getCatalogUpserted("newCatalog2"));
+		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog1"));
+		assertEquals(0, subscriberWithDelayedRequest.getCatalogCreated("newCatalog2"));
+		assertEquals(0, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog2"));
 
 		evitaClient.deleteCatalogIfExists("newCatalog1");
 		evitaClient.deleteCatalogIfExists("newCatalog2");
@@ -847,13 +853,13 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evitaClient.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
 		);
-		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(2), 1);
+		final MockEngineChangeCaptureSubscriber subscriber1 = new MockEngineChangeCaptureSubscriber(1);
 		publisher1.subscribe(subscriber1);
 
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evitaClient.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
 		);
-		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(2), 1);
+		final MockEngineChangeCaptureSubscriber subscriber2 = new MockEngineChangeCaptureSubscriber(1);
 		publisher2.subscribe(subscriber2);
 
 		// first events should be received by both subscribers
@@ -867,16 +873,12 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		subscriber2.request(1);
 		evitaClient.defineCatalog("newCatalog3");
 
-		assertTrue(subscriber1.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
-		assertTrue(subscriber2.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
-		Thread.sleep(100); // we need to manually wait to really make sure that no more events came
-
-		assertEquals(1, subscriber1.getCatalogUpserted("newCatalog1"));
-		assertEquals(1, subscriber2.getCatalogUpserted("newCatalog1"));
-		assertEquals(1, subscriber1.getCatalogUpserted("newCatalog2"));
-		assertEquals(1, subscriber2.getCatalogUpserted("newCatalog2"));
-		assertEquals(0, subscriber1.getCatalogUpserted("newCatalog3"));
-		assertEquals(0, subscriber2.getCatalogUpserted("newCatalog3"));
+		assertEquals(1, subscriber1.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriber1.getCatalogCreated("newCatalog2"));
+		assertEquals(1, subscriber2.getCatalogCreated("newCatalog2"));
+		assertEquals(0, subscriber1.getCatalogCreated("newCatalog3"));
+		assertEquals(0, subscriber2.getCatalogCreated("newCatalog3"));
 	}
 
 	@Test
@@ -885,22 +887,19 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evitaClient.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
 		);
-		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 1);
+		final MockEngineChangeCaptureSubscriber subscriber1 = new MockEngineChangeCaptureSubscriber(1);
 		publisher1.subscribe(subscriber1);
 
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evitaClient.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
 		);
-		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 1);
+		final MockEngineChangeCaptureSubscriber subscriber2 = new MockEngineChangeCaptureSubscriber(1);
 		publisher2.subscribe(subscriber2);
 
 		evitaClient.defineCatalog("newCatalog1");
 
-		assertTrue(subscriber1.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
-		assertTrue(subscriber2.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
-
-		assertEquals(1, subscriber1.getCatalogUpserted("newCatalog1"));
-		assertEquals(1, subscriber2.getCatalogUpserted("newCatalog1"));
+		assertEquals(1, subscriber1.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1"));
 
 		evitaClient.deleteCatalogIfExists("newCatalog1");
 	}
@@ -1140,8 +1139,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldCreateCatalog(EvitaClient evitaClient, MockCatalogStructuralChangeSubscriber subscriber) {
-		subscriber.reset();
+	void shouldCreateCatalog(EvitaClient evitaClient, MockEngineChangeCaptureSubscriber engineSubscriber) {
+		engineSubscriber.reset();
 
 		final String newCatalogName = "newCatalog";
 		try {
@@ -1154,7 +1153,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 		} finally {
 			evitaClient.deleteCatalogIfExists(newCatalogName);
-			assertEquals(1, subscriber.getCatalogDeleted(newCatalogName));
+			assertEquals(1, engineSubscriber.getCatalogDeleted(newCatalogName));
 		}
 	}
 
@@ -1415,9 +1414,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@Test
-	@Disabled("todo lho")
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
-	void shouldRenameCollection(EvitaClient evitaClient, MockCatalogStructuralChangeSubscriber subscriber) {
+	void shouldRenameCollection(EvitaClient evitaClient, MockCatalogChangeCaptureSubscriber catalogSubscriber) {
 		final String newCollection = "newCollection";
 		final AtomicInteger productCount = new AtomicInteger();
 		final AtomicInteger productSchemaVersion = new AtomicInteger();
@@ -1431,7 +1429,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			}
 		);
 
-		subscriber.reset();
+		catalogSubscriber.reset();
 
 		evitaClient.updateCatalog(
 			TEST_CATALOG,
@@ -1443,8 +1441,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			}
 		);
 
-		assertEquals(1, subscriber.getEntityCollectionCreated(TEST_CATALOG, newCollection));
-		assertEquals(1, subscriber.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, catalogSubscriber.getEntityCollectionCreated(newCollection));
+		assertEquals(1, catalogSubscriber.getEntityCollectionDeleted(Entities.PRODUCT));
 
 		evitaClient.queryCatalog(
 			TEST_CATALOG,
