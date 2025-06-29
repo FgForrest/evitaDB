@@ -408,6 +408,7 @@
 							<groups>functional</groups>
 							<parallel>all</parallel>
 							<useUnlimitedThreads>true</useUnlimitedThreads>
+							<argLine>-Xmx5g</argLine>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -422,6 +423,7 @@
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
 							<groups>documentation</groups>
+							<argLine>-Xmx5g</argLine>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -438,6 +440,7 @@
 							<groups>integration,functional,longRunning</groups>
 							<parallel>all</parallel>
 							<useUnlimitedThreads>true</useUnlimitedThreads>
+							<argLine>-Xmx5g</argLine>
 						</configuration>
 					</plugin>
 				</plugins>
