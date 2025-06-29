@@ -63,7 +63,8 @@ import java.util.concurrent.TimeUnit;
  *                                  wait for server to respond before throwing an exception or closing connection
  *                                  forcefully.
  * @param timeoutUnit               Time unit for {@link EvitaClientConfiguration#timeout property}.
- * @param trackedTaskLimit		    The maximum number of server tasks that can be tracked by the client.
+ * @param retry                     Whether the client will retry the call in case of timeout or other network related problems.
+ * @param trackedTaskLimit          The maximum number of server tasks that can be tracked by the client.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record EvitaClientConfiguration(
@@ -85,6 +86,7 @@ public record EvitaClientConfiguration(
 	long timeout,
 	@Nonnull TimeUnit timeoutUnit,
 	@Nullable Object openTelemetryInstance,
+	boolean retry,
 	int trackedTaskLimit
 ) {
 	private static final int DEFAULT_PORT = 5555;
@@ -98,13 +100,14 @@ public record EvitaClientConfiguration(
 
 	/**
 	 * Returns the path to the server certificate.
+	 *
 	 * @return The path to the server certificate.
 	 * @deprecated Use {@link #serverCertificatePath()} instead.
 	 */
 	@Deprecated
 	@Nullable
 	public Path rootCaCertificatePath() {
-		return serverCertificatePath;
+		return this.serverCertificatePath;
 	}
 
 	/**
@@ -129,15 +132,17 @@ public record EvitaClientConfiguration(
 		private Path certificateFolderPath = ClientCertificateManager.getDefaultClientCertificateFolderPath();
 		private String trustStorePassword = "trustStorePassword";
 		private ReflectionCachingBehaviour reflectionCachingBehaviour = ReflectionCachingBehaviour.CACHE;
+		@Nullable
 		private Object openTelemetryInstance = null;
+		private boolean retry = true;
 		private int trackedTaskLimit = 100;
 
 		Builder() {
 			try {
 				final InetAddress inetAddress = InetAddress.getLocalHost();
-				clientId = "gRPC client at " + inetAddress.getHostName();
+				this.clientId = "gRPC client at " + inetAddress.getHostName();
 			} catch (UnknownHostException e) {
-				clientId = "Generic gRPC client";
+				this.clientId = "Generic gRPC client";
 			}
 		}
 
@@ -181,8 +186,6 @@ public record EvitaClientConfiguration(
 		 * This setting was renamed to {@link #serverCertificatePath(Path)}.
 		 *
 		 * @deprecated Use {@link #serverCertificatePath(Path)} instead.
-		 * @param rootCaCertificatePath
-		 * @return
 		 */
 		@Deprecated
 		@Nonnull
@@ -211,6 +214,7 @@ public record EvitaClientConfiguration(
 
 		/**
 		 * Renamed to {@link #timeout(long, TimeUnit)}
+		 *
 		 * @deprecated Use {@link #timeout(long, TimeUnit)} instead.
 		 */
 		@Deprecated
@@ -274,27 +278,34 @@ public record EvitaClientConfiguration(
 			return this;
 		}
 
+		@Nonnull
+		public EvitaClientConfiguration.Builder retry(boolean retry) {
+			this.retry = retry;
+			return this;
+		}
+
 		public EvitaClientConfiguration build() {
 			return new EvitaClientConfiguration(
-				clientId,
-				host,
-				port,
-				systemApiPort,
-				useGeneratedCertificate,
-				trustCertificate,
-				tlsEnabled,
-				mtlsEnabled,
-				serverCertificatePath,
-				certificatePath,
-				certificateKeyPath,
-				certificateKeyPassword,
-				certificateFolderPath,
-				trustStorePassword,
-				reflectionCachingBehaviour,
-				timeout,
-				timeoutUnit,
-				openTelemetryInstance,
-				trackedTaskLimit
+				this.clientId,
+				this.host,
+				this.port,
+				this.systemApiPort,
+				this.useGeneratedCertificate,
+				this.trustCertificate,
+				this.tlsEnabled,
+				this.mtlsEnabled,
+				this.serverCertificatePath,
+				this.certificatePath,
+				this.certificateKeyPath,
+				this.certificateKeyPassword,
+				this.certificateFolderPath,
+				this.trustStorePassword,
+				this.reflectionCachingBehaviour,
+				this.timeout,
+				this.timeoutUnit,
+				this.openTelemetryInstance,
+				this.retry,
+				this.trackedTaskLimit
 			);
 		}
 
