@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
+import io.evitadb.api.requestResponse.data.annotation.ReflectedReference;
 import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
@@ -166,9 +167,16 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		final Reference referenceInstance = reflectionLookup.getAnnotationInstanceForProperty(method, Reference.class);
 		final ReferenceRef referenceRefInstance = reflectionLookup.getAnnotationInstanceForProperty(method, ReferenceRef.class);
+		final ReflectedReference reflectedReferenceInstance = reflectionLookup.getAnnotationInstanceForProperty(method, ReflectedReference.class);
 		if (referenceInstance != null) {
 			return entitySchema.getReferenceOrThrowException(
 				ofNullable(referenceInstance.name())
+					.filter(it -> !it.isBlank())
+					.orElseGet(() -> ReflectionLookup.getPropertyNameFromMethodName(method.getName()))
+			);
+		} else if (reflectedReferenceInstance != null) {
+			return entitySchema.getReferenceOrThrowException(
+				ofNullable(reflectedReferenceInstance.name())
 					.filter(it -> !it.isBlank())
 					.orElseGet(() -> ReflectionLookup.getPropertyNameFromMethodName(method.getName()))
 			);
@@ -198,8 +206,11 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		final String parameterName = parameter.getName();
 		final Reference referenceInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, Reference.class);
 		final ReferenceRef referenceRefInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, ReferenceRef.class);
+		final ReflectedReference reflectedReferenceInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, ReflectedReference.class);
 		if (referenceInstance != null) {
 			return entitySchema.getReferenceOrThrowException(referenceInstance.name());
+		} else if (reflectedReferenceInstance != null) {
+			return entitySchema.getReferenceOrThrowException(reflectedReferenceInstance.name());
 		} else if (referenceRefInstance != null) {
 			return entitySchema.getReferenceOrThrowException(referenceRefInstance.value());
 		} else {
