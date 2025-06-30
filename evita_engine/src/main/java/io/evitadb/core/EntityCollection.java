@@ -338,7 +338,7 @@ public final class EntityCollection implements
 						this.dataStoreBuffer.update(catalogVersion, new EntitySchemaStoragePart(newEntitySchema));
 						return newEntitySchema;
 					} else {
-						throw new SchemaNotFoundException(this.catalog.getName(), entityHeader.entityType());
+						throw new SchemaNotFoundException(catalogName, entityHeader.entityType());
 					}
 				});
 			// init entity indexes
