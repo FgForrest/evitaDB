@@ -1642,9 +1642,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		if (entityCollectionPersistenceService == null) {
 			return empty();
 		} else {
+			final long previousVersion = entityCollectionPersistenceService.getEntityCollectionHeader().version();
 			final OffsetIndexDescriptor newDescriptor = entityCollectionPersistenceService.flush(catalogVersion, headerInfoSupplier);
-			if (newDescriptor.getActiveRecordShare() < this.storageOptions.minimalActiveRecordShare() &&
-				newDescriptor.getFileSize() > this.storageOptions.fileSizeCompactionThresholdBytes()) {
+			if (newDescriptor.version() > previousVersion &&
+				newDescriptor.getActiveRecordShare() < this.storageOptions.minimalActiveRecordShare() &&
+				newDescriptor.getFileSize() > this.storageOptions.fileSizeCompactionThresholdBytes()
+			) {
 				log.info(
 					"Compacting catalog `{}` entity collection `{}`, size exceeds threshold `{}` and active record share is `{}`%, " +
 						"entity collection files on disk consume `{}` bytes.",
