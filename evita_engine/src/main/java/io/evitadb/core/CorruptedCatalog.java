@@ -266,7 +266,7 @@ public final class CorruptedCatalog implements CatalogContract {
 			null,
 			this.catalogName,
 			true,
-			null,
+			CatalogState.CORRUPTED,
 			-1L,
 			-1,
 			-1,

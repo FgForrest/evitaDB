@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMut
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateCatalogSchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcEngineMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.MutationCase;
@@ -38,17 +39,20 @@ import io.evitadb.externalApi.grpc.generated.GrpcMakeCatalogAliveMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcModifyCatalogSchemaNameMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation;
+import io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.MutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.MakeCatalogAliveMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.TransactionMutationConverter;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -76,6 +80,7 @@ public class DelegatingEngineMutationConverter {
 		TO_GRPC_CONVERTERS.put(ModifyCatalogSchemaMutation.class, new ToGrpc((b, m) -> b.setModifyCatalogSchemaMutation((GrpcModifyCatalogSchemaMutation) m), ModifyCatalogSchemaMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(MakeCatalogAliveMutation.class, new ToGrpc((b, m) -> b.setMakeCatalogAliveMutation((GrpcMakeCatalogAliveMutation) m), MakeCatalogAliveMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(RemoveCatalogSchemaMutation.class, new ToGrpc((b, m) -> b.setRemoveCatalogSchemaMutation((GrpcRemoveCatalogSchemaMutation) m), RemoveCatalogSchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(TransactionMutation.class, new ToGrpc((b, m) -> b.setTransactionMutation((GrpcTransactionMutation) m), TransactionMutationConverter.INSTANCE));
 
 		TO_JAVA_CONVERTERS = createHashMap(5);
 		TO_JAVA_CONVERTERS.put(CREATECATALOGSCHEMAMUTATION, new ToJava(GrpcEngineMutation::getCreateCatalogSchemaMutation, CreateCatalogSchemaMutationConverter.INSTANCE));
@@ -83,6 +88,7 @@ public class DelegatingEngineMutationConverter {
 		TO_JAVA_CONVERTERS.put(MODIFYCATALOGSCHEMAMUTATION, new ToJava(GrpcEngineMutation::getModifyCatalogSchemaMutation, ModifyCatalogSchemaMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(MAKECATALOGALIVEMUTATION, new ToJava(GrpcEngineMutation::getMakeCatalogAliveMutation, MakeCatalogAliveMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(REMOVECATALOGSCHEMAMUTATION, new ToJava(GrpcEngineMutation::getRemoveCatalogSchemaMutation, RemoveCatalogSchemaMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(TRANSACTIONMUTATION, new ToJava(GrpcEngineMutation::getTransactionMutation, TransactionMutationConverter.INSTANCE));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -100,16 +106,20 @@ public class DelegatingEngineMutationConverter {
 	}
 
 	@SuppressWarnings("unchecked")
-	@Nonnull
+	@Nullable
 	public EngineMutation convert(@Nonnull GrpcEngineMutation mutation) {
-		final ToJava conversionDescriptor = TO_JAVA_CONVERTERS.get(mutation.getMutationCase());
-		Assert.notNull(conversionDescriptor, "Unknown mutation type: " + mutation.getMutationCase());
+		if (mutation.getMutationCase() == MutationCase.MUTATION_NOT_SET) {
+			return null;
+		} else {
+			final ToJava conversionDescriptor = TO_JAVA_CONVERTERS.get(mutation.getMutationCase());
+			Assert.notNull(conversionDescriptor, "Unknown mutation type: " + mutation.getMutationCase());
 
-		final Function<GrpcEngineMutation, Message> extractor =
-			(Function<GrpcEngineMutation, Message>) conversionDescriptor.mutationExtractor();
-		final MutationConverter<EngineMutation, Message> converter =
-			(MutationConverter<EngineMutation, Message>) conversionDescriptor.converter();
-		return converter.convert(extractor.apply(mutation));
+			final Function<GrpcEngineMutation, Message> extractor =
+				(Function<GrpcEngineMutation, Message>) conversionDescriptor.mutationExtractor();
+			final MutationConverter<EngineMutation, Message> converter =
+				(MutationConverter<EngineMutation, Message>) conversionDescriptor.converter();
+			return converter.convert(extractor.apply(mutation));
+		}
 	}
 
 	private record ToJava(@Nonnull Function<GrpcEngineMutation, ? extends Message> mutationExtractor,

@@ -279,4 +279,41 @@ public interface GrpcEvitaServerStatusResponseOrBuilder extends
    * @return The catalogsInactive.
    */
   int getCatalogsInactive();
+
+  /**
+   * <pre>
+   * The version of the current evitaDB server engine state (change in engine state).
+   * </pre>
+   *
+   * <code>int64 engineVersion = 13;</code>
+   * @return The engineVersion.
+   */
+  long getEngineVersion();
+
+  /**
+   * <pre>
+   * The date and time when the current engine version was introduced (last engine level change occurred).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+   * @return Whether the introducedAt field is set.
+   */
+  boolean hasIntroducedAt();
+  /**
+   * <pre>
+   * The date and time when the current engine version was introduced (last engine level change occurred).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+   * @return The introducedAt.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getIntroducedAt();
+  /**
+   * <pre>
+   * The date and time when the current engine version was introduced (last engine level change occurred).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getIntroducedAtOrBuilder();
 }

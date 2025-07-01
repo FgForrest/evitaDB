@@ -89,7 +89,6 @@ import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.task.Task;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.Scope;
-import io.evitadb.driver.cdc.ClientChangeCapturePublisher;
 import io.evitadb.driver.cdc.ClientChangeCatalogCaptureProcessor;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
@@ -115,7 +114,6 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingLocalCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.grpc.ClientCall;
 import io.grpc.stub.ClientCalls;
@@ -266,10 +264,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * will return the same future. When the future is non-null any calls after {@link #close()} method has been called.
 	 */
 	private CompletableFuture<CommitVersions> closedFuture;
-	/**
-	 * Index of the opened and active {@link ClientChangeCapturePublisher} indexed by their unique {@link ChangeCatalogCaptureRequest}.
-	 */
-	private final Map<ChangeCatalogCaptureRequest, ClientChangeCatalogCaptureProcessor> activePublishers = CollectionUtils.createConcurrentHashMap(16);
 	/**
 	 * Timestamp of the last session activity (call).
 	 */
@@ -479,8 +473,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request) {
-		//noinspection SuspiciousMethodCalls
-		return this.activePublishers.compute(
+		//noinspection unchecked
+		return (ChangeCapturePublisher<ChangeCatalogCapture>) this.evita.activePublishers.compute(
 			request,
 			(theRequest, existingInstance) ->
 				existingInstance == null || existingInstance.isClosed() ?
@@ -490,13 +484,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 						subscriber -> executeWithAsyncEvitaSessionService(
 							evitaService -> {
 								evitaService.registerChangeCatalogCapture(
-									ChangeCaptureConverter.toGrpcChangeCatalogCaptureRequest(theRequest),
+									ChangeCaptureConverter.toGrpcChangeCatalogCaptureRequest((ChangeCatalogCaptureRequest)theRequest),
 									subscriber
 								);
 								return null;
 							}
 						),
-						publisher -> this.activePublishers.remove(theRequest, publisher)
+						publisher -> this.evita.activePublishers.remove(theRequest, publisher)
 					) : existingInstance
 		);
 	}

@@ -1233,6 +1233,23 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 				}
 			}
 
+			// close all closeable elements in data carrier
+			if (this.dataCarrier != null) {
+				Stream.concat(
+					      this.dataCarrier.entrySet().stream().filter(Objects::nonNull).map(Entry::getValue),
+					      this.dataCarrier.anonymousValues().stream()
+				      )
+				      .filter(Closeable.class::isInstance)
+				      .forEach(it -> {
+					      try {
+						      log.info("Closing resource `{}`", it);
+						      ((Closeable) it).close();
+					      } catch (IOException e) {
+						      log.error("Failed to close `" + it.getClass() + "` at the data set finalization!", e);
+					      }
+				      });
+			}
+
 			// close the client
 			ofNullable(this.client.get())
 				.ifPresent(EvitaClient::close);
@@ -1240,23 +1257,6 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			// close the server instance and free ports
 			ofNullable(theEvitaServerInstance)
 				.ifPresent(it -> portManager.releasePortsOnCompletion(dataSetName, it.stop()));
-
-			// close all closeable elements in data carrier
-			if (this.dataCarrier != null) {
-				Stream.concat(
-						this.dataCarrier.entrySet().stream().filter(Objects::nonNull).map(Entry::getValue),
-						this.dataCarrier.anonymousValues().stream()
-					)
-					.filter(Closeable.class::isInstance)
-					.forEach(it -> {
-						try {
-							log.info("Closing resource `{}`", it);
-							((Closeable) it).close();
-						} catch (IOException e) {
-							log.error("Failed to close `" + it.getClass() + "` at the data set finalization!", e);
-						}
-					});
-			}
 
 			// delete the directory
 			if (theEvitaInstance != null) {

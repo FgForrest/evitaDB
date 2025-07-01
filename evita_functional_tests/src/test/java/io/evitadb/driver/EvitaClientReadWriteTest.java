@@ -137,7 +137,7 @@ import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This test verifies behaviour of {@link EvitaClient}.
+ * This test verifies behavior of {@link EvitaClient}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -184,7 +184,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		GENERATED_ENTITIES.clear();
 
 		final ApiOptions apiOptions = evitaServer.getExternalApiServer()
-			.getApiOptions();
+		                                         .getApiOptions();
 		final HostDefinition grpcHost = apiOptions
 			.getEndpointConfiguration(GrpcProvider.CODE)
 			.getHost()[0];
@@ -192,20 +192,30 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			.getEndpointConfiguration(SystemProvider.CODE)
 			.getHost()[0];
 
-		final String serverCertificates = evitaServer.getExternalApiServer().getApiOptions().certificate().getFolderPath().toString();
+		final String serverCertificates = evitaServer.getExternalApiServer()
+		                                             .getApiOptions()
+		                                             .certificate()
+		                                             .getFolderPath()
+		                                             .toString();
 		final int lastDash = serverCertificates.lastIndexOf('-');
 		assertTrue(lastDash > 0, "Dash not found! Look at the evita-configuration.yml in test resources!");
 		final Path clientCertificates = Path.of(serverCertificates.substring(0, lastDash) + "-client");
 		final EvitaClientConfiguration evitaClientConfiguration = EvitaClientConfiguration.builder()
-			.host(grpcHost.hostAddress())
-			.port(grpcHost.port())
-			.systemApiPort(systemHost.port())
-			.mtlsEnabled(false)
-			.certificateFolderPath(clientCertificates)
-			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
-			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
-			.timeoutUnit(10, TimeUnit.MINUTES)
-			.build();
+		                                                                                  .host(grpcHost.hostAddress())
+		                                                                                  .port(grpcHost.port())
+		                                                                                  .systemApiPort(
+			                                                                                  systemHost.port())
+		                                                                                  .mtlsEnabled(false)
+		                                                                                  .certificateFolderPath(
+			                                                                                  clientCertificates)
+		                                                                                  .certificateFileName(Path.of(
+			                                                                                  CertificateUtils.getGeneratedClientCertificateFileName()))
+		                                                                                  .certificateKeyFileName(
+			                                                                                  Path.of(
+				                                                                                  CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+		                                                                                  .timeoutUnit(
+			                                                                                  10, TimeUnit.MINUTES)
+		                                                                                  .build();
 
 		final AtomicReference<EntitySchemaContract> productSchema = new AtomicReference<>();
 		AtomicReference<Map<Integer, SealedEntity>> products = new AtomicReference<>();
@@ -216,104 +226,104 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					session.getCatalogSchema()
-						.openForWrite()
-						.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally())
-						.updateVia(session);
+					       .openForWrite()
+					       .withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally())
+					       .updateVia(session);
 
 					DATA_GENERATOR.generateEntities(
-							DATA_GENERATOR.getSampleBrandSchema(
-								session,
-								builder -> {
-									builder.withAttribute(ATTRIBUTE_UUID, UUID.class);
-									session.updateEntitySchema(builder);
-									return builder.toInstance();
-								}
-							),
-							RANDOM_ENTITY_PICKER,
-							SEED
-						)
-						.limit(5)
-						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
+						              DATA_GENERATOR.getSampleBrandSchema(
+							              session,
+							              builder -> {
+								              builder.withAttribute(ATTRIBUTE_UUID, UUID.class);
+								              session.updateEntitySchema(builder);
+								              return builder.toInstance();
+							              }
+						              ),
+						              RANDOM_ENTITY_PICKER,
+						              SEED
+					              )
+					              .limit(5)
+					              .forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
 					DATA_GENERATOR.generateEntities(
-							DATA_GENERATOR.getSampleCategorySchema(
-								session,
-								builder -> {
-									builder.withReflectedReferenceToEntity(
-										"productsInCategory", Entities.PRODUCT, Entities.CATEGORY,
-										whichIs -> whichIs
-											.withAttributesInherited()
-											.withCardinality(Cardinality.ZERO_OR_MORE)
-									);
-									session.updateEntitySchema(builder);
-									return builder.toInstance();
-								}
-							),
-							RANDOM_ENTITY_PICKER,
-							SEED
-						)
-						.limit(10)
-						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
+						              DATA_GENERATOR.getSampleCategorySchema(
+							              session,
+							              builder -> {
+								              builder.withReflectedReferenceToEntity(
+									              "productsInCategory", Entities.PRODUCT, Entities.CATEGORY,
+									              whichIs -> whichIs
+										              .withAttributesInherited()
+										              .withCardinality(Cardinality.ZERO_OR_MORE)
+								              );
+								              session.updateEntitySchema(builder);
+								              return builder.toInstance();
+							              }
+						              ),
+						              RANDOM_ENTITY_PICKER,
+						              SEED
+					              )
+					              .limit(10)
+					              .forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
 					DATA_GENERATOR.generateEntities(
-							DATA_GENERATOR.getSamplePriceListSchema(
-								session,
-								builder -> {
-									builder
-										.withAttribute(
-											ATTRIBUTE_ORDER, Predecessor.class, AttributeSchemaEditor::sortable
-										);
-									session.updateEntitySchema(builder);
-									return builder.toInstance();
-								}
-							),
-							RANDOM_ENTITY_PICKER,
-							SEED
-						)
-						.limit(4)
-						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
+						              DATA_GENERATOR.getSamplePriceListSchema(
+							              session,
+							              builder -> {
+								              builder
+									              .withAttribute(
+										              ATTRIBUTE_ORDER, Predecessor.class, AttributeSchemaEditor::sortable
+									              );
+								              session.updateEntitySchema(builder);
+								              return builder.toInstance();
+							              }
+						              ),
+						              RANDOM_ENTITY_PICKER,
+						              SEED
+					              )
+					              .limit(4)
+					              .forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
 					DATA_GENERATOR.generateEntities(
-							DATA_GENERATOR.getSampleStoreSchema(
-								session,
-								builder -> {
-									session.updateEntitySchema(builder);
-									return builder.toInstance();
-								}
-							),
-							RANDOM_ENTITY_PICKER,
-							SEED
-						)
-						.limit(12)
-						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
+						              DATA_GENERATOR.getSampleStoreSchema(
+							              session,
+							              builder -> {
+								              session.updateEntitySchema(builder);
+								              return builder.toInstance();
+							              }
+						              ),
+						              RANDOM_ENTITY_PICKER,
+						              SEED
+					              )
+					              .limit(12)
+					              .forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
 					DATA_GENERATOR.generateEntities(
-							DATA_GENERATOR.getSampleParameterGroupSchema(
-								session,
-								builder -> {
-									session.updateEntitySchema(builder);
-									return builder.toInstance();
-								}
-							),
-							RANDOM_ENTITY_PICKER,
-							SEED
-						)
-						.limit(20)
-						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
+						              DATA_GENERATOR.getSampleParameterGroupSchema(
+							              session,
+							              builder -> {
+								              session.updateEntitySchema(builder);
+								              return builder.toInstance();
+							              }
+						              ),
+						              RANDOM_ENTITY_PICKER,
+						              SEED
+					              )
+					              .limit(20)
+					              .forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
 					DATA_GENERATOR.generateEntities(
-							DATA_GENERATOR.getSampleParameterSchema(
-								session,
-								builder -> {
-									session.updateEntitySchema(builder);
-									return builder.toInstance();
-								}
-							),
-							RANDOM_ENTITY_PICKER,
-							SEED
-						)
-						.limit(20)
-						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
+						              DATA_GENERATOR.getSampleParameterSchema(
+							              session,
+							              builder -> {
+								              session.updateEntitySchema(builder);
+								              return builder.toInstance();
+							              }
+						              ),
+						              RANDOM_ENTITY_PICKER,
+						              SEED
+					              )
+					              .limit(20)
+					              .forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
 					productSchema.set(
 						DATA_GENERATOR.getSampleProductSchema(
@@ -325,12 +335,13 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 										Entities.PARAMETER,
 										Entities.PARAMETER,
 										Cardinality.ZERO_OR_MORE,
-										thatIs -> thatIs.faceted().withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
+										thatIs -> thatIs.faceted()
+										                .withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
 									)
 									.withReferenceToEntity(
 										Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
 										whichIs -> whichIs.indexed()
-											.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.class)
+										                  .withAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.class)
 									);
 								session.updateEntitySchema(builder);
 								return builder.toInstance();
@@ -340,58 +351,30 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 					final Map<Integer, SealedEntity> theProducts = CollectionUtils.createHashMap(10);
 					DATA_GENERATOR.generateEntities(
-							productSchema.get(),
-							RANDOM_ENTITY_PICKER,
-							SEED
-						)
-						.limit(PRODUCT_COUNT)
-						.forEach(it -> {
-							final EntityReference upsertedProduct = session.upsertEntity(it);
-							theProducts.put(
-								upsertedProduct.getPrimaryKey(),
-								session.getEntity(
-									productSchema.get().getName(),
-									upsertedProduct.getPrimaryKey(),
-									entityFetchAllContent()
-								).orElseThrow()
-							);
-						});
+						              productSchema.get(),
+						              RANDOM_ENTITY_PICKER,
+						              SEED
+					              )
+					              .limit(PRODUCT_COUNT)
+					              .forEach(it -> {
+						              final EntityReference upsertedProduct = session.upsertEntity(it);
+						              theProducts.put(
+							              upsertedProduct.getPrimaryKey(),
+							              session.getEntity(
+								              productSchema.get().getName(),
+								              upsertedProduct.getPrimaryKey(),
+								              entityFetchAllContent()
+							              ).orElseThrow()
+						              );
+					              });
 					products.set(theProducts);
+
+					session.goLiveAndClose();
 				}
 			);
 		}
 
-		final MockEngineChangeCaptureSubscriber engineSubscriber = new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
-		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
-
-		final EvitaClient evitaClient = new EvitaClient(evitaClientConfiguration);
-
-		evitaClient.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
-		).subscribe(engineSubscriber);
-
-		evitaClient.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.registerChangeCatalogCapture(
-					ChangeCatalogCaptureRequest
-						.builder()
-						.criteria(
-							ChangeCatalogCaptureCriteria
-								.builder()
-								.schemaArea()
-								.build()
-						)
-						.content(ChangeCaptureContent.BODY)
-						.build()
-				).subscribe(catalogSubscriber);
-				return null;
-			}
-		);
 		return new DataCarrier(
-			"evitaClient", evitaClient,
-			"engineSubscriber", engineSubscriber,
-			"catalogSubscriber", catalogSubscriber,
 			"products", products.get(),
 			"productSchema", productSchema.get()
 		);
@@ -400,7 +383,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	@DataSet(value = EVITA_CLIENT_EMPTY_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
 	static EvitaClient initEmptyDataSet(EvitaServer evitaServer) {
 		final ApiOptions apiOptions = evitaServer.getExternalApiServer()
-			.getApiOptions();
+		                                         .getApiOptions();
 		final HostDefinition grpcHost = apiOptions
 			.getEndpointConfiguration(GrpcProvider.CODE)
 			.getHost()[0];
@@ -408,20 +391,30 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			.getEndpointConfiguration(SystemProvider.CODE)
 			.getHost()[0];
 
-		final String serverCertificates = evitaServer.getExternalApiServer().getApiOptions().certificate().getFolderPath().toString();
+		final String serverCertificates = evitaServer.getExternalApiServer()
+		                                             .getApiOptions()
+		                                             .certificate()
+		                                             .getFolderPath()
+		                                             .toString();
 		final int lastDash = serverCertificates.lastIndexOf('-');
 		assertTrue(lastDash > 0, "Dash not found! Look at the evita-configuration.yml in test resources!");
 		final Path clientCertificates = Path.of(serverCertificates.substring(0, lastDash) + "-client");
 		final EvitaClientConfiguration evitaClientConfiguration = EvitaClientConfiguration.builder()
-			.host(grpcHost.hostAddress())
-			.port(grpcHost.port())
-			.systemApiPort(systemHost.port())
-			.mtlsEnabled(false)
-			.certificateFolderPath(clientCertificates)
-			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
-			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
-			.timeoutUnit(10, TimeUnit.MINUTES)
-			.build();
+		                                                                                  .host(grpcHost.hostAddress())
+		                                                                                  .port(grpcHost.port())
+		                                                                                  .systemApiPort(
+			                                                                                  systemHost.port())
+		                                                                                  .mtlsEnabled(false)
+		                                                                                  .certificateFolderPath(
+			                                                                                  clientCertificates)
+		                                                                                  .certificateFileName(Path.of(
+			                                                                                  CertificateUtils.getGeneratedClientCertificateFileName()))
+		                                                                                  .certificateKeyFileName(
+			                                                                                  Path.of(
+				                                                                                  CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+		                                                                                  .timeoutUnit(
+			                                                                                  10, TimeUnit.MINUTES)
+		                                                                                  .build();
 
 		return new EvitaClient(evitaClientConfiguration);
 	}
@@ -493,8 +486,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertEquals(expectedCategoryIds.length, references.length);
 		assertArrayEquals(
 			Arrays.stream(expectedCategoryIds)
-				.boxed()
-				.toArray(Integer[]::new),
+			      .boxed()
+			      .toArray(Integer[]::new),
 			references
 		);
 	}
@@ -521,7 +514,10 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertProductBasicData(originalProduct, product);
 		assertProductAttributes(originalProduct, product, locale);
 
-		final ReferencedFileSet expectedAssociatedData = originalProduct.getAssociatedData(DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class, ReflectionLookup.NO_CACHE_INSTANCE);
+		final ReferencedFileSet expectedAssociatedData = originalProduct.getAssociatedData(
+			DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class,
+			ReflectionLookup.NO_CACHE_INSTANCE
+		);
 		if (expectedAssociatedData == null) {
 			assertNull(product.getReferencedFileSet());
 			assertNull(product.getReferencedFileSetAsDifferentProperty());
@@ -533,9 +529,9 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertCategoryParents(product.getCategories(), originalCategories, locale);
 
 		final int[] expectedCategoryIds = originalProduct.getReferences(Entities.CATEGORY)
-			.stream()
-			.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-			.toArray();
+		                                                 .stream()
+		                                                 .mapToInt(ReferenceContract::getReferencedPrimaryKey)
+		                                                 .toArray();
 
 		assertCategoryIds(product.getCategoryIds().stream(), expectedCategoryIds);
 		assertCategoryIds(product.getCategoryIdsAsList().stream(), expectedCategoryIds);
@@ -547,19 +543,20 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			assertThrows(ContextMissingException.class, product::getAllPricesForSale);
 		} else {
 			final PriceContract[] allPricesForSale = product.getAllPricesForSale();
-			final List<PriceContract> originalPricesForSale = originalProduct.getAllPricesForSale(currency, null, priceLists);
+			final List<PriceContract> originalPricesForSale = originalProduct.getAllPricesForSale(
+				currency, null, priceLists);
 			final PriceContract[] expectedAllPricesForSale = originalPricesForSale.toArray(PriceContract[]::new);
 			assertEquals(
 				Arrays.stream(expectedAllPricesForSale)
-					.filter(it -> Objects.equals(currency, it.currency()))
-					.filter(it -> Arrays.stream(priceLists)
-						.anyMatch(priceList -> Objects.equals(priceList, it.priceList())))
-					.min((o1, o2) -> {
-						final int ix1 = ArrayUtils.indexOf(o1.priceList(), priceLists);
-						final int ix2 = ArrayUtils.indexOf(o2.priceList(), priceLists);
-						return Integer.compare(ix1, ix2);
-					})
-					.orElse(null),
+				      .filter(it -> Objects.equals(currency, it.currency()))
+				      .filter(it -> Arrays.stream(priceLists)
+				                          .anyMatch(priceList -> Objects.equals(priceList, it.priceList())))
+				      .min((o1, o2) -> {
+					      final int ix1 = ArrayUtils.indexOf(o1.priceList(), priceLists);
+					      final int ix2 = ArrayUtils.indexOf(o2.priceList(), priceLists);
+					      return Integer.compare(ix1, ix2);
+				      })
+				      .orElse(null),
 				product.getPriceForSale()
 			);
 
@@ -592,7 +589,9 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				assertArrayEquals(
 					originalPricesForSale
 						.stream()
-						.filter(it -> it.currency().equals(expectedPrice.currency()) && it.priceList().equals(expectedPrice.priceList()))
+						.filter(it -> it.currency().equals(expectedPrice.currency()) && it.priceList()
+						                                                                  .equals(
+							                                                                  expectedPrice.priceList()))
 						.toArray(PriceContract[]::new),
 					product.getAllPricesForSale(expectedPrice.priceList(), expectedPrice.currency())
 				);
@@ -601,7 +600,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 		final PriceContract[] expectedAllPrices = originalProduct.getPrices().toArray(PriceContract[]::new);
 		final PriceContract[] allPrices = Arrays.stream(product.getAllPricesAsArray())
-			.toArray(PriceContract[]::new);
+		                                        .toArray(PriceContract[]::new);
 
 		assertEquals(expectedAllPrices.length, allPrices.length);
 		assertArrayEquals(expectedAllPrices, allPrices);
@@ -610,7 +609,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertArrayEquals(expectedAllPrices, product.getAllPricesAsSet().toArray(PriceContract[]::new));
 		assertArrayEquals(expectedAllPrices, product.getAllPrices().toArray(PriceContract[]::new));
 
-		final Optional<PriceContract> first = Arrays.stream(expectedAllPrices).filter(it -> "basic".equals(it.priceList())).findFirst();
+		final Optional<PriceContract> first = Arrays.stream(expectedAllPrices).filter(
+			it -> "basic".equals(it.priceList())).findFirst();
 		if (first.isEmpty()) {
 			assertNull(product.getBasicPrice());
 		} else {
@@ -621,7 +621,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
-	private static void assertProductBasicData(@Nonnull SealedEntity originalProduct, @Nullable ProductInterface product) {
+	private static void assertProductBasicData(
+		@Nonnull SealedEntity originalProduct, @Nullable ProductInterface product) {
 		assertNotNull(product);
 		assertEquals(originalProduct.getPrimaryKey(), product.getPrimaryKey());
 		assertEquals(originalProduct.getPrimaryKey(), product.getId());
@@ -629,18 +630,23 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertEquals(TestEntity.PRODUCT, product.getEntityType());
 	}
 
-	private static void assertProductAttributes(@Nonnull SealedEntity originalProduct, @Nonnull ProductInterface product, @Nullable Locale locale) {
+	private static void assertProductAttributes(
+		@Nonnull SealedEntity originalProduct, @Nonnull ProductInterface product, @Nullable Locale locale) {
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale), product.getName());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
-		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
+		assertEquals(
+			originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
 	}
 
 	/**
 	 * Creates new entity and inserts it into the index.
 	 */
-	private static void createEntity(@Nonnull EvitaSessionContract session, @Nonnull Map<Serializable, Integer> generatedEntities, @Nonnull EntityBuilder it) {
+	private static void createEntity(
+		@Nonnull EvitaSessionContract session, @Nonnull Map<Serializable, Integer> generatedEntities,
+		@Nonnull EntityBuilder it
+	) {
 		final EntityReferenceContract<?> insertedEntity = session.upsertEntity(it);
 		generatedEntities.compute(
 			insertedEntity.getType(),
@@ -649,13 +655,16 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@Nonnull
-	private static EntityReference createSomeNewCategory(@Nonnull EvitaSessionContract session,
-	                                                     int primaryKey,
-	                                                     @Nullable Integer parentPrimaryKey) {
+	private static EntityReference createSomeNewCategory(
+		@Nonnull EvitaSessionContract session,
+		int primaryKey,
+		@Nullable Integer parentPrimaryKey
+	) {
 		final EntityBuilder builder = session.createNewEntity(Entities.CATEGORY, primaryKey)
-			.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "New category #" + primaryKey)
-			.setAttribute(ATTRIBUTE_CODE, "category-" + primaryKey)
-			.setAttribute(ATTRIBUTE_PRIORITY, (long) primaryKey);
+		                                     .setAttribute(
+			                                     ATTRIBUTE_NAME, Locale.ENGLISH, "New category #" + primaryKey)
+		                                     .setAttribute(ATTRIBUTE_CODE, "category-" + primaryKey)
+		                                     .setAttribute(ATTRIBUTE_PRIORITY, (long) primaryKey);
 
 		if (parentPrimaryKey == null) {
 			builder.removeParent();
@@ -669,11 +678,12 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	@Nonnull
 	private static EntityMutation createSomeNewProduct(@Nonnull EvitaSessionContract session) {
 		return session.createNewEntity(Entities.PRODUCT)
-			.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "New product")
-			.setAttribute(ATTRIBUTE_CODE, "product-" + (session.getEntityCollectionSize(Entities.PRODUCT) + 1))
-			.setAttribute(ATTRIBUTE_PRIORITY, session.getEntityCollectionSize(Entities.PRODUCT) + 1L)
-			.toMutation()
-			.orElseThrow();
+		              .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "New product")
+		              .setAttribute(
+			              ATTRIBUTE_CODE, "product-" + (session.getEntityCollectionSize(Entities.PRODUCT) + 1))
+		              .setAttribute(ATTRIBUTE_PRIORITY, session.getEntityCollectionSize(Entities.PRODUCT) + 1L)
+		              .toMutation()
+		              .orElseThrow();
 	}
 
 	private static void assertSomeNewProductContent(@Nonnull SealedEntity loadedEntity) {
@@ -692,55 +702,55 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		@Nonnull String someCatalogName
 	) {
 		evitaClient.defineCatalog(someCatalogName)
-			.withDescription("This is a tutorial catalog.")
-			// define category schema
-			.withEntitySchema(
-				Entities.CATEGORY,
-				whichIs -> whichIs.withDescription("A category of products.")
-					.withReflectedReferenceToEntity(
-						"productsInCategory", Entities.PRODUCT, "productCategory",
-						thatIs -> thatIs.withAttributesInheritedExcept("note")
-							.withCardinality(Cardinality.ZERO_OR_MORE)
-							.withAttribute("customNote", String.class)
-					)
-					.withAttribute(
-						"name", String.class,
-						thatIs -> thatIs.localized().filterable().sortable()
-					)
-					.withHierarchy()
-			)
-			// define product schema
-			.withEntitySchema(
-				Entities.PRODUCT,
-				whichIs -> whichIs.withDescription("A product in inventory.")
-					.withAttribute(
-						"name", String.class,
-						thatIs -> thatIs.localized().filterable().sortable()
-					)
-					.withAttribute(
-						"cores", Integer.class,
-						thatIs -> thatIs.withDescription("Number of CPU cores.")
-							.filterable()
-					)
-					.withAttribute(
-						"graphics", String.class,
-						thatIs -> thatIs.withDescription("Graphics card.")
-							.filterable()
-					)
-					.withPrice()
-					.withReferenceToEntity(
-						"productCategory", Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-						thatIs -> thatIs
-							.withDescription("Assigned category.")
-							.deprecated("Already deprecated.")
-							.withAttribute("categoryPriority", Long.class, that -> that.sortable())
-							.withAttribute("note", String.class)
-							.indexed()
-							.faceted()
-					)
-			)
-			// and now push all the definitions (mutations) to the server
-			.updateViaNewSession(evitaClient);
+		           .withDescription("This is a tutorial catalog.")
+		           // define category schema
+		           .withEntitySchema(
+			           Entities.CATEGORY,
+			           whichIs -> whichIs.withDescription("A category of products.")
+			                             .withReflectedReferenceToEntity(
+				                             "productsInCategory", Entities.PRODUCT, "productCategory",
+				                             thatIs -> thatIs.withAttributesInheritedExcept("note")
+				                                             .withCardinality(Cardinality.ZERO_OR_MORE)
+				                                             .withAttribute("customNote", String.class)
+			                             )
+			                             .withAttribute(
+				                             "name", String.class,
+				                             thatIs -> thatIs.localized().filterable().sortable()
+			                             )
+			                             .withHierarchy()
+		           )
+		           // define product schema
+		           .withEntitySchema(
+			           Entities.PRODUCT,
+			           whichIs -> whichIs.withDescription("A product in inventory.")
+			                             .withAttribute(
+				                             "name", String.class,
+				                             thatIs -> thatIs.localized().filterable().sortable()
+			                             )
+			                             .withAttribute(
+				                             "cores", Integer.class,
+				                             thatIs -> thatIs.withDescription("Number of CPU cores.")
+				                                             .filterable()
+			                             )
+			                             .withAttribute(
+				                             "graphics", String.class,
+				                             thatIs -> thatIs.withDescription("Graphics card.")
+				                                             .filterable()
+			                             )
+			                             .withPrice()
+			                             .withReferenceToEntity(
+				                             "productCategory", Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+				                             thatIs -> thatIs
+					                             .withDescription("Assigned category.")
+					                             .deprecated("Already deprecated.")
+					                             .withAttribute("categoryPriority", Long.class, that -> that.sortable())
+					                             .withAttribute("note", String.class)
+					                             .indexed()
+					                             .faceted()
+			                             )
+		           )
+		           // and now push all the definitions (mutations) to the server
+		           .updateViaNewSession(evitaClient);
 	}
 
 	@Nonnull
@@ -749,7 +759,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	) {
 		try {
 			final EvitaManagementContract management = evitaClient.management();
-			final Field evitaManagementServiceStub = management.getClass().getDeclaredField("evitaManagementServiceFutureStub");
+			final Field evitaManagementServiceStub = management.getClass().getDeclaredField(
+				"evitaManagementServiceFutureStub");
 			evitaManagementServiceStub.setAccessible(true);
 			return (EvitaManagementServiceFutureStub) evitaManagementServiceStub.get(management);
 		} catch (Exception ex) {
@@ -769,24 +780,25 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldNotifyBasicSubscriber(EvitaClient evitaClient) throws InterruptedException {
-		// subscriber is registered and wants one event when it happens
+	void shouldNotifyBasicSubscriber(EvitaClient evitaClient) {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
 		);
-		final MockEngineChangeCaptureSubscriber subscriber = new MockEngineChangeCaptureSubscriber(1);
+
+		// subscriber is registered and wants one event when it happens
+		final MockEngineChangeCaptureSubscriber subscriber = new MockEngineChangeCaptureSubscriber(2);
 		publisher.subscribe(subscriber);
 
 		evitaClient.defineCatalog("newCatalog1");
 		evitaClient.defineCatalog("newCatalog2");
 
 		// subscriber wants more events now, should receive `newCatalog2` and future `newCatalog3`
-		subscriber.request(2);
+		subscriber.request(4);
 
 		evitaClient.defineCatalog("newCatalog3");
 
-		// subscriber should receive 2 future events
-		subscriber.request(2);
+		// subscriber should receive 4 future events
+		subscriber.request(4);
 
 		evitaClient.defineCatalog("newCatalog4");
 		evitaClient.defineCatalog("newCatalog5");
@@ -813,34 +825,37 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldNotifyLateSubscribers(EvitaClient evitaClient) throws InterruptedException {
-		// first subscriber is registered at the start, but it's not ready to receive events yet
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evitaClient.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+	void shouldNotifyLateSubscribers(EvitaClient evitaClient) {
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
 		);
+
+		// first subscriber is registered at the start, but it's not ready to receive events yet
 		final MockEngineChangeCaptureSubscriber subscriberWithDelayedRequest = new MockEngineChangeCaptureSubscriber(0);
-		publisher1.subscribe(subscriberWithDelayedRequest);
+		publisher.subscribe(subscriberWithDelayedRequest);
 
 		// should be ignored by both subscribers
 		evitaClient.defineCatalog("newCatalog1");
 
 		// second subscriber is registered later but ready to receive events
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evitaClient.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
-		);
-		final MockEngineChangeCaptureSubscriber subscriberWithDelayedRegistration = new MockEngineChangeCaptureSubscriber(1);
-		publisher2.subscribe(subscriberWithDelayedRegistration);
+		final MockEngineChangeCaptureSubscriber subscriberWithDelayedRegistration = new MockEngineChangeCaptureSubscriber(
+			Integer.MAX_VALUE);
+		publisher.subscribe(subscriberWithDelayedRegistration);
 
 		// first subscriber is ready to receive events now, should get one
-		subscriberWithDelayedRequest.request(1);
+		subscriberWithDelayedRequest.request(Integer.MAX_VALUE);
 
 		evitaClient.defineCatalog("newCatalog2");
 
 		// both should receive one late event
-		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog1"));
-		assertEquals(0, subscriberWithDelayedRequest.getCatalogCreated("newCatalog2"));
+		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog1", 10, TimeUnit.SECONDS, 1));
+		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog2", 10, TimeUnit.SECONDS, 1));
 		assertEquals(0, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog1"));
-		assertEquals(1, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog2"));
+		assertEquals(1, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog2", 10, TimeUnit.SECONDS, 1));
+
+		// cancel both subscribers
+		subscriberWithDelayedRequest.cancel();
+		subscriberWithDelayedRegistration.cancel();
 
 		evitaClient.deleteCatalogIfExists("newCatalog1");
 		evitaClient.deleteCatalogIfExists("newCatalog2");
@@ -848,58 +863,69 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldNotifyMultipleSubscriberWithDifferentRequests(EvitaClient evitaClient) throws InterruptedException {
-		// subscribers want first future events
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evitaClient.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+	void shouldNotifyLateSubscribersWithFixedInitialVersion(EvitaClient evitaClient) {
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(
+				evitaClient.management().getSystemStatus().engineVersion(), null, ChangeCaptureContent.BODY)
 		);
-		final MockEngineChangeCaptureSubscriber subscriber1 = new MockEngineChangeCaptureSubscriber(1);
-		publisher1.subscribe(subscriber1);
 
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evitaClient.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
-		);
-		final MockEngineChangeCaptureSubscriber subscriber2 = new MockEngineChangeCaptureSubscriber(1);
-		publisher2.subscribe(subscriber2);
+		// first subscriber is registered at the start, but it's not ready to receive events yet
+		final MockEngineChangeCaptureSubscriber subscriberWithDelayedRequest = new MockEngineChangeCaptureSubscriber(0);
+		publisher.subscribe(subscriberWithDelayedRequest);
 
-		// first events should be received by both subscribers
+		// should be ignored by both subscribers
 		evitaClient.defineCatalog("newCatalog1");
 
-		// the next event is desired only by first subscriber
-		subscriber1.request(1);
+		// second subscriber is registered later but ready to receive events
+		final MockEngineChangeCaptureSubscriber subscriberWithDelayedRegistration = new MockEngineChangeCaptureSubscriber(
+			Integer.MAX_VALUE);
+		publisher.subscribe(subscriberWithDelayedRegistration);
+
+		// first subscriber is ready to receive events now, should get one
+		subscriberWithDelayedRequest.request(Integer.MAX_VALUE);
+
 		evitaClient.defineCatalog("newCatalog2");
 
-		// the next event is desired only by second subscriber
-		subscriber2.request(1);
-		evitaClient.defineCatalog("newCatalog3");
+		// both should receive one late event
+		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog1", 10, TimeUnit.SECONDS, 1));
+		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog2", 10, TimeUnit.SECONDS, 1));
+		assertEquals(1, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog1", 10, TimeUnit.SECONDS, 1));
+		assertEquals(1, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog2", 10, TimeUnit.SECONDS, 1));
 
-		assertEquals(1, subscriber1.getCatalogCreated("newCatalog1"));
-		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1"));
-		assertEquals(1, subscriber1.getCatalogCreated("newCatalog2"));
-		assertEquals(1, subscriber2.getCatalogCreated("newCatalog2"));
-		assertEquals(0, subscriber1.getCatalogCreated("newCatalog3"));
-		assertEquals(0, subscriber2.getCatalogCreated("newCatalog3"));
+		evitaClient.deleteCatalogIfExists("newCatalog1");
+		evitaClient.deleteCatalogIfExists("newCatalog2");
+
+		// cancel both subscribers
+		subscriberWithDelayedRequest.cancel();
+		subscriberWithDelayedRegistration.cancel();
 	}
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldNotifyMultiplePublishers(EvitaClient evitaClient) throws InterruptedException {
+	void shouldNotifyMultiplePublishers(EvitaClient evitaClient) {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evitaClient.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
 		);
-		final MockEngineChangeCaptureSubscriber subscriber1 = new MockEngineChangeCaptureSubscriber(1);
+		final MockEngineChangeCaptureSubscriber subscriber1 = new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
 		publisher1.subscribe(subscriber1);
 
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evitaClient.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
 		);
-		final MockEngineChangeCaptureSubscriber subscriber2 = new MockEngineChangeCaptureSubscriber(1);
+		final MockEngineChangeCaptureSubscriber subscriber2 = new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
 		publisher2.subscribe(subscriber2);
 
 		evitaClient.defineCatalog("newCatalog1");
 
-		assertEquals(1, subscriber1.getCatalogCreated("newCatalog1"));
-		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1"));
+		assertEquals(
+			0,
+			subscriber1.getCatalogCreated("newCatalog1")
+		); // subscriber1 is subscribed to HEADER content, so it cannot recognize catalog name
+		assertEquals(
+			2,
+			subscriber1.getReceived()
+		); // at least 2 events should be received (transaction and create catalog mutation)
+		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1", 10, TimeUnit.SECONDS, 1));
 
 		evitaClient.deleteCatalogIfExists("newCatalog1");
 	}
@@ -910,8 +936,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final String someCatalogName = "differentCatalog";
 		try {
 			evitaClient.defineCatalog(someCatalogName)
-				.withDescription("Some description.")
-				.updateVia(evitaClient.createReadWriteSession(someCatalogName));
+			           .withDescription("Some description.")
+			           .updateVia(evitaClient.createReadWriteSession(someCatalogName));
 			assertTrue(evitaClient.getCatalogNames().contains(someCatalogName));
 		} finally {
 			evitaClient.deleteCatalogIfExists(someCatalogName);
@@ -924,16 +950,16 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final String someCatalogName = "differentCatalog";
 		try {
 			evitaClient.defineCatalog(someCatalogName)
-				.withDescription("This is a tutorial catalog.")
-				.updateViaNewSession(evitaClient);
+			           .withDescription("This is a tutorial catalog.")
+			           .updateViaNewSession(evitaClient);
 
 			assertTrue(evitaClient.getCatalogNames().contains(someCatalogName));
 			evitaClient.updateCatalog(
 				someCatalogName,
 				session -> {
 					session.createNewEntity("Brand", 1)
-						.setAttribute("name", Locale.ENGLISH, "Lenovo")
-						.upsertVia(session);
+					       .setAttribute("name", Locale.ENGLISH, "Lenovo")
+					       .upsertVia(session);
 
 					final Optional<SealedEntitySchema> brand = session.getEntitySchema("Brand");
 					assertTrue(brand.isPresent());
@@ -944,46 +970,47 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 					// now create an example category tree
 					session.createNewEntity("Category", 10)
-						.setAttribute("name", Locale.ENGLISH, "Electronics")
-						.upsertVia(session);
+					       .setAttribute("name", Locale.ENGLISH, "Electronics")
+					       .upsertVia(session);
 
 					session.createNewEntity("Category", 11)
-						.setAttribute("name", Locale.ENGLISH, "Laptops")
-						// laptops will be a child category of electronics
-						.setParent(10)
-						.upsertVia(session);
+					       .setAttribute("name", Locale.ENGLISH, "Laptops")
+					       // laptops will be a child category of electronics
+					       .setParent(10)
+					       .upsertVia(session);
 
 					// finally, create a product
 					session.createNewEntity("Product")
-						// with a few attributes
-						.setAttribute("name", Locale.ENGLISH, "ThinkPad P15 Gen 1")
-						.setAttribute("cores", 8)
-						.setAttribute("graphics", "NVIDIA Quadro RTX 4000 with Max-Q Design")
-						// and price for sale
-						.setPrice(
-							1, "basic",
-							Currency.getInstance("USD"),
-							new BigDecimal("1420"), new BigDecimal("20"), new BigDecimal("1704"),
-							true
-						)
-						// link it to the manufacturer
-						.setReference(
-							"brand", "Brand",
-							Cardinality.EXACTLY_ONE,
-							1
-						)
-						// and to the laptop category
-						.setReference(
-							"categories", "Category",
-							Cardinality.ZERO_OR_MORE,
-							11
-						)
-						.upsertVia(session);
+					       // with a few attributes
+					       .setAttribute("name", Locale.ENGLISH, "ThinkPad P15 Gen 1")
+					       .setAttribute("cores", 8)
+					       .setAttribute("graphics", "NVIDIA Quadro RTX 4000 with Max-Q Design")
+					       // and price for sale
+					       .setPrice(
+						       1, "basic",
+						       Currency.getInstance("USD"),
+						       new BigDecimal("1420"), new BigDecimal("20"), new BigDecimal("1704"),
+						       true
+					       )
+					       // link it to the manufacturer
+					       .setReference(
+						       "brand", "Brand",
+						       Cardinality.EXACTLY_ONE,
+						       1
+					       )
+					       // and to the laptop category
+					       .setReference(
+						       "categories", "Category",
+						       Cardinality.ZERO_OR_MORE,
+						       11
+					       )
+					       .upsertVia(session);
 
 					final Optional<SealedEntitySchema> product = session.getEntitySchema("Product");
 					assertTrue(product.isPresent());
 
-					final Optional<EntityAttributeSchemaContract> productNameAttribute = product.get().getAttribute("name");
+					final Optional<EntityAttributeSchemaContract> productNameAttribute = product.get().getAttribute(
+						"name");
 					assertTrue(productNameAttribute.isPresent());
 					assertTrue(productNameAttribute.get().isLocalized());
 				}
@@ -1000,64 +1027,66 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final String someCatalogName = "differentCatalog";
 		try {
 			evitaClient.defineCatalog(someCatalogName)
-				.withDescription("This is a tutorial catalog.")
-				// define brand schema
-				.withEntitySchema(
-					"Brand",
-					whichIs -> whichIs.withDescription("A manufacturer of products.")
-						.withAttribute(
-							"name", String.class,
-							thatIs -> thatIs.localized().filterable().sortable()
-						)
-				)
-				// define category schema
-				.withEntitySchema(
-					"Category",
-					whichIs -> whichIs.withDescription("A category of products.")
-						.withAttribute(
-							"name", String.class,
-							thatIs -> thatIs.localized().filterable().sortable()
-						)
-						.withHierarchy()
-				)
-				// define product schema
-				.withEntitySchema(
-					"Product",
-					whichIs -> whichIs.withDescription("A product in inventory.")
-						.withAttribute(
-							"name", String.class,
-							thatIs -> thatIs.localized().filterable().sortable()
-						)
-						.withAttribute(
-							"cores", Integer.class,
-							thatIs -> thatIs.withDescription("Number of CPU cores.")
-								.filterable()
-						)
-						.withAttribute(
-							"graphics", String.class,
-							thatIs -> thatIs.withDescription("Graphics card.")
-								.filterable()
-						)
-						.withPrice()
-						.withReferenceToEntity(
-							"brand", "Brand", Cardinality.EXACTLY_ONE,
-							thatIs -> thatIs.indexed()
-						)
-						.withReferenceToEntity(
-							"categories", "Category", Cardinality.ZERO_OR_MORE,
-							thatIs -> thatIs.indexed()
-						)
-				)
-				// and now push all the definitions (mutations) to the server
-				.updateViaNewSession(evitaClient);
+			           .withDescription("This is a tutorial catalog.")
+			           // define brand schema
+			           .withEntitySchema(
+				           "Brand",
+				           whichIs -> whichIs.withDescription("A manufacturer of products.")
+				                             .withAttribute(
+					                             "name", String.class,
+					                             thatIs -> thatIs.localized().filterable().sortable()
+				                             )
+			           )
+			           // define category schema
+			           .withEntitySchema(
+				           "Category",
+				           whichIs -> whichIs.withDescription("A category of products.")
+				                             .withAttribute(
+					                             "name", String.class,
+					                             thatIs -> thatIs.localized().filterable().sortable()
+				                             )
+				                             .withHierarchy()
+			           )
+			           // define product schema
+			           .withEntitySchema(
+				           "Product",
+				           whichIs -> whichIs.withDescription("A product in inventory.")
+				                             .withAttribute(
+					                             "name", String.class,
+					                             thatIs -> thatIs.localized().filterable().sortable()
+				                             )
+				                             .withAttribute(
+					                             "cores", Integer.class,
+					                             thatIs -> thatIs.withDescription("Number of CPU cores.")
+					                                             .filterable()
+				                             )
+				                             .withAttribute(
+					                             "graphics", String.class,
+					                             thatIs -> thatIs.withDescription("Graphics card.")
+					                                             .filterable()
+				                             )
+				                             .withPrice()
+				                             .withReferenceToEntity(
+					                             "brand", "Brand", Cardinality.EXACTLY_ONE,
+					                             thatIs -> thatIs.indexed()
+				                             )
+				                             .withReferenceToEntity(
+					                             "categories", "Category", Cardinality.ZERO_OR_MORE,
+					                             thatIs -> thatIs.indexed()
+				                             )
+			           )
+			           // and now push all the definitions (mutations) to the server
+			           .updateViaNewSession(evitaClient);
 
 			assertTrue(evitaClient.getCatalogNames().contains(someCatalogName));
-			evitaClient.queryCatalog(someCatalogName, session -> {
-				final Set<String> allEntityTypes = session.getAllEntityTypes();
-				assertTrue(allEntityTypes.contains("Brand"));
-				assertTrue(allEntityTypes.contains("Category"));
-				assertTrue(allEntityTypes.contains("Product"));
-			});
+			evitaClient.queryCatalog(
+				someCatalogName, session -> {
+					final Set<String> allEntityTypes = session.getAllEntityTypes();
+					assertTrue(allEntityTypes.contains("Brand"));
+					assertTrue(allEntityTypes.contains("Category"));
+					assertTrue(allEntityTypes.contains("Product"));
+				}
+			);
 		} finally {
 			evitaClient.deleteCatalogIfExists(someCatalogName);
 		}
@@ -1071,26 +1100,29 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			defineReflectedReference(evitaClient, someCatalogName);
 
 			assertTrue(evitaClient.getCatalogNames().contains(someCatalogName));
-			evitaClient.queryCatalog(someCatalogName, session -> {
-				final Set<String> allEntityTypes = session.getAllEntityTypes();
-				assertTrue(allEntityTypes.contains(Entities.CATEGORY));
-				assertTrue(allEntityTypes.contains(Entities.PRODUCT));
+			evitaClient.queryCatalog(
+				someCatalogName, session -> {
+					final Set<String> allEntityTypes = session.getAllEntityTypes();
+					assertTrue(allEntityTypes.contains(Entities.CATEGORY));
+					assertTrue(allEntityTypes.contains(Entities.PRODUCT));
 
-				final ReferenceSchemaContract reference = session.getEntitySchemaOrThrowException(Entities.CATEGORY)
-					.getReferenceOrThrowException("productsInCategory");
-				assertInstanceOf(ReflectedReferenceSchemaContract.class, reference);
+					final ReferenceSchemaContract reference = session.getEntitySchemaOrThrowException(Entities.CATEGORY)
+					                                                 .getReferenceOrThrowException(
+						                                                 "productsInCategory");
+					assertInstanceOf(ReflectedReferenceSchemaContract.class, reference);
 
-				assertEquals(Entities.PRODUCT, reference.getReferencedEntityType());
-				assertEquals("Assigned category.", reference.getDescription());
-				assertEquals("Already deprecated.", reference.getDeprecationNotice());
-				assertTrue(reference.isIndexed());
-				assertTrue(reference.isFaceted());
+					assertEquals(Entities.PRODUCT, reference.getReferencedEntityType());
+					assertEquals("Assigned category.", reference.getDescription());
+					assertEquals("Already deprecated.", reference.getDeprecationNotice());
+					assertTrue(reference.isIndexed());
+					assertTrue(reference.isFaceted());
 
-				final Map<String, AttributeSchemaContract> attributes = reference.getAttributes();
-				assertEquals(2, attributes.size());
-				assertTrue(attributes.containsKey("customNote"));
-				assertTrue(attributes.containsKey("categoryPriority"));
-			});
+					final Map<String, AttributeSchemaContract> attributes = reference.getAttributes();
+					assertEquals(2, attributes.size());
+					assertTrue(attributes.containsKey("customNote"));
+					assertTrue(attributes.containsKey("categoryPriority"));
+				}
+			);
 		} finally {
 			evitaClient.deleteCatalogIfExists(someCatalogName);
 		}
@@ -1105,16 +1137,16 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			"differentCatalog",
 			session -> {
 				session.getEntitySchemaOrThrowException(Entities.CATEGORY)
-					.openForWrite()
-					.withReflectedReferenceToEntity(
-						"productsInCategory", Entities.PRODUCT, "productCategory",
-						thatIs -> thatIs.withAttributesInheritedExcept("categoryPriority")
-							.withCardinality(Cardinality.EXACTLY_ONE)
-							.withoutAttribute("customNote")
-							.withAttribute("newAttribute", String.class)
-							.withDescription("My description.")
-							.nonFaceted()
-					).updateVia(session);
+				       .openForWrite()
+				       .withReflectedReferenceToEntity(
+					       "productsInCategory", Entities.PRODUCT, "productCategory",
+					       thatIs -> thatIs.withAttributesInheritedExcept("categoryPriority")
+					                       .withCardinality(Cardinality.EXACTLY_ONE)
+					                       .withoutAttribute("customNote")
+					                       .withAttribute("newAttribute", String.class)
+					                       .withDescription("My description.")
+					                       .nonFaceted()
+				       ).updateVia(session);
 			}
 		);
 
@@ -1122,7 +1154,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			"differentCatalog",
 			session -> {
 				final SealedEntitySchema entitySchema = session.getEntitySchemaOrThrowException(Entities.CATEGORY);
-				final ReferenceSchemaContract reference = entitySchema.getReferenceOrThrowException("productsInCategory");
+				final ReferenceSchemaContract reference = entitySchema.getReferenceOrThrowException(
+					"productsInCategory");
 				assertEquals(Cardinality.EXACTLY_ONE, reference.getCardinality());
 				assertEquals(Entities.PRODUCT, reference.getReferencedEntityType());
 				assertEquals("My description.", reference.getDescription());
@@ -1139,21 +1172,27 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldCreateCatalog(EvitaClient evitaClient, MockEngineChangeCaptureSubscriber engineSubscriber) {
-		engineSubscriber.reset();
+	void shouldCreateCatalog(EvitaClient evitaClient) {
+		try (MockEngineChangeCaptureSubscriber engineSubscriber = new MockEngineChangeCaptureSubscriber(
+			Integer.MAX_VALUE)) {
+			evitaClient.registerSystemChangeCapture(
+				new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+			).subscribe(engineSubscriber);
 
-		final String newCatalogName = "newCatalog";
-		try {
-			evitaClient.defineCatalog(newCatalogName);
-			final Set<String> catalogNames = evitaClient.getCatalogNames();
+			final String newCatalogName = "newCatalog";
+			try {
+				evitaClient.defineCatalog(newCatalogName);
+				final Set<String> catalogNames = evitaClient.getCatalogNames();
 
-			assertEquals(2, catalogNames.size());
-			assertTrue(catalogNames.contains(TEST_CATALOG));
-			assertTrue(catalogNames.contains(newCatalogName));
+				assertEquals(2, catalogNames.size());
+				assertTrue(catalogNames.contains(TEST_CATALOG));
+				assertTrue(catalogNames.contains(newCatalogName));
+				assertEquals(1, engineSubscriber.getCatalogCreated(newCatalogName, 10, TimeUnit.SECONDS, 1));
 
-		} finally {
-			evitaClient.deleteCatalogIfExists(newCatalogName);
-			assertEquals(1, engineSubscriber.getCatalogDeleted(newCatalogName));
+			} finally {
+				evitaClient.deleteCatalogIfExists(newCatalogName);
+				assertEquals(1, engineSubscriber.getCatalogDeleted(newCatalogName, 10, TimeUnit.SECONDS, 1));
+			}
 		}
 	}
 
@@ -1182,9 +1221,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 		assertEquals(
 			Integer.valueOf(3),
-			evitaClient.queryCatalog(TEST_CATALOG, evitaSessionContract -> {
-				return evitaSessionContract.getCatalogSchema().version();
-			})
+			evitaClient.queryCatalog(
+				TEST_CATALOG, evitaSessionContract -> {
+					return evitaSessionContract.getCatalogSchema().version();
+				}
+			)
 		);
 
 		evitaClient.replaceCatalog(TEST_CATALOG, newCatalog);
@@ -1195,9 +1236,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 		assertEquals(
 			Integer.valueOf(4),
-			evitaClient.queryCatalog(newCatalog, evitaSessionContract -> {
-				return evitaSessionContract.getCatalogSchema().version();
-			})
+			evitaClient.queryCatalog(
+				newCatalog, evitaSessionContract -> {
+					return evitaSessionContract.getCatalogSchema().version();
+				}
+			)
 		);
 	}
 
@@ -1211,9 +1254,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 		assertEquals(
 			Integer.valueOf(3),
-			evitaClient.queryCatalog(TEST_CATALOG, evitaSessionContract -> {
-				return evitaSessionContract.getCatalogSchema().version();
-			})
+			evitaClient.queryCatalog(
+				TEST_CATALOG, evitaSessionContract -> {
+					return evitaSessionContract.getCatalogSchema().version();
+				}
+			)
 		);
 
 		evitaClient.renameCatalog(TEST_CATALOG, newCatalog);
@@ -1224,21 +1269,26 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 		assertEquals(
 			Integer.valueOf(4),
-			evitaClient.queryCatalog(newCatalog, evitaSessionContract -> {
-				return evitaSessionContract.getCatalogSchema().version();
-			})
+			evitaClient.queryCatalog(
+				newCatalog, evitaSessionContract -> {
+					return evitaSessionContract.getCatalogSchema().version();
+				}
+			)
 		);
 	}
 
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
-	void shouldBackupAndRestoreCatalogViaDownloadingAndUploadingFileContents(EvitaClient evitaClient) throws ExecutionException, InterruptedException, TimeoutException {
+	void shouldBackupAndRestoreCatalogViaDownloadingAndUploadingFileContents(
+		EvitaClient evitaClient
+	) throws ExecutionException, InterruptedException, TimeoutException {
 		final Set<String> catalogNames = evitaClient.getCatalogNames();
 		assertEquals(1, catalogNames.size());
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 
 		final EvitaManagementContract management = evitaClient.management();
-		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(TEST_CATALOG, null, null, true);
+		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(
+			TEST_CATALOG, null, null, true);
 		final FileForFetch fileForFetch = backupFileFuture.get(3, TimeUnit.MINUTES);
 
 		log.info("Catalog backed up to file: {}", fileForFetch.fileId());
@@ -1247,8 +1297,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		try (final InputStream inputStream = management.fetchFile(fileForFetch.fileId())) {
 			// wait to restoration to be finished
 			management.restoreCatalog(restoredCatalogName, fileForFetch.totalSizeInBytes(), inputStream)
-				.getFutureResult()
-				.get(3, TimeUnit.MINUTES);
+			          .getFutureResult()
+			          .get(3, TimeUnit.MINUTES);
 
 		} catch (IOException e) {
 			fail("Failed to restore catalog!", e);
@@ -1263,21 +1313,26 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 		assertEquals(
 			Integer.valueOf(PRODUCT_COUNT),
-			evitaClient.queryCatalog(restoredCatalogName, session -> {
-				return session.getEntityCollectionSize(Entities.PRODUCT);
-			})
+			evitaClient.queryCatalog(
+				restoredCatalogName, session -> {
+					return session.getEntityCollectionSize(Entities.PRODUCT);
+				}
+			)
 		);
 	}
 
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
-	void shouldBackupAndRestoreCatalogViaDownloadingAndUploadingFileContentsUnary(EvitaClient evitaClient) throws ExecutionException, InterruptedException, TimeoutException {
+	void shouldBackupAndRestoreCatalogViaDownloadingAndUploadingFileContentsUnary(
+		EvitaClient evitaClient
+	) throws ExecutionException, InterruptedException, TimeoutException {
 		final Set<String> catalogNames = evitaClient.getCatalogNames();
 		assertEquals(1, catalogNames.size());
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 
 		final EvitaManagementContract management = evitaClient.management();
-		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(TEST_CATALOG, null, null, true);
+		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(
+			TEST_CATALOG, null, null, true);
 		final FileForFetch fileForFetch = backupFileFuture.get(3, TimeUnit.MINUTES);
 
 		log.info("Catalog backed up to file: {}", fileForFetch.fileId());
@@ -1299,11 +1354,12 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 				// wait to restoration to be finished
 				final Builder builder = GrpcRestoreCatalogUnaryRequest.newBuilder()
-					.setCatalogName(restoredCatalogName)
-					.setTotalSizeInBytes(fileForFetch.totalSizeInBytes())
-					.setBackupFile(
-						ByteString.copyFrom(buffer, 0, read)
-					);
+				                                                      .setCatalogName(restoredCatalogName)
+				                                                      .setTotalSizeInBytes(
+					                                                      fileForFetch.totalSizeInBytes())
+				                                                      .setBackupFile(
+					                                                      ByteString.copyFrom(buffer, 0, read)
+				                                                      );
 				if (fileId != null) {
 					builder.setFileId(fileId);
 				}
@@ -1315,7 +1371,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				fileId = fileId == null ? restoreTask.getFile().getFileId() : fileId;
 			} while (true);
 
-			Optional<TaskStatus<?, ?>> status = management.getTaskStatus(EvitaDataTypesConverter.toUuid(restoreTask.getTaskId()));
+			Optional<TaskStatus<?, ?>> status = management.getTaskStatus(
+				EvitaDataTypesConverter.toUuid(restoreTask.getTaskId()));
 			while (status.map(it -> it.finished() == null).orElse(false)) {
 				Thread.sleep(500);
 				status = management.getTaskStatus(EvitaDataTypesConverter.toUuid(restoreTask.getTaskId()));
@@ -1334,21 +1391,26 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 		assertEquals(
 			Integer.valueOf(PRODUCT_COUNT),
-			evitaClient.queryCatalog(restoredCatalogName, session -> {
-				return session.getEntityCollectionSize(Entities.PRODUCT);
-			})
+			evitaClient.queryCatalog(
+				restoredCatalogName, session -> {
+					return session.getEntityCollectionSize(Entities.PRODUCT);
+				}
+			)
 		);
 	}
 
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
-	void shouldBackupAndRestoreCatalogViaFileOnTheServerSide(EvitaClient evitaClient) throws ExecutionException, InterruptedException, TimeoutException {
+	void shouldBackupAndRestoreCatalogViaFileOnTheServerSide(
+		EvitaClient evitaClient
+	) throws ExecutionException, InterruptedException, TimeoutException {
 		final Set<String> catalogNames = evitaClient.getCatalogNames();
 		assertEquals(1, catalogNames.size());
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 
 		final EvitaManagementContract management = evitaClient.management();
-		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(TEST_CATALOG, null, null, true);
+		final CompletableFuture<FileForFetch> backupFileFuture = management.backupCatalog(
+			TEST_CATALOG, null, null, true);
 		final FileForFetch fileForFetch = backupFileFuture.get(3, TimeUnit.MINUTES);
 
 		log.info("Catalog backed up to file: {}", fileForFetch.fileId());
@@ -1368,9 +1430,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 		assertEquals(
 			Integer.valueOf(PRODUCT_COUNT),
-			evitaClient.queryCatalog(restoredCatalogName, session -> {
-				return session.getEntityCollectionSize(Entities.PRODUCT);
-			})
+			evitaClient.queryCatalog(
+				restoredCatalogName, session -> {
+					return session.getEntityCollectionSize(Entities.PRODUCT);
+				}
+			)
 		);
 	}
 
@@ -1386,8 +1450,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				assertTrue(session.getAllEntityTypes().contains(Entities.PRODUCT));
 				assertFalse(session.getAllEntityTypes().contains(newCollection));
 				session.defineEntitySchema(newCollection)
-					.withGlobalAttribute(ATTRIBUTE_CODE)
-					.updateVia(session);
+				       .withGlobalAttribute(ATTRIBUTE_CODE)
+				       .updateVia(session);
 				assertTrue(session.getAllEntityTypes().contains(newCollection));
 				productSchemaVersion.set(session.getEntitySchemaOrThrowException(Entities.PRODUCT).version());
 				productCount.set(session.getEntityCollectionSize(Entities.PRODUCT));
@@ -1407,7 +1471,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			session -> {
 				assertFalse(session.getAllEntityTypes().contains(Entities.PRODUCT));
 				assertTrue(session.getAllEntityTypes().contains(newCollection));
-				assertEquals(productSchemaVersion.get() + 1, session.getEntitySchemaOrThrowException(newCollection).version());
+				assertEquals(
+					productSchemaVersion.get() + 1, session.getEntitySchemaOrThrowException(newCollection).version());
 				assertEquals(productCount.get(), session.getEntityCollectionSize(newCollection));
 			}
 		);
@@ -1415,7 +1480,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
-	void shouldRenameCollection(EvitaClient evitaClient, MockCatalogChangeCaptureSubscriber catalogSubscriber) {
+	void shouldRenameCollection(EvitaClient evitaClient) {
 		final String newCollection = "newCollection";
 		final AtomicInteger productCount = new AtomicInteger();
 		final AtomicInteger productSchemaVersion = new AtomicInteger();
@@ -1429,11 +1494,25 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			}
 		);
 
-		catalogSubscriber.reset();
+		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(
+			Integer.MAX_VALUE);
 
 		evitaClient.updateCatalog(
 			TEST_CATALOG,
 			session -> {
+				session.registerChangeCatalogCapture(
+					ChangeCatalogCaptureRequest
+						.builder()
+						.content(ChangeCaptureContent.BODY)
+						.criteria(
+							ChangeCatalogCaptureCriteria
+								.builder()
+								.schemaArea()
+								.build()
+						)
+						.build()
+				).subscribe(catalogSubscriber);
+
 				return session.renameCollection(
 					Entities.PRODUCT,
 					newCollection
@@ -1441,15 +1520,16 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			}
 		);
 
-		assertEquals(1, catalogSubscriber.getEntityCollectionCreated(newCollection));
-		assertEquals(1, catalogSubscriber.getEntityCollectionDeleted(Entities.PRODUCT));
+		assertEquals(1, catalogSubscriber.getEntityCollectionCreated(newCollection, 10, TimeUnit.SECONDS, 1));
+		assertEquals(1, catalogSubscriber.getEntityCollectionDeleted(Entities.PRODUCT, 10, TimeUnit.SECONDS, 1));
 
 		evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				assertFalse(session.getAllEntityTypes().contains(Entities.PRODUCT));
 				assertTrue(session.getAllEntityTypes().contains(newCollection));
-				assertEquals(productSchemaVersion.get() + 1, session.getEntitySchemaOrThrow(newCollection).version());
+				assertEquals(
+					productSchemaVersion.get() + 1, session.getEntitySchemaOrThrowException(newCollection).version());
 				assertEquals(productCount.get(), session.getEntityCollectionSize(newCollection));
 			}
 		);
@@ -1461,9 +1541,14 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final SealedEntity addedEntity = evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Optional<SealedEntity> upsertedEntity = DATA_GENERATOR.generateEntities(productSchema, RANDOM_ENTITY_PICKER, SEED)
+				final Optional<SealedEntity> upsertedEntity = DATA_GENERATOR
+					.generateEntities(
+						productSchema, RANDOM_ENTITY_PICKER, SEED)
 					.limit(1)
-					.map(it -> session.upsertAndFetchEntity(it, entityFetchAllContent()))
+					.map(it -> session.upsertAndFetchEntity(
+						it,
+						entityFetchAllContent()
+					))
 					.findFirst();
 				assertTrue(upsertedEntity.isPresent());
 				return upsertedEntity.get();
@@ -1473,7 +1558,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent());
+				final Optional<SealedEntity> fetchedEntity = session.getEntity(
+					productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent());
 				assertTrue(fetchedEntity.isPresent());
 				assertEquals(addedEntity, fetchedEntity.get());
 			}
@@ -1483,15 +1569,22 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	@DisplayName("Update catalog with another product - asynchronously.")
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	@Test
-	void shouldUpdateCatalogWithAnotherProductAsynchronously(EvitaContract evita, SealedEntitySchema productSchema) throws ExecutionException, InterruptedException, TimeoutException {
+	void shouldUpdateCatalogWithAnotherProductAsynchronously(
+		EvitaContract evita,
+		SealedEntitySchema productSchema
+	) throws ExecutionException, InterruptedException, TimeoutException {
 		final AtomicInteger addedEntityPrimaryKey = new AtomicInteger();
 		final CommitProgress commitProgress = evita.updateCatalogAsync(
 			TEST_CATALOG,
 			session -> {
-				final Optional<SealedEntity> upsertedEntity = DATA_GENERATOR.generateEntities(productSchema, RANDOM_ENTITY_PICKER, SEED)
-					.limit(1)
-					.map(it -> session.upsertAndFetchEntity(it, entityFetchAllContent()))
-					.findFirst();
+				final Optional<SealedEntity> upsertedEntity = DATA_GENERATOR.generateEntities(
+					                                                            productSchema, RANDOM_ENTITY_PICKER, SEED)
+				                                                            .limit(1)
+				                                                            .map(it -> session.upsertAndFetchEntity(
+					                                                            it,
+					                                                            entityFetchAllContent()
+				                                                            ))
+				                                                            .findFirst();
 				assertTrue(upsertedEntity.isPresent());
 				addedEntityPrimaryKey.set(upsertedEntity.get().getPrimaryKey());
 			},
@@ -1500,7 +1593,9 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 		List<String> worklog = new ArrayList<>();
 		CompletableFuture.allOf(
-			commitProgress.onConflictResolved().thenAccept(it -> worklog.add("Conflict resolved!")).toCompletableFuture(),
+			commitProgress.onConflictResolved()
+			              .thenAccept(it -> worklog.add("Conflict resolved!"))
+			              .toCompletableFuture(),
 			commitProgress.onWalAppended().thenAccept(it -> worklog.add("WAL appended!")).toCompletableFuture(),
 			commitProgress.onChangesVisible().thenAccept(it -> worklog.add("Changes visible!")).toCompletableFuture()
 		).get(1, TimeUnit.MINUTES);
@@ -1519,7 +1614,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Optional<SealedEntity> entityFetchedAgain = session.getEntity(productSchema.getName(), addedEntityPrimaryKey.get(), entityFetchAllContent());
+				final Optional<SealedEntity> entityFetchedAgain = session.getEntity(
+					productSchema.getName(), addedEntityPrimaryKey.get(), entityFetchAllContent());
 				assertTrue(entityFetchedAgain.isPresent(), "Entity not found in catalog!");
 			}
 		);
@@ -1533,8 +1629,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			session -> {
 				final String newEntityType = "newEntityType";
 				session.defineEntitySchema(newEntityType)
-					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterable())
-					.updateVia(session);
+				       .withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterable())
+				       .updateVia(session);
 
 				assertTrue(session.getAllEntityTypes().contains(newEntityType));
 				session.deleteCollection(newEntityType);
@@ -1561,8 +1657,9 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity loadedEntity = session.getEntity(Entities.PRODUCT, newProductId.get(), entityFetchAllContent())
-					.orElseThrow();
+				final SealedEntity loadedEntity = session.getEntity(
+					                                         Entities.PRODUCT, newProductId.get(), entityFetchAllContent())
+				                                         .orElseThrow();
 
 				assertSomeNewProductContent(loadedEntity);
 			}
@@ -1680,7 +1777,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
-	void shouldArchiveAndFetchExistingCustomEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> originalCategories) {
+	void shouldArchiveAndFetchExistingCustomEntity(
+		EvitaClient evitaClient, Map<Integer, SealedEntity> originalCategories) {
 		final AtomicInteger newProductId = new AtomicInteger();
 		evitaClient.updateCatalog(
 			TEST_CATALOG,
@@ -1801,7 +1899,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
-	void shouldRestoreAndFetchExistingCustomEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> originalCategories) {
+	void shouldRestoreAndFetchExistingCustomEntity(
+		EvitaClient evitaClient, Map<Integer, SealedEntity> originalCategories) {
 		final AtomicInteger newProductId = new AtomicInteger();
 		final AtomicReference<SealedEntity> theEntity = new AtomicReference<>();
 		evitaClient.updateCatalog(
@@ -1907,7 +2006,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
-	void shouldDeleteAndFetchExistingCustomEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> originalCategories) {
+	void shouldDeleteAndFetchExistingCustomEntity(
+		EvitaClient evitaClient, Map<Integer, SealedEntity> originalCategories) {
 		final AtomicInteger newProductId = new AtomicInteger();
 		evitaClient.updateCatalog(
 			TEST_CATALOG,
@@ -2060,7 +2160,10 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				assertEquals(4, deletedHierarchy.deletedEntities());
 				assertNotNull(deletedHierarchy.deletedRootEntity());
 				assertEquals(50, deletedHierarchy.deletedRootEntity().getPrimaryKey());
-				assertEquals("New category #50", deletedHierarchy.deletedRootEntity().getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+				assertEquals(
+					"New category #50",
+					deletedHierarchy.deletedRootEntity().getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH)
+				);
 			}
 		);
 
@@ -2131,18 +2234,19 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			session -> {
 				final Stream<ChangeCatalogCapture> mutationsHistory = session.getMutationsHistory(
 					ChangeCatalogCaptureRequest.builder()
-						.criteria(
-							ChangeCatalogCaptureCriteria.builder()
-								.area(CaptureArea.DATA)
-								.site(
-									DataSite.builder()
-										.containerType(ContainerType.ENTITY)
-										.build()
-								)
-								.build()
-						)
-						.content(ChangeCaptureContent.BODY)
-						.build()
+					                           .criteria(
+						                           ChangeCatalogCaptureCriteria.builder()
+						                                                       .area(CaptureArea.DATA)
+						                                                       .site(
+							                                                       DataSite.builder()
+							                                                               .containerType(
+								                                                               ContainerType.ENTITY)
+							                                                               .build()
+						                                                       )
+						                                                       .build()
+					                           )
+					                           .content(ChangeCaptureContent.BODY)
+					                           .build()
 				);
 
 				final List<ChangeCatalogCapture> mutations = mutationsHistory.toList();
@@ -2159,7 +2263,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final EvitaManagementContract management = evitaClient.management();
 
 		// Step 2: Generate backup tasks using the custom executor
-		final List<CompletableFuture<CompletableFuture<FileForFetch>>> backupTasks = Stream.generate(
+		final List<CompletableFuture<CompletableFuture<FileForFetch>>> backupTasks = Stream
+			.generate(
 				() -> CompletableFuture.supplyAsync(
 					() -> management.backupCatalog(TEST_CATALOG, null, null, true),
 					executorService
@@ -2175,30 +2280,48 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		management.listTaskStatuses(1, numberOfTasks, null);
 
 		// cancel 7 of them immediately
-		final List<Boolean> cancellationResult = Stream.concat(
+		final List<Boolean> cancellationResult = Stream
+			.concat(
 				management.listTaskStatuses(1, 1, null)
-					.getData()
-					.stream()
-					.map(it -> management.cancelTask(it.taskId())),
+				          .getData()
+				          .stream()
+				          .map(it -> management.cancelTask(it.taskId())),
 				backupTasks.subList(3, numberOfTasks - 1)
-					.stream()
-					.map(task -> task.getNow(null).cancel(true))
+				           .stream()
+				           .map(task -> task.getNow(null).cancel(true))
 			)
 			.toList();
 
 		// wait for all task to complete
-		assertThrows(
-			ExecutionException.class,
-			() -> CompletableFuture.allOf(
+		try {
+			// wait for all task to complete
+			CompletableFuture.allOf(
 				backupTasks.stream().map(it -> it.getNow(null)).toArray(CompletableFuture[]::new)
-			).get(3, TimeUnit.MINUTES)
-		);
+			).get(3, TimeUnit.MINUTES);
+		} catch (ExecutionException ignored) {
+			// if tasks were cancelled, they will throw exception
+		} catch (InterruptedException | TimeoutException e) {
+			fail(e);
+		}
 
 		final PaginatedList<TaskStatus<?, ?>> taskStatuses = management.listTaskStatuses(1, numberOfTasks, null);
 		assertEquals(numberOfTasks, taskStatuses.getTotalRecordCount());
 		final int cancelled = cancellationResult.stream().mapToInt(b -> b ? 1 : 0).sum();
-		assertEquals(backupTasks.size() - cancelled, taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FINISHED).count());
-		assertEquals(cancelled, taskStatuses.getData().stream().filter(task -> task.simplifiedState() == TaskSimplifiedState.FAILED).count());
+		assertEquals(
+			backupTasks.size() - cancelled,
+			taskStatuses.getData()
+			            .stream()
+			            .filter(
+				            task -> task.simplifiedState() == TaskSimplifiedState.FINISHED)
+			            .count()
+		);
+		assertEquals(
+			cancelled,
+			taskStatuses.getData()
+			            .stream()
+			            .filter(task -> task.simplifiedState() == TaskSimplifiedState.FAILED)
+			            .count()
+		);
 
 		// fetch all tasks by their ids
 		management.getTaskStatuses(
@@ -2234,21 +2357,24 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		// delete them
 		final Set<UUID> deletedFiles = CollectionUtils.createHashSet(exportedFiles.getData().size());
 		exportedFiles.getData()
-			.forEach(file -> {
-				management.deleteFile(file.fileId());
-				deletedFiles.add(file.fileId());
-			});
+		             .forEach(file -> {
+			             management.deleteFile(file.fileId());
+			             deletedFiles.add(file.fileId());
+		             });
 
 		// list them again and there should be none of them
-		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(1, numberOfTasks, null);
-		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
+		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(
+			1, numberOfTasks, null);
+		assertTrue(
+			exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	void shouldListReservedKeywords(EvitaClient evitaClient) throws ExecutionException, InterruptedException {
 		final EvitaManagementServiceFutureStub managementStub = getManagementStubInternal(evitaClient);
-		final GrpcReservedKeywordsResponse keywords = managementStub.listReservedKeywords(Empty.newBuilder().build()).get();
+		final GrpcReservedKeywordsResponse keywords = managementStub.listReservedKeywords(Empty.newBuilder().build())
+		                                                            .get();
 		assertNotNull(keywords);
 		assertTrue(keywords.getKeywordsCount() > 20);
 	}
@@ -2259,49 +2385,61 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		/* create schema for entity archival */
 		final Scope[] scopes = new Scope[]{Scope.LIVE, Scope.ARCHIVED};
 		evitaClient.defineCatalog(TEST_CATALOG)
-			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGloballyInScope(scopes).sortableInScope(scopes))
-			.updateViaNewSession(evitaClient);
+		           .withAttribute(
+			           ATTRIBUTE_CODE, String.class,
+			           thatIs -> thatIs.uniqueGloballyInScope(scopes).sortableInScope(scopes)
+		           )
+		           .updateViaNewSession(evitaClient);
 
 		evitaClient.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.CATEGORY)
-					.withoutGeneratedPrimaryKey()
-					.withGlobalAttribute(ATTRIBUTE_CODE)
-					.withReflectedReferenceToEntity(
-						"products",
-						Entities.PRODUCT,
-						Entities.CATEGORY,
-						whichIs -> whichIs.indexedInScope(scopes).withAttributesInherited()
-					)
-					.withHierarchy()
-					.updateVia(session);
+				       .withoutGeneratedPrimaryKey()
+				       .withGlobalAttribute(ATTRIBUTE_CODE)
+				       .withReflectedReferenceToEntity(
+					       "products",
+					       Entities.PRODUCT,
+					       Entities.CATEGORY,
+					       whichIs -> whichIs.indexedInScope(scopes).withAttributesInherited()
+				       )
+				       .withHierarchy()
+				       .updateVia(session);
 
 				session.defineEntitySchema(Entities.PRODUCT)
-					.withoutGeneratedPrimaryKey()
-					.withGlobalAttribute(ATTRIBUTE_CODE)
-					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().filterableInScope(scopes).sortableInScope(scopes))
-					.withSortableAttributeCompound(
-						ATTRIBUTE_CODE_NAME,
-						new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-						new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-					)
-					.withPriceInCurrency(CURRENCY_CZK, CURRENCY_EUR)
-					.withReferenceToEntity(
-						Entities.CATEGORY,
-						Entities.CATEGORY,
-						Cardinality.ZERO_OR_MORE,
-						thatIs -> thatIs
-							.indexedInScope(scopes)
-							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterableInScope(scopes).sortableInScope(scopes))
-							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterableInScope(scopes))
-							.withSortableAttributeCompound(
-								ATTRIBUTE_CATEGORY_MARKET_OPEN,
-								new AttributeElement(ATTRIBUTE_CATEGORY_MARKET, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-								new AttributeElement(ATTRIBUTE_CATEGORY_OPEN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-							)
-					)
-					.updateVia(session);
+				       .withoutGeneratedPrimaryKey()
+				       .withGlobalAttribute(ATTRIBUTE_CODE)
+				       .withAttribute(
+					       ATTRIBUTE_NAME, String.class,
+					       thatIs -> thatIs.localized().filterableInScope(scopes).sortableInScope(scopes)
+				       )
+				       .withSortableAttributeCompound(
+					       ATTRIBUTE_CODE_NAME,
+					       new AttributeElement(ATTRIBUTE_CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+					       new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+				       )
+				       .withPriceInCurrency(CURRENCY_CZK, CURRENCY_EUR)
+				       .withReferenceToEntity(
+					       Entities.CATEGORY,
+					       Entities.CATEGORY,
+					       Cardinality.ZERO_OR_MORE,
+					       thatIs -> thatIs
+						       .indexedInScope(scopes)
+						       .withAttribute(
+							       ATTRIBUTE_CATEGORY_MARKET, String.class,
+							       whichIs -> whichIs.filterableInScope(scopes).sortableInScope(scopes)
+						       )
+						       .withAttribute(
+							       ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterableInScope(scopes))
+						       .withSortableAttributeCompound(
+							       ATTRIBUTE_CATEGORY_MARKET_OPEN,
+							       new AttributeElement(
+								       ATTRIBUTE_CATEGORY_MARKET, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+							       new AttributeElement(
+								       ATTRIBUTE_CATEGORY_OPEN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+						       )
+				       )
+				       .updateVia(session);
 			}
 		);
 
@@ -2310,13 +2448,13 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.CATEGORY, 1)
-					.setAttribute(ATTRIBUTE_CODE, "electronics")
-					.upsertVia(session);
+				       .setAttribute(ATTRIBUTE_CODE, "electronics")
+				       .upsertVia(session);
 
 				session.createNewEntity(Entities.CATEGORY, 2)
-					.setParent(1)
-					.setAttribute(ATTRIBUTE_CODE, "TV")
-					.upsertVia(session);
+				       .setParent(1)
+				       .setAttribute(ATTRIBUTE_CODE, "TV")
+				       .upsertVia(session);
 			}
 		);
 
@@ -2325,12 +2463,21 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT, 100)
-					.setAttribute(ATTRIBUTE_CODE, "TV-123")
-					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
-					.setReference(Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU").setAttribute(ATTRIBUTE_CATEGORY_OPEN, true))
-					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), true)
-					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"), new BigDecimal("12.1"), true)
-					.upsertVia(session);
+				       .setAttribute(ATTRIBUTE_CODE, "TV-123")
+				       .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+				       .setReference(
+					       Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU")
+					                                               .setAttribute(ATTRIBUTE_CATEGORY_OPEN, true)
+				       )
+				       .setPrice(
+					       1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"),
+					       new BigDecimal("121"), true
+				       )
+				       .setPrice(
+					       1, PRICE_LIST_BASIC, CURRENCY_EUR, new BigDecimal("10"), new BigDecimal("21"),
+					       new BigDecimal("12.1"), true
+				       )
+				       .upsertVia(session);
 			}
 		);
 
@@ -2339,7 +2486,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
-					.orElse(null);
+				              .orElse(null);
 			}
 		);
 		assertNotNull(category);
@@ -2360,11 +2507,12 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
-					.orElse(null);
+				              .orElse(null);
 			}
 		);
 		assertNotNull(categoryAfterArchiving);
-		final ReferenceContract productsAfterArchiving = categoryAfterArchiving.getReference("products", 100).orElse(null);
+		final ReferenceContract productsAfterArchiving = categoryAfterArchiving.getReference("products", 100).orElse(
+			null);
 		assertNotNull(productsAfterArchiving);
 
 		// archive category entity
@@ -2414,7 +2562,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
-					.orElse(null);
+				              .orElse(null);
 			}
 		);
 		assertNotNull(categoryAfterRestore);

@@ -34,8 +34,11 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 
 /**
  * This observer allows to test {@link Subscriber} behaviour.
@@ -53,6 +56,8 @@ public class MockCatalogChangeCaptureSubscriber implements Subscriber<ChangeCata
 	@Getter private int received = 0;
 	@Getter private int completed = 0;
 	@Getter private int errors = 0;
+	private CompletableFuture<Void> future;
+	private BooleanSupplier waitCondition;
 
 	public MockCatalogChangeCaptureSubscriber() {
 		this(Integer.MAX_VALUE);
@@ -73,16 +78,80 @@ public class MockCatalogChangeCaptureSubscriber implements Subscriber<ChangeCata
 		return this.entityCollectionCreated.getOrDefault(entityType, 0);
 	}
 
+	public int getEntityCollectionCreated(@Nonnull String entityType, int timeout, @Nonnull TimeUnit timeUnit, int expectedValue) {
+		final int result = this.entityCollectionCreated.getOrDefault(entityType, 0);
+		if (result < expectedValue) {
+			try {
+				this.future = new CompletableFuture<>();
+				this.waitCondition = () -> this.entityCollectionCreated.getOrDefault(entityType, 0) >= expectedValue;
+				this.future.get(timeout, timeUnit);
+				return this.entityCollectionCreated.getOrDefault(entityType, 0);
+			} catch (Exception e) {
+				return this.entityCollectionCreated.getOrDefault(entityType, 0);
+			}
+		} else {
+			return result;
+		}
+	}
+
 	public int getEntityCollectionUpdated(@Nonnull String entityType) {
 		return this.entityCollectionUpdated.getOrDefault(entityType, 0);
+	}
+
+	public int getEntityCollectionUpdated(@Nonnull String entityType, int timeout, @Nonnull TimeUnit timeUnit, int expectedValue) {
+		final int result = this.entityCollectionUpdated.getOrDefault(entityType, 0);
+		if (result < expectedValue) {
+			try {
+				this.future = new CompletableFuture<>();
+				this.waitCondition = () -> this.entityCollectionUpdated.getOrDefault(entityType, 0) >= expectedValue;
+				this.future.get(timeout, timeUnit);
+				return this.entityCollectionUpdated.getOrDefault(entityType, 0);
+			} catch (Exception e) {
+				return this.entityCollectionUpdated.getOrDefault(entityType, 0);
+			}
+		} else {
+			return result;
+		}
 	}
 
 	public int getEntityCollectionDeleted(@Nonnull String entityType) {
 		return this.entityCollectionDeleted.getOrDefault(entityType, 0);
 	}
 
+	public int getEntityCollectionDeleted(@Nonnull String entityType, int timeout, @Nonnull TimeUnit timeUnit, int expectedValue) {
+		final int result = this.entityCollectionDeleted.getOrDefault(entityType, 0);
+		if (result < expectedValue) {
+			try {
+				this.future = new CompletableFuture<>();
+				this.waitCondition = () -> this.entityCollectionDeleted.getOrDefault(entityType, 0) >= expectedValue;
+				this.future.get(timeout, timeUnit);
+				return this.entityCollectionDeleted.getOrDefault(entityType, 0);
+			} catch (Exception e) {
+				return this.entityCollectionDeleted.getOrDefault(entityType, 0);
+			}
+		} else {
+			return result;
+		}
+	}
+
 	public int getEntityCollectionSchemaUpdated(@Nonnull String entityType) {
 		return this.entityCollectionSchemaUpdated.getOrDefault(entityType, 0);
+	}
+
+	public int getEntityCollectionSchemaUpdated(@Nonnull String entityType, int timeout, @Nonnull TimeUnit timeUnit, int expectedValue) {
+		final int result = this.entityCollectionSchemaUpdated.getOrDefault(entityType, 0);
+		if (result < expectedValue) {
+			try {
+				this.future = new CompletableFuture<>();
+				this.waitCondition = () -> this.entityCollectionSchemaUpdated.getOrDefault(entityType, 0) >= expectedValue;
+				this.future.get(timeout, timeUnit);
+				return this.entityCollectionSchemaUpdated.getOrDefault(entityType, 0);
+			} catch (Exception e) {
+				return this.entityCollectionSchemaUpdated.getOrDefault(entityType, 0);
+			}
+		} else {
+			return result;
+		}
 	}
 
 	@Override
@@ -118,6 +187,13 @@ public class MockCatalogChangeCaptureSubscriber implements Subscriber<ChangeCata
 		} else if (item.area() == CaptureArea.DATA) {
 			this.entityCollectionUpdated
 				.compute(item.entityType(), (entityType, counter) -> counter == null ? 1 : counter + 1);
+		}
+
+		// check if we are waiting for some condition to be met
+		if (this.waitCondition != null && this.waitCondition.getAsBoolean()) {
+			this.future.complete(null);
+			this.waitCondition = null;
+			this.future = null;
 		}
 	}
 

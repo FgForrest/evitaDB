@@ -53,25 +53,10 @@ public final class GrpcCatalogSchemaMutations {
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowEvolutionModeInCatalogSchemaMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateEntitySchemaMutation_descriptor;
-  static final
-    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
-      internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateEntitySchemaMutation_fieldAccessorTable;
-  static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaMutation_descriptor;
   static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaMutation_fieldAccessorTable;
-  static final com.google.protobuf.Descriptors.Descriptor
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaNameMutation_descriptor;
-  static final
-    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
-      internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaNameMutation_fieldAccessorTable;
-  static final com.google.protobuf.Descriptors.Descriptor
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveEntitySchemaMutation_descriptor;
-  static final
-    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
-      internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveEntitySchemaMutation_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -94,16 +79,11 @@ public final class GrpcCatalogSchemaMutations {
       "isallowEvolutionModeInCatalogSchemaMutat" +
       "ion\022W\n\016evolutionModes\030\001 \003(\0162?.io.evitadb" +
       ".externalApi.grpc.generated.GrpcCatalogE" +
-      "volutionMode\"4\n\036GrpcCreateEntitySchemaMu" +
-      "tation\022\022\n\nentityType\030\001 \001(\t\"\224\001\n\036GrpcModif" +
-      "yEntitySchemaMutation\022\022\n\nentityType\030\001 \001(" +
-      "\t\022^\n\025entitySchemaMutations\030\002 \003(\0132?.io.ev" +
-      "itadb.externalApi.grpc.generated.GrpcEnt" +
-      "itySchemaMutation\"\\\n\"GrpcModifyEntitySch" +
-      "emaNameMutation\022\014\n\004name\030\001 \001(\t\022\017\n\007newName" +
-      "\030\002 \001(\t\022\027\n\017overwriteTarget\030\003 \001(\010\".\n\036GrpcR" +
-      "emoveEntitySchemaMutation\022\014\n\004name\030\001 \001(\tB" +
-      "\014P\001\252\002\007EvitaDBb\006proto3"
+      "volutionMode\"\224\001\n\036GrpcModifyEntitySchemaM" +
+      "utation\022\022\n\nentityType\030\001 \001(\t\022^\n\025entitySch" +
+      "emaMutations\030\002 \003(\0132?.io.evitadb.external" +
+      "Api.grpc.generated.GrpcEntitySchemaMutat" +
+      "ionB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -130,30 +110,12 @@ public final class GrpcCatalogSchemaMutations {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowEvolutionModeInCatalogSchemaMutation_descriptor,
         new java.lang.String[] { "EvolutionModes", });
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateEntitySchemaMutation_descriptor =
-      getDescriptor().getMessageTypes().get(3);
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateEntitySchemaMutation_fieldAccessorTable = new
-      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
-        internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateEntitySchemaMutation_descriptor,
-        new java.lang.String[] { "EntityType", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaMutation_descriptor =
-      getDescriptor().getMessageTypes().get(4);
+      getDescriptor().getMessageTypes().get(3);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaMutation_descriptor,
         new java.lang.String[] { "EntityType", "EntitySchemaMutations", });
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaNameMutation_descriptor =
-      getDescriptor().getMessageTypes().get(5);
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaNameMutation_fieldAccessorTable = new
-      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
-        internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaNameMutation_descriptor,
-        new java.lang.String[] { "Name", "NewName", "OverwriteTarget", });
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveEntitySchemaMutation_descriptor =
-      getDescriptor().getMessageTypes().get(6);
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveEntitySchemaMutation_fieldAccessorTable = new
-      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
-        internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveEntitySchemaMutation_descriptor,
-        new java.lang.String[] { "Name", });
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOuterClass.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();

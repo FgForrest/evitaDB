@@ -23,12 +23,18 @@
 
 package io.evitadb.store.wal.supplier;
 
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.mutation.MutationPredicate;
+import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.store.model.FileLocation;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+import java.util.stream.Stream;
 
 /**
  * Represents a TransactionMutation with additional location information.
@@ -54,6 +60,71 @@ public class TransactionMutationWithLocation extends TransactionMutation {
 		);
 		this.transactionSpan = transactionSpan;
 		this.walFileIndex = walFileIndex;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ChangeSystemCapture> toChangeSystemCapture(
+		@Nonnull MutationPredicate predicate,
+		@Nonnull ChangeCaptureContent content
+	) {
+		if (predicate.test(this)) {
+			return Stream.of(
+				ChangeSystemCapture.systemCapture(
+					predicate.getContext(),
+					operation(),
+					content == ChangeCaptureContent.BODY ?
+						// we need to strip the transactionSpan and walFileIndex from the transaction mutation
+						// because it's internal information and not part of the mutation itself, the type in
+						// ChangeCatalogCapture needs to be TransactionMutation, so that the conversion logic can find
+						// appropriate conversion instance by this particular type
+						new TransactionMutation(
+							this.getTransactionId(),
+							this.getVersion(),
+							this.getMutationCount(),
+							this.getWalSizeInBytes(),
+							this.getCommitTimestamp()
+						) :
+						null
+				)
+			);
+		} else {
+			return Stream.empty();
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
+		@Nonnull MutationPredicate predicate,
+		@Nonnull ChangeCaptureContent content
+	) {
+		if (predicate.test(this)) {
+			final MutationPredicateContext context = predicate.getContext();
+			context.setVersion(this.version, this.mutationCount);
+
+			return Stream.of(
+				ChangeCatalogCapture.infrastructureCapture(
+					context,
+					operation(),
+					content == ChangeCaptureContent.BODY ?
+						// we need to strip the transactionSpan and walFileIndex from the transaction mutation
+						// because it's internal information and not part of the mutation itself, the type in
+						// ChangeCatalogCapture needs to be TransactionMutation, so that the conversion logic can find
+						// appropriate conversion instance by this particular type
+						new TransactionMutation(
+							this.getTransactionId(),
+							this.getVersion(),
+							this.getMutationCount(),
+							this.getWalSizeInBytes(),
+							this.getCommitTimestamp()
+						) :
+						null
+				)
+			);
+		} else {
+			return Stream.empty();
+		}
 	}
 
 }

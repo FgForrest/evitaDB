@@ -32,8 +32,10 @@ import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureSubscription;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
@@ -333,11 +335,14 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	public void applyMutation(GrpcApplyMutationRequest request, StreamObserver<Empty> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				this.evita.applyMutation(
-					DelegatingEngineMutationConverter.INSTANCE.convert(request.getMutation())
-				);
-				responseObserver.onNext(Empty.getDefaultInstance());
-				responseObserver.onCompleted();
+				final EngineMutation engineMutation = DelegatingEngineMutationConverter.INSTANCE.convert(request.getMutation());
+				if (engineMutation == null) {
+					responseObserver.onError(new EvitaInvalidUsageException("Mutation is not set in the request!"));
+				} else {
+					this.evita.applyMutation(engineMutation);
+					responseObserver.onNext(Empty.getDefaultInstance());
+					responseObserver.onCompleted();
+				}
 			},
 			this.evita.getRequestExecutor(),
 			responseObserver,

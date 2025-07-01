@@ -103,6 +103,12 @@ message GrpcEntitySchemaMutation {
     GrpcSetEntitySchemaWithHierarchyMutation setEntitySchemaWithHierarchyMutation = 59;
     // Mutation is responsible for setting a `EntitySchema.withPrice` in `EntitySchema`.
     GrpcSetEntitySchemaWithPriceMutation setEntitySchemaWithPriceMutation = 60;
+    // Mutation is responsible for renaming or replacing a `EntitySchema`.
+    GrpcModifyEntitySchemaNameMutation modifyEntitySchemaNameMutation = 61;
+    // Mutation is responsible for removing a `EntitySchema` - i.e. entity collection.
+    GrpcRemoveEntitySchemaMutation removeEntitySchemaMutation = 62;
+    // Mutation is responsible for setting up a new `EntitySchema` in the `CatalogSchema`.
+    GrpcCreateEntitySchemaMutation createEntitySchemaMutation = 63;
 
     // Mutation is responsible for setting up a new `ReferenceSchema` in the `EntitySchema`.
     // Mutation can be used for altering also the existing `ReferenceSchema` alone.

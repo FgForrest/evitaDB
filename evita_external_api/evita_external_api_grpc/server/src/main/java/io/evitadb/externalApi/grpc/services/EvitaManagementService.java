@@ -169,6 +169,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					.newBuilder()
 					.setVersion(systemStatus.version())
 					.setStartedAt(toGrpcOffsetDateTime(systemStatus.startedAt()))
+					.setEngineVersion(systemStatus.engineVersion())
+					.setIntroducedAt(toGrpcOffsetDateTime(systemStatus.introducedAt()))
 					.setUptime(systemStatus.uptime().toSeconds())
 					.setInstanceId(systemStatus.instanceId())
 					.setCatalogsCorrupted(systemStatus.catalogsCorrupted())

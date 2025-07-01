@@ -132,6 +132,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	@Override
 	public void onSubscribe(Subscription subscription) {
 		this.subscription = (ClientSubscription<C, REQ, RES>) subscription;
+		this.delegate.onSubscribe(subscription);
 	}
 
 	/**
@@ -182,8 +183,9 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 		if (throwable.getCause() instanceof PublisherClosedByClientException) {
 			// this is expected, we closed the publisher manually
 			// apparently, gRPC server doesn't know if cancellation was initiated by the client or by some network error
-			onCompleted();
-		} else {
+			// in this case we don't call the on complete, nor on error methods on the delegate
+			log.debug("Client change capture publisher was closed manually by the client.", throwable);
+		} else if (!this.closed.get()) {
 			log.error("Error occurred in the client change capture publisher.", throwable);
 			// we notify the subscriber about the error
 			this.delegate.onError(throwable);

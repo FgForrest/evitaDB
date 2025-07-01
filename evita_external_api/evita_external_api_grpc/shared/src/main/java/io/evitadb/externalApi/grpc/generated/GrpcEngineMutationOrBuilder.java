@@ -165,5 +165,32 @@ public interface GrpcEngineMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutationOrBuilder getRemoveCatalogSchemaMutationOrBuilder();
 
+  /**
+   * <pre>
+   * Mutation delimits one transaction from another.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+   * @return Whether the transactionMutation field is set.
+   */
+  boolean hasTransactionMutation();
+  /**
+   * <pre>
+   * Mutation delimits one transaction from another.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+   * @return The transactionMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation getTransactionMutation();
+  /**
+   * <pre>
+   * Mutation delimits one transaction from another.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcTransactionMutationOrBuilder getTransactionMutationOrBuilder();
+
   public io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.MutationCase getMutationCase();
 }

@@ -35,6 +35,10 @@ message GrpcEvitaServerStatusResponse {
   int32 catalogsActive = 11;
   // Number of inactive catalogs
   int32 catalogsInactive = 12;
+  // The version of the current evitaDB server engine state (change in engine state).
+  int64 engineVersion = 13;
+  // The date and time when the current engine version was introduced (last engine level change occurred).
+  GrpcOffsetDateTime introducedAt = 14;
 }
 
 // Status of the external API

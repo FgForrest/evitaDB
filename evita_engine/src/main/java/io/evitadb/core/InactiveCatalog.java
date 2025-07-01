@@ -266,7 +266,7 @@ public final class InactiveCatalog implements CatalogContract {
 			null,
 			this.catalogName,
 			false,
-			null,
+			CatalogState.INACTIVE,
 			-1L,
 			-1,
 			-1,

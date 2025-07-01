@@ -146,6 +146,20 @@ private static final long serialVersionUID = 0L;
             mutationCase_ = 5;
             break;
           }
+          case 50: {
+            io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.Builder subBuilder = null;
+            if (mutationCase_ == 6) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 6;
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -188,6 +202,7 @@ private static final long serialVersionUID = 0L;
     MODIFYCATALOGSCHEMAMUTATION(3),
     MAKECATALOGALIVEMUTATION(4),
     REMOVECATALOGSCHEMAMUTATION(5),
+    TRANSACTIONMUTATION(6),
     MUTATION_NOT_SET(0);
     private final int value;
     private MutationCase(int value) {
@@ -210,6 +225,7 @@ private static final long serialVersionUID = 0L;
         case 3: return MODIFYCATALOGSCHEMAMUTATION;
         case 4: return MAKECATALOGALIVEMUTATION;
         case 5: return REMOVECATALOGSCHEMAMUTATION;
+        case 6: return TRANSACTIONMUTATION;
         case 0: return MUTATION_NOT_SET;
         default: return null;
       }
@@ -440,6 +456,49 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation.getDefaultInstance();
   }
 
+  public static final int TRANSACTIONMUTATION_FIELD_NUMBER = 6;
+  /**
+   * <pre>
+   * Mutation delimits one transaction from another.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+   * @return Whether the transactionMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasTransactionMutation() {
+    return mutationCase_ == 6;
+  }
+  /**
+   * <pre>
+   * Mutation delimits one transaction from another.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+   * @return The transactionMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation getTransactionMutation() {
+    if (mutationCase_ == 6) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation delimits one transaction from another.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcTransactionMutationOrBuilder getTransactionMutationOrBuilder() {
+    if (mutationCase_ == 6) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -469,6 +528,9 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 5) {
       output.writeMessage(5, (io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation) mutation_);
     }
+    if (mutationCase_ == 6) {
+      output.writeMessage(6, (io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation) mutation_);
+    }
     unknownFields.writeTo(output);
   }
 
@@ -497,6 +559,10 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 5) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(5, (io.evitadb.externalApi.grpc.generated.GrpcRemoveCatalogSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 6) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(6, (io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation) mutation_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -535,6 +601,10 @@ private static final long serialVersionUID = 0L;
         if (!getRemoveCatalogSchemaMutation()
             .equals(other.getRemoveCatalogSchemaMutation())) return false;
         break;
+      case 6:
+        if (!getTransactionMutation()
+            .equals(other.getTransactionMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -569,6 +639,10 @@ private static final long serialVersionUID = 0L;
       case 5:
         hash = (37 * hash) + REMOVECATALOGSCHEMAMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getRemoveCatalogSchemaMutation().hashCode();
+        break;
+      case 6:
+        hash = (37 * hash) + TRANSACTIONMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getTransactionMutation().hashCode();
         break;
       case 0:
       default:
@@ -774,6 +848,13 @@ private static final long serialVersionUID = 0L;
           result.mutation_ = removeCatalogSchemaMutationBuilder_.build();
         }
       }
+      if (mutationCase_ == 6) {
+        if (transactionMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = transactionMutationBuilder_.build();
+        }
+      }
       result.mutationCase_ = mutationCase_;
       onBuilt();
       return result;
@@ -842,6 +923,10 @@ private static final long serialVersionUID = 0L;
         }
         case REMOVECATALOGSCHEMAMUTATION: {
           mergeRemoveCatalogSchemaMutation(other.getRemoveCatalogSchemaMutation());
+          break;
+        }
+        case TRANSACTIONMUTATION: {
+          mergeTransactionMutation(other.getTransactionMutation());
           break;
         }
         case MUTATION_NOT_SET: {
@@ -1775,6 +1860,183 @@ private static final long serialVersionUID = 0L;
       mutationCase_ = 5;
       onChanged();;
       return removeCatalogSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation, io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcTransactionMutationOrBuilder> transactionMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation delimits one transaction from another.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+     * @return Whether the transactionMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasTransactionMutation() {
+      return mutationCase_ == 6;
+    }
+    /**
+     * <pre>
+     * Mutation delimits one transaction from another.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+     * @return The transactionMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation getTransactionMutation() {
+      if (transactionMutationBuilder_ == null) {
+        if (mutationCase_ == 6) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 6) {
+          return transactionMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation delimits one transaction from another.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+     */
+    public Builder setTransactionMutation(io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation value) {
+      if (transactionMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        transactionMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 6;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation delimits one transaction from another.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+     */
+    public Builder setTransactionMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.Builder builderForValue) {
+      if (transactionMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        transactionMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 6;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation delimits one transaction from another.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+     */
+    public Builder mergeTransactionMutation(io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation value) {
+      if (transactionMutationBuilder_ == null) {
+        if (mutationCase_ == 6 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 6) {
+          transactionMutationBuilder_.mergeFrom(value);
+        }
+        transactionMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 6;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation delimits one transaction from another.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+     */
+    public Builder clearTransactionMutation() {
+      if (transactionMutationBuilder_ == null) {
+        if (mutationCase_ == 6) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 6) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        transactionMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation delimits one transaction from another.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.Builder getTransactionMutationBuilder() {
+      return getTransactionMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation delimits one transaction from another.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcTransactionMutationOrBuilder getTransactionMutationOrBuilder() {
+      if ((mutationCase_ == 6) && (transactionMutationBuilder_ != null)) {
+        return transactionMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 6) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation delimits one transaction from another.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation transactionMutation = 6;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation, io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcTransactionMutationOrBuilder>
+        getTransactionMutationFieldBuilder() {
+      if (transactionMutationBuilder_ == null) {
+        if (!(mutationCase_ == 6)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.getDefaultInstance();
+        }
+        transactionMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation, io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcTransactionMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 6;
+      onChanged();;
+      return transactionMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

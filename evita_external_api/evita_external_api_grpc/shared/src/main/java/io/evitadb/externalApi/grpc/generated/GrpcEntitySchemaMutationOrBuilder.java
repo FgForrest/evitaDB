@@ -986,6 +986,87 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
 
   /**
    * <pre>
+   * Mutation is responsible for renaming or replacing a `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaNameMutation modifyEntitySchemaNameMutation = 61;</code>
+   * @return Whether the modifyEntitySchemaNameMutation field is set.
+   */
+  boolean hasModifyEntitySchemaNameMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for renaming or replacing a `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaNameMutation modifyEntitySchemaNameMutation = 61;</code>
+   * @return The modifyEntitySchemaNameMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaNameMutation getModifyEntitySchemaNameMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for renaming or replacing a `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaNameMutation modifyEntitySchemaNameMutation = 61;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcModifyEntitySchemaNameMutationOrBuilder getModifyEntitySchemaNameMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation is responsible for removing a `EntitySchema` - i.e. entity collection.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveEntitySchemaMutation removeEntitySchemaMutation = 62;</code>
+   * @return Whether the removeEntitySchemaMutation field is set.
+   */
+  boolean hasRemoveEntitySchemaMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for removing a `EntitySchema` - i.e. entity collection.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveEntitySchemaMutation removeEntitySchemaMutation = 62;</code>
+   * @return The removeEntitySchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcRemoveEntitySchemaMutation getRemoveEntitySchemaMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for removing a `EntitySchema` - i.e. entity collection.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveEntitySchemaMutation removeEntitySchemaMutation = 62;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcRemoveEntitySchemaMutationOrBuilder getRemoveEntitySchemaMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `EntitySchema` in the `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateEntitySchemaMutation createEntitySchemaMutation = 63;</code>
+   * @return Whether the createEntitySchemaMutation field is set.
+   */
+  boolean hasCreateEntitySchemaMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `EntitySchema` in the `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateEntitySchemaMutation createEntitySchemaMutation = 63;</code>
+   * @return The createEntitySchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCreateEntitySchemaMutation getCreateEntitySchemaMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting up a new `EntitySchema` in the `CatalogSchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateEntitySchemaMutation createEntitySchemaMutation = 63;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCreateEntitySchemaMutationOrBuilder getCreateEntitySchemaMutationOrBuilder();
+
+  /**
+   * <pre>
    * Mutation is responsible for setting up a new `ReferenceSchema` in the `EntitySchema`.
    * Mutation can be used for altering also the existing `ReferenceSchema` alone.
    * </pre>

@@ -53,23 +53,23 @@ public non-sealed class TransactionMutation implements EngineMutation, CatalogBo
 	/**
 	 * Represents the unique identifier of a transaction.
 	 */
-	@Getter private final UUID transactionId;
+	@Getter protected final UUID transactionId;
 	/**
 	 * Represents the next version the transaction transitions the state to.
 	 */
-	@Getter private final long version;
+	@Getter protected final long version;
 	/**
 	 * Represents the number of mutations in this particular transaction.
 	 */
-	@Getter private final int mutationCount;
+	@Getter protected final int mutationCount;
 	/**
 	 * Represents the size of the serialized transaction mutations that follow this mutation in bytes.
 	 */
-	@Getter private final long walSizeInBytes;
+	@Getter protected final long walSizeInBytes;
 	/**
 	 * Represents the timestamp of the commit.
 	 */
-	@Getter private final OffsetDateTime commitTimestamp;
+	@Getter protected final OffsetDateTime commitTimestamp;
 
 	public TransactionMutation(
 		@Nonnull UUID transactionId,

@@ -40,6 +40,7 @@ import io.evitadb.core.executor.SequentialTask;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.store.spi.model.EngineState;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils;
@@ -331,9 +332,13 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 			}
 		}
 
+		final EngineState engineState = this.evita.getEngineState();
+
 		return new SystemStatus(
 			VersionUtils.readVersion(),
 			this.started,
+			engineState.version(),
+			engineState.introducedAt(),
 			Duration.between(this.started, OffsetDateTime.now()),
 			this.evita.getConfiguration().name(),
 			corruptedCatalogs,

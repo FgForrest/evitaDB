@@ -31,32 +31,10 @@ message GrpcDisallowEvolutionModeInCatalogSchemaMutation {
   repeated GrpcCatalogEvolutionMode evolutionModes = 1;
 }
 
-// Mutation is responsible for setting up a new `EntitySchema` - or more precisely the collection within catalog.
-message GrpcCreateEntitySchemaMutation {
-  // Name of newly created entity schema.
-  string entityType = 1;
-}
-
 // Mutation is a holder for a set of `EntitySchemaMutation` that affect a single entity schema within the `CatalogSchema`.
 message GrpcModifyEntitySchemaMutation {
   // Entity type of entity schema that will be affected by passed mutations.
   string entityType = 1;
   // Collection of mutations that should be applied on current version of the schema.
   repeated GrpcEntitySchemaMutation entitySchemaMutations = 2;
-}
-
-// Mutation is responsible for renaming an existing `EntitySchema`.
-message GrpcModifyEntitySchemaNameMutation {
-  // Name of the entity schema the mutation is targeting.
-  string name = 1;
-  // New name of the entity schema the mutation is targeting.
-  string newName = 2;
-  // Whether to overwrite entity collection with same name as the `newName` if found.
-  bool overwriteTarget = 3;
-}
-
-// Mutation is responsible for removing an existing `EntitySchema`.
-message GrpcRemoveEntitySchemaMutation {
-  // Name of entity schema to remove.
-  string name = 1;
 }

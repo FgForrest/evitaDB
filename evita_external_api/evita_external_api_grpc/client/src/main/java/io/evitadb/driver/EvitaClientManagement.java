@@ -472,6 +472,8 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 		return new SystemStatus(
 			response.getVersion(),
 			EvitaDataTypesConverter.toOffsetDateTime(response.getStartedAt()),
+			response.getEngineVersion(),
+			EvitaDataTypesConverter.toOffsetDateTime(response.getIntroducedAt()),
 			Duration.of(response.getUptime(), ChronoUnit.SECONDS),
 			response.getInstanceId(),
 			response.getCatalogsCorrupted(),

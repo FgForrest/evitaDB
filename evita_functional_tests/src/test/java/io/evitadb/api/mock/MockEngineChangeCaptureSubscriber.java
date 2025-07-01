@@ -33,24 +33,28 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 
 /**
  * This observer allows to test {@link Subscriber} behaviour.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSystemCapture> {
+public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSystemCapture>, AutoCloseable {
 	private final int initialRequestCount;
-	private Subscription subscription;
-
 	private final Map<String, Integer> catalogCreated = new HashMap<>();
 	private final Map<String, Integer> catalogDeleted = new HashMap<>();
 	private final Map<String, Integer> catalogUpdated = new HashMap<>();
+	private Subscription subscription;
 	@Getter private int received = 0;
 	@Getter private int completed = 0;
 	@Getter private int errors = 0;
+	private CompletableFuture<Void> future;
+	private BooleanSupplier waitCondition;
 
 	public MockEngineChangeCaptureSubscriber() {
 		this(Integer.MAX_VALUE);
@@ -70,12 +74,66 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 		return this.catalogCreated.getOrDefault(catalogName, 0);
 	}
 
+	public int getCatalogCreated(
+		@Nonnull String catalogName, int timeout, @Nonnull TimeUnit timeUnit, int expectedValue
+	) {
+		final int result = this.catalogCreated.getOrDefault(catalogName, 0);
+		if (result < expectedValue) {
+			try {
+				this.future = new CompletableFuture<>();
+				this.waitCondition = () -> this.catalogCreated.getOrDefault(catalogName, 0) >= expectedValue;
+				this.future.get(timeout, timeUnit);
+				return this.catalogCreated.getOrDefault(catalogName, 0);
+			} catch (Exception e) {
+				return this.catalogCreated.getOrDefault(catalogName, 0);
+			}
+		} else {
+			return result;
+		}
+	}
+
 	public int getCatalogDeleted(@Nonnull String catalogName) {
 		return this.catalogDeleted.getOrDefault(catalogName, 0);
 	}
 
+	public int getCatalogDeleted(
+		@Nonnull String catalogName, int timeout, @Nonnull TimeUnit timeUnit, int expectedValue) {
+		final int result = this.catalogDeleted.getOrDefault(catalogName, 0);
+		if (result < expectedValue) {
+			try {
+				this.future = new CompletableFuture<>();
+				this.waitCondition = () -> this.catalogDeleted.getOrDefault(catalogName, 0) >= expectedValue;
+				this.future.get(timeout, timeUnit);
+				return this.catalogDeleted.getOrDefault(catalogName, 0);
+			} catch (Exception e) {
+				return this.catalogDeleted.getOrDefault(catalogName, 0);
+			}
+		} else {
+			return result;
+		}
+	}
+
 	public int getCatalogUpdated(@Nonnull String catalogName) {
 		return this.catalogUpdated.getOrDefault(catalogName, 0);
+	}
+
+	public int getCatalogUpdated(
+		@Nonnull String catalogName, int timeout, @Nonnull TimeUnit timeUnit,
+		int expectedValue
+	) {
+		final int result = this.catalogUpdated.getOrDefault(catalogName, 0);
+		if (result < expectedValue) {
+			try {
+				this.future = new CompletableFuture<>();
+				this.waitCondition = () -> this.catalogUpdated.getOrDefault(catalogName, 0) >= expectedValue;
+				this.future.get(timeout, timeUnit);
+				return this.catalogUpdated.getOrDefault(catalogName, 0);
+			} catch (Exception e) {
+				return this.catalogUpdated.getOrDefault(catalogName, 0);
+			}
+		} else {
+			return result;
+		}
 	}
 
 	@Override
@@ -109,6 +167,12 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 			this.catalogUpdated
 				.compute(mcsm.getCatalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 		}
+		// check if we are waiting for some condition to be met
+		if (this.waitCondition != null && this.waitCondition.getAsBoolean()) {
+			this.future.complete(null);
+			this.waitCondition = null;
+			this.future = null;
+		}
 	}
 
 	@Override
@@ -130,4 +194,8 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 		this.subscription.cancel();
 	}
 
+	@Override
+	public void close() {
+		this.subscription.cancel();
+	}
 }

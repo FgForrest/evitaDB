@@ -42,6 +42,7 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
@@ -167,7 +168,7 @@ public class EvitaClient implements EvitaContract {
 	/**
 	 * Index of the opened and active {@link ClientChangeCapturePublisher} indexed by their unique {@link ChangeSystemCaptureRequest}.
 	 */
-	private final Map<ChangeSystemCaptureRequest, ClientChangeSystemCaptureProcessor> activePublishers = CollectionUtils.createConcurrentHashMap(
+	protected final Map<ChangeCaptureRequest, ClientChangeCapturePublisher<?, ?, ?>> activePublishers = CollectionUtils.createConcurrentHashMap(
 		16);
 	/**
 	 * Executor service used for asynchronous operations.
@@ -785,8 +786,8 @@ public class EvitaClient implements EvitaContract {
 	public ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(
 		@Nonnull ChangeSystemCaptureRequest request
 	) {
-		//noinspection SuspiciousMethodCalls
-		return this.activePublishers.compute(
+		//noinspection unchecked
+		return (ChangeCapturePublisher<ChangeSystemCapture>) this.activePublishers.compute(
 			request,
 			(theRequest, existingInstance) ->
 				existingInstance == null || existingInstance.isClosed() ?
@@ -796,7 +797,7 @@ public class EvitaClient implements EvitaContract {
 						subscriber -> executeWithEvitaService(
 							evitaService -> {
 								evitaService.registerSystemChangeCapture(
-									ChangeCaptureConverter.toGrpcChangeSystemCaptureRequest(theRequest),
+									ChangeCaptureConverter.toGrpcChangeSystemCaptureRequest((ChangeSystemCaptureRequest)theRequest),
 									subscriber
 								);
 								return null;
@@ -816,9 +817,9 @@ public class EvitaClient implements EvitaContract {
 	@Override
 	public void close() {
 		if (this.active.compareAndSet(true, false)) {
+			this.activePublishers.forEach((key, it) -> IOUtils.closeSafely(it::close));
 			this.activeSessions.values().forEach(it -> IOUtils.closeSafely(it::close));
 			this.activeSessions.clear();
-			this.activePublishers.forEach((key, it) -> IOUtils.closeSafely(it::close));
 			IOUtils.closeSafely(this.management::close);
 			IOUtils.closeSafely(this.clientFactory::close);
 		}
