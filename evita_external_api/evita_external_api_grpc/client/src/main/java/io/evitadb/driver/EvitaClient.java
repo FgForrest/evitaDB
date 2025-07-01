@@ -29,6 +29,9 @@ import com.linecorp.armeria.client.ClientFactory;
 import com.linecorp.armeria.client.ClientFactoryBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
+import com.linecorp.armeria.client.retry.RetryRule;
+import com.linecorp.armeria.client.retry.RetryingClient;
+import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
@@ -346,6 +349,18 @@ public class EvitaClient implements EvitaContract {
 		                                                       .serializationFormat(GrpcSerializationFormats.PROTO)
 		                                                       .intercept(new ClientSessionInterceptor(
 			                                                       configuration.clientId(), clientVersion));
+
+		if (configuration.retry()) {
+			grpcClientBuilder.decorator(
+				RetryingClient.newDecorator(
+					RetryRule.of(
+						RetryRule.builder().onTimeoutException().thenBackoff(),
+						RetryRule.builder().onStatus(HttpStatus.SERVICE_UNAVAILABLE, HttpStatus.GATEWAY_TIMEOUT, HttpStatus.UNKNOWN).thenBackoff(),
+						RetryRule.builder().onStatus(HttpStatus.TOO_MANY_REQUESTS).thenNoRetry()
+					)
+				)
+			);
+		}
 
 		final ClientTracingContext context = getClientTracingContext(configuration);
 		if (configuration.openTelemetryInstance() != null) {

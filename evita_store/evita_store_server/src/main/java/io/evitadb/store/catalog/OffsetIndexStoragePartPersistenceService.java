@@ -283,37 +283,41 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 				this.name
 			);
 
+			final long previousVersion = this.offsetIndex.getVersion();
 			final OffsetIndexDescriptor newDescriptor = this.offsetIndex.flush(catalogVersion);
 
-			// emit event
-			event.finish(
-				this.offsetIndex.count(catalogVersion),
-				this.offsetIndex.getTotalSizeIncludingVolatileData(),
-				this.offsetIndex.getMaxRecordSizeBytes(),
-				newDescriptor.getFileSize(),
-				this.offsetIndex.getTotalSizeBytes(),
-				this.offsetIndex.getOldestRecordKeptTimestamp().orElse(null)
-			).commit();
+			// emit events only if the version has changed (i.e. the file was flushed)
+			if (newDescriptor.version() > previousVersion) {
+				// emit event
+				event.finish(
+					this.offsetIndex.count(catalogVersion),
+					this.offsetIndex.getTotalSizeIncludingVolatileData(),
+					this.offsetIndex.getMaxRecordSizeBytes(),
+					newDescriptor.getFileSize(),
+					this.offsetIndex.getTotalSizeBytes(),
+					this.offsetIndex.getOldestRecordKeptTimestamp().orElse(null)
+				).commit();
 
-			// emit event for record type count changes
-			final Map<String, Integer> histogram = this.offsetIndex.getHistogram();
-			histogram.forEach(
-				(recordType, count) -> {
-					final int lastCount = this.lastObservedHistogram == null ?
-						0 : this.lastObservedHistogram.getOrDefault(recordType, 0);
-					if (lastCount != count) {
-						// emit event
-						new OffsetIndexRecordTypeCountChangedEvent(
-							this.catalogName,
-							this.fileType,
-							this.name,
-							recordType,
-							count
-						).commit();
+				// emit event for record type count changes
+				final Map<String, Integer> histogram = this.offsetIndex.getHistogram();
+				histogram.forEach(
+					(recordType, count) -> {
+						final int lastCount = this.lastObservedHistogram == null ?
+							0 : this.lastObservedHistogram.getOrDefault(recordType, 0);
+						if (lastCount != count) {
+							// emit event
+							new OffsetIndexRecordTypeCountChangedEvent(
+								this.catalogName,
+								this.fileType,
+								this.name,
+								recordType,
+								count
+							).commit();
+						}
 					}
-				}
-			);
-			this.lastObservedHistogram = histogram;
+				);
+				this.lastObservedHistogram = histogram;
+			}
 
 			return newDescriptor;
 		} else {

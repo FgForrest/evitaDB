@@ -1238,6 +1238,15 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				this.persistenceService.deleteEntityCollection(newCatalogVersionId, originalItem.key.getEntityCollectionHeader());
 				originalCollectionContents.get(originalItem.value).removeLayer(transactionalLayer);
 			}
+
+			// update catalog header with new entity collection headers
+			this.persistenceService.updateEntityCollectionHeaders(
+				newCatalogVersionId,
+				this.entityCollections.values()
+					.stream()
+					.map(EntityCollection::getEntityCollectionHeader)
+					.toArray(EntityCollectionHeader[]::new)
+			);
 		}
 
 		final Map<String, EntityCollection> possiblyUpdatedCollections = transactionalLayer.getStateCopyWithCommittedChanges(this.entityCollections);

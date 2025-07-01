@@ -65,6 +65,7 @@ import java.util.concurrent.TimeUnit;
  *                                  forcefully.
  * @param timeoutUnit               Time unit for {@link EvitaClientConfiguration#timeout property}.
  * @param trackedTaskLimit		    The maximum number of server tasks that can be tracked by the client.
+ * @param retry                     Whether the client will retry the call in case of timeout or other network related problems.
  * @param changeCaptureQueueSize    The maximum number of change capture events that can be buffered for each subscriber.
  *                                  If this limit is reached, an error is reported to the subscriber.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -88,6 +89,7 @@ public record EvitaClientConfiguration(
 	long timeout,
 	@Nonnull TimeUnit timeoutUnit,
 	@Nullable Object openTelemetryInstance,
+	boolean retry,
 	int trackedTaskLimit,
 	int changeCaptureQueueSize
 ) {
@@ -102,6 +104,7 @@ public record EvitaClientConfiguration(
 
 	/**
 	 * Returns the path to the server certificate.
+	 *
 	 * @return The path to the server certificate.
 	 * @deprecated Use {@link #serverCertificatePath()} instead.
 	 */
@@ -135,6 +138,7 @@ public record EvitaClientConfiguration(
 		private ReflectionCachingBehaviour reflectionCachingBehaviour = ReflectionCachingBehaviour.CACHE;
 		@Nullable private Object openTelemetryInstance = null;
 		private int trackedTaskLimit = 100;
+		private boolean retry = true;
 		private int changeCaptureQueueSize = Flow.defaultBufferSize();
 
 		Builder() {
@@ -216,6 +220,7 @@ public record EvitaClientConfiguration(
 
 		/**
 		 * Renamed to {@link #timeout(long, TimeUnit)}
+		 *
 		 * @deprecated Use {@link #timeout(long, TimeUnit)} instead.
 		 */
 		@Deprecated
@@ -285,6 +290,12 @@ public record EvitaClientConfiguration(
  		return this;
  	}
 
+		@Nonnull
+		public EvitaClientConfiguration.Builder retry(boolean retry) {
+			this.retry = retry;
+			return this;
+		}
+
 		public EvitaClientConfiguration build() {
 			return new EvitaClientConfiguration(
 				this.clientId,
@@ -305,6 +316,7 @@ public record EvitaClientConfiguration(
 				this.timeout,
 				this.timeoutUnit,
 				this.openTelemetryInstance,
+				this.retry,
 				this.trackedTaskLimit,
 				this.changeCaptureQueueSize
 			);

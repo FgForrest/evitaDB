@@ -32,6 +32,7 @@ import com.linecorp.armeria.server.RequestTimeoutException;
 import com.linecorp.armeria.server.ServerErrorHandler;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.ExceptionUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -47,13 +48,15 @@ import javax.annotation.Nonnull;
 class LoggingServerErrorHandler implements ServerErrorHandler {
 	public static final ServerErrorHandler INSTANCE = new LoggingServerErrorHandler();
 
+	@Nullable
 	@Override
-	public @Nullable HttpResponse onServiceException(@Nonnull ServiceRequestContext ctx, @Nonnull Throwable cause) {
-		if (cause instanceof RequestTimeoutException) {
+	public HttpResponse onServiceException(@Nonnull ServiceRequestContext ctx, @Nonnull Throwable cause) {
+		final Throwable rootCause = ExceptionUtils.getRootCause(cause);
+		if (rootCause instanceof RequestTimeoutException) {
 			return HttpResponse.of(HttpStatus.REQUEST_TIMEOUT, MediaType.PLAIN_TEXT, "Request timed out.");
-		} else if (cause instanceof ClosedStreamException) {
+		} else if (rootCause instanceof ClosedStreamException) {
 			return HttpResponse.of(HttpStatus.REQUEST_TIMEOUT, MediaType.PLAIN_TEXT, "Client closed stream.");
-		} else if (cause instanceof EvitaInvalidUsageException) {
+		} else if (rootCause instanceof EvitaInvalidUsageException) {
 			return HttpResponse.of(HttpStatus.BAD_REQUEST, MediaType.PLAIN_TEXT, "Bad request.");
 		} else {
 			log.error("Armeria server error: " + cause.getMessage(), cause);

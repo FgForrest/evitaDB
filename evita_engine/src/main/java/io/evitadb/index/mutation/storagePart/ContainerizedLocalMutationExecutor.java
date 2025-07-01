@@ -528,6 +528,19 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					);
 				}
 			} else {
+				// check mandatory attributes
+				final List<Object> missingMandatedAttributes = new LinkedList<>();
+				// we need to check only changed parts
+				if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_ATTRIBUTES)) {
+					verifyMandatoryAttributes(
+						this.entityContainer,
+						missingMandatedAttributes,
+						ofNullable(this.globalAttributesStorageContainer).map(AttributesStoragePart::isDirty).orElse(false),
+						ofNullable(this.languageSpecificAttributesContainer).map(it -> it.values().stream().anyMatch(AttributesStoragePart::isDirty)).orElse(false),
+						mutationCollector
+					);
+				}
+
 				if (this.initialEntityScope != targetEntityScope) {
 					// we need to drop all reflected references in old scope
 					final ReferencesStoragePart theReferenceStorageContainer = getCachedReferenceStorageContainer(this.entityPrimaryKey);
@@ -548,21 +561,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						this.entityPrimaryKey, this.initialEntityScope, targetEntityScope,
 						this.referencesStorageContainer, List.of(), mutationCollector
 					);
-				}
-
-				// check mandatory attributes
-				final List<Object> missingMandatedAttributes = new LinkedList<>();
-				// we need to check only changed parts
-				if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_ATTRIBUTES)) {
-					verifyMandatoryAttributes(
-						this.entityContainer,
-						missingMandatedAttributes,
-						ofNullable(this.globalAttributesStorageContainer).map(AttributesStoragePart::isDirty).orElse(false),
-						ofNullable(this.languageSpecificAttributesContainer).map(it -> it.values().stream().anyMatch(AttributesStoragePart::isDirty)).orElse(false),
-						mutationCollector
-					);
-				}
-				if (this.referencesStorageContainer != null && this.referencesStorageContainer.isDirty()) {
+				} else if (this.referencesStorageContainer != null && this.referencesStorageContainer.isDirty()) {
 					if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES)) {
 						verifyReflectedReferences(
 							this.entityPrimaryKey, this.initialEntityScope, targetEntityScope,
@@ -1491,15 +1490,22 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 								// if the current reference is a reflected reference
 								if (referenceSchema instanceof ReflectedReferenceSchemaContract rrsc) {
+									final boolean attributeVisibleFromOtherSide = catalogSchema.getEntitySchema(rrsc.getReferencedEntityType())
+										.flatMap(it -> it.getReference(rrsc.getReflectedReferenceName()))
+										.map(it -> it.getAttribute(ram.getAttributeKey().attributeName()))
+										.isPresent();
 									// create a mutation to counterpart reference in the referenced entity
-									mutationCollector.addExternalMutation(
-										entityMutationFactory.apply(
-											new ReferenceAttributeMutation(
-												new ReferenceKey(rrsc.getReflectedReferenceName(), this.entityPrimaryKey),
-												toInvertedTypeAttributeMutation(ram.getAttributeMutation())
+									// but only if the attribute is visible from that point of view
+									if (attributeVisibleFromOtherSide) {
+										mutationCollector.addExternalMutation(
+											entityMutationFactory.apply(
+												new ReferenceAttributeMutation(
+													new ReferenceKey(rrsc.getReflectedReferenceName(), this.entityPrimaryKey),
+													toInvertedTypeAttributeMutation(ram.getAttributeMutation())
+												)
 											)
-										)
-									);
+										);
+									}
 								} else {
 									// otherwise check whether there is reflected reference in the referenced entity
 									// that relates to our standard reference
@@ -1509,14 +1515,23 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 										.ifPresent(
 											// if such is found, create a mutation to counterpart reflected reference
 											// in the referenced entity
-											rrsc -> mutationCollector.addExternalMutation(
-												entityMutationFactory.apply(
-													new ReferenceAttributeMutation(
-														new ReferenceKey(rrsc.getName(), this.entityPrimaryKey),
-														toInvertedTypeAttributeMutation(ram.getAttributeMutation())
-													)
-												)
-											)
+											rrsc -> {
+												final boolean attributeVisibleFromOtherSide = rrsc.getAttribute(
+													ram.getAttributeKey().attributeName()
+												).isPresent();
+												// create a mutation to counterpart reference in the referenced entity
+												// but only if the attribute is visible from that point of view
+												if (attributeVisibleFromOtherSide) {
+													mutationCollector.addExternalMutation(
+														entityMutationFactory.apply(
+															new ReferenceAttributeMutation(
+																new ReferenceKey(rrsc.getName(), this.entityPrimaryKey),
+																toInvertedTypeAttributeMutation(ram.getAttributeMutation())
+															)
+														)
+													);
+												}
+											}
 										);
 								}
 							}

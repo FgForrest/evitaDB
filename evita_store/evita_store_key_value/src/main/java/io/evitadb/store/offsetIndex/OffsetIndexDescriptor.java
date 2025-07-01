@@ -194,4 +194,18 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		return this.writeKeyCompressor.getKeys();
 	}
 
+	@Override
+	public final boolean equals(Object o) {
+		if (!(o instanceof final OffsetIndexDescriptor that)) return false;
+
+		return this.version == that.version &&
+			this.fileLocation.equals(that.fileLocation);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = Long.hashCode(this.version);
+		result = 31 * result + this.fileLocation.hashCode();
+		return result;
+	}
 }

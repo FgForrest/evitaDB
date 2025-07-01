@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Optional.ofNullable;
 
@@ -149,4 +150,42 @@ public record EntityCollectionHeader(
 		return this.entityTypePrimaryKey;
 	}
 
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof final EntityCollectionHeader that)) return false;
+
+		return this.version == that.version &&
+			this.lastKeyId == that.lastKeyId &&
+			this.recordCount == that.recordCount &&
+			this.lastPrimaryKey == that.lastPrimaryKey &&
+			this.entityTypeFileIndex == that.entityTypeFileIndex &&
+			this.lastInternalPriceId == that.lastInternalPriceId &&
+			this.entityTypePrimaryKey == that.entityTypePrimaryKey &&
+			this.lastEntityIndexPrimaryKey == that.lastEntityIndexPrimaryKey &&
+			this.entityType.equals(that.entityType) &&
+			this.fileLocation.equals(that.fileLocation) &&
+			Objects.equals(this.globalEntityIndexId, that.globalEntityIndexId) &&
+			this.usedEntityIndexIds.equals(that.usedEntityIndexIds) &&
+			this.compressedKeys.equals(that.compressedKeys) &&
+			Objects.equals(this.storageDescriptor, that.storageDescriptor);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = Long.hashCode(this.version);
+		result = 31 * result + this.fileLocation.hashCode();
+		result = 31 * result + this.compressedKeys.hashCode();
+		result = 31 * result + this.entityType.hashCode();
+		result = 31 * result + this.entityTypePrimaryKey;
+		result = 31 * result + this.entityTypeFileIndex;
+		result = 31 * result + this.recordCount;
+		result = 31 * result + this.lastPrimaryKey;
+		result = 31 * result + this.lastEntityIndexPrimaryKey;
+		result = 31 * result + this.lastInternalPriceId;
+		result = 31 * result + Objects.hashCode(this.storageDescriptor);
+		result = 31 * result + Objects.hashCode(this.globalEntityIndexId);
+		result = 31 * result + this.usedEntityIndexIds.hashCode();
+		result = 31 * result + this.lastKeyId;
+		return result;
+	}
 }

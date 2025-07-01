@@ -1638,9 +1638,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		if (entityCollectionPersistenceService == null) {
 			return empty();
 		} else {
+			final long previousVersion = entityCollectionPersistenceService.getEntityCollectionHeader().version();
 			final OffsetIndexDescriptor newDescriptor = entityCollectionPersistenceService.flush(catalogVersion, headerInfoSupplier);
-			if (newDescriptor.getActiveRecordShare() < this.storageOptions.minimalActiveRecordShare() &&
-				newDescriptor.getFileSize() > this.storageOptions.fileSizeCompactionThresholdBytes()) {
+			if (newDescriptor.version() > previousVersion &&
+				newDescriptor.getActiveRecordShare() < this.storageOptions.minimalActiveRecordShare() &&
+				newDescriptor.getFileSize() > this.storageOptions.fileSizeCompactionThresholdBytes()
+			) {
 				log.info(
 					"Compacting catalog `{}` entity collection `{}`, size exceeds threshold `{}` and active record share is `{}`%, " +
 						"entity collection files on disk consume `{}` bytes.",
@@ -1710,6 +1713,56 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				EntityCollectionHeader.class
 			)
 		);
+	}
+
+	@Override
+	public void updateEntityCollectionHeaders(
+		long catalogVersion,
+		@Nonnull EntityCollectionHeader[] entityCollectionHeaders
+	) {
+		// first store all entity collection headers if they differ
+		final CatalogStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(catalogVersion);
+		final CatalogHeader currentCatalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
+		boolean hasChanges = false;
+		for (EntityCollectionHeader entityHeader : entityCollectionHeaders) {
+			final FileLocation currentLocation = entityHeader.fileLocation();
+			final Optional<FileLocation> previousLocation = currentCatalogHeader
+				.getEntityTypeFileIndexIfExists(entityHeader.entityType())
+				.map(CollectionFileReference::fileLocation);
+			// if the location is different, store the header
+			if (!previousLocation.map(it -> it.equals(currentLocation)).orElse(false)) {
+				storagePartPersistenceService.putStoragePart(catalogVersion, entityHeader);
+				hasChanges = true;
+			}
+		}
+
+		if (hasChanges) {
+			storagePartPersistenceService.writeCatalogHeader(
+				STORAGE_PROTOCOL_VERSION,
+				catalogVersion,
+				catalogStoragePath,
+				currentCatalogHeader.walFileReference(),
+				Arrays.stream(entityCollectionHeaders)
+					.map(
+						it -> new CollectionFileReference(
+							it.entityType(),
+							it.entityTypePrimaryKey(),
+							it.entityTypeFileIndex(),
+							it.fileLocation()
+						)
+					)
+					.collect(
+						Collectors.toMap(
+							CollectionFileReference::entityType,
+							Function.identity()
+						)
+					),
+				currentCatalogHeader.catalogId(),
+				currentCatalogHeader.catalogName(),
+				currentCatalogHeader.catalogState(),
+				currentCatalogHeader.lastEntityCollectionPrimaryKey()
+			);
+		}
 	}
 
 	@Nonnull
@@ -1969,20 +2022,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					oldValue == null,
 					"Entity collection persistence service for `" + newEntityType + "` already exists in catalog `" + this.catalogName + "`!"
 				);
-				final EntityCollectionHeader entityHeader = entityPersistenceService.getEntityCollectionHeader();
-				return createEntityCollectionPersistenceService(new EntityCollectionHeader(
-					newEntityTypeExistingFileReference.entityType(),
-					newEntityTypeFileIndex.entityTypePrimaryKey(),
-					newEntityTypeFileIndex.fileIndex(),
-					entityHeader.recordCount(),
-					entityHeader.lastPrimaryKey(),
-					entityHeader.lastEntityIndexPrimaryKey(),
-					entityHeader.lastInternalPriceId(),
-					entityHeader.activeRecordShare(),
-					newEntityCollectionHeader,
-					entityHeader.globalEntityIndexId(),
-					entityHeader.usedEntityIndexIds()
-				));
+				return createEntityCollectionPersistenceService(newEntityCollectionHeader);
 			}
 		);
 		this.obsoleteFileMaintainer.removeFileWhenNotUsed(
