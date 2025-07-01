@@ -324,6 +324,18 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	);
 
 	/**
+	 * Method updates {@link CatalogHeader} with the given entity collection headers. All other information in the catalog
+	 * header remains unchanged.
+	 *
+	 * @param catalogVersion       version of the catalog
+	 * @param entityCollectionHeaders the array of entity collection headers to update
+	 */
+	void updateEntityCollectionHeaders(
+		long catalogVersion,
+		@Nonnull EntityCollectionHeader[] entityCollectionHeaders
+	);
+
+	/**
 	 * Method creates the service allowing to store and read Write-Ahead-Log entries.
 	 */
 	@Nonnull
