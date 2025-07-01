@@ -59,6 +59,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.*;
+import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.task.TaskStatus;
@@ -92,6 +93,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -139,6 +141,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
+@DisplayName("Evita Read/Write Integration Tests")
 class EvitaTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
@@ -176,7 +179,15 @@ class EvitaTest implements EvitaTestSupport {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
 	}
 
+	/**
+	 * Tests that a basic subscriber receives events when requested.
+	 *
+	 * The test verifies that:
+	 * - Subscriber receives events it has requested
+	 * - Subscriber doesn't receive events it hasn't requested
+	 */
 	@Test
+	@DisplayName("Basic subscriber notification")
 	void shouldNotifyBasicSubscriber() {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
@@ -220,7 +231,15 @@ class EvitaTest implements EvitaTestSupport {
 		this.evita.deleteCatalogIfExists("newCatalog6");
 	}
 
+	/**
+	 * Tests that subscribers receive events based on their registration time and request timing.
+	 *
+	 * The test verifies that:
+	 * - Subscriber registered early but requesting events late receives past events
+	 * - Subscriber registered late receives only events that occur after registration
+	 */
 	@Test
+	@DisplayName("Late subscribers notification")
 	void shouldNotifyLateSubscribers() {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
@@ -257,7 +276,15 @@ class EvitaTest implements EvitaTestSupport {
 		subscriberWithDelayedRegistration.cancel();
 	}
 
+	/**
+	 * Tests that subscribers with a fixed initial version receive events correctly.
+	 *
+	 * The test verifies that:
+	 * - Subscribers with fixed initial version receive all events from that version
+	 * - Both early and late subscribers receive the same events when using fixed initial version
+	 */
 	@Test
+	@DisplayName("Late subscribers with fixed initial version")
 	void shouldNotifyLateSubscribersWithFixedInitialVersion() {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(this.evita.getEngineState().version(), null, ChangeCaptureContent.BODY)
@@ -294,7 +321,16 @@ class EvitaTest implements EvitaTestSupport {
 		subscriberWithDelayedRegistration.cancel();
 	}
 
+	/**
+	 * Tests that multiple publishers can coexist and notify their subscribers independently.
+	 *
+	 * The test verifies that:
+	 * - Multiple publishers can be registered with different configurations
+	 * - Each publisher correctly notifies its own subscribers
+	 * - Publishers with different content types (HEADER vs BODY) work correctly
+	 */
 	@Test
+	@DisplayName("Multiple publishers notification")
 	void shouldNotifyMultiplePublishers() {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = this.evita.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
@@ -323,7 +359,15 @@ class EvitaTest implements EvitaTestSupport {
 		this.evita.deleteCatalogIfExists("newCatalog1");
 	}
 
+	/**
+	 * Tests that parallel sessions are prevented in warm-up state.
+	 *
+	 * The test verifies that:
+	 * - An exception is thrown when attempting to open parallel sessions in warm-up state
+	 * - The exception is of type ConcurrentInitializationException
+	 */
 	@Test
+	@DisplayName("Prevent parallel sessions in warm-up state")
 	void shouldPreventOpeningParallelSessionsInWarmUpState() {
 		assertThrows(
 			ConcurrentInitializationException.class,
@@ -340,7 +384,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that transactions are automatically created when needed.
+	 *
+	 * The test verifies that:
+	 * - When making changes without an explicit transaction, one is automatically created
+	 * - The changes are correctly persisted
+	 */
 	@Test
+	@DisplayName("Automatic transaction creation")
 	void shouldAutomaticallyCreateTransactionIfNoneExists() {
 		try (final EvitaSessionContract writeSession = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			writeSession.goLiveAndClose();
@@ -355,7 +407,15 @@ class EvitaTest implements EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Tests that filtering by non-indexed reference fails gracefully.
+	 *
+	 * The test verifies that:
+	 * - Attempting to filter by a non-indexed reference throws ReferenceNotIndexedException
+	 * - The exception contains appropriate information about the reference
+	 */
 	@Test
+	@DisplayName("Graceful failure when filtering by non-indexed reference")
 	void shouldFailGracefullyWhenTryingToFilterByNonIndexedReference() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.defineEntitySchema(Entities.PRODUCT)
@@ -372,23 +432,29 @@ class EvitaTest implements EvitaTestSupport {
 
 			assertThrows(
 				ReferenceNotIndexedException.class,
-				() -> {
-					session.query(
-						query(
-							collection(Entities.PRODUCT),
-							filterBy(
-								referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1, 2))
-							)
-						),
-						EntityClassifier.class
-					);
-				}
+				() -> session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1, 2))
+						)
+					),
+					EntityClassifier.class
+				)
 			);
 
 		}
 	}
 
+	/**
+	 * Tests that summarizing by non-faceted reference fails gracefully.
+	 *
+	 * The test verifies that:
+	 * - Attempting to get facet summary for a non-faceted reference throws ReferenceNotFacetedException
+	 * - The exception contains appropriate information about the reference
+	 */
 	@Test
+	@DisplayName("Graceful failure when summarizing by non-faceted reference")
 	void shouldFailGracefullyWhenTryingToSummarizeByNonFacetedReference() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.defineEntitySchema(Entities.PRODUCT)
@@ -405,74 +471,83 @@ class EvitaTest implements EvitaTestSupport {
 
 			assertThrows(
 				ReferenceNotFacetedException.class,
-				() -> {
-					session.query(
-						query(
-							collection(Entities.PRODUCT),
-							require(
-								facetSummaryOfReference(
-									Entities.BRAND,
-									FacetStatisticsDepth.COUNTS,
-									entityFetch(entityFetchAllContent())
-								)
+				() -> session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							facetSummaryOfReference(
+								Entities.BRAND,
+								FacetStatisticsDepth.COUNTS,
+								entityFetch(entityFetchAllContent())
 							)
-						),
-						EntityClassifier.class
-					);
-				}
+						)
+					),
+					EntityClassifier.class
+				)
 			);
 
 		}
 	}
 
+	/**
+	 * Tests that adding indexing-required attributes to non-indexed references fails gracefully.
+	 *
+	 * The test verifies that:
+	 * - Attempting to add a filterable attribute to a non-indexed reference throws InvalidSchemaMutationException
+	 * - Attempting to add a unique attribute to a non-indexed reference throws InvalidSchemaMutationException
+	 * - Attempting to add a sortable attribute to a non-indexed reference throws InvalidSchemaMutationException
+	 */
 	@Test
+	@DisplayName("Graceful failure when adding indexing-required attributes to non-indexed reference")
 	void shouldFailGracefullyWhenTryingToAddIndexingRequiredReferenceAttributeOnNonIndexedReference() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			assertThrows(
 				InvalidSchemaMutationException.class,
-				() -> {
-					session.defineEntitySchema(Entities.PRODUCT)
-					       .withoutGeneratedPrimaryKey()
-					       .withReferenceTo(
-						       Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-						       whichIs -> whichIs.withAttribute(
-							       ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::filterable)
-					       )
-					       .updateVia(session);
-				}
+				() -> session.defineEntitySchema(Entities.PRODUCT)
+			             .withoutGeneratedPrimaryKey()
+			             .withReferenceTo(
+					       Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					       whichIs -> whichIs.withAttribute(
+						       ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::filterable)
+				       )
+			             .updateVia(session)
 			);
 
 			assertThrows(
 				InvalidSchemaMutationException.class,
-				() -> {
-					session.defineEntitySchema(Entities.PRODUCT)
-					       .withoutGeneratedPrimaryKey()
-					       .withReferenceTo(
-						       Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-						       whichIs -> whichIs.withAttribute(
-							       ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::unique)
-					       )
-					       .updateVia(session);
-				}
+				() -> session.defineEntitySchema(Entities.PRODUCT)
+			             .withoutGeneratedPrimaryKey()
+			             .withReferenceTo(
+					       Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					       whichIs -> whichIs.withAttribute(
+						       ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::unique)
+				       )
+			             .updateVia(session)
 			);
 
 			assertThrows(
 				InvalidSchemaMutationException.class,
-				() -> {
-					session.defineEntitySchema(Entities.PRODUCT)
-					       .withoutGeneratedPrimaryKey()
-					       .withReferenceTo(
-						       Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-						       whichIs -> whichIs.withAttribute(
-							       ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::sortable)
-					       )
-					       .updateVia(session);
-				}
+				() -> session.defineEntitySchema(Entities.PRODUCT)
+			             .withoutGeneratedPrimaryKey()
+			             .withReferenceTo(
+					       Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					       whichIs -> whichIs.withAttribute(
+						       ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::sortable)
+				       )
+			             .updateVia(session)
 			);
 		}
 	}
 
+	/**
+	 * Tests that filtering by non-filterable attribute fails gracefully.
+	 *
+	 * The test verifies that:
+	 * - Attempting to filter by a non-filterable attribute throws AttributeNotFilterableException
+	 * - The exception contains appropriate information about the attribute
+	 */
 	@Test
+	@DisplayName("Graceful failure when filtering by non-filterable attribute")
 	void shouldFailGracefullyWhenTryingToFilterByNonFilterableAttribute() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.defineEntitySchema(Entities.PRODUCT)
@@ -489,23 +564,29 @@ class EvitaTest implements EvitaTestSupport {
 
 			assertThrows(
 				AttributeNotFilterableException.class,
-				() -> {
-					session.query(
-						query(
-							collection(Entities.PRODUCT),
-							filterBy(
-								attributeEquals(ATTRIBUTE_NAME, "ABC")
-							)
-						),
-						EntityClassifier.class
-					);
-				}
+				() -> session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeEquals(ATTRIBUTE_NAME, "ABC")
+						)
+					),
+					EntityClassifier.class
+				)
 			);
 
 		}
 	}
 
+	/**
+	 * Tests that filtering by non-filterable reference attribute fails gracefully.
+	 *
+	 * The test verifies that:
+	 * - Attempting to filter by a non-filterable reference attribute throws AttributeNotFilterableException
+	 * - The exception contains appropriate information about the reference attribute
+	 */
 	@Test
+	@DisplayName("Graceful failure when filtering by non-filterable reference attribute")
 	void shouldFailGracefullyWhenTryingToFilterByNonFilterableReferenceAttribute() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.defineEntitySchema(Entities.PRODUCT)
@@ -525,26 +606,32 @@ class EvitaTest implements EvitaTestSupport {
 
 			assertThrows(
 				AttributeNotFilterableException.class,
-				() -> {
-					session.query(
-						query(
-							collection(Entities.PRODUCT),
-							filterBy(
-								referenceHaving(
-									Entities.BRAND,
-									attributeEquals(ATTRIBUTE_NAME, "ABC")
-								)
+				() -> session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							referenceHaving(
+								Entities.BRAND,
+								attributeEquals(ATTRIBUTE_NAME, "ABC")
 							)
-						),
-						EntityClassifier.class
-					);
-				}
+						)
+					),
+					EntityClassifier.class
+				)
 			);
 
 		}
 	}
 
+	/**
+	 * Tests that ordering by non-sortable attribute fails gracefully.
+	 *
+	 * The test verifies that:
+	 * - Attempting to order by a non-sortable attribute throws AttributeNotSortableException
+	 * - The exception contains appropriate information about the attribute
+	 */
 	@Test
+	@DisplayName("Graceful failure when ordering by non-sortable attribute")
 	void shouldFailGracefullyWhenTryingToOrderByNonSortableAttribute() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.defineEntitySchema(Entities.PRODUCT)
@@ -561,23 +648,29 @@ class EvitaTest implements EvitaTestSupport {
 
 			assertThrows(
 				AttributeNotSortableException.class,
-				() -> {
-					session.query(
-						query(
-							collection(Entities.PRODUCT),
-							orderBy(
-								attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)
-							)
-						),
-						EntityClassifier.class
-					);
-				}
+				() -> session.query(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)
+						)
+					),
+					EntityClassifier.class
+				)
 			);
 
 		}
 	}
 
+	/**
+	 * Tests that ordering by non-sortable reference attribute fails gracefully.
+	 *
+	 * The test verifies that:
+	 * - Attempting to order by a non-sortable reference attribute throws AttributeNotSortableException
+	 * - The exception contains appropriate information about the reference attribute
+	 */
 	@Test
+	@DisplayName("Graceful failure when ordering by non-sortable reference attribute")
 	void shouldFailGracefullyWhenTryingToOrderByNonSortableReferenceAttribute() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.defineEntitySchema(Entities.PRODUCT)
@@ -597,20 +690,18 @@ class EvitaTest implements EvitaTestSupport {
 
 			assertThrows(
 				AttributeNotSortableException.class,
-				() -> {
-					session.query(
-						query(
-							collection(Entities.PRODUCT),
-							orderBy(
-								referenceProperty(
-									Entities.BRAND,
-									attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)
-								)
+				() -> session.query(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							referenceProperty(
+								Entities.BRAND,
+								attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)
 							)
-						),
-						EntityClassifier.class
-					);
-				}
+						)
+					),
+					EntityClassifier.class
+				)
 			);
 
 		}
@@ -1006,7 +1097,8 @@ class EvitaTest implements EvitaTestSupport {
 			}
 		);
 
-		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
+		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(
+			Integer.MAX_VALUE);
 
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -1080,7 +1172,8 @@ class EvitaTest implements EvitaTestSupport {
 			}
 		);
 
-		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
+		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(
+			Integer.MAX_VALUE);
 
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -1124,7 +1217,8 @@ class EvitaTest implements EvitaTestSupport {
 			}
 		);
 
-		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
+		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(
+			Integer.MAX_VALUE);
 
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -1157,7 +1251,17 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that entity schema attributes referring to global ones are updated correctly.
+	 *
+	 * The test verifies that:
+	 * - Global attributes can be defined at catalog level
+	 * - Entity schemas can reference global attributes
+	 * - When global attributes are updated, the changes are reflected in entity schemas
+	 * - Uniqueness type changes in global attributes propagate to entity schemas
+	 */
 	@Test
+	@DisplayName("Entity schema attributes referring to global ones are updated correctly")
 	void shouldUpdateEntitySchemaAttributeDefinitionsReferringToGlobalOnes() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -1209,7 +1313,17 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that entity attributes referring to global attributes are updated when global attributes change.
+	 *
+	 * The test verifies that:
+	 * - Global attributes can be defined at catalog level
+	 * - Multiple entity schemas can reference the same global attribute
+	 * - When global attributes are updated (description, localization, uniqueness), the changes are reflected in all entity schemas
+	 * - Entity instances with global attributes maintain consistency after global attribute changes
+	 */
 	@Test
+	@DisplayName("Entity attributes referring to global attributes are updated when global attributes change")
 	void shouldUpdateEntityAttributesReferringToGlobalAttributeThatIsChanged() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -1315,7 +1429,7 @@ class EvitaTest implements EvitaTestSupport {
 						whichIs -> whichIs
 							.withDescription("Assigned category.")
 							.deprecated("Already deprecated.")
-							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::sortable)
 							.withAttribute("note", String.class)
 							.indexed()
 							.faceted()
@@ -1652,7 +1766,7 @@ class EvitaTest implements EvitaTestSupport {
 						.defineEntitySchema(Entities.PRODUCT)
 						.withReferenceToEntity(
 							REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-							whichIs -> whichIs.nonIndexed()
+							ReferenceSchemaEditor::nonIndexed
 						)
 						.updateVia(session);
 				}
@@ -1671,7 +1785,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withReferenceTo(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
-							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.unique())
+							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::unique)
 							.indexed()
 					)
 					.updateVia(session);
@@ -1687,7 +1801,7 @@ class EvitaTest implements EvitaTestSupport {
 						.defineEntitySchema(Entities.PRODUCT)
 						.withReferenceToEntity(
 							REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-							whichIs -> whichIs.nonIndexed()
+							ReferenceSchemaEditor::nonIndexed
 						)
 						.updateVia(session);
 				}
@@ -1706,7 +1820,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withReferenceTo(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
-							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::sortable)
 							.indexed()
 					)
 					.updateVia(session);
@@ -1722,7 +1836,7 @@ class EvitaTest implements EvitaTestSupport {
 						.defineEntitySchema(Entities.PRODUCT)
 						.withReferenceToEntity(
 							REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-							whichIs -> whichIs.nonIndexed()
+							ReferenceSchemaEditor::nonIndexed
 						)
 						.updateVia(session);
 				}
@@ -1837,7 +1951,7 @@ class EvitaTest implements EvitaTestSupport {
 						.defineEntitySchema(Entities.CATEGORY)
 						.withReflectedReferenceToEntity(
 							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
-							whichIs -> whichIs.nonIndexed()
+							ReflectedReferenceSchemaEditor::nonIndexed
 						)
 						.updateVia(session);
 				}
@@ -1864,7 +1978,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withReferenceToEntity(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
-							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.filterable())
+							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::filterable)
 							.indexed()
 					)
 					.updateVia(session);
@@ -1880,7 +1994,7 @@ class EvitaTest implements EvitaTestSupport {
 						.defineEntitySchema(Entities.CATEGORY)
 						.withReflectedReferenceToEntity(
 							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
-							whichIs -> whichIs.nonIndexed()
+							ReflectedReferenceSchemaEditor::nonIndexed
 						)
 						.updateVia(session);
 				}
@@ -1907,7 +2021,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withReferenceToEntity(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
-							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.unique())
+							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::unique)
 							.indexed()
 					)
 					.updateVia(session);
@@ -1923,7 +2037,7 @@ class EvitaTest implements EvitaTestSupport {
 						.defineEntitySchema(Entities.CATEGORY)
 						.withReflectedReferenceToEntity(
 							REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
-							whichIs -> whichIs.nonIndexed()
+							ReflectedReferenceSchemaEditor::nonIndexed
 						)
 						.updateVia(session);
 				}
@@ -2615,7 +2729,17 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that Evita can start even if one of the catalogs is corrupted.
+	 *
+	 * The test verifies that:
+	 * - Evita can start with a corrupted catalog
+	 * - The corrupted catalog is marked as CORRUPTED
+	 * - External API servers can still be started
+	 * - Non-corrupted catalogs can still be accessed
+	 */
 	@Test
+	@DisplayName("Evita starts even with a corrupted catalog")
 	void shouldStartEvenIfOneCatalogIsCorrupted() {
 		assertTrue(this.evita.getCatalogState(TEST_CATALOG + "_1").isEmpty());
 
@@ -2691,14 +2815,12 @@ class EvitaTest implements EvitaTestSupport {
 
 			assertThrows(
 				CatalogCorruptedException.class,
-				() -> {
-					this.evita.updateCatalog(
-						TEST_CATALOG + "_1",
-						session -> {
-							session.getAllEntityTypes();
-						}
-					);
-				}
+				() -> this.evita.updateCatalog(
+					TEST_CATALOG + "_1",
+					session -> {
+						session.getAllEntityTypes();
+					}
+				)
 			);
 
 			final CatalogStatistics[] catalogStatistics = this.evita.management().getCatalogStatistics();
@@ -2727,7 +2849,7 @@ class EvitaTest implements EvitaTestSupport {
 			);
 			assertEquals(
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, null, -1L, -1, -1,
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, CatalogState.CORRUPTED, -1L, -1, -1,
 					statistics1.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
 				),
 				statistics1
@@ -2830,14 +2952,12 @@ class EvitaTest implements EvitaTestSupport {
 
 			assertThrows(
 				CatalogCorruptedException.class,
-				() -> {
-					this.evita.updateCatalog(
-						TEST_CATALOG + "_1",
-						session -> {
-							session.getAllEntityTypes();
-						}
-					);
-				}
+				() -> this.evita.updateCatalog(
+					TEST_CATALOG + "_1",
+					session -> {
+						session.getAllEntityTypes();
+					}
+				)
 			);
 
 			// but allow creating new catalog
@@ -2921,14 +3041,12 @@ class EvitaTest implements EvitaTestSupport {
 
 			assertThrows(
 				CatalogCorruptedException.class,
-				() -> {
-					this.evita.updateCatalog(
-						TEST_CATALOG + "_1",
-						session -> {
-							session.getAllEntityTypes();
-						}
-					);
-				}
+				() -> this.evita.updateCatalog(
+					TEST_CATALOG + "_1",
+					session -> {
+						session.getAllEntityTypes();
+					}
+				)
 			);
 
 			// but allow creating new catalog
@@ -2964,7 +3082,7 @@ class EvitaTest implements EvitaTestSupport {
 				       .updateVia(session);
 
 				session.defineEntitySchema(Entities.PRODUCT)
-				       .withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable())
+				       .withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::filterable)
 				       .withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ONE_OR_MORE)
 				       .withReferenceTo(Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE)
 				       .updateVia(session);
@@ -3021,13 +3139,13 @@ class EvitaTest implements EvitaTestSupport {
 
 				session
 					.defineEntitySchema(Entities.PARAMETER)
-					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
 					.withReferenceToEntity(Entities.PARAMETER_GROUP, Entities.PARAMETER_GROUP, Cardinality.ZERO_OR_ONE)
 					.updateVia(session);
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
-					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
 					.withReferenceToEntity(
 						Entities.PARAMETER, Entities.PARAMETER, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
@@ -3448,6 +3566,18 @@ class EvitaTest implements EvitaTestSupport {
 			exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 
+	/**
+	 * Helper method to test catalog renaming functionality.
+	 *
+	 * This method:
+	 * 1. Creates a test catalog with brand entities
+	 * 2. Renames the catalog
+	 * 3. Verifies the catalog was renamed correctly
+	 * 4. Restarts Evita to ensure persistence
+	 * 5. Verifies the renamed catalog is still accessible
+	 *
+	 * @param catalogState whether the catalog should be in ALIVE state or not before renaming
+	 */
 	private void doRenameCatalog(@Nonnull CatalogState catalogState) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -3509,6 +3639,19 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Helper method to test catalog replacement functionality.
+	 *
+	 * This method:
+	 * 1. Creates a test catalog with brand entities
+	 * 2. Creates a temporary catalog with product entities
+	 * 3. Replaces the original catalog with the temporary one
+	 * 4. Verifies the replacement was successful
+	 * 5. Restarts Evita to ensure persistence
+	 * 6. Verifies the replaced catalog is still accessible with correct data
+	 *
+	 * @param catalogState whether the catalog should be in ALIVE state or not before replacement
+	 */
 	private void doReplaceCatalog(@Nonnull CatalogState catalogState) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -3691,7 +3834,64 @@ class EvitaTest implements EvitaTestSupport {
 			.build();
 	}
 
+	/**
+	 * Helper method to create a session and define an entity schema.
+	 *
+	 * This method creates a read-write session and defines an entity schema for the specified entity type.
+	 * It's useful for reducing code duplication in test methods that need to set up a basic entity schema.
+	 *
+	 * @param entityType the type of entity to define
+	 * @return the created session
+	 */
 	@Nonnull
+	private EvitaSessionContract createSessionAndDefineEntitySchema(@Nonnull String entityType) {
+		final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG);
+		session.defineEntitySchema(entityType)
+		       .withoutGeneratedPrimaryKey()
+		       .updateVia(session);
+		return session;
+	}
+
+	/**
+	 * Helper method to create a session and define an entity schema with a reference.
+	 *
+	 * This method creates a read-write session and defines an entity schema for the specified entity type
+	 * with a reference to another entity type. It's useful for reducing code duplication in test methods
+	 * that need to set up entity schemas with references.
+	 *
+	 * @param entityType    the type of entity to define
+	 * @param referenceType the type of entity to reference
+	 * @param referenceName the name of the reference
+	 * @param indexed       whether the reference should be indexed
+	 * @return the created session
+	 */
+	@Nonnull
+	private EvitaSessionContract createSessionAndDefineEntitySchemaWithReference(
+		@Nonnull String entityType,
+		@Nonnull String referenceType,
+		@Nonnull String referenceName,
+		boolean indexed
+	) {
+		final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG);
+		final EntitySchemaBuilder schemaBuilder = session
+			.defineEntitySchema(entityType)
+			.withoutGeneratedPrimaryKey();
+
+		if (indexed) {
+			schemaBuilder.withReferenceTo(
+				referenceType,
+				referenceName,
+				Cardinality.ZERO_OR_ONE,
+				it -> it.indexed()
+			);
+		} else {
+			schemaBuilder.withReferenceTo(referenceType, referenceName, Cardinality.ZERO_OR_ONE);
+		}
+
+		schemaBuilder.updateVia(session);
+		return session;
+	}
+
 	private Path getEvitaTestDirectory() {
 		return getTestDirectory().resolve(DIR_EVITA_TEST);
 	}
