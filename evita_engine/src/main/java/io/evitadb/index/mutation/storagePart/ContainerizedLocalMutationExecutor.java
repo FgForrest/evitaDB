@@ -528,6 +528,19 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					);
 				}
 			} else {
+				// check mandatory attributes
+				final List<Object> missingMandatedAttributes = new LinkedList<>();
+				// we need to check only changed parts
+				if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_ATTRIBUTES)) {
+					verifyMandatoryAttributes(
+						this.entityContainer,
+						missingMandatedAttributes,
+						ofNullable(this.globalAttributesStorageContainer).map(AttributesStoragePart::isDirty).orElse(false),
+						ofNullable(this.languageSpecificAttributesContainer).map(it -> it.values().stream().anyMatch(AttributesStoragePart::isDirty)).orElse(false),
+						mutationCollector
+					);
+				}
+
 				if (this.initialEntityScope != targetEntityScope) {
 					// we need to drop all reflected references in old scope
 					final ReferencesStoragePart theReferenceStorageContainer = getCachedReferenceStorageContainer(this.entityPrimaryKey);
@@ -548,21 +561,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						this.entityPrimaryKey, this.initialEntityScope, targetEntityScope,
 						this.referencesStorageContainer, List.of(), mutationCollector
 					);
-				}
-
-				// check mandatory attributes
-				final List<Object> missingMandatedAttributes = new LinkedList<>();
-				// we need to check only changed parts
-				if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_ATTRIBUTES)) {
-					verifyMandatoryAttributes(
-						this.entityContainer,
-						missingMandatedAttributes,
-						ofNullable(this.globalAttributesStorageContainer).map(AttributesStoragePart::isDirty).orElse(false),
-						ofNullable(this.languageSpecificAttributesContainer).map(it -> it.values().stream().anyMatch(AttributesStoragePart::isDirty)).orElse(false),
-						mutationCollector
-					);
-				}
-				if (this.referencesStorageContainer != null && this.referencesStorageContainer.isDirty()) {
+				} else if (this.referencesStorageContainer != null && this.referencesStorageContainer.isDirty()) {
 					if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES)) {
 						verifyReflectedReferences(
 							this.entityPrimaryKey, this.initialEntityScope, targetEntityScope,
