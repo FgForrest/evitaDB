@@ -707,7 +707,15 @@ class EvitaTest implements EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Tests that querying an empty collection returns an empty result.
+	 *
+	 * The test verifies that:
+	 * - Querying an empty collection returns a response with zero records
+	 * - The returned record data is empty
+	 */
 	@Test
+	@DisplayName("Handle querying empty collection")
 	void shouldHandleQueryingEmptyCollection() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -729,7 +737,16 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests the behavior of queryOneEntityReference method.
+	 *
+	 * The test verifies that:
+	 * - When no entity matches the query, null is returned
+	 * - When exactly one entity matches the query, it is returned
+	 * - When multiple entities match the query, an UnexpectedResultCountException is thrown
+	 */
 	@Test
+	@DisplayName("Return zero or exactly one entity reference")
 	void shouldReturnZeroOrExactlyOne() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -762,7 +779,18 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests querying multiple entities with pagination.
+	 *
+	 * The test verifies that:
+	 * - Querying non-existent entities returns an empty result
+	 * - Querying with pagination returns the correct page of results
+	 * - The total record count is correctly reported
+	 * - Different entity types can be returned in the results
+	 * - An exception is thrown when trying to get a single entity when multiple match
+	 */
 	@Test
+	@DisplayName("Return multiple results with pagination")
 	void shouldReturnMultipleResults() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -824,7 +852,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that a catalog can be created and then loaded after restarting Evita.
+	 *
+	 * The test verifies that:
+	 * - A catalog created in one Evita instance is still available after restarting
+	 * - The catalog name is correctly preserved in the catalog list
+	 */
 	@Test
+	@DisplayName("Create and load catalog after restart")
 	void shouldCreateAndLoadCatalog() {
 		this.evita.close();
 		this.evita = new Evita(
@@ -834,7 +870,16 @@ class EvitaTest implements EvitaTestSupport {
 		assertTrue(this.evita.getCatalogNames().contains(TEST_CATALOG));
 	}
 
+	/**
+	 * Tests that inactive sessions are automatically killed after a timeout.
+	 *
+	 * The test verifies that:
+	 * - Inactive sessions are detected and killed by the session killer
+	 * - Active sessions remain active after the session killer runs
+	 * - The count of active sessions is correctly updated
+	 */
 	@Test
+	@DisplayName("Automatic killing of inactive sessions")
 	void shouldKillInactiveSessionsAutomatically() throws NoSuchFieldException, IllegalAccessException {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -868,7 +913,17 @@ class EvitaTest implements EvitaTestSupport {
 		assertEquals(1L, this.evita.getActiveSessions().count());
 	}
 
+	/**
+	 * Tests that a catalog can be created and then dropped.
+	 *
+	 * The test verifies that:
+	 * - A catalog can be created with entities
+	 * - The catalog can be deleted
+	 * - The engine subscriber is notified of the catalog deletion
+	 * - The catalog is no longer in the list of catalogs
+	 */
 	@Test
+	@DisplayName("Create and drop catalog")
 	void shouldCreateAndDropCatalog() {
 		this.engineSubscriber.reset();
 
@@ -891,7 +946,15 @@ class EvitaTest implements EvitaTestSupport {
 		assertFalse(this.evita.getCatalogNames().contains(TEST_CATALOG));
 	}
 
+	/**
+	 * Tests that creating a catalog with a name that would be a duplicate in any naming convention fails.
+	 *
+	 * The test verifies that:
+	 * - Attempting to create a catalog with a name that would be the same as an existing catalog in any naming convention throws CatalogAlreadyPresentException
+	 * - The exception message correctly identifies the conflicting catalog names and the naming convention
+	 */
 	@Test
+	@DisplayName("Fail to create catalog with duplicate name in any naming convention")
 	void shouldFailToCreateCatalogWithDuplicateNameInOneOfNamingConventions() {
 		try {
 			this.evita.defineCatalog("test-catalog");
@@ -905,7 +968,18 @@ class EvitaTest implements EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Tests that entity collections can be created and deleted within a session.
+	 *
+	 * The test verifies that:
+	 * - Multiple entity collections can be created in a single session
+	 * - Entities can be added to these collections
+	 * - A collection can be deleted within the session
+	 * - After deletion, the collection is no longer accessible
+	 * - Other collections remain accessible
+	 */
 	@Test
+	@DisplayName("Create and delete entity collection within session")
 	void shouldCreateAndDeleteEntityCollectionFromWithinTheSession() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -937,27 +1011,77 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that a catalog can be renamed while in warm-up mode.
+	 *
+	 * The test verifies that:
+	 * - A catalog in warm-up mode can be renamed
+	 * - The renamed catalog retains all its data
+	 * - The original catalog name is no longer available
+	 * - The renamed catalog persists after Evita restart
+	 */
 	@Test
+	@DisplayName("Rename catalog in warm-up mode")
 	void shouldRenameExistingCatalogInWarmUpMode() {
 		doRenameCatalog(CatalogState.WARMING_UP);
 	}
 
+	/**
+	 * Tests that a catalog can be renamed while in transactional (alive) mode.
+	 *
+	 * The test verifies that:
+	 * - A catalog in transactional mode can be renamed
+	 * - The renamed catalog retains all its data
+	 * - The original catalog name is no longer available
+	 * - The renamed catalog persists after Evita restart
+	 */
 	@Test
+	@DisplayName("Rename catalog in transactional mode")
 	void shouldRenameExistingCatalogInTransactionalMode() {
 		doRenameCatalog(CatalogState.ALIVE);
 	}
 
+	/**
+	 * Tests that a catalog can be replaced while in warm-up mode.
+	 *
+	 * The test verifies that:
+	 * - A catalog in warm-up mode can be replaced with another catalog
+	 * - The replacement catalog's data becomes available under the original catalog name
+	 * - The temporary catalog name is no longer available
+	 * - The replaced catalog persists after Evita restart
+	 */
 	@Test
+	@DisplayName("Replace catalog in warm-up mode")
 	void shouldReplaceExistingCatalogInWarmUpMode() {
 		doReplaceCatalog(CatalogState.WARMING_UP);
 	}
 
+	/**
+	 * Tests that a catalog can be replaced while in transactional (alive) mode.
+	 *
+	 * The test verifies that:
+	 * - A catalog in transactional mode can be replaced with another catalog
+	 * - The replacement catalog's data becomes available under the original catalog name
+	 * - The temporary catalog name is no longer available
+	 * - The replaced catalog persists after Evita restart
+	 */
 	@Test
+	@DisplayName("Replace catalog in transactional mode")
 	void shouldReplaceExistingCatalogInTransactionalMode() {
 		doReplaceCatalog(CatalogState.ALIVE);
 	}
 
+	/**
+	 * Tests that an entity collection can be created and then dropped.
+	 *
+	 * The test verifies that:
+	 * - A catalog can be set up with multiple entity collections
+	 * - A specific collection can be deleted
+	 * - After deletion, the collection is no longer accessible
+	 * - Other collections remain accessible
+	 */
 	@Test
+	@DisplayName("Create and drop entity collection")
 	void shouldCreateAndDropCollection() {
 		setupCatalogWithProductAndCategory();
 
@@ -977,7 +1101,18 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that an entity collection can be created and then renamed.
+	 *
+	 * The test verifies that:
+	 * - A catalog can be set up with multiple entity collections
+	 * - A specific collection can be renamed
+	 * - After renaming, the collection is accessible under the new name
+	 * - The original collection name is no longer accessible
+	 * - Other collections remain accessible
+	 */
 	@Test
+	@DisplayName("Create and rename entity collection")
 	void shouldCreateAndRenameCollection() {
 		setupCatalogWithProductAndCategory();
 
@@ -1008,7 +1143,17 @@ class EvitaTest implements EvitaTestSupport {
 		assertFalse(theCollectionFile.exists());
 	}
 
+	/**
+	 * Tests that an entity collection can be renamed.
+	 *
+	 * The test verifies that:
+	 * - An entity collection can be renamed
+	 * - After renaming, the collection is accessible under the new name
+	 * - The original collection name is no longer accessible
+	 * - The renamed collection retains all its data
+	 */
 	@Test
+	@DisplayName("Rename entity collection")
 	void shouldRenameEntityCollection() {
 		setupCatalogWithProductAndCategory();
 
@@ -1038,7 +1183,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that renaming a collection to an existing collection name fails.
+	 *
+	 * The test verifies that:
+	 * - Attempting to rename a collection to a name that already exists throws EntityTypeAlreadyPresentInCatalogSchemaException
+	 * - The exception message correctly identifies the conflicting collection names
+	 */
 	@Test
+	@DisplayName("Fail to rename collection to existing collection name")
 	void shouldFailToRenameCollectionToExistingCollection() {
 		setupCatalogWithProductAndCategory();
 
@@ -1058,7 +1211,17 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that an entity collection can be created and then replaced.
+	 *
+	 * The test verifies that:
+	 * - A catalog can be set up with multiple entity collections
+	 * - A specific collection can be replaced with a new one
+	 * - After replacement, the collection has the new schema and data
+	 * - Other collections remain accessible
+	 */
 	@Test
+	@DisplayName("Create and replace entity collection")
 	void shouldCreateAndReplaceCollection() {
 		setupCatalogWithProductAndCategory();
 
@@ -1087,7 +1250,19 @@ class EvitaTest implements EvitaTestSupport {
 		assertFalse(theCollectionFile.exists());
 	}
 
+	/**
+	 * Tests that an entity collection can be created and renamed within a transaction.
+	 *
+	 * The test verifies that:
+	 * - A catalog can be set up with multiple entity collections in transactional mode
+	 * - A specific collection can be renamed within a transaction
+	 * - After renaming, the collection is accessible under the new name
+	 * - The original collection name is no longer accessible
+	 * - Other collections remain accessible
+	 * - The changes persist after Evita restart
+	 */
 	@Test
+	@DisplayName("Create and rename entity collection in transaction")
 	void shouldCreateAndRenameCollectionInTransaction() {
 		setupCatalogWithProductAndCategory();
 
@@ -1162,7 +1337,18 @@ class EvitaTest implements EvitaTestSupport {
 		assertFalse(theCollectionFile.exists());
 	}
 
+	/**
+	 * Tests that an entity collection can be created and replaced within a transaction.
+	 *
+	 * The test verifies that:
+	 * - A catalog can be set up with multiple entity collections in transactional mode
+	 * - A specific collection can be replaced with a new one within a transaction
+	 * - After replacement, the collection has the new schema and data
+	 * - Other collections remain accessible
+	 * - The changes persist after Evita restart
+	 */
 	@Test
+	@DisplayName("Create and replace entity collection in transaction")
 	void shouldCreateAndReplaceCollectionInTransaction() {
 		setupCatalogWithProductAndCategory();
 
@@ -1207,7 +1393,18 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that entity collections can be created and dropped within a transaction.
+	 *
+	 * The test verifies that:
+	 * - A catalog can be set up with multiple entity collections in transactional mode
+	 * - A specific collection can be deleted within a transaction
+	 * - After deletion, the collection is no longer accessible
+	 * - Other collections remain accessible
+	 * - The changes persist after Evita restart
+	 */
 	@Test
+	@DisplayName("Create and drop entity collections in transaction")
 	void shouldCreateAndDropCollectionsInTransaction() {
 		setupCatalogWithProductAndCategory();
 
@@ -1407,7 +1604,16 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that a reflected reference can be created.
+	 *
+	 * The test verifies that:
+	 * - A reflected reference can be created between two entity types
+	 * - The reflected reference correctly inherits properties from the original reference
+	 * - Entities can be queried through the reflected reference
+	 */
 	@Test
+	@DisplayName("Create reflected reference")
 	void shouldCreateReflectedReference() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -1459,7 +1665,17 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that a reflected reference retains inheritance during engine restart.
+	 *
+	 * The test verifies that:
+	 * - A reflected reference can be created between two entity types
+	 * - The reflected reference correctly inherits properties from the original reference
+	 * - The inheritance is preserved after Evita restart
+	 * - Entities can be queried through the reflected reference after restart
+	 */
 	@Test
+	@DisplayName("Reflected reference retains inheritance during engine restart")
 	void shouldCreateReflectedReferenceAndRetainInheritanceDuringEngineRestart() {
 		shouldCreateReflectedReference();
 
@@ -1495,7 +1711,16 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that inherited properties in a reflected reference are updated.
+	 *
+	 * The test verifies that:
+	 * - A reflected reference can be created between two entity types
+	 * - When properties of the original reference are updated, they are automatically inherited by the reflected reference
+	 * - The updated properties can be used in queries through the reflected reference
+	 */
 	@Test
+	@DisplayName("Update inherited properties in reflected reference")
 	void shouldUpdateInheritedPropertiesInReflectedReference() {
 		shouldCreateReflectedReference();
 		this.evita.updateCatalog(
@@ -1541,7 +1766,17 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that a reflected reference can be dropped and replaced with a regular reference of the same name.
+	 *
+	 * The test verifies that:
+	 * - A reflected reference can be created between two entity types
+	 * - The reflected reference can be dropped
+	 * - A regular reference with the same name can be created after dropping the reflected reference
+	 * - The new regular reference works correctly
+	 */
 	@Test
+	@DisplayName("Drop reflected reference and create regular one with same name")
 	void shouldDropReflectedReferenceAndCreateRegularOneOfTheSameName() {
 		shouldCreateReflectedReference();
 		this.evita.updateCatalog(
@@ -1575,7 +1810,17 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that a regular reference can be dropped and replaced with a reflected reference of the same name.
+	 *
+	 * The test verifies that:
+	 * - A regular reference can be created between two entity types
+	 * - The regular reference can be dropped
+	 * - A reflected reference with the same name can be created after dropping the regular reference
+	 * - The new reflected reference works correctly and inherits properties from its source reference
+	 */
 	@Test
+	@DisplayName("Drop regular reference and create reflected one with same name")
 	void shouldDropRegularReferenceAndCreateReflectedOneOfTheSameName() {
 		shouldDropReflectedReferenceAndCreateRegularOneOfTheSameName();
 		this.evita.updateCatalog(
@@ -1614,7 +1859,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that creating a non-indexed reference fails when a reflected reference exists.
+	 *
+	 * The test verifies that:
+	 * - Attempting to create a non-indexed reference when a reflected reference exists throws InvalidSchemaMutationException
+	 * - The exception message correctly explains that the reference must be indexed because a reflected reference exists
+	 */
 	@Test
+	@DisplayName("Fail to create non-indexed reference when reflected reference exists")
 	void shouldFailToCreateNonIndexedReferenceWhenReflectedReferenceExists() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
@@ -1640,7 +1893,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that creating a reflected reference to a non-indexed reference fails.
+	 *
+	 * The test verifies that:
+	 * - Attempting to create a reflected reference to a non-indexed reference throws InvalidSchemaMutationException
+	 * - The exception message correctly explains that the source reference must be indexed
+	 */
 	@Test
+	@DisplayName("Fail to create reflected reference to non-indexed reference")
 	void shouldFailToCreateReflectedReferenceToNonIndexedReference() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
@@ -1663,7 +1924,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that creating a non-managed reference fails when an entity with the same name exists.
+	 *
+	 * The test verifies that:
+	 * - Attempting to create a non-managed reference with the same name as an existing entity throws InvalidSchemaMutationException
+	 * - The exception message correctly explains the conflict between the reference name and entity name
+	 */
 	@Test
+	@DisplayName("Fail to create non-managed reference when entity with same name exists")
 	void shouldFailToCreateNonManagedReferenceWhenEntityOfSuchNameExists() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
@@ -1682,7 +1951,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that creating a managed reference fails when the referenced entity doesn't exist.
+	 *
+	 * The test verifies that:
+	 * - Attempting to create a managed reference to a non-existent entity throws InvalidSchemaMutationException
+	 * - The exception message correctly explains that the referenced entity must exist
+	 */
 	@Test
+	@DisplayName("Fail to create managed reference when referenced entity doesn't exist")
 	void shouldFailToCreateManagedReferenceWhenEntityOfSuchNameDoesntExist() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
@@ -1698,7 +1975,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that creating a non-managed group reference fails when an entity with the same name exists.
+	 *
+	 * The test verifies that:
+	 * - Attempting to create a non-managed group reference with the same name as an existing entity throws InvalidSchemaMutationException
+	 * - The exception message correctly explains the conflict between the reference name and entity name
+	 */
 	@Test
+	@DisplayName("Fail to create non-managed group reference when entity with same name exists")
 	void shouldFailToCreateNonManagedGroupReferenceWhenEntityOfSuchNameExists() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
@@ -1720,7 +2005,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that creating a managed group reference fails when the referenced entity doesn't exist.
+	 *
+	 * The test verifies that:
+	 * - Attempting to create a managed group reference to a non-existent entity throws InvalidSchemaMutationException
+	 * - The exception message correctly explains that the referenced entity must exist
+	 */
 	@Test
+	@DisplayName("Fail to create managed group reference when referenced entity doesn't exist")
 	void shouldFailToCreateManagedGroupReferenceWhenEntityOfSuchNameDoesntExist() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
@@ -1739,7 +2032,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that changing a reference to non-indexed fails when there is a filterable attribute present.
+	 *
+	 * The test verifies that:
+	 * - Attempting to change a reference to non-indexed when it has a filterable attribute throws InvalidSchemaMutationException
+	 * - The exception message correctly explains that the reference must remain indexed due to the filterable attribute
+	 */
 	@Test
+	@DisplayName("Fail to change reference to non-indexed when filterable attribute is present")
 	void shouldFailToChangeReferenceToNonIndexedWhenThereIsFilterableAttributePresent() {
 		// set-up correctly created indexed schema with filterable attribute
 		this.evita.updateCatalog(
@@ -1774,7 +2075,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that changing a reference to non-indexed fails when there is a unique attribute present.
+	 *
+	 * The test verifies that:
+	 * - Attempting to change a reference to non-indexed when it has a unique attribute throws InvalidSchemaMutationException
+	 * - The exception message correctly explains that the reference must remain indexed due to the unique attribute
+	 */
 	@Test
+	@DisplayName("Fail to change reference to non-indexed when unique attribute is present")
 	void shouldFailToChangeReferenceToNonIndexedWhenThereIsUniqueAttributePresent() {
 		// set-up correctly created indexed schema with filterable attribute
 		this.evita.updateCatalog(
@@ -1809,7 +2118,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that changing a reference to non-indexed fails when it has a sortable attribute.
+	 *
+	 * The test verifies that:
+	 * - A reference with a sortable attribute cannot be changed to non-indexed
+	 * - An InvalidSchemaMutationException is thrown when attempting this change
+	 */
 	@Test
+	@DisplayName("Fail to change reference to non-indexed when sortable attribute exists")
 	void shouldFailToChangeReferenceToNonIndexedWhenThereIsSortableAttributePresent() {
 		// set-up correctly created indexed schema with filterable attribute
 		this.evita.updateCatalog(
@@ -1844,7 +2161,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that changing a reference entity type fails when there is a reflected reference.
+	 *
+	 * The test verifies that:
+	 * - When a reference is part of a reflected reference relationship, its entity type cannot be changed
+	 * - An InvalidSchemaMutationException is thrown when attempting this change
+	 */
 	@Test
+	@DisplayName("Fail to change reference entity type with reflected reference")
 	void shouldFailToChangeReferenceEntityTypeWhenThereIsReflectedReference() {
 		// first create intertwined references
 		this.evita.updateCatalog(
@@ -1881,7 +2206,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that changing a reference entity type to non-managed fails when there is a reflected reference.
+	 *
+	 * The test verifies that:
+	 * - When a reference is part of a reflected reference relationship, it cannot be changed to non-managed
+	 * - An InvalidSchemaMutationException is thrown when attempting this change
+	 */
 	@Test
+	@DisplayName("Fail to change reference to non-managed with reflected reference")
 	void shouldFailToChangeReferenceEntityTypeToNonManagedWhenThereIsReflectedReference() {
 		// first create intertwined references
 		this.evita.updateCatalog(
@@ -1918,7 +2251,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that changing a reflected reference to non-indexed fails.
+	 *
+	 * The test verifies that:
+	 * - When a reference is part of a reflected reference relationship, it cannot be changed to non-indexed
+	 * - An InvalidSchemaMutationException is thrown when attempting this change
+	 */
 	@Test
+	@DisplayName("Fail to change reflected reference to non-indexed")
 	void shouldFailToChangeReferenceToNonIndexed() {
 		// set-up correctly created indexed schema with filterable attribute
 		this.evita.updateCatalog(
@@ -1959,7 +2300,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that changing a reference to non-indexed fails when there is an inherited filterable attribute in a reflected reference.
+	 *
+	 * The test verifies that:
+	 * - When a reference has an inherited filterable attribute in a reflected reference, it cannot be changed to non-indexed
+	 * - An InvalidSchemaMutationException is thrown when attempting this change
+	 */
 	@Test
+	@DisplayName("Fail to change reference to non-indexed with inherited filterable attribute")
 	void shouldFailToChangeReferenceToNonIndexedWhenThereIsInheritedFilterableAttributePresentInReflectedReference() {
 		// set-up correctly created indexed schema with filterable attribute
 		this.evita.updateCatalog(
@@ -2002,7 +2351,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that changing a reference to non-indexed fails when there is an inherited unique attribute in a reflected reference.
+	 *
+	 * The test verifies that:
+	 * - When a reference has an inherited unique attribute in a reflected reference, it cannot be changed to non-indexed
+	 * - An InvalidSchemaMutationException is thrown when attempting this change
+	 */
 	@Test
+	@DisplayName("Fail to change reference to non-indexed with inherited unique attribute")
 	void shouldFailToChangeReferenceToNonIndexedWhenThereIsInheritedUniqueAttributePresentInReflectedReference() {
 		// set-up correctly created indexed schema with filterable attribute
 		this.evita.updateCatalog(
@@ -2045,7 +2402,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that changing a reference to non-indexed fails when there is an inherited sortable attribute in a reflected reference.
+	 *
+	 * The test verifies that:
+	 * - When a reference has an inherited sortable attribute in a reflected reference, it cannot be changed to non-indexed
+	 * - An InvalidSchemaMutationException is thrown when attempting this change
+	 */
 	@Test
+	@DisplayName("Fail to change reference to non-indexed with inherited sortable attribute")
 	void shouldFailToChangeReferenceToNonIndexedWhenThereIsInheritedSortableAttributePresentInReflectedReference() {
 		// set-up correctly created indexed schema with filterable attribute
 		this.evita.updateCatalog(
@@ -2088,7 +2453,16 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests fetching an entity by localized global attribute with automatic locale selection.
+	 *
+	 * The test verifies that:
+	 * - An entity can be fetched by a localized global attribute
+	 * - The proper locale is automatically selected based on the attribute value
+	 * - The entity's attributes are returned in the correct locale
+	 */
 	@Test
+	@DisplayName("Fetch entity by localized global attribute with automatic locale selection")
 	void shouldFetchEntityByLocalizedGlobalAttributeAutomaticallySelectingProperLocale() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -2130,7 +2504,16 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests fetching multiple entities by localized global attribute with automatic locale selection per entity.
+	 *
+	 * The test verifies that:
+	 * - Multiple entities can be fetched by localized global attributes
+	 * - The proper locale is automatically selected for each entity based on the attribute value
+	 * - Each entity's attributes are returned in the correct locale
+	 */
 	@Test
+	@DisplayName("Fetch entities by localized global attribute with per-entity locale selection")
 	void shouldFetchEntityByLocalizedGlobalAttributeAutomaticallySelectingProperLocalePerEntity() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -2198,7 +2581,16 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests updating an existing price in reduced price indexes.
+	 *
+	 * The test verifies that:
+	 * - An existing price can be updated in a product
+	 * - The price changes are correctly reflected in the database
+	 * - The updated price can be retrieved with the correct values
+	 */
 	@Test
+	@DisplayName("Update existing price in reduced price indexes")
 	void shouldUpdateExistingPriceInReducedPriceIndexes() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -2255,7 +2647,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that defining two entities with the same name in different case fails.
+	 *
+	 * The test verifies that:
+	 * - Attempting to define two entities with names that differ only in case throws an exception
+	 * - The EntityTypeAlreadyPresentInCatalogSchemaException is thrown
+	 */
 	@Test
+	@DisplayName("Fail to define entities with same name in different case")
 	void shouldFailToDefineTwoEntitiesSharingNameInSpecificNamingConvention() {
 		assertThrows(
 			EntityTypeAlreadyPresentInCatalogSchemaException.class,
@@ -2269,7 +2669,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that defining references to non-existent managed entities fails.
+	 *
+	 * The test verifies that:
+	 * - Attempting to define a reference to a non-existent managed entity throws an exception
+	 * - The InvalidSchemaMutationException is thrown with appropriate message
+	 */
 	@Test
+	@DisplayName("Fail to define references to non-existent managed entities")
 	void shouldFailToDefineReferencesToManagedEntitiesThatDontExist() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
@@ -2288,7 +2696,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that defining references to non-existent managed entity groups fails.
+	 *
+	 * The test verifies that:
+	 * - Attempting to define a reference with a group type related to a non-existent entity throws an exception
+	 * - The InvalidSchemaMutationException is thrown with appropriate message
+	 */
 	@Test
+	@DisplayName("Fail to define references to non-existent managed entity groups")
 	void shouldFailToDefineReferencesToManagedEntityGroupThatDoesntExist() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
@@ -2310,7 +2726,16 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests creating references to non-managed entities and groups.
+	 *
+	 * The test verifies that:
+	 * - References to non-managed entities can be created
+	 * - References with non-managed group types can be created
+	 * - The entity schema is correctly updated with these references
+	 */
 	@Test
+	@DisplayName("Create references to non-managed entities and groups")
 	void shouldCreateReferencesToNonManagedEntityAndGroup() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -2330,7 +2755,16 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests creating circular references between managed entities.
+	 *
+	 * The test verifies that:
+	 * - Circular references between managed entities can be created
+	 * - Both entity schemas are correctly updated with these references
+	 * - The circular references don't cause any issues during schema creation
+	 */
 	@Test
+	@DisplayName("Create circular references between managed entities")
 	void shouldCreateCircularReferencesToManagedEntitiesAndGroups() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -2365,7 +2799,15 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that requesting hierarchy on a non-hierarchical entity fails gracefully.
+	 *
+	 * The test verifies that:
+	 * - Attempting to query hierarchy on a non-hierarchical entity throws an exception
+	 * - The EntityIsNotHierarchicalException is thrown with appropriate message
+	 */
 	@Test
+	@DisplayName("Graceful failure when requesting hierarchy on non-hierarchical entity")
 	void shouldFailGracefullyWhenRequestingHierarchyOnNonHierarchyEntity() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -2391,7 +2833,16 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that overlapping ranges work correctly when updated.
+	 *
+	 * The test verifies that:
+	 * - Entities with overlapping ranges can be created and queried
+	 * - When ranges are updated, the query results are updated accordingly
+	 * - Range queries correctly match entities based on the current range values
+	 */
 	@Test
+	@DisplayName("Correctly handle overlapping ranges when updated")
 	void shouldCorrectlyWorkWithOverlappingRangesWhenUpdated() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -2443,7 +2894,16 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that schema changes are isolated within transactions.
+	 *
+	 * The test verifies that:
+	 * - Schema changes made in one transaction are not visible to other transactions until committed
+	 * - After commit, the changes become visible to new sessions
+	 * - Concurrent transactions can modify the schema without conflicts
+	 */
 	@Test
+	@DisplayName("Isolate schema changes within transactions")
 	void shouldIsolateChangesInSchemaWithinTransactions() {
 		// create some initial state
 		this.evita.updateCatalog(
@@ -2541,7 +3001,17 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that correct catalog and schema versions are returned.
+	 *
+	 * The test verifies that:
+	 * - Catalog and schema versions are correctly incremented after changes
+	 * - Concurrent transactions receive different version numbers
+	 * - The version ordering is maintained (later commits get higher version numbers)
+	 * - All schema changes are correctly applied and visible after commits
+	 */
 	@Test
+	@DisplayName("Return correct catalog and schema versions")
 	void shouldReturnCorrectCatalogAndSchemaVersions() {
 		// create some initial state
 		this.evita.updateCatalog(
@@ -2649,7 +3119,16 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that changes are still visible even if an exception is thrown during WAL append.
+	 *
+	 * The test verifies that:
+	 * - When an exception is thrown during the WAL append phase, the transaction still completes
+	 * - The changes made in the transaction are still visible after the exception
+	 * - The system recovers gracefully from exceptions during the commit process
+	 */
 	@Test
+	@DisplayName("Changes visible despite exception during WAL append")
 	void shouldThrowExceptionInOnWalAppendedAndVerifyChangesAreStillVisible() {
 		// create some initial state
 		this.evita.updateCatalog(
@@ -2882,7 +3361,17 @@ class EvitaTest implements EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Tests that a new catalog can be created even if one existing catalog is corrupted.
+	 *
+	 * The test verifies that:
+	 * - Evita can start even with a corrupted catalog
+	 * - The corrupted catalog is properly identified and marked as corrupted
+	 * - New catalogs can still be created despite the presence of a corrupted catalog
+	 * - Attempting to use the corrupted catalog throws a CatalogCorruptedException
+	 */
 	@Test
+	@DisplayName("Create catalog even with a corrupted catalog present")
 	void shouldCreateCatalogEvenIfOneCatalogIsCorrupted() {
 		this.evita.defineCatalog(TEST_CATALOG + "_1")
 		          .updateViaNewSession(this.evita);
@@ -2971,7 +3460,17 @@ class EvitaTest implements EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Tests that a corrupted catalog can be replaced with a correct one.
+	 *
+	 * The test verifies that:
+	 * - A corrupted catalog can be detected
+	 * - A new catalog can be created even when a corrupted catalog exists
+	 * - The corrupted catalog can be replaced with a correct one
+	 * - After replacement, the catalog can be accessed normally
+	 */
 	@Test
+	@DisplayName("Replace corrupted catalog with correct one")
 	void shouldReplaceCorruptedCatalogWithCorrectOne() {
 		this.evita.defineCatalog(TEST_CATALOG + "_1")
 		          .updateViaNewSession(this.evita);
@@ -3072,7 +3571,16 @@ class EvitaTest implements EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Tests that fetching entities that are not yet known is handled properly.
+	 *
+	 * The test verifies that:
+	 * - References to entities that don't exist yet are properly handled
+	 * - When fetching entity with references, non-existent referenced entities are properly marked
+	 * - When not fetching referenced entity bodies, all references are returned regardless of existence
+	 */
 	@Test
+	@DisplayName("Handle fetching of not yet known entities")
 	void shouldProperlyHandleFetchingOfNotYetKnownEntities() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -3126,7 +3634,16 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that groups with non-matching locales are not returned in query results.
+	 *
+	 * The test verifies that:
+	 * - When querying with a specific locale, only groups matching that locale are returned
+	 * - References to groups are properly handled when locales don't match
+	 * - Both entity and custom class representations handle locale filtering correctly
+	 */
 	@Test
+	@DisplayName("Don't return groups with non-matching locale")
 	void shouldNotReturnGroupOfNonMatchingLocale() {
 		shouldCreateReflectedReference();
 		this.evita.updateCatalog(
@@ -3213,7 +3730,17 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that globally unique attributes are correctly localized.
+	 *
+	 * The test verifies that:
+	 * - Globally unique attributes can be localized
+	 * - Uniqueness constraint is enforced within the same locale
+	 * - Querying by attribute value works with proper locale handling
+	 * - Querying with a non-matching locale returns no results
+	 */
 	@Test
+	@DisplayName("Correctly localize globally unique attributes")
 	void shouldCorrectlyLocalizeGloballyUniqueAttribute() {
 		this.evita.defineCatalog(TEST_CATALOG)
 		          .withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
@@ -3300,7 +3827,17 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests the backup and restore functionality for catalogs.
+	 *
+	 * The test verifies that:
+	 * - A catalog can be backed up to a file
+	 * - The backup file is created correctly
+	 * - A new catalog can be restored from the backup file
+	 * - The restored catalog has the same content as the original
+	 */
 	@Test
+	@DisplayName("Create backup and restore catalog")
 	void shouldCreateBackupAndRestoreCatalog() throws IOException, ExecutionException, InterruptedException {
 		setupCatalogWithProductAndCategory();
 
@@ -3354,7 +3891,18 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests the backup and restore functionality for transactional catalogs.
+	 *
+	 * The test verifies that:
+	 * - A transactional catalog can be backed up to a file
+	 * - The backup file is created correctly
+	 * - A new catalog can be restored from the backup file
+	 * - The restored catalog has the same content as the original
+	 * - Both the original and restored catalogs can be modified after the restore operation
+	 */
 	@Test
+	@DisplayName("Create backup and restore transactional catalog")
 	void shouldCreateBackupAndRestoreTransactionalCatalog() throws IOException, ExecutionException, InterruptedException {
 		setupCatalogWithProductAndCategory();
 
@@ -3451,7 +3999,17 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests the task management functionality.
+	 *
+	 * The test verifies that:
+	 * - Tasks can be created and executed
+	 * - Tasks can be listed and their status can be retrieved
+	 * - Tasks can be cancelled
+	 * - Exported files can be listed, fetched, and deleted
+	 */
 	@Test
+	@DisplayName("List and cancel tasks")
 	void shouldListAndCancelTasks() {
 		final int numberOfTasks = 20;
 
