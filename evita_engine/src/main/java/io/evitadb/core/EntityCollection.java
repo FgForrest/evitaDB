@@ -1425,12 +1425,16 @@ public final class EntityCollection implements
 	public EntityCollection createCopyWithMergedTransactionalMemory(@Nullable DataStoreChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final long catalogVersion = this.catalog.getVersion();
 		final DataStoreChanges transactionalChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this);
+		final EntityCollectionPersistenceService newPersistenceService = this.catalogPersistenceService.getOrCreateEntityCollectionPersistenceService(
+			catalogVersion, this.entityType, this.entityTypePrimaryKey
+		);
 		if (transactionalChanges != null) {
-			// when we register all storage parts for persisting we can now release transactional memory
+			// when we register all storage parts for persisting, we can now release transactional memory
 			transactionalLayer.removeTransactionalMemoryLayer(this);
 			return new EntityCollection(
 				catalogVersion,
-				CatalogState.ALIVE, this.entityTypePrimaryKey,
+				CatalogState.ALIVE,
+				this.entityTypePrimaryKey,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.schema)
 					.map(EntitySchemaDecorator::getDelegate)
 					.orElseThrow(() -> new GenericEvitaInternalError("Schema was unexpectedly found null after transaction completion!")),
@@ -1438,9 +1442,7 @@ public final class EntityCollection implements
 				this.indexPkSequence,
 				this.pricePkSequence,
 				this.catalogPersistenceService,
-				this.catalogPersistenceService.getOrCreateEntityCollectionPersistenceService(
-					catalogVersion, this.entityType, this.entityTypePrimaryKey
-				),
+				newPersistenceService,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.indexes),
 				this.cacheSupervisor,
 				this.trafficRecorder
@@ -1458,8 +1460,27 @@ public final class EntityCollection implements
 				transactionalLayer.getTransactionalMemoryLayerIfExists(this.indexes) == null,
 				"Indexes are unexpectedly modified!"
 			);
-			// no changes were present - we return shallow copy
-			return createCopyForNewCatalogAttachment(CatalogState.ALIVE);
+			if (this.persistenceService != newPersistenceService) {
+				// if the compaction occurred, the persistence service may have changed
+				// we just create a new collection with the new persistence service, but leave the rest of the state intact
+				return new EntityCollection(
+					catalogVersion,
+					CatalogState.ALIVE,
+					this.entityTypePrimaryKey,
+					getInternalSchema(),
+					this.pkSequence,
+					this.indexPkSequence,
+					this.pricePkSequence,
+					this.catalogPersistenceService,
+					newPersistenceService,
+					createIndexCopiesForNewCatalogAttachment(CatalogState.ALIVE),
+					this.cacheSupervisor,
+					this.trafficRecorder
+				);
+			} else {
+				// no changes were present - we return shallow copy
+				return createCopyForNewCatalogAttachment(CatalogState.ALIVE);
+			}
 		}
 	}
 
@@ -1517,16 +1538,7 @@ public final class EntityCollection implements
 			this.pricePkSequence,
 			this.catalogPersistenceService,
 			this.persistenceService,
-			this.indexes.entrySet()
-				.stream()
-				.collect(
-					Collectors.toMap(
-						Map.Entry::getKey,
-						it -> it.getValue() instanceof CatalogRelatedDataStructure ?
-							((CatalogRelatedDataStructure<? extends EntityIndex>) it.getValue()).createCopyForNewCatalogAttachment(catalogState) :
-							it.getValue()
-					)
-				),
+			createIndexCopiesForNewCatalogAttachment(catalogState),
 			this.cacheSupervisor,
 			this.trafficRecorder
 		);
@@ -2242,6 +2254,29 @@ public final class EntityCollection implements
 	private BinaryEntity limitEntity(@Nonnull BinaryEntity entity, @Nonnull EntityFetch fetchRequirements) {
 		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
 		return entity;
+	}
+
+	/**
+	 * Creates a map of index copies for a new catalog attachment, based on the current indexes.
+	 * If an index is a catalog-related data structure, a copy for the new catalog attachment is created;
+	 * otherwise, the original index is reused.
+	 *
+	 * @param catalogState the state of the new catalog to which the indices will be attached
+	 * @return a map containing keys and their corresponding index copies or original indexes
+	 */
+	@Nonnull
+	private Map<EntityIndexKey, EntityIndex> createIndexCopiesForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
+		//noinspection unchecked
+		return this.indexes.entrySet()
+			.stream()
+			.collect(
+				Collectors.toMap(
+					Map.Entry::getKey,
+					it -> it.getValue() instanceof CatalogRelatedDataStructure ?
+						((CatalogRelatedDataStructure<? extends EntityIndex>) it.getValue()).createCopyForNewCatalogAttachment(catalogState) :
+						it.getValue()
+				)
+			);
 	}
 
 	/**
