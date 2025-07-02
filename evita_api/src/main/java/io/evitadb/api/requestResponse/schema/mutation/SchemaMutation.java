@@ -58,7 +58,6 @@ public non-sealed interface SchemaMutation extends CatalogBoundMutation {
 		@Nonnull ChangeCaptureContent content
 	) {
 		final MutationPredicateContext context = predicate.getContext();
-		context.advance();
 
 		if (predicate.test(this)) {
 			return Stream.of(

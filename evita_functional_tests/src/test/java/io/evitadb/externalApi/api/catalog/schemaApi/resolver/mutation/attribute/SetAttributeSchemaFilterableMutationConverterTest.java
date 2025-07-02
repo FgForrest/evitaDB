@@ -90,14 +90,6 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 					.build()
 			)
 		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> this.converter.convertFromInput(
-				map()
-					.e(SetAttributeSchemaFilterableMutationDescriptor.NAME.name(), "code")
-					.build()
-			)
-		);
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}

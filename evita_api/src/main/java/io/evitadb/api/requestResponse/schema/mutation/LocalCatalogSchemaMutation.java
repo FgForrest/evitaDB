@@ -23,6 +23,11 @@
 
 package io.evitadb.api.requestResponse.schema.mutation;
 
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.mutation.MutationPredicate;
+import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.MutationEntitySchemaAccessor;
@@ -30,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchema
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.stream.Stream;
 
 /**
  * This interface marks all {@link CatalogSchemaMutation} that can be locally applicable to an already identified
@@ -56,5 +62,24 @@ public interface LocalCatalogSchemaMutation extends CatalogSchemaMutation {
 	 */
 	@Nullable
 	CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor);
+
+	/**
+	 * In this method we override the default implementation to move the index of the {@link MutationPredicateContext}
+	 * as each LocalCatalogSchemaMutation is a separate mutation unit.
+	 *
+	 * @param predicate the predicate to be used for filtering the {@link LocalMutation} mutation items if any
+	 *                  are present
+	 * @param content   the requested content of the capture
+	 * @return default implementation of the {@link ChangeCatalogCapture} stream
+	 */
+	@Override
+	@Nonnull
+	default Stream<ChangeCatalogCapture> toChangeCatalogCapture(
+		@Nonnull MutationPredicate predicate,
+		@Nonnull ChangeCaptureContent content
+	) {
+		predicate.getContext().advance();
+		return CatalogSchemaMutation.super.toChangeCatalogCapture(predicate, content);
+	}
 
 }

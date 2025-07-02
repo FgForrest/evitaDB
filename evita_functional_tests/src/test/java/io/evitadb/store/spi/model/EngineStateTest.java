@@ -129,7 +129,7 @@ class EngineStateTest {
 
         assertEquals(originalState.storageProtocolVersion(), modifiedState3.storageProtocolVersion());
         assertEquals(originalState.version(), modifiedState3.version());
-        assertEquals("modified_0", modifiedState3.walFileReference().walFileNameProvider().apply(0));
+        assertEquals("modified_0.wal", modifiedState3.walFileReference().walFileNameProvider().apply(0));
         assertEquals(30, modifiedState3.walFileReference().fileIndex());
         assertArrayEquals(originalState.activeCatalogs(), modifiedState3.activeCatalogs());
         assertArrayEquals(originalState.inactiveCatalogs(), modifiedState3.inactiveCatalogs());

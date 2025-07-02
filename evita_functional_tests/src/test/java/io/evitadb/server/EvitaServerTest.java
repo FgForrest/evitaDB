@@ -793,6 +793,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					   "uptimeForHuman": "VARIABLE",
 					   "catalogsCorrupted": 0,
 					   "catalogsOk": 0,
+					   "catalogsInactive": 0,
 					   "healthProblems": [],
 					   "apis": [
 					      {

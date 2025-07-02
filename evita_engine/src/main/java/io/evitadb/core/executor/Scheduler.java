@@ -24,6 +24,7 @@
 package io.evitadb.core.executor;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
+import io.evitadb.api.task.InfiniteTask;
 import io.evitadb.api.task.InternallyScheduledTask;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
@@ -269,7 +270,11 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	public void shutdown() {
 		// cancel all tasks in the queue
 		for (ServerTask<?, ?> serverTask : this.queue) {
-			serverTask.cancel();
+			if (serverTask instanceof InfiniteTask<?,?> it) {
+				it.stop();
+			} else {
+				serverTask.cancel();
+			}
 		}
 		this.executorService.shutdown();
 	}
@@ -605,6 +610,9 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		if (task.getClass().isAnnotationPresent(InternallyScheduledTask.class)) {
 			// if the task is internally scheduled, we can execute it immediately
 			task.execute();
+		} else if (task instanceof Callable<?>) {
+			//noinspection unchecked
+			this.executorService.submit((Callable<T>)task);
 		} else {
 			this.executorService.submit(task::execute);
 		}

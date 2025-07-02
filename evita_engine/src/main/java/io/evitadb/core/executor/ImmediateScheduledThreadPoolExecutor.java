@@ -24,6 +24,7 @@
 package io.evitadb.core.executor;
 
 
+import io.evitadb.api.task.InfiniteTask;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
@@ -53,7 +54,7 @@ public class ImmediateScheduledThreadPoolExecutor extends ScheduledThreadPoolExe
 	private boolean shutdown = false;
 
 	public ImmediateScheduledThreadPoolExecutor() {
-		super(1);
+		super(4);
 	}
 
 	@Nonnull
@@ -70,7 +71,7 @@ public class ImmediateScheduledThreadPoolExecutor extends ScheduledThreadPoolExe
 	@Nonnull
 	@Override
 	public <V> ScheduledFuture<V> schedule(@Nonnull Callable<V> callable, long delay, @Nonnull TimeUnit unit) {
-		if (delay > 0) {
+		if (delay > 0 || callable instanceof InfiniteTask<?, ?>) {
 			return super.schedule(callable, delay, unit);
 		} else {
 			try {
@@ -106,8 +107,12 @@ public class ImmediateScheduledThreadPoolExecutor extends ScheduledThreadPoolExe
 	public <T> Future<T> submit(@Nonnull Callable<T> task) {
 		final T result;
 		try {
-			result = task.call();
-			return CompletableFuture.completedFuture(result);
+			if (task instanceof InfiniteTask<?,?>) {
+				return super.submit(task);
+			} else {
+				result = task.call();
+				return CompletableFuture.completedFuture(result);
+			}
 		} catch (Exception e) {
 			return CompletableFuture.failedFuture(e);
 		}

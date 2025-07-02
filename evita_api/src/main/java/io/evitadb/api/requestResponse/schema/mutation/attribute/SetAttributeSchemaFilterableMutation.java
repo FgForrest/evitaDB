@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
@@ -87,6 +88,7 @@ public class SetAttributeSchemaFilterableMutation
 		);
 	}
 
+	@SerializableCreator
 	public SetAttributeSchemaFilterableMutation(
 		@Nonnull String name,
 		@Nullable Scope[] filterableInScopes

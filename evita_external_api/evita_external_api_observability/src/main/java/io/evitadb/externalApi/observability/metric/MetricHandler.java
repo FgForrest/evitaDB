@@ -31,9 +31,8 @@ import io.evitadb.api.observability.annotation.ExportMetric;
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import io.evitadb.api.observability.annotation.HistogramSettings;
 import io.evitadb.api.task.ServerTask;
-import io.evitadb.api.task.Task;
 import io.evitadb.core.Evita;
-import io.evitadb.core.executor.ClientRunnableTask;
+import io.evitadb.core.executor.ClientInfiniteCallableTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
@@ -417,7 +416,7 @@ public class MetricHandler {
 	/**
 	 * Task that listens for JFR events and transforms them into Prometheus metrics.
 	 */
-	private static class MetricTask extends ClientRunnableTask<Void> implements Task<Void, Void> {
+	private static class MetricTask extends ClientInfiniteCallableTask<Void, Void> {
 		private final AtomicReference<RecordingStream> recordingStream = new AtomicReference<>();
 		@Getter private final CompletableFuture<Boolean> initialized = new CompletableFuture<>();
 
@@ -567,13 +566,20 @@ public class MetricHandler {
 						((MetricTask) theTask).initialized.complete(true);
 						recordingStream.start();
 					}
+
+					return null;
 				}
 			);
 		}
 
 		@Override
-		public boolean cancel() {
+		protected void stopInternal() {
 			this.recordingStream.get().close();
+		}
+
+		@Override
+		public boolean cancel() {
+			stopInternal();
 			return super.cancel();
 		}
 

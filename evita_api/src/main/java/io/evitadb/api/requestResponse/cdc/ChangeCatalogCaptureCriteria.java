@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.cdc;
 
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -49,7 +48,7 @@ public record ChangeCatalogCaptureCriteria(
 			switch (area) {
 				case SCHEMA -> Assert.isTrue(site instanceof SchemaSite, "Schema site must be provided for schema area");
 				case DATA -> Assert.isTrue(site instanceof DataSite, "Data site must be provided for data area");
-				case INFRASTRUCTURE -> throw new EvitaInvalidUsageException("Infrastructure area is not supported");
+				case INFRASTRUCTURE -> Assert.isTrue(site == null, "Infrastructure area must not have site defined");
 			}
 		}
 	}

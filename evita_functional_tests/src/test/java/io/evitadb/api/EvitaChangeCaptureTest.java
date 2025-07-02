@@ -143,7 +143,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 				ChangeCatalogCaptureRequest.builder()
 					.criteria(
 						ChangeCatalogCaptureCriteria.builder()
-							.area(CaptureArea.SCHEMA)
+							.schemaArea()
 							.build()
 					)
 					.content(ChangeCaptureContent.BODY)
@@ -172,7 +172,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 				ChangeCatalogCaptureRequest.builder()
 					.criteria(
 						ChangeCatalogCaptureCriteria.builder()
-							.area(CaptureArea.DATA)
+							.dataArea()
 							.build()
 					)
 					.content(ChangeCaptureContent.BODY)
@@ -201,7 +201,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 				ChangeCatalogCaptureRequest.builder()
 					.criteria(
 						ChangeCatalogCaptureCriteria.builder()
-							.area(CaptureArea.DATA)
+							.dataArea()
 							.build(),
 						ChangeCatalogCaptureCriteria.builder()
 							.area(CaptureArea.INFRASTRUCTURE)

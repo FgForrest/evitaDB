@@ -49,17 +49,17 @@ public class ChangeCatalogCaptureStatisticsEvent extends AbstractChangeCatalogCa
 	@Label("Publisher count")
 	@Description("The number of shared publishers active in the system.")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int sharedPublishersTotal;
+	private final int sharedPublishers;
 
 	@Label("Subscriber count")
 	@Description("The number of subscribers active in the system.")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int subscribersTotal;
+	private final int subscribers;
 
 	@Label("Lagging subscribers")
 	@Description("The number of subscribers fetching the WAL records.")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int laggingSubscribersTotal;
+	private final int laggingSubscribers;
 
 	@Label("Published events")
 	@Description("The number of events published to all subscribers.")
@@ -68,15 +68,15 @@ public class ChangeCatalogCaptureStatisticsEvent extends AbstractChangeCatalogCa
 
 	public ChangeCatalogCaptureStatisticsEvent(
 		@Nonnull String catalogName,
-		int sharedPublishersTotal,
-		int subscribersTotal,
-		int laggingSubscribersTotal,
+		int sharedPublishers,
+		int subscribers,
+		int laggingSubscribers,
 		long eventsPublishedTotal
 	) {
 		super(catalogName);
-		this.sharedPublishersTotal = sharedPublishersTotal;
-		this.subscribersTotal = subscribersTotal;
-		this.laggingSubscribersTotal = laggingSubscribersTotal;
+		this.sharedPublishers = sharedPublishers;
+		this.subscribers = subscribers;
+		this.laggingSubscribers = laggingSubscribers;
 		this.eventsPublishedTotal = eventsPublishedTotal;
 	}
 

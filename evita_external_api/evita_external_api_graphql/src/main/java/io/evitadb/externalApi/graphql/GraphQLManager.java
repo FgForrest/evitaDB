@@ -74,7 +74,7 @@ public class GraphQLManager {
 	/**
 	 * Common object mapper for endpoints
 	 */
-	@Nonnull private ObjectMapper objectMapper = new ObjectMapper();
+	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
 
 	/**
 	 * Provides access to Evita private API
