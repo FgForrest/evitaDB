@@ -1119,6 +1119,16 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Tests that the client can fetch referenced entity predecessors correctly.
+	 *
+	 * This test verifies that the client can successfully retrieve category entities
+	 * that have references with predecessor attributes, and that these references
+	 * contain the expected `ReferencedEntityPredecessor` attribute values.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
 	@Test
 	@DisplayName("fetch referenced entity predecessors")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
@@ -1167,6 +1177,20 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that the client can retrieve entity lists along with extra query results.
+	 *
+	 * This test verifies that the client can successfully execute queries that return
+	 * not only the entity data but also additional computed results such as:
+	 * - Query telemetry information
+	 * - Price histograms for price analysis
+	 * - Attribute histograms for attribute value distribution
+	 * - Hierarchical data structures
+	 * - Facet summaries for faceted search
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
 	@Test
 	@DisplayName("get list with extra results")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
@@ -1236,6 +1260,25 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertFalse(facetSummary.getReferenceStatistics().isEmpty());
 	}
 
+	/**
+	 * Tests that the client can retrieve custom entity model instances along with extra query results.
+	 *
+	 * This test verifies that the client can successfully execute queries that return
+	 * custom proxy interfaces (ProductInterface) instead of SealedEntity, while also
+	 * providing additional computed results such as:
+	 * - Query telemetry information
+	 * - Price histograms for price analysis
+	 * - Attribute histograms for attribute value distribution
+	 * - Hierarchical data structures
+	 * - Facet summaries for faceted search
+	 *
+	 * The test also validates that the custom entity proxies correctly represent
+	 * the original data with proper price context and locale settings.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 * @param originalCategories map of original category entities for reference validation
+	 */
 	@Test
 	@DisplayName("get list of custom entities with extra results")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
@@ -1333,6 +1376,16 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertFalse(facetSummary.getReferenceStatistics().isEmpty());
 	}
 
+	/**
+	 * Tests that the client can retrieve a single entity by its primary key.
+	 *
+	 * This test verifies that the client can successfully fetch a specific entity
+	 * using its primary key and entity type, returning a complete SealedEntity
+	 * with all requested content including attributes, references, and associated data.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
 	@Test
 	@DisplayName("get single entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
@@ -1357,6 +1410,18 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		});
 	}
 
+	/**
+	 * Tests that the client can retrieve a single entity as a custom proxy interface.
+	 *
+	 * This test verifies that the client can successfully fetch a specific entity
+	 * using its primary key and return it as a custom proxy interface (ProductInterface)
+	 * instead of the default SealedEntity, with proper validation of the proxy's
+	 * behavior and data consistency against the original entity data.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 * @param originalCategories map of original category entities for reference validation
+	 */
 	@Test
 	@DisplayName("get single custom entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
@@ -1381,6 +1446,21 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		});
 	}
 
+	/**
+	 * Tests that the client can enrich a partially loaded entity with additional content.
+	 *
+	 * This test verifies the entity enrichment functionality by:
+	 * 1. First fetching an entity with limited content (only attributes)
+	 * 2. Then fetching the same entity with full content requirements
+	 * 3. Validating that the enriched entity contains all the expected data
+	 *    while the limited entity differs from the complete version
+	 *
+	 * This demonstrates the system's ability to incrementally load entity data
+	 * based on different fetch requirements.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
 	@Test
 	@DisplayName("enrich single entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
@@ -1416,6 +1496,22 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertExactlyEquals(products.get(7), enrichedEntity);
 	}
 
+	/**
+	 * Tests that the client can enrich a partially loaded custom entity proxy with additional content.
+	 *
+	 * This test verifies the entity enrichment functionality for custom proxy interfaces by:
+	 * 1. First fetching an entity as ProductInterface with limited content (only attributes)
+	 * 2. Validating that missing content throws ContextMissingException when accessed
+	 * 3. Then fetching the same entity with full content requirements
+	 * 4. Validating that the enriched entity proxy contains all the expected data
+	 *
+	 * This demonstrates the system's ability to incrementally load entity data
+	 * for custom proxy interfaces based on different fetch requirements.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 * @param originalCategories map of original category entities for reference validation
+	 */
 	@Test
 	@DisplayName("enrich single custom entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
@@ -1454,6 +1550,22 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertProduct(products.get(7), enrichedEntity, originalCategories);
 	}
 
+	/**
+	 * Tests that the client can limit the content of a single entity fetch operation.
+	 *
+	 * This test verifies the entity content limiting functionality by:
+	 * 1. First fetching an entity with full content requirements
+	 * 2. Then fetching the same entity with limited content (only attributes)
+	 * 3. Validating that the full entity matches the expected complete data
+	 * 4. Validating that the limited entity differs from the complete version
+	 *
+	 * This demonstrates the system's ability to control the amount of data
+	 * loaded for entities based on specific fetch requirements, which is
+	 * important for performance optimization.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
 	@Test
 	@DisplayName("limit single entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
@@ -1489,6 +1601,24 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertDiffers(products.get(7), limitedEntity);
 	}
 
+	/**
+	 * Tests that the client can limit the content of a single custom entity proxy fetch operation.
+	 *
+	 * This test verifies the entity content limiting functionality for custom proxy interfaces by:
+	 * 1. First fetching an entity as ProductInterface with full content requirements
+	 * 2. Then fetching the same entity with limited content (only attributes)
+	 * 3. Validating that the full entity proxy contains all the expected data
+	 * 4. Validating that the limited entity proxy throws ContextMissingException
+	 *    when accessing content that wasn't fetched
+	 *
+	 * This demonstrates the system's ability to control the amount of data
+	 * loaded for custom entity proxies based on specific fetch requirements,
+	 * which is important for performance optimization.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 * @param originalCategories map of original category entities for reference validation
+	 */
 	@Test
 	@DisplayName("limit single custom entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
