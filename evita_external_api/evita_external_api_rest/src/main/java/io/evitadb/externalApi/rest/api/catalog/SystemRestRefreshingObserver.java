@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.externalApi.rest.RestManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.Flow.Subscriber;
@@ -40,6 +41,7 @@ import java.util.concurrent.Flow.Subscription;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Slf4j
 @RequiredArgsConstructor
 public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapture> {
 	/**
@@ -59,24 +61,29 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 
 	@Override
 	public void onNext(ChangeSystemCapture item) {
-		if (item.body() instanceof CreateCatalogSchemaMutation ccsm) {
-			// if the catalog schema is created, we need to register it
-			this.restManager.registerCatalog(ccsm.getCatalogName());
-			this.restManager.emitObservabilityEvents(ccsm.getCatalogName());
-		} else if (item.body() instanceof RemoveCatalogSchemaMutation rccs) {
-			// if the catalog schema is removed, we need to unregister it
-			this.restManager.unregisterCatalog(rccs.getCatalogName());
-		} else if (item.body() instanceof ModifyCatalogSchemaNameMutation mcsnm) {
-			// remove the old catalog and register the new one
-			this.restManager.unregisterCatalog(mcsnm.getCatalogName());
-			this.restManager.registerCatalog(mcsnm.getNewCatalogName());
-			this.restManager.emitObservabilityEvents(mcsnm.getCatalogName());
-		} else if (item.body() instanceof ModifyCatalogSchemaMutation mcsm) {
-			// when schema changes - just refresh the catalog
-			this.restManager.refreshCatalog(mcsm.getCatalogName());
-			this.restManager.emitObservabilityEvents(mcsm.getCatalogName());
+		try {
+			if (item.body() instanceof CreateCatalogSchemaMutation ccsm) {
+				// if the catalog schema is created, we need to register it
+				this.restManager.registerCatalog(ccsm.getCatalogName());
+				this.restManager.emitObservabilityEvents(ccsm.getCatalogName());
+			} else if (item.body() instanceof RemoveCatalogSchemaMutation rccs) {
+				// if the catalog schema is removed, we need to unregister it
+				this.restManager.unregisterCatalog(rccs.getCatalogName());
+			} else if (item.body() instanceof ModifyCatalogSchemaNameMutation mcsnm) {
+				// remove the old catalog and register the new one
+				this.restManager.unregisterCatalog(mcsnm.getCatalogName());
+				this.restManager.registerCatalog(mcsnm.getNewCatalogName());
+				this.restManager.emitObservabilityEvents(mcsnm.getCatalogName());
+			} else if (item.body() instanceof ModifyCatalogSchemaMutation mcsm) {
+				// when schema changes - just refresh the catalog
+				this.restManager.refreshCatalog(mcsm.getCatalogName());
+				this.restManager.emitObservabilityEvents(mcsm.getCatalogName());
+			}
+		} catch (Throwable throwable) {
+			log.error("Failed to update GraphQL schema in reaction to schema capture: {}", item, throwable);
+		} finally {
+			this.subscription.request(1);
 		}
-		this.subscription.request(1);
 	}
 
 	@Override

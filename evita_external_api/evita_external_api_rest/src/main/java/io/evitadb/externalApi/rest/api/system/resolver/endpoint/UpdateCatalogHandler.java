@@ -145,6 +145,6 @@ public class UpdateCatalogHandler extends CatalogHandler {
 			() -> new RestInvalidArgumentException("Only a catalog in the `WARMING_UP` state can be switched to the `ALIVE` state.")
 		);
 
-		restHandlingContext.getEvita().makeCatalogAlive(catalog.getName());
+		this.restHandlingContext.getEvita().makeCatalogAlive(catalog.getName());
 	}
 }

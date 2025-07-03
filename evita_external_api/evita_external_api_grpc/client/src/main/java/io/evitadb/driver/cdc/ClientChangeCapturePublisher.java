@@ -34,19 +34,18 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collection;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 /**
@@ -101,17 +100,10 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	private final Consumer<ClientChangeCapturePublisher<C, REQ, RES>> onCloseCallback;
 
 	/**
-	 * This lock is used to ensure thread safety when modifying the collection of subscriptions.
-	 * We need to ensure that this publisher can be safely closed when there are no more active subscriptions while
-	 * preventing accepting new subscriptions.
-	 */
-	private final ReentrantLock modificationLock = new ReentrantLock();
-
-	/**
 	 * Collection of all active subscriptions managed by this publisher.
 	 * Uses a concurrent skip list set to ensure thread safety and ordered iteration.
 	 */
-	private final List<ClientSubscription<C, REQ, RES>> subscriptions = new ArrayList<>(4);
+	private final Collection<ClientSubscription<C, REQ, RES>> subscriptions = new ConcurrentSkipListSet<>();
 
 	/**
 	 * Flag indicating whether this publisher is active.
@@ -156,28 +148,18 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 			internalSubscriber,
 			this.queueSize,
 			theSubscription -> {
-				this.modificationLock.lock();
-				try {
-					// remove the subscription from the publisher when it's closed
-					this.subscriptions.remove(theSubscription);
-					if (this.subscriptions.isEmpty()) {
-						this.close();
-					}
-				} finally {
-					this.modificationLock.unlock();
+				// remove the subscription from the publisher when it's closed
+				this.subscriptions.remove(theSubscription);
+				if (this.subscriptions.isEmpty()) {
+					this.close();
 				}
 			}
 		);
 
-		this.modificationLock.lock();
-		try {
-			assertActive();
-			// initialize the subscriber
-			this.streamInitializer.accept(internalSubscriber);
-			this.subscriptions.add(subscription);
-		} finally {
-			this.modificationLock.unlock();
-		}
+		assertActive();
+		// initialize the subscriber
+		this.streamInitializer.accept(internalSubscriber);
+		this.subscriptions.add(subscription);
 
 		internalSubscriber.onSubscribe(subscription);
 	}
@@ -211,17 +193,12 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	@Override
 	public void close() {
 		if (this.active.compareAndSet(true, false)) {
-			this.modificationLock.lock();
-			try {
-				for (ClientSubscription<C, REQ, RES> subscription : this.subscriptions) {
-					IOUtils.closeSafely(subscription::cancel);
-				}
-				this.subscriptions.clear();
-				// execute the onClose callback to notify that the publisher is closed
-				this.onCloseCallback.accept(this);
-			} finally {
-				this.modificationLock.unlock();
+			for (ClientSubscription<C, REQ, RES> subscription : this.subscriptions) {
+				IOUtils.closeSafely(subscription::cancel);
 			}
+			this.subscriptions.clear();
+			// execute the onClose callback to notify that the publisher is closed
+			this.onCloseCallback.accept(this);
 		}
 	}
 

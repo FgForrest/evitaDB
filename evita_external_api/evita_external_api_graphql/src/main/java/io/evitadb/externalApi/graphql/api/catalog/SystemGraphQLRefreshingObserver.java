@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.externalApi.graphql.GraphQLManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
@@ -41,6 +42,7 @@ import java.util.concurrent.Flow.Subscription;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 // TOBEDONE LHO: consider more efficient GraphQL schema updating when only part of Evita schema is updated
+@Slf4j
 @RequiredArgsConstructor
 public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemCapture> {
 	private final GraphQLManager graphQLManager;
@@ -54,22 +56,26 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 
 	@Override
 	public void onNext(ChangeSystemCapture item) {
-		/* TODO JNO - add try catch, tohle se nesmí nikdy zastavit + logovat výjimku! + TOTÉŽ PRO REST */
-		final Mutation body = item.body();
-		if (body instanceof CreateCatalogSchemaMutation create) {
-			this.graphQLManager.registerCatalog(create.getCatalogName());
-			this.graphQLManager.emitObservabilityEvents(create.getCatalogName());
-		} else if (body instanceof ModifyCatalogSchemaNameMutation nameChange) {
-			this.graphQLManager.unregisterCatalog(nameChange.getCatalogName());
-			this.graphQLManager.registerCatalog(nameChange.getNewCatalogName());
-			this.graphQLManager.emitObservabilityEvents(nameChange.getCatalogName());
-		} else if (body instanceof ModifyCatalogSchemaMutation modify) {
-			this.graphQLManager.refreshCatalog(modify.getCatalogName());
-			this.graphQLManager.emitObservabilityEvents(modify.getCatalogName());
-		} else if (body instanceof RemoveCatalogSchemaMutation remove) {
-			this.graphQLManager.unregisterCatalog(remove.getCatalogName());
+		try {
+			final Mutation body = item.body();
+			if (body instanceof CreateCatalogSchemaMutation create) {
+				this.graphQLManager.registerCatalog(create.getCatalogName());
+				this.graphQLManager.emitObservabilityEvents(create.getCatalogName());
+			} else if (body instanceof ModifyCatalogSchemaNameMutation nameChange) {
+				this.graphQLManager.unregisterCatalog(nameChange.getCatalogName());
+				this.graphQLManager.registerCatalog(nameChange.getNewCatalogName());
+				this.graphQLManager.emitObservabilityEvents(nameChange.getCatalogName());
+			} else if (body instanceof ModifyCatalogSchemaMutation modify) {
+				this.graphQLManager.refreshCatalog(modify.getCatalogName());
+				this.graphQLManager.emitObservabilityEvents(modify.getCatalogName());
+			} else if (body instanceof RemoveCatalogSchemaMutation remove) {
+				this.graphQLManager.unregisterCatalog(remove.getCatalogName());
+			}
+		} catch (Throwable throwable) {
+			log.error("Failed to update GraphQL schema in reaction to schema capture: {}", item, throwable);
+		} finally {
+			this.subscription.request(1);
 		}
-		this.subscription.request(1);
 	}
 
 	@Override
