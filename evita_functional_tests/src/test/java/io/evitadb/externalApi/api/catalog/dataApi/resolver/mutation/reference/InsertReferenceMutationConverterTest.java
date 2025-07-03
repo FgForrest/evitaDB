@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.InsertReferenceMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,8 +63,8 @@ class InsertReferenceMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-				.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
+				.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.e(InsertReferenceMutationDescriptor.CARDINALITY.name(), Cardinality.ONE_OR_MORE)
 				.e(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "Tag")
 				.build()
@@ -72,8 +73,8 @@ class InsertReferenceMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
-				.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-				.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
+				.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.e(InsertReferenceMutationDescriptor.CARDINALITY.name(), "ONE_OR_MORE")
 				.e(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "Tag")
 				.build()
@@ -85,8 +86,8 @@ class InsertReferenceMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-				.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
+				.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.build()
 		);
 		assertEquals(
@@ -101,7 +102,7 @@ class InsertReferenceMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.build()
 			)
 		);
@@ -109,7 +110,7 @@ class InsertReferenceMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.build()
 			)
 		);
@@ -127,8 +128,8 @@ class InsertReferenceMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(InsertReferenceMutationDescriptor.CARDINALITY.name(), Cardinality.ONE_OR_MORE.name())
 					.e(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "Tag")
 					.build()

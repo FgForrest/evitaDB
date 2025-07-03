@@ -30,8 +30,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.TopLevelCatalogSchemaMutationAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateCatalogSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.TopLevelCatalogSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -71,9 +70,9 @@ public class TopLevelCatalogSchemaMutationAggregateConverterTest {
 		final List<TopLevelCatalogSchemaMutation> convertedMutations = this.converter.convertFromInput(
 			map()
 				.e(TopLevelCatalogSchemaMutationAggregateDescriptor.CREATE_CATALOG_SCHEMA_MUTATION.name(), map()
-					.e(CreateCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "entityType"))
+					.e(TopLevelCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "entityType"))
 				.e(TopLevelCatalogSchemaMutationAggregateDescriptor.REMOVE_CATALOG_SCHEMA_MUTATION.name(), map()
-					.e(RemoveCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "entityType"))
+					.e(TopLevelCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "entityType"))
 				.build()
 		);
 		assertEquals(expectedMutations, convertedMutations);
@@ -105,10 +104,10 @@ public class TopLevelCatalogSchemaMutationAggregateConverterTest {
 				list()
 					.i(map()
 						.e(TopLevelCatalogSchemaMutationAggregateDescriptor.CREATE_CATALOG_SCHEMA_MUTATION.name(), map()
-							.e(CreateCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "entityType")))
+							.e(TopLevelCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "entityType")))
 					.i(map()
 						.e(TopLevelCatalogSchemaMutationAggregateDescriptor.REMOVE_CATALOG_SCHEMA_MUTATION.name(), map()
-							.e(RemoveCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "entityType")))
+							.e(TopLevelCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "entityType")))
 					.build()
 			);
 	}

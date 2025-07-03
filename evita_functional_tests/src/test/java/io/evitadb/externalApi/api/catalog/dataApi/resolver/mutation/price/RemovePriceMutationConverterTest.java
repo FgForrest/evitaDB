@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.price;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.PriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,18 +59,18 @@ class RemovePriceMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
-				.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
-				.e(RemovePriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
+				.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+				.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
+				.e(PriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation);
 
 		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
-				.e(RemovePriceMutationDescriptor.PRICE_ID.name(), "1")
-				.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
-				.e(RemovePriceMutationDescriptor.CURRENCY.name(), "CZK")
+				.e(PriceMutationDescriptor.PRICE_ID.name(), "1")
+				.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
+				.e(PriceMutationDescriptor.CURRENCY.name(), "CZK")
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation2);
@@ -82,8 +82,8 @@ class RemovePriceMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
-					.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
+					.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+					.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
 					.build()
 			)
 		);
@@ -91,8 +91,8 @@ class RemovePriceMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
-					.e(RemovePriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
+					.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+					.e(PriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 					.build()
 			)
 		);
@@ -100,8 +100,8 @@ class RemovePriceMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
-					.e(RemovePriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
+					.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
+					.e(PriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 					.build()
 			)
 		);
@@ -115,9 +115,9 @@ class RemovePriceMutationConverterTest {
 
 		assertEquals(
 			map()
-				.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
-				.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
-				.e(RemovePriceMutationDescriptor.CURRENCY.name(), "CZK")
+				.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+				.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
+				.e(PriceMutationDescriptor.CURRENCY.name(), "CZK")
 				.build(),
 			this.converter.convertToOutput(inputMutation)
 		);

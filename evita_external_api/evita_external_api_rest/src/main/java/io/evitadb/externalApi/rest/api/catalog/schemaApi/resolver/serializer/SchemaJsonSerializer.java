@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.utils.NamingConvention;
@@ -77,7 +78,7 @@ public abstract class SchemaJsonSerializer {
 		return Arrays.stream(Scope.values())
 			.map(scope -> {
 				final ObjectNode attributeUniquenessType = this.objectJsonSerializer.objectNode();
-				attributeUniquenessType.put(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name());
+				attributeUniquenessType.put(ScopedDataDescriptor.SCOPE.name(), scope.name());
 				attributeUniquenessType.put(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), uniquenessTypeAccessor.apply(scope).name());
 				return attributeUniquenessType;
 			})
@@ -89,7 +90,7 @@ public abstract class SchemaJsonSerializer {
 		return Arrays.stream(Scope.values())
 			.map(scope -> {
 				final ObjectNode attributeUniquenessType = this.objectJsonSerializer.objectNode();
-				attributeUniquenessType.put(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name());
+				attributeUniquenessType.put(ScopedDataDescriptor.SCOPE.name(), scope.name());
 				attributeUniquenessType.put(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), uniquenessTypeAccessor.apply(scope).name());
 				return attributeUniquenessType;
 			})

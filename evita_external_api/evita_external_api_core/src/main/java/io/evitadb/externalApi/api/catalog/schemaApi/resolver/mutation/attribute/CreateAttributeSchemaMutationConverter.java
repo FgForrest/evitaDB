@@ -31,6 +31,8 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PropertyObjectListMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
@@ -74,14 +76,14 @@ public class CreateAttributeSchemaMutationConverter
 				CreateAttributeSchemaMutationDescriptor.UNIQUE_IN_SCOPES,
 				ScopedAttributeUniquenessType.class,
 				nestedInput -> new ScopedAttributeUniquenessType(
-					nestedInput.getProperty(ScopedAttributeUniquenessTypeDescriptor.SCOPE),
+					nestedInput.getProperty(ScopedDataDescriptor.SCOPE),
 					nestedInput.getProperty(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE)
 				)
 			)
 		);
 
 		return new CreateAttributeSchemaMutation(
-			input.getProperty(CreateAttributeSchemaMutationDescriptor.NAME),
+			input.getProperty(AttributeSchemaMutationDescriptor.NAME),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.DESCRIPTION),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
 			uniqueInScopes,

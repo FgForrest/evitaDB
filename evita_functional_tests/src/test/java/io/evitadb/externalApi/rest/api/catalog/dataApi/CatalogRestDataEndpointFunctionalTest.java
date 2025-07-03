@@ -46,11 +46,14 @@ import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.PlainChunk;
 import io.evitadb.dataType.StripList;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
+import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.PaginatedListDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.StripListDescriptor;
+import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.DataChunkType;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
@@ -206,7 +209,7 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 	}
 
 	public static void createEntityBodyDto(@Nonnull MapBuilder entityDto, @Nonnull SealedEntity entity, boolean localized) {
-		entityDto.e(EntityDescriptor.VERSION.name(), entity.version());
+		entityDto.e(VersionedDescriptor.VERSION.name(), entity.version());
 		entityDto.e(EntityDescriptor.SCOPE.name(), entity.getScope().name());
 
 		if (entity.parentAvailable()) {
@@ -259,7 +262,7 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 				}
 			}
 
-			parentDto.e(EntityDescriptor.ATTRIBUTES.name(), attributesDto);
+			parentDto.e(AttributesProviderDescriptor.ATTRIBUTES.name(), attributesDto);
 		}
 	}
 
@@ -425,7 +428,7 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 				referenceCardinality + " but found " + groupedReferences.getTotalRecordCount() +
 				" references with same name: " + referenceName);
 
-			final String referencePropertyName = RestEntityDescriptor.REFERENCE.name(referenceSchema);
+			final String referencePropertyName = EntityDescriptor.REFERENCE.name(referenceSchema);
 			if (groupedReferences.getData().isEmpty()) {
 				entityDto.e(referencePropertyName, null);
 			} else {
@@ -438,43 +441,43 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 
 			if (groupedReferences instanceof PlainChunk<ReferenceContract>) {
 				entityDto.e(
-					RestEntityDescriptor.REFERENCE.name(referenceSchema),
+					EntityDescriptor.REFERENCE.name(referenceSchema),
 					data
 				);
 			} else if (groupedReferences instanceof PaginatedList<ReferenceContract> groupedReferencePage) {
 				entityDto.e(
-					RestEntityDescriptor.REFERENCE_PAGE.name(referenceSchema),
+					EntityDescriptor.REFERENCE_PAGE.name(referenceSchema),
 					map()
-						.e(ReferencePageDescriptor.DATA.name(), data)
+						.e(DataChunkDescriptor.DATA.name(), data)
 						.e("type", DataChunkType.PAGE.name())
-						.e(ReferencePageDescriptor.TOTAL_RECORD_COUNT.name(), groupedReferencePage.getTotalRecordCount())
-						.e(ReferencePageDescriptor.FIRST.name(), groupedReferencePage.isFirst())
-						.e(ReferencePageDescriptor.LAST.name(), groupedReferencePage.isLast())
-						.e(ReferencePageDescriptor.HAS_PREVIOUS.name(), groupedReferencePage.hasPrevious())
-						.e(ReferencePageDescriptor.HAS_NEXT.name(), groupedReferencePage.hasNext())
-						.e(ReferencePageDescriptor.SINGLE_PAGE.name(), groupedReferencePage.isSinglePage())
-						.e(ReferencePageDescriptor.EMPTY.name(), groupedReferencePage.isEmpty())
-						.e(ReferencePageDescriptor.PAGE_SIZE.name(), groupedReferencePage.getPageSize())
-						.e(ReferencePageDescriptor.PAGE_NUMBER.name(), groupedReferencePage.getPageNumber())
-						.e(ReferencePageDescriptor.LAST_PAGE_NUMBER.name(), groupedReferencePage.getLastPageNumber())
-						.e(ReferencePageDescriptor.FIRST_PAGE_ITEM_NUMBER.name(), groupedReferencePage.getFirstPageItemNumber())
-						.e(ReferencePageDescriptor.LAST_PAGE_ITEM_NUMBER.name(), groupedReferencePage.getLastPageItemNumber())
+						.e(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), groupedReferencePage.getTotalRecordCount())
+						.e(DataChunkDescriptor.FIRST.name(), groupedReferencePage.isFirst())
+						.e(DataChunkDescriptor.LAST.name(), groupedReferencePage.isLast())
+						.e(DataChunkDescriptor.HAS_PREVIOUS.name(), groupedReferencePage.hasPrevious())
+						.e(DataChunkDescriptor.HAS_NEXT.name(), groupedReferencePage.hasNext())
+						.e(DataChunkDescriptor.SINGLE_PAGE.name(), groupedReferencePage.isSinglePage())
+						.e(DataChunkDescriptor.EMPTY.name(), groupedReferencePage.isEmpty())
+						.e(PaginatedListDescriptor.PAGE_SIZE.name(), groupedReferencePage.getPageSize())
+						.e(PaginatedListDescriptor.PAGE_NUMBER.name(), groupedReferencePage.getPageNumber())
+						.e(PaginatedListDescriptor.LAST_PAGE_NUMBER.name(), groupedReferencePage.getLastPageNumber())
+						.e(PaginatedListDescriptor.FIRST_PAGE_ITEM_NUMBER.name(), groupedReferencePage.getFirstPageItemNumber())
+						.e(PaginatedListDescriptor.LAST_PAGE_ITEM_NUMBER.name(), groupedReferencePage.getLastPageItemNumber())
 				);
 			} else if (groupedReferences instanceof StripList<ReferenceContract> groupedReferencesStrip) {
 				entityDto.e(
-					RestEntityDescriptor.REFERENCE_STRIP.name(referenceSchema),
+					EntityDescriptor.REFERENCE_STRIP.name(referenceSchema),
 					map()
-						.e(ReferenceStripDescriptor.DATA.name(), data)
+						.e(DataChunkDescriptor.DATA.name(), data)
 						.e("type", DataChunkType.STRIP.name())
-						.e(ReferenceStripDescriptor.TOTAL_RECORD_COUNT.name(), groupedReferencesStrip.getTotalRecordCount())
-						.e(ReferenceStripDescriptor.FIRST.name(), groupedReferencesStrip.isFirst())
-						.e(ReferenceStripDescriptor.LAST.name(), groupedReferencesStrip.isLast())
-						.e(ReferenceStripDescriptor.HAS_PREVIOUS.name(), groupedReferencesStrip.hasPrevious())
-						.e(ReferenceStripDescriptor.HAS_NEXT.name(), groupedReferencesStrip.hasNext())
-						.e(ReferenceStripDescriptor.SINGLE_PAGE.name(), groupedReferencesStrip.isSinglePage())
-						.e(ReferenceStripDescriptor.EMPTY.name(), groupedReferencesStrip.isEmpty())
-						.e(ReferenceStripDescriptor.OFFSET.name(), groupedReferencesStrip.getOffset())
-						.e(ReferenceStripDescriptor.LIMIT.name(), groupedReferencesStrip.getLimit())
+						.e(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), groupedReferencesStrip.getTotalRecordCount())
+						.e(DataChunkDescriptor.FIRST.name(), groupedReferencesStrip.isFirst())
+						.e(DataChunkDescriptor.LAST.name(), groupedReferencesStrip.isLast())
+						.e(DataChunkDescriptor.HAS_PREVIOUS.name(), groupedReferencesStrip.hasPrevious())
+						.e(DataChunkDescriptor.HAS_NEXT.name(), groupedReferencesStrip.hasNext())
+						.e(DataChunkDescriptor.SINGLE_PAGE.name(), groupedReferencesStrip.isSinglePage())
+						.e(DataChunkDescriptor.EMPTY.name(), groupedReferencesStrip.isEmpty())
+						.e(StripListDescriptor.OFFSET.name(), groupedReferencesStrip.getOffset())
+						.e(StripListDescriptor.LIMIT.name(), groupedReferencesStrip.getLimit())
 				);
 			} else {
 				throw new IllegalArgumentException("Unsupported data chunk type " + groupedReferences.getClass().getName());

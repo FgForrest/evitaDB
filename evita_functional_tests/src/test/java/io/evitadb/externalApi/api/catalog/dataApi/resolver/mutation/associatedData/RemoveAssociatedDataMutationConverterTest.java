@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.associatedD
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.RemoveAssociatedDataMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.RemoveAssociatedDataMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.AssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,16 +62,16 @@ class RemoveAssociatedDataMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
-				.e(RemoveAssociatedDataMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
+				.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
+				.e(AssociatedDataMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation);
 
 		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
-				.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
-				.e(RemoveAssociatedDataMutationDescriptor.LOCALE.name(), "en")
+				.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
+				.e(AssociatedDataMutationDescriptor.LOCALE.name(), "en")
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation2);
@@ -81,7 +81,7 @@ class RemoveAssociatedDataMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
+				.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
 				.build()
 		);
 
@@ -107,8 +107,8 @@ class RemoveAssociatedDataMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
-					.e(RemoveAssociatedDataMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
+					.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
+					.e(AssociatedDataMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
 					.build()
 			);
 	}

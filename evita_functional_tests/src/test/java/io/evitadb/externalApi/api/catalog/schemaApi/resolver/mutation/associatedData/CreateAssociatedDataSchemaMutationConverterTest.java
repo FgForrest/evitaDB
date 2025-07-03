@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssoc
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,7 +66,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 
 		final CreateAssociatedDataSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
-				.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class)
@@ -77,7 +78,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 
 		final CreateAssociatedDataSchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
-				.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), "String")
@@ -100,7 +101,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 
 		final CreateAssociatedDataSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
-				.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class)
 				.build()
 		);
@@ -121,7 +122,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.build()
 			)
 		);
@@ -146,7 +147,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.e(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 					.e(CreateAssociatedDataSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
 					.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class.getSimpleName())

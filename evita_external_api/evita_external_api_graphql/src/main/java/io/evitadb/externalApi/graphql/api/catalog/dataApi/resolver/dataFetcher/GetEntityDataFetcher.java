@@ -47,7 +47,9 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.QueryLabelDto;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.MetadataAwareFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryLabelDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ScopeAwareFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
@@ -261,12 +263,14 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 				.orElse(QueryPriceMode.WITH_TAX);
 
 			//noinspection unchecked
-			final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(GetEntityHeaderDescriptor.SCOPE.name()))
+			final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(
+				                               ScopeAwareFieldHeaderDescriptor.SCOPE.name()))
 				.map(it -> it.toArray(Scope[]::new))
 				.orElse(Scope.DEFAULT_SCOPES);
 
 			//noinspection unchecked
-			final List<QueryLabelDto> labels = Optional.ofNullable((List<Map<String, Object>>) arguments.remove(GetEntityHeaderDescriptor.LABELS.name()))
+			final List<QueryLabelDto> labels = Optional.ofNullable((List<Map<String, Object>>) arguments.remove(
+				                                           MetadataAwareFieldHeaderDescriptor.LABELS.name()))
 				.map(rawLabels -> rawLabels
 					.stream()
 					.map(rawLabel -> new QueryLabelDto(

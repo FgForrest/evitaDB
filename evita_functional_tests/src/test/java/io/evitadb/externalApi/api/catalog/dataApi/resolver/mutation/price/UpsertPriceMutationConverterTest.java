@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.PriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.UpsertPriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
@@ -80,9 +81,9 @@ class UpsertPriceMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
-				.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
-				.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
+				.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+				.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
+				.e(PriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 				.e(UpsertPriceMutationDescriptor.INNER_RECORD_ID.name(), 1)
 				.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
 				.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
@@ -95,9 +96,9 @@ class UpsertPriceMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
-				.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
-				.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
-				.e(UpsertPriceMutationDescriptor.CURRENCY.name(), "CZK")
+				.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+				.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
+				.e(PriceMutationDescriptor.CURRENCY.name(), "CZK")
 				.e(UpsertPriceMutationDescriptor.INNER_RECORD_ID.name(), 1)
 				.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), "10")
 				.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), "10")
@@ -125,9 +126,9 @@ class UpsertPriceMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
-				.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
-				.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
+				.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+				.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
+				.e(PriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 				.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
 				.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
 				.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
@@ -143,9 +144,9 @@ class UpsertPriceMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
-					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
-					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
+					.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+					.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
+					.e(PriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
@@ -156,9 +157,9 @@ class UpsertPriceMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
-					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
-					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
+					.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+					.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
+					.e(PriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false)
@@ -169,9 +170,9 @@ class UpsertPriceMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
-					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
-					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
+					.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+					.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
+					.e(PriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
 					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false)
@@ -182,9 +183,9 @@ class UpsertPriceMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
-					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
-					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
+					.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+					.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
+					.e(PriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
 					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false)
@@ -195,21 +196,8 @@ class UpsertPriceMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
-					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
-					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
-					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
-					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
-					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false)
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> this.converter.convertFromInput(
-				map()
-					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
-					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
+					.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+					.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
@@ -221,8 +209,21 @@ class UpsertPriceMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
-					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
+					.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+					.e(PriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
+					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
+					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
+					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
+					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false)
+					.build()
+			)
+		);
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> this.converter.convertFromInput(
+				map()
+					.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
+					.e(PriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), BigDecimal.valueOf(10))
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), BigDecimal.valueOf(11))
@@ -258,9 +259,9 @@ class UpsertPriceMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
-					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
-					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), "CZK")
+					.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+					.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
+					.e(PriceMutationDescriptor.CURRENCY.name(), "CZK")
 					.e(UpsertPriceMutationDescriptor.INNER_RECORD_ID.name(), 1)
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), "10")
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), "10")

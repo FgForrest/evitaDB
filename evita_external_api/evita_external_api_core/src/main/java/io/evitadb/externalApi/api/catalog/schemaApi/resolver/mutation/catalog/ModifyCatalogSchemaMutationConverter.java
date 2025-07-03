@@ -30,6 +30,7 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.TopLevelCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatalogSchemaMutationAggregateConverter;
 import io.evitadb.utils.Assert;
 
@@ -90,7 +91,7 @@ public class ModifyCatalogSchemaMutationConverter
 				LocalCatalogSchemaMutation[]::new);
 
 		return new ModifyCatalogSchemaMutation(
-			input.getProperty(ModifyCatalogSchemaMutationDescriptor.CATALOG_NAME),
+			input.getProperty(TopLevelCatalogSchemaMutationDescriptor.CATALOG_NAME),
 			null,
 			localCatalogSchemaMutations
 		);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.server.EvitaServer;
@@ -113,7 +114,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				""")
 			.executeAndThen()
 			.statusCode(200)
-			.body(CatalogSchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion))
 			.body(
 				"",
 				equalTo(
@@ -145,7 +146,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				""")
 			.executeAndThen()
 			.statusCode(200)
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
 			.body(EntitySchemaDescriptor.LOCALES.name(), equalTo(List.of("fr", "it")))
 			.body(
 				"",
@@ -171,7 +172,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				""")
 			.executeAndThen()
 			.statusCode(200)
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 2))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 2))
 			.body(EntitySchemaDescriptor.LOCALES.name(), equalTo(List.of()))
 			.body(
 				"",
@@ -215,7 +216,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				}
 				""")
 			.executeAndExpectOkAndThen()
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
 			.body(
 				"",
 				equalTo(
@@ -278,7 +279,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				}
 				""")
 			.executeAndExpectOkAndThen()
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 2))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 2))
 			.body(
 				EntitySchemaDescriptor.ATTRIBUTES.name() + ".mySpecialCode",
 				equalTo(
@@ -328,7 +329,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				}
 				""")
 			.executeAndExpectOkAndThen()
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3))
 			.body(EntitySchemaDescriptor.ATTRIBUTES.name() + ".mySpecialCode", nullValue())
 			.body(
 				"",
@@ -373,7 +374,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				}
 				""")
 			.executeAndExpectOkAndThen()
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
 			.body(
 				"",
 				equalTo(
@@ -387,10 +388,10 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			.httpMethod(Request.METHOD_GET)
 			.executeAndExpectOkAndThen()
 			.body(
-				EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name() + ".mySpecialCompound",
+				SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name() + ".mySpecialCompound",
 				equalTo(
 					map()
-						.e(SortableAttributeCompoundSchemaDescriptor.NAME.name(), "mySpecialCompound")
+						.e(NamedSchemaDescriptor.NAME.name(), "mySpecialCompound")
 						.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
 							.e(NameVariantsDescriptor.CAMEL_CASE.name(), "mySpecialCompound")
 							.e(NameVariantsDescriptor.PASCAL_CASE.name(), "MySpecialCompound")
@@ -441,12 +442,12 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				}
 				""")
 			.executeAndExpectOkAndThen()
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 2))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 2))
 			.body(
-				EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name() + ".mySpecialCompound",
+				SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name() + ".mySpecialCompound",
 				equalTo(
 					map()
-						.e(SortableAttributeCompoundSchemaDescriptor.NAME.name(), "mySpecialCompound")
+						.e(NamedSchemaDescriptor.NAME.name(), "mySpecialCompound")
 						.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
 							.e(NameVariantsDescriptor.CAMEL_CASE.name(), "mySpecialCompound")
 							.e(NameVariantsDescriptor.PASCAL_CASE.name(), "MySpecialCompound")
@@ -496,9 +497,9 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				}
 				""")
 			.executeAndExpectOkAndThen()
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3))
 			.body(
-				EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name() + ".mySpecialCompound",
+				SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name() + ".mySpecialCompound",
 				nullValue()
 			)
 			.body(
@@ -535,7 +536,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				""")
 			.executeAndThen()
 			.statusCode(200)
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
 			.body(
 				"",
 				equalTo(
@@ -594,7 +595,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				""")
 			.executeAndThen()
 			.statusCode(200)
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 2))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 2))
 			.body(
 				EntitySchemaDescriptor.ASSOCIATED_DATA.name() + ".mySpecialLabel",
 				equalTo(
@@ -639,7 +640,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				""")
 			.executeAndThen()
 			.statusCode(200)
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3))
 			.body(EntitySchemaDescriptor.ASSOCIATED_DATA.name() + ".mySpecialLabel", nullValue())
 			.body(
 				"",
@@ -677,7 +678,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				""")
 			.executeAndThen()
 			.statusCode(200)
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
 			.body(
 				"",
 				equalTo(
@@ -691,7 +692,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
 			.statusCode(200)
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 1))
 			.body(
 				EntitySchemaDescriptor.REFERENCES.name() + ".mySpecialTags",
 				equalTo(
@@ -725,7 +726,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(ReferenceSchemaDescriptor.INDEXED.name(), list().i(Scope.LIVE.name()))
 						.e(ReferenceSchemaDescriptor.FACETED.name(), list().i(Scope.LIVE.name()))
 						.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map())
-						.e(ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())
+						.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())
 						.build()
 				)
 			)
@@ -765,7 +766,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				""")
 			.executeAndThen()
 			.statusCode(200)
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 2))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 2))
 			.body(
 				EntitySchemaDescriptor.REFERENCES.name() + ".mySpecialTags." + ReferenceSchemaDescriptor.ATTRIBUTES.name() + ".mySpecialCode",
 				notNullValue()
@@ -794,7 +795,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 				""")
 			.executeAndThen()
 			.statusCode(200)
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3))
+			.body(VersionedDescriptor.VERSION.name(), equalTo(initialEntitySchemaVersion + 3))
 			.body(EntitySchemaDescriptor.REFERENCES.name() + ".mySpecialTags", nullValue())
 			.body(
 				"",
@@ -812,6 +813,6 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			.executeAndThen()
 			.extract()
 			.jsonPath()
-			.get(EntitySchemaDescriptor.VERSION.name());
+			.get(VersionedDescriptor.VERSION.name());
 	}
 }

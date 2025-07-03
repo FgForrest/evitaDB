@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssoc
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,7 +62,7 @@ class ModifyAssociatedDataSchemaDeprecationNoticeMutationConverterTest {
 
 		final ModifyAssociatedDataSchemaDeprecationNoticeMutation convertedMutation = this.converter.convertFromInput(
 			map()
-				.e(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
 				.build()
 		);
@@ -76,7 +77,7 @@ class ModifyAssociatedDataSchemaDeprecationNoticeMutationConverterTest {
 
 		final ModifyAssociatedDataSchemaDeprecationNoticeMutation convertedMutation = this.converter.convertFromInput(
 			map()
-				.e(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation);
@@ -107,7 +108,7 @@ class ModifyAssociatedDataSchemaDeprecationNoticeMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.NAME.name(), "labels")
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.e(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
 					.build()
 			);

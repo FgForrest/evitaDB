@@ -33,6 +33,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
@@ -91,11 +92,11 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_IN_SCOPES.name(), list()
 					.i(map()
-						.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE)
+						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
 						.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)))
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
 					.i(map()
-						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE)
+						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
 						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)))
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
 					.i(Scope.LIVE))
@@ -118,11 +119,11 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_IN_SCOPES.name(), list()
 					.i(map()
-						.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 						.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())))
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
 					.i(map()
-						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())))
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
 					.i(Scope.LIVE.name()))
@@ -221,11 +222,11 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_IN_SCOPES.name(), list()
 						.i(map()
-							.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 							.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())))
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
 						.i(map()
-							.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 							.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())))
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), array()
 						.i(Scope.LIVE.name()))

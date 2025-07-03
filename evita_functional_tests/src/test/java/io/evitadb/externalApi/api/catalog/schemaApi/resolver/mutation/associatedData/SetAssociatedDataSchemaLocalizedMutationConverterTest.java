@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociat
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,7 +62,7 @@ class SetAssociatedDataSchemaLocalizedMutationConverterTest {
 
 		final SetAssociatedDataSchemaLocalizedMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
-				.e(SetAssociatedDataSchemaLocalizedMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(SetAssociatedDataSchemaLocalizedMutationDescriptor.LOCALIZED.name(), true)
 				.build()
 		);
@@ -69,7 +70,7 @@ class SetAssociatedDataSchemaLocalizedMutationConverterTest {
 
 		final SetAssociatedDataSchemaLocalizedMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
-				.e(SetAssociatedDataSchemaLocalizedMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(SetAssociatedDataSchemaLocalizedMutationDescriptor.LOCALIZED.name(), "true")
 				.build()
 		);
@@ -82,7 +83,7 @@ class SetAssociatedDataSchemaLocalizedMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(SetAssociatedDataSchemaLocalizedMutationDescriptor.NAME.name(), "labels")
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.build()
 			)
 		);
@@ -111,7 +112,7 @@ class SetAssociatedDataSchemaLocalizedMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(SetAssociatedDataSchemaLocalizedMutationDescriptor.NAME.name(), "labels")
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.e(SetAssociatedDataSchemaLocalizedMutationDescriptor.LOCALIZED.name(), true)
 					.build()
 			);

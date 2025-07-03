@@ -29,6 +29,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SortableAttributeCompoundSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -63,7 +64,7 @@ class SetSortableAttributeCompoundIndexedMutationConverterTest {
 		);
 		final SetSortableAttributeCompoundIndexedMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
-				.e(SetSortableAttributeCompoundIndexedMutationDescriptor.NAME.name(), "code")
+				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(SetSortableAttributeCompoundIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
 					.i(Scope.LIVE))
 				.build()
@@ -72,7 +73,7 @@ class SetSortableAttributeCompoundIndexedMutationConverterTest {
 
 		final SetSortableAttributeCompoundIndexedMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
-				.e(SetSortableAttributeCompoundIndexedMutationDescriptor.NAME.name(), "code")
+				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(SetSortableAttributeCompoundIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
 					.i(Scope.LIVE.name()))
 				.build()
@@ -99,7 +100,7 @@ class SetSortableAttributeCompoundIndexedMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(SetSortableAttributeCompoundIndexedMutationDescriptor.NAME.name(), "code")
+					.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 					.e(SetSortableAttributeCompoundIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(), array()
 						.i(Scope.LIVE.name()))
 					.build()

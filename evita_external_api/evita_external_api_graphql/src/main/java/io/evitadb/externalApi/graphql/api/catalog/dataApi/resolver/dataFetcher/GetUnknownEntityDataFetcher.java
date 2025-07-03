@@ -48,8 +48,10 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.QueryLabelDto;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.MetadataAwareFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryHeaderArgumentsJoinType;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryLabelDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ScopeAwareFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UnknownEntityHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
@@ -306,12 +308,14 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
             final Locale locale = (Locale) arguments.remove(UnknownEntityHeaderDescriptor.LOCALE.name());
             final QueryHeaderArgumentsJoinType join = (QueryHeaderArgumentsJoinType) arguments.remove(UnknownEntityHeaderDescriptor.JOIN.name());
             //noinspection unchecked
-            final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(UnknownEntityHeaderDescriptor.SCOPE.name()))
+            final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(
+	                                           ScopeAwareFieldHeaderDescriptor.SCOPE.name()))
                 .map(it -> it.toArray(Scope[]::new))
                 .orElse(Scope.DEFAULT_SCOPES);
 
             //noinspection unchecked
-			final List<QueryLabelDto> labels = Optional.ofNullable((List<Map<String, Object>>) arguments.remove(UnknownEntityHeaderDescriptor.LABELS.name()))
+			final List<QueryLabelDto> labels = Optional.ofNullable((List<Map<String, Object>>) arguments.remove(
+				                                           MetadataAwareFieldHeaderDescriptor.LABELS.name()))
 				.map(rawLabels -> rawLabels
 					.stream()
 					.map(rawLabel -> new QueryLabelDto(

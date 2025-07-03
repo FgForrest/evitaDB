@@ -31,6 +31,7 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationO
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.TopLevelCatalogSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -68,7 +69,7 @@ public class ModifyCatalogSchemaMutationConverterTest {
 		);
 		final ModifyCatalogSchemaMutation convertedMutation = this.converter.convertFromInput(
 			map()
-				.e(ModifyCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
+				.e(TopLevelCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 				.e(ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
 					map()
 						.e(LocalCatalogSchemaMutationAggregateDescriptor.CREATE_ENTITY_SCHEMA_MUTATION.name(), map()
@@ -87,7 +88,7 @@ public class ModifyCatalogSchemaMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(ModifyCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
+					.e(TopLevelCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 					.build()
 			)
 		);
@@ -121,7 +122,7 @@ public class ModifyCatalogSchemaMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(ModifyCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
+					.e(TopLevelCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 					.e(ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
 						map()
 							.e(LocalCatalogSchemaMutationAggregateDescriptor.CREATE_ENTITY_SCHEMA_MUTATION.name(), map()

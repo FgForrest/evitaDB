@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.RemoveAssoc
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.RemoveAssociatedDataSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -57,7 +57,7 @@ class RemoveAssociatedDataSchemaMutationConverterTest {
 		final RemoveAssociatedDataSchemaMutation expectedMutation = new RemoveAssociatedDataSchemaMutation("labels");
 		final RemoveAssociatedDataSchemaMutation convertedMutation = this.converter.convertFromInput(
 			map()
-				.e(RemoveAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation);
@@ -79,7 +79,7 @@ class RemoveAssociatedDataSchemaMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(RemoveAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.build()
 			);
 	}

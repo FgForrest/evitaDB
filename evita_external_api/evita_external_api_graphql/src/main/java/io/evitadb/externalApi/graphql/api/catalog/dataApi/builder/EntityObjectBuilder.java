@@ -44,6 +44,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceData
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
@@ -58,6 +60,8 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Ord
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.PaginatedListFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.StripListFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.BigDecimalDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityDtoTypeResolver;
@@ -94,9 +98,12 @@ import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRoo
  */
 public class EntityObjectBuilder {
 
-	private static final PriceBigDecimalDataFetcher PRICE_WITH_VAT_DATA_FETCHER = new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.PRICE_WITH_TAX.name());
-	private static final PriceBigDecimalDataFetcher PRICE_WITHOUT_VAT_DATA_FETCHER = new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.PRICE_WITHOUT_TAX.name());
-	private static final PriceBigDecimalDataFetcher TAX_RATE_DATA_FETCHER = new PriceBigDecimalDataFetcher(PriceForSaleDescriptor.TAX_RATE.name());
+	private static final PriceBigDecimalDataFetcher PRICE_WITH_VAT_DATA_FETCHER = new PriceBigDecimalDataFetcher(
+		PriceDescriptor.PRICE_WITH_TAX.name());
+	private static final PriceBigDecimalDataFetcher PRICE_WITHOUT_VAT_DATA_FETCHER = new PriceBigDecimalDataFetcher(
+		PriceDescriptor.PRICE_WITHOUT_TAX.name());
+	private static final PriceBigDecimalDataFetcher TAX_RATE_DATA_FETCHER = new PriceBigDecimalDataFetcher(
+		PriceDescriptor.TAX_RATE.name());
 
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
@@ -162,7 +169,7 @@ public class EntityObjectBuilder {
 
 		// build specific entity object
 		final ObjectDescriptor entityDescriptor = switch (variant) {
-			case DEFAULT -> GraphQLEntityDescriptor.THIS;
+			case DEFAULT -> EntityDescriptor.THIS;
 			case NON_HIERARCHICAL -> GraphQLEntityDescriptor.THIS_NON_HIERARCHICAL;
 			default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + variant + "`.");
 		};
@@ -171,15 +178,15 @@ public class EntityObjectBuilder {
 			.to(this.objectBuilderTransformer)
 			.name(objectName)
 			.description(entitySchema.getDescription())
-			.withInterface(typeRef(GraphQLEntityDescriptor.THIS_CLASSIFIER.name()));
+			.withInterface(typeRef(EntityDescriptor.THIS_CLASSIFIER.name()));
 
 		// build top level fields
-		entityObjectBuilder.field(GraphQLEntityDescriptor.SCOPE.to(this.fieldBuilderTransformer));
+		entityObjectBuilder.field(EntityDescriptor.SCOPE.to(this.fieldBuilderTransformer));
 
 		// build locale fields
 		if (!entitySchema.getLocales().isEmpty()) {
-			entityObjectBuilder.field(GraphQLEntityDescriptor.LOCALES.to(this.fieldBuilderTransformer));
-			entityObjectBuilder.field(GraphQLEntityDescriptor.ALL_LOCALES.to(this.fieldBuilderTransformer));
+			entityObjectBuilder.field(EntityDescriptor.LOCALES.to(this.fieldBuilderTransformer));
+			entityObjectBuilder.field(EntityDescriptor.ALL_LOCALES.to(this.fieldBuilderTransformer));
 		}
 
 		// build hierarchy fields
@@ -227,7 +234,7 @@ public class EntityObjectBuilder {
 				buildEntityPricesField()
 			);
 
-			entityObjectBuilder.field(GraphQLEntityDescriptor.PRICE_INNER_RECORD_HANDLING.to(this.fieldBuilderTransformer));
+			entityObjectBuilder.field(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.to(this.fieldBuilderTransformer));
 		}
 
 		// build attributes
@@ -268,8 +275,8 @@ public class EntityObjectBuilder {
 		final GraphQLObjectType.Builder globalEntityObjectBuilder = GlobalEntityDescriptor.THIS.to(this.objectBuilderTransformer);
 
 		if (!this.buildingContext.getSupportedLocales().isEmpty()) {
-			globalEntityObjectBuilder.field(GlobalEntityDescriptor.LOCALES.to(this.fieldBuilderTransformer));
-			globalEntityObjectBuilder.field(GlobalEntityDescriptor.ALL_LOCALES.to(this.fieldBuilderTransformer));
+			globalEntityObjectBuilder.field(EntityDescriptor.LOCALES.to(this.fieldBuilderTransformer));
+			globalEntityObjectBuilder.field(EntityDescriptor.ALL_LOCALES.to(this.fieldBuilderTransformer));
 		}
 
 		if (!catalogSchema.getAttributes().isEmpty()) {
@@ -352,7 +359,7 @@ public class EntityObjectBuilder {
 	@Nonnull
 	private BuiltFieldDescriptor buildEntityMultiplePricesForSaleAvailableField() {
 		return new BuiltFieldDescriptor(
-			GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE
+			EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE
 				.to(this.fieldBuilderTransformer)
 				.argument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.PRICE_LISTS
 					.to(this.argumentBuilderTransformer))
@@ -416,7 +423,7 @@ public class EntityObjectBuilder {
 
 	@Nonnull
 	private BuiltFieldDescriptor buildEntityPricesField() {
-		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLEntityDescriptor.PRICES
+		final GraphQLFieldDefinition.Builder fieldBuilder = EntityDescriptor.PRICES
 			.to(this.fieldBuilderTransformer)
 			.argument(PricesFieldHeaderDescriptor.PRICE_LISTS
 				.to(this.argumentBuilderTransformer))
@@ -442,7 +449,7 @@ public class EntityObjectBuilder {
 			false
 		);
 
-		final GraphQLFieldDefinition.Builder attributesFieldBuilder = GraphQLEntityDescriptor.ATTRIBUTES
+		final GraphQLFieldDefinition.Builder attributesFieldBuilder = AttributesProviderDescriptor.ATTRIBUTES
 			.to(this.fieldBuilderTransformer)
 			.type(nonNull(attributesObject));
 
@@ -472,7 +479,7 @@ public class EntityObjectBuilder {
 			default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
 		};
 
-		final GraphQLFieldDefinition.Builder attributesFieldBuilder = GraphQLEntityDescriptor.ATTRIBUTES
+		final GraphQLFieldDefinition.Builder attributesFieldBuilder = AttributesProviderDescriptor.ATTRIBUTES
 			.to(this.fieldBuilderTransformer)
 			.type(attributesObject);
 
@@ -547,7 +554,7 @@ public class EntityObjectBuilder {
 			default -> throw new GraphQLSchemaBuildingError("Unsupported version `" + version + "`.");
 		};
 
-		final GraphQLFieldDefinition.Builder associatedDataFieldBuilder = GraphQLEntityDescriptor.ASSOCIATED_DATA
+		final GraphQLFieldDefinition.Builder associatedDataFieldBuilder = EntityDescriptor.ASSOCIATED_DATA
 			.to(this.fieldBuilderTransformer)
 			.type(associatedDataObject);
 
@@ -648,9 +655,9 @@ public class EntityObjectBuilder {
 					Cardinality.ONE_OR_MORE.equals(referenceCardinality);
 
 				{ // base reference field
-					final GraphQLFieldDefinition.Builder referenceFieldBuilder = GraphQLEntityDescriptor.REFERENCE
+					final GraphQLFieldDefinition.Builder referenceFieldBuilder = EntityDescriptor.REFERENCE
 						.to(this.fieldBuilderTransformer)
-						.name(GraphQLEntityDescriptor.REFERENCE.name(referenceSchema))
+						.name(EntityDescriptor.REFERENCE.name(referenceSchema))
 						.description(referenceSchema.getDescription())
 						.deprecate(referenceSchema.getDeprecationNotice())
 						.argument(ReferenceFieldHeaderDescriptor.FILTER_BY
@@ -686,42 +693,42 @@ public class EntityObjectBuilder {
 				{ // chunked reference fields
 					if (EntityObjectVariant.DEFAULT.equals(version) && referenceIsList) {
 						fields.add(new BuiltFieldDescriptor(
-							GraphQLEntityDescriptor.REFERENCE_PAGE
+							EntityDescriptor.REFERENCE_PAGE
 								.to(this.fieldBuilderTransformer)
-								.name(GraphQLEntityDescriptor.REFERENCE_PAGE.name(referenceSchema))
+								.name(EntityDescriptor.REFERENCE_PAGE.name(referenceSchema))
 								.description(referenceSchema.getDescription())
 								.deprecate(referenceSchema.getDeprecationNotice())
 								.type(buildReferencePageObject(collectionBuildingContext, referenceSchema))
-								.argument(ReferencePageFieldHeaderDescriptor.FILTER_BY
+								.argument(ReferenceFieldHeaderDescriptor.FILTER_BY
 									.to(this.argumentBuilderTransformer)
 									.type(referenceFilter))
-								.argument(ReferencePageFieldHeaderDescriptor.ORDER_BY
+								.argument(ReferenceFieldHeaderDescriptor.ORDER_BY
 									.to(this.argumentBuilderTransformer)
 									.type(referenceOrder))
-								.argument(ReferencePageFieldHeaderDescriptor.NUMBER
+								.argument(PaginatedListFieldHeaderDescriptor.NUMBER
 									.to(this.argumentBuilderTransformer))
-								.argument(ReferencePageFieldHeaderDescriptor.SIZE
+								.argument(PaginatedListFieldHeaderDescriptor.SIZE
 									.to(this.argumentBuilderTransformer))
 								.build(),
 							new ReferencePageDataFetcher(referenceSchema)
 						));
 
 						fields.add(new BuiltFieldDescriptor(
-							GraphQLEntityDescriptor.REFERENCE_STRIP
+							EntityDescriptor.REFERENCE_STRIP
 								.to(this.fieldBuilderTransformer)
-								.name(GraphQLEntityDescriptor.REFERENCE_STRIP.name(referenceSchema))
+								.name(EntityDescriptor.REFERENCE_STRIP.name(referenceSchema))
 								.description(referenceSchema.getDescription())
 								.deprecate(referenceSchema.getDeprecationNotice())
 								.type(buildReferenceStripObject(collectionBuildingContext, referenceSchema))
-								.argument(ReferenceStripFieldHeaderDescriptor.FILTER_BY
+								.argument(ReferenceFieldHeaderDescriptor.FILTER_BY
 									.to(this.argumentBuilderTransformer)
 									.type(referenceFilter))
-								.argument(ReferenceStripFieldHeaderDescriptor.ORDER_BY
+								.argument(ReferenceFieldHeaderDescriptor.ORDER_BY
 									.to(this.argumentBuilderTransformer)
 									.type(referenceOrder))
-								.argument(ReferenceStripFieldHeaderDescriptor.OFFSET
+								.argument(StripListFieldHeaderDescriptor.OFFSET
 									.to(this.argumentBuilderTransformer))
-								.argument(ReferenceStripFieldHeaderDescriptor.LIMIT
+								.argument(StripListFieldHeaderDescriptor.LIMIT
 									.to(this.argumentBuilderTransformer))
 								.build(),
 							new ReferenceStripDataFetcher(referenceSchema)
@@ -780,7 +787,7 @@ public class EntityObjectBuilder {
 			true
 		);
 
-		final GraphQLFieldDefinition attributesField = ReferenceDescriptor.ATTRIBUTES
+		final GraphQLFieldDefinition attributesField = AttributesProviderDescriptor.ATTRIBUTES
 			.to(this.fieldBuilderTransformer)
 			.type(attributesObject)
 			.build();
@@ -840,9 +847,9 @@ public class EntityObjectBuilder {
 	@Nonnull
 	private static GraphQLOutputType buildReferencedEntityObject(@Nullable EntitySchemaContract referencedEntitySchema) {
 		if (referencedEntitySchema != null) {
-			return typeRef(GraphQLEntityDescriptor.THIS.name(referencedEntitySchema));
+			return typeRef(EntityDescriptor.THIS.name(referencedEntitySchema));
 		} else {
-			return typeRef(GraphQLEntityDescriptor.THIS_REFERENCE.name());
+			return typeRef(EntityDescriptor.THIS_REFERENCE.name());
 		}
 	}
 
@@ -853,7 +860,7 @@ public class EntityObjectBuilder {
 			.to(this.objectBuilderTransformer)
 			.name(ReferencePageDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema))
 			.description(referenceSchema.getDescription())
-			.field(ReferencePageDescriptor.DATA
+			.field(DataChunkDescriptor.DATA
 				.to(this.fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(typeRef(ReferenceDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema)))))))
 			.build();
@@ -866,7 +873,7 @@ public class EntityObjectBuilder {
 			.to(this.objectBuilderTransformer)
 			.name(ReferenceStripDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema))
 			.description(referenceSchema.getDescription())
-			.field(ReferenceStripDescriptor.DATA
+			.field(DataChunkDescriptor.DATA
 				.to(this.fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(typeRef(ReferenceDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema)))))))
 			.build();
@@ -877,17 +884,17 @@ public class EntityObjectBuilder {
 	private GraphQLObjectType buildPriceForSaleObject() {
 		this.buildingContext.registerDataFetcher(
 			PriceForSaleDescriptor.THIS,
-			PriceForSaleDescriptor.PRICE_WITH_TAX,
+			PriceDescriptor.PRICE_WITH_TAX,
 			PRICE_WITH_VAT_DATA_FETCHER
 		);
 		this.buildingContext.registerDataFetcher(
 			PriceForSaleDescriptor.THIS,
-			PriceForSaleDescriptor.PRICE_WITHOUT_TAX,
+			PriceDescriptor.PRICE_WITHOUT_TAX,
 			PRICE_WITHOUT_VAT_DATA_FETCHER
 		);
 		this.buildingContext.registerDataFetcher(
 			PriceForSaleDescriptor.THIS,
-			PriceForSaleDescriptor.TAX_RATE,
+			PriceDescriptor.TAX_RATE,
 			TAX_RATE_DATA_FETCHER
 		);
 		this.buildingContext.registerDataFetcher(
@@ -898,9 +905,9 @@ public class EntityObjectBuilder {
 
 		return PriceForSaleDescriptor.THIS
 			.to(this.objectBuilderTransformer)
-			.field(PriceForSaleDescriptor.PRICE_WITHOUT_TAX.to(this.fieldBuilderTransformer.with(this.priceFieldDecorator)))
-			.field(PriceForSaleDescriptor.PRICE_WITH_TAX.to(this.fieldBuilderTransformer.with(this.priceFieldDecorator)))
-			.field(PriceForSaleDescriptor.TAX_RATE.to(this.fieldBuilderTransformer.with(this.priceFieldDecorator)))
+			.field(PriceDescriptor.PRICE_WITHOUT_TAX.to(this.fieldBuilderTransformer.with(this.priceFieldDecorator)))
+			.field(PriceDescriptor.PRICE_WITH_TAX.to(this.fieldBuilderTransformer.with(this.priceFieldDecorator)))
+			.field(PriceDescriptor.TAX_RATE.to(this.fieldBuilderTransformer.with(this.priceFieldDecorator)))
 			.field(PriceForSaleDescriptor.ACCOMPANYING_PRICE.to(this.fieldBuilderTransformer)
 				.argument(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS
 					.to(this.argumentBuilderTransformer)))

@@ -31,6 +31,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaUniqueMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,7 +73,7 @@ class SetAttributeSchemaUniqueMutationConverterTest {
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(SetAttributeSchemaUniqueMutationDescriptor.UNIQUE_IN_SCOPES.name(), list()
 					.i(map()
-						.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE)
+						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
 						.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)))
 				.build()
 		);
@@ -83,7 +84,7 @@ class SetAttributeSchemaUniqueMutationConverterTest {
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(SetAttributeSchemaUniqueMutationDescriptor.UNIQUE_IN_SCOPES.name(), list()
 					.i(map()
-						.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 						.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())))
 				.build()
 		);
@@ -137,7 +138,7 @@ class SetAttributeSchemaUniqueMutationConverterTest {
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.e(SetAttributeSchemaUniqueMutationDescriptor.UNIQUE_IN_SCOPES.name(), list()
 						.i(map()
-							.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 							.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())))
 					.build()
 			);

@@ -228,7 +228,7 @@ public class EntitySchemaObjectBuilder {
 
 	@Nonnull
 	private OpenApiProperty buildSortableAttributeCompoundSchemasProperty(@Nonnull EntitySchemaContract entitySchema) {
-		return EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
+		return SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
 			.to(this.propertyBuilderTransformer)
 			.type(nonNull(buildSortableAttributeCompoundSchemasObject(entitySchema)))
 			.build();
@@ -359,7 +359,7 @@ public class EntitySchemaObjectBuilder {
 	@Nonnull
 	private OpenApiProperty buildReferencedSortableAttributeCompoundSchemasProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                                                @Nonnull ReferenceSchemaContract referenceSchema) {
-		return ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
+		return SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
 			.to(this.propertyBuilderTransformer)
 			.type(nonNull(buildReferencedSortableAttributeCompoundSchemasObject(entitySchema, referenceSchema)))
 			.build();

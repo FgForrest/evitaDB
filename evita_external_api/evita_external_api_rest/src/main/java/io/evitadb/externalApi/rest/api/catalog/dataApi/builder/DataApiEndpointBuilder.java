@@ -37,6 +37,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.DeleteEntity
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ListUnknownEntitiesEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ScopeAwareEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UnknownEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UpsertEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionsHandler;
@@ -189,7 +190,7 @@ public class DataApiEndpointBuilder {
 					.build())
 				.toList()
 		);
-		queryParameters.add(UnknownEntityEndpointHeaderDescriptor.SCOPE.to(this.operationQueryParameterBuilderTransformer).build());
+		queryParameters.add(ScopeAwareEndpointHeaderDescriptor.SCOPE.to(this.operationQueryParameterBuilderTransformer).build());
 		queryParameters.add(UnknownEntityEndpointHeaderDescriptor.FILTER_JOIN
 			.to(this.operationQueryParameterBuilderTransformer)
 			.build());
@@ -234,8 +235,8 @@ public class DataApiEndpointBuilder {
 					.build())
 				.toList()
 		);
-		queryParameters.add(ListUnknownEntitiesEndpointHeaderDescriptor.SCOPE.to(this.operationQueryParameterBuilderTransformer).build());
-		queryParameters.add(ListUnknownEntitiesEndpointHeaderDescriptor.FILTER_JOIN
+		queryParameters.add(ScopeAwareEndpointHeaderDescriptor.SCOPE.to(this.operationQueryParameterBuilderTransformer).build());
+		queryParameters.add(UnknownEntityEndpointHeaderDescriptor.FILTER_JOIN
 			.to(this.operationQueryParameterBuilderTransformer)
 			.build());
 
@@ -348,7 +349,7 @@ public class DataApiEndpointBuilder {
 					.build();
 				parameters.add(dataInLocalesParameter);
 
-				final OpenApiEndpointParameter localeParameter = GetEntityEndpointHeaderDescriptor.LOCALE
+				final OpenApiEndpointParameter localeParameter = FetchEntityEndpointHeaderDescriptor.LOCALE
 					.to(this.operationQueryParameterBuilderTransformer)
 					.type(localeEnum)
 					.build();
@@ -382,7 +383,7 @@ public class DataApiEndpointBuilder {
 				.toList());
 		}
 
-		parameters.add(GetEntityEndpointHeaderDescriptor.SCOPE.to(this.operationQueryParameterBuilderTransformer).build());
+		parameters.add(ScopeAwareEndpointHeaderDescriptor.SCOPE.to(this.operationQueryParameterBuilderTransformer).build());
 
 		//build fetch params
 		parameters.addAll(buildEntityFetchQueryParameters(entitySchema));

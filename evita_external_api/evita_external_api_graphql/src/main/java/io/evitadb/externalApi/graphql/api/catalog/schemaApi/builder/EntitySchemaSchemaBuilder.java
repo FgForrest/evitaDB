@@ -61,7 +61,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttri
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.OnSchemaChangeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.model.OnChangeHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateEntitySchemaQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.*;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher.UpdateEntitySchemaMutatingDataFetcher;
@@ -327,22 +327,22 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private GraphQLObjectType buildEntityAttributeSchemaObject() {
 		this.buildingContext.registerDataFetcher(
 			EntityAttributeSchemaDescriptor.THIS,
-			EntityAttributeSchemaDescriptor.TYPE,
+			AttributeSchemaDescriptor.TYPE,
 			AttributeSchemaTypeDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
 			EntityAttributeSchemaDescriptor.THIS,
-			EntityAttributeSchemaDescriptor.UNIQUENESS_TYPE,
+			AttributeSchemaDescriptor.UNIQUENESS_TYPE,
 			AttributeSchemaUniquenessTypeDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
 			EntityAttributeSchemaDescriptor.THIS,
-			EntityAttributeSchemaDescriptor.FILTERABLE,
+			AttributeSchemaDescriptor.FILTERABLE,
 			AttributeSchemaFilterableDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
 			EntityAttributeSchemaDescriptor.THIS,
-			EntityAttributeSchemaDescriptor.SORTABLE,
+			AttributeSchemaDescriptor.SORTABLE,
 			AttributeSchemaSortableDataFetcher.getInstance()
 		);
 
@@ -355,12 +355,12 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private GraphQLObjectType buildGlobalAttributeSchemaObject() {
 		this.buildingContext.registerDataFetcher(
 			GlobalAttributeSchemaDescriptor.THIS,
-			GlobalAttributeSchemaDescriptor.TYPE,
+			AttributeSchemaDescriptor.TYPE,
 			AttributeSchemaTypeDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
 			GlobalAttributeSchemaDescriptor.THIS,
-			GlobalAttributeSchemaDescriptor.UNIQUENESS_TYPE,
+			AttributeSchemaDescriptor.UNIQUENESS_TYPE,
 			AttributeSchemaUniquenessTypeDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
@@ -370,12 +370,12 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		);
 		this.buildingContext.registerDataFetcher(
 			GlobalAttributeSchemaDescriptor.THIS,
-			GlobalAttributeSchemaDescriptor.FILTERABLE,
+			AttributeSchemaDescriptor.FILTERABLE,
 			AttributeSchemaFilterableDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
 			GlobalAttributeSchemaDescriptor.THIS,
-			GlobalAttributeSchemaDescriptor.SORTABLE,
+			AttributeSchemaDescriptor.SORTABLE,
 			AttributeSchemaSortableDataFetcher.getInstance()
 		);
 
@@ -893,9 +893,9 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private BuiltFieldDescriptor buildOnEntitySchemaChangeField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLFieldDefinition onEntitySchemaChangeField = CatalogSchemaApiRootDescriptor.ON_ENTITY_SCHEMA_CHANGE
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(this.propertyDataTypeBuilderTransformer, entitySchema))
-			.argument(OnSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
-			.argument(OnSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
-			.argument(OnSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
+			.argument(OnChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
+			.argument(OnChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(

@@ -28,6 +28,7 @@ import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,7 +63,7 @@ class ModifyAssociatedDataSchemaTypeMutationConverterTest {
 
 		final ModifyAssociatedDataSchemaTypeMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
-				.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE.name(), ComplexDataObject.class)
 				.build()
 		);
@@ -70,7 +71,7 @@ class ModifyAssociatedDataSchemaTypeMutationConverterTest {
 
 		final ModifyAssociatedDataSchemaTypeMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
-				.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE.name(), "ComplexDataObject")
 				.build()
 		);
@@ -83,7 +84,7 @@ class ModifyAssociatedDataSchemaTypeMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.NAME.name(), "labels")
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.build()
 			)
 		);
@@ -112,7 +113,7 @@ class ModifyAssociatedDataSchemaTypeMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.NAME.name(), "labels")
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE.name(), "ComplexDataObject")
 					.build()
 			);

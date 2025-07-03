@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchema
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.TopLevelCatalogSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -57,7 +57,7 @@ public class RemoveCatalogSchemaMutationConverterTest {
 		final RemoveCatalogSchemaMutation expectedMutation = new RemoveCatalogSchemaMutation("testCatalog");
 		final RemoveCatalogSchemaMutation convertedMutation = this.converter.convertFromInput(
 			map()
-				.e(RemoveCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
+				.e(TopLevelCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation);
@@ -79,7 +79,7 @@ public class RemoveCatalogSchemaMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(RemoveCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
+					.e(TopLevelCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 					.build()
 			);
 	}

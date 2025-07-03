@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.attribute;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,16 +62,16 @@ class RemoveAttributeMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
-				.e(RemoveAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
+				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+				.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation);
 
 		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
-				.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
-				.e(RemoveAttributeMutationDescriptor.LOCALE.name(), "en")
+				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+				.e(AttributeMutationDescriptor.LOCALE.name(), "en")
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation2);
@@ -81,7 +81,7 @@ class RemoveAttributeMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 				.build()
 		);
 		assertEquals(
@@ -106,8 +106,8 @@ class RemoveAttributeMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
-					.e(RemoveAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+					.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
 					.build()
 			);
 	}

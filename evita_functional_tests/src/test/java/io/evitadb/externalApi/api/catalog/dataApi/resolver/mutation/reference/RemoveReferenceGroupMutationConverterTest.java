@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGroupMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceGroupMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,8 +59,8 @@ class RemoveReferenceGroupMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(RemoveReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-				.e(RemoveReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
+				.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.build()
 		);
 		assertEquals(
@@ -75,7 +75,7 @@ class RemoveReferenceGroupMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(RemoveReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.build()
 			)
 		);
@@ -83,7 +83,7 @@ class RemoveReferenceGroupMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(RemoveReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.build()
 			)
 		);
@@ -99,8 +99,8 @@ class RemoveReferenceGroupMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(RemoveReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(RemoveReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.build()
 			);
 	}

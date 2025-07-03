@@ -28,6 +28,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaNameMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.TopLevelCatalogSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -61,7 +62,7 @@ public class ModifyCatalogSchemaNameMutationConverterTest {
 		);
 		final ModifyCatalogSchemaNameMutation convertedMutation = this.converter.convertFromInput(
 			map()
-				.e(ModifyCatalogSchemaNameMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
+				.e(TopLevelCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 				.e(ModifyCatalogSchemaNameMutationDescriptor.NEW_CATALOG_NAME.name(), "testCatalog2")
 				.e(ModifyCatalogSchemaNameMutationDescriptor.OVERWRITE_TARGET.name(), true)
 				.build()
@@ -76,7 +77,7 @@ public class ModifyCatalogSchemaNameMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(ModifyCatalogSchemaNameMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
+					.e(TopLevelCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 					.e(ModifyCatalogSchemaNameMutationDescriptor.NEW_CATALOG_NAME.name(), "testCatalog2")
 					.build()
 			)
@@ -85,7 +86,7 @@ public class ModifyCatalogSchemaNameMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(ModifyCatalogSchemaNameMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
+					.e(TopLevelCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 					.e(ModifyCatalogSchemaNameMutationDescriptor.OVERWRITE_TARGET.name(), true)
 					.build()
 			)
@@ -116,7 +117,7 @@ public class ModifyCatalogSchemaNameMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(ModifyCatalogSchemaNameMutationDescriptor.CATALOG_NAME.name(), "oldCatalogName")
+					.e(TopLevelCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "oldCatalogName")
 					.e(ModifyCatalogSchemaNameMutationDescriptor.NEW_CATALOG_NAME.name(), "newCatalogName")
 					.e(ModifyCatalogSchemaNameMutationDescriptor.OVERWRITE_TARGET.name(), true)
 					.build()

@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssoc
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDescriptionMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,7 +61,7 @@ class ModifyAssociatedDataSchemaDescriptionMutationConverterTest {
 		);
 		final ModifyAssociatedDataSchemaDescriptionMutation convertedMutation = this.converter.convertFromInput(
 			map()
-				.e(ModifyAssociatedDataSchemaDescriptionMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(ModifyAssociatedDataSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
 				.build()
 		);
@@ -74,7 +75,7 @@ class ModifyAssociatedDataSchemaDescriptionMutationConverterTest {
 		);
 		final ModifyAssociatedDataSchemaDescriptionMutation convertedMutation = this.converter.convertFromInput(
 			map()
-				.e(ModifyAssociatedDataSchemaDescriptionMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation);
@@ -105,7 +106,7 @@ class ModifyAssociatedDataSchemaDescriptionMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(ModifyAssociatedDataSchemaDescriptionMutationDescriptor.NAME.name(), "labels")
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.e(ModifyAssociatedDataSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
 					.build()
 			);

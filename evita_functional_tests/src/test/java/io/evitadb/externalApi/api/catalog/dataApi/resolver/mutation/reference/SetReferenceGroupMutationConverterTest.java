@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
@@ -61,8 +62,8 @@ class SetReferenceGroupMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(SetReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-				.e(SetReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
+				.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.e(SetReferenceGroupMutationDescriptor.GROUP_TYPE.name(), "TagsGroup")
 				.e(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY.name(), 2)
 				.build()
@@ -76,8 +77,8 @@ class SetReferenceGroupMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(SetReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-				.e(SetReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
+				.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.e(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY.name(), 2)
 				.build()
 		);
@@ -90,8 +91,8 @@ class SetReferenceGroupMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(SetReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(SetReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.build()
 			)
 		);
@@ -99,7 +100,7 @@ class SetReferenceGroupMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(SetReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY.name(), 2)
 					.build()
 			)
@@ -108,7 +109,7 @@ class SetReferenceGroupMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(SetReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY.name(), 2)
 					.build()
 			)
@@ -127,8 +128,8 @@ class SetReferenceGroupMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(SetReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(SetReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(SetReferenceGroupMutationDescriptor.GROUP_TYPE.name(), "TagsGroup")
 					.e(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY.name(), 2)
 					.build()

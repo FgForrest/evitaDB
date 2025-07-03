@@ -58,7 +58,9 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 
 	public void recordPrice(PriceRecordContract price) {
 		this.priceRecords = this.priceRecords == null ?
-			new PriceRecordContract[]{price} : ArrayUtils.insertRecordIntoOrderedArray(price, this.priceRecords, PriceRecord.PRICE_RECORD_COMPARATOR);
+			new PriceRecordContract[]{price} : ArrayUtils.insertRecordIntoOrderedArray(price, this.priceRecords,
+			                                                                           PriceRecordContract.PRICE_RECORD_COMPARATOR
+		);
 		this.priceRecordIds = ArrayUtils.insertIntIntoOrderedArray(price.innerRecordId(), this.priceRecordIds);
 
 		final int entityId = price.entityPrimaryKey();

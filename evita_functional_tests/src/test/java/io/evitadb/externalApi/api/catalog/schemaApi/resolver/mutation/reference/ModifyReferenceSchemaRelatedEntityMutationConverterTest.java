@@ -95,7 +95,7 @@ class ModifyReferenceSchemaRelatedEntityMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.NAME.name(), "tags")
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
 					.build()
 			)
@@ -104,7 +104,7 @@ class ModifyReferenceSchemaRelatedEntityMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.NAME.name(), "tags")
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 					.build()
 			)

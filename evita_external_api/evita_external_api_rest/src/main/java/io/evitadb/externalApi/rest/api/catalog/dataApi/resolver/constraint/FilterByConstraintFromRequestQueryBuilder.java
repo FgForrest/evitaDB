@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,8 +32,8 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ListUnknownEntitiesEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.QueryHeaderFilterArgumentsJoinType;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ScopeAwareEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UnknownEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
@@ -93,11 +93,12 @@ public class FilterByConstraintFromRequestQueryBuilder {
 		if (Boolean.TRUE.equals(parameters.get(GetEntityEndpointHeaderDescriptor.PRICE_VALID_NOW.name()))) {
 			filterConstraints.add(QueryConstraints.priceValidInNow());
 		}
-		if (parameters.containsKey(GetEntityEndpointHeaderDescriptor.LOCALE.name())) {
-			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(GetEntityEndpointHeaderDescriptor.LOCALE.name())));
+		if (parameters.containsKey(FetchEntityEndpointHeaderDescriptor.LOCALE.name())) {
+			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(
+				FetchEntityEndpointHeaderDescriptor.LOCALE.name())));
 		}
 
-		final Scope[] requestedScopes = (Scope[]) parameters.get(GetEntityEndpointHeaderDescriptor.SCOPE.name());
+		final Scope[] requestedScopes = (Scope[]) parameters.get(ScopeAwareEndpointHeaderDescriptor.SCOPE.name());
 		if (requestedScopes != null) {
 			filterConstraints.add(scope(requestedScopes));
 		}
@@ -136,7 +137,7 @@ public class FilterByConstraintFromRequestQueryBuilder {
 			(QueryHeaderFilterArgumentsJoinType) parameters.remove(UnknownEntityEndpointHeaderDescriptor.FILTER_JOIN.name())
 		)
 			.orElse(QueryHeaderFilterArgumentsJoinType.AND);
-		final Scope[] requestedScopes = (Scope[]) parameters.remove(UnknownEntityEndpointHeaderDescriptor.SCOPE.name());
+		final Scope[] requestedScopes = (Scope[]) parameters.remove(ScopeAwareEndpointHeaderDescriptor.SCOPE.name());
 		final Scope[] comparableScopes = Optional.ofNullable(requestedScopes).orElse(Scope.DEFAULT_SCOPES);
 
 		final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = getGloballyUniqueAttributesFromParameters(comparableScopes, parameters, catalogSchema);
@@ -202,10 +203,10 @@ public class FilterByConstraintFromRequestQueryBuilder {
 
 		final Locale locale = (Locale) parameters.remove(FetchEntityEndpointHeaderDescriptor.LOCALE.name());
 		final QueryHeaderFilterArgumentsJoinType filterJoin = Optional.ofNullable(
-			(QueryHeaderFilterArgumentsJoinType) parameters.remove(ListUnknownEntitiesEndpointHeaderDescriptor.FILTER_JOIN.name())
+			(QueryHeaderFilterArgumentsJoinType) parameters.remove(UnknownEntityEndpointHeaderDescriptor.FILTER_JOIN.name())
 		)
 			.orElse(QueryHeaderFilterArgumentsJoinType.AND);
-		final Scope[] requestedScopes = (Scope[]) parameters.remove(UnknownEntityEndpointHeaderDescriptor.SCOPE.name());
+		final Scope[] requestedScopes = (Scope[]) parameters.remove(ScopeAwareEndpointHeaderDescriptor.SCOPE.name());
 		final Scope[] comparableScopes = Optional.ofNullable(requestedScopes).orElse(Scope.DEFAULT_SCOPES);
 
 		final Map<GlobalAttributeSchemaContract, Object> uniqueAttributes = getGloballyUniqueAttributesFromParameters(comparableScopes, parameters, catalogSchema);

@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
 import io.evitadb.externalApi.rest.api.model.PropertyDataTypeDescriptorToOpenApiTypeTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
@@ -77,9 +76,9 @@ class PropertyDescriptorToOpenApiPropertyTransformerTest {
 
 	@Test
 	void shouldTransformPropertyWithReference() {
-		final OpenApiProperty property = this.transformer.apply(RestEntityDescriptor.PRICE_FOR_SALE).build();
-		assertEquals(RestEntityDescriptor.PRICE_FOR_SALE.name(), property.getName());
-		assertEquals(RestEntityDescriptor.PRICE_FOR_SALE.description(), property.getDescription());
+		final OpenApiProperty property = this.transformer.apply(EntityDescriptor.PRICE_FOR_SALE).build();
+		assertEquals(EntityDescriptor.PRICE_FOR_SALE.name(), property.getName());
+		assertEquals(EntityDescriptor.PRICE_FOR_SALE.description(), property.getDescription());
 
 		final OpenApiSimpleType type = property.getType();
 		assertEquals(typeRefTo(PriceDescriptor.THIS.name()), type);

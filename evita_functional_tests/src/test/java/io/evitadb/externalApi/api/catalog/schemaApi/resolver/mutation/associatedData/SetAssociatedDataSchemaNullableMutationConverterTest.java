@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociat
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,7 +62,7 @@ class SetAssociatedDataSchemaNullableMutationConverterTest {
 
 		final SetAssociatedDataSchemaNullableMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
-				.e(SetAssociatedDataSchemaNullableMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(SetAssociatedDataSchemaNullableMutationDescriptor.NULLABLE.name(), true)
 				.build()
 		);
@@ -69,7 +70,7 @@ class SetAssociatedDataSchemaNullableMutationConverterTest {
 
 		final SetAssociatedDataSchemaNullableMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
-				.e(SetAssociatedDataSchemaNullableMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(SetAssociatedDataSchemaNullableMutationDescriptor.NULLABLE.name(), "true")
 				.build()
 		);
@@ -82,7 +83,7 @@ class SetAssociatedDataSchemaNullableMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(SetAssociatedDataSchemaNullableMutationDescriptor.NAME.name(), "labels")
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.build()
 			)
 		);
@@ -111,7 +112,7 @@ class SetAssociatedDataSchemaNullableMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(SetAssociatedDataSchemaNullableMutationDescriptor.NAME.name(), "labels")
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.e(SetAssociatedDataSchemaNullableMutationDescriptor.NULLABLE.name(), true)
 					.build()
 			);

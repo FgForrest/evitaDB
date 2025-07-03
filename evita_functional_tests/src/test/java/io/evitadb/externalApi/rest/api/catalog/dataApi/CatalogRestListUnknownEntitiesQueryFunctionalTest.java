@@ -32,8 +32,9 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ListUnknownEntitiesEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.QueryHeaderFilterArgumentsJoinType;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ScopeAwareEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UnknownEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
@@ -101,7 +102,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 		tester.test(TEST_CATALOG)
 			.get("/entity/list")
 			.requestParam(ATTRIBUTE_CODE, archivedEntities.stream().map(it -> it.getAttribute(ATTRIBUTE_CODE)).toList())
-			.requestParam(ListUnknownEntitiesEndpointHeaderDescriptor.SCOPE.name(), List.of(Scope.ARCHIVED.name()))
+			.requestParam(ScopeAwareEndpointHeaderDescriptor.SCOPE.name(), List.of(Scope.ARCHIVED.name()))
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(expectedBodyOfArchivedEntities));
@@ -149,7 +150,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 		tester.test(TEST_CATALOG)
 			.get("/entity/list")
 			.requestParam(ATTRIBUTE_CODE, Stream.of(liveEntity, archivedEntity).map(it -> it.getAttribute(ATTRIBUTE_CODE)).toList())
-			.requestParam(ListUnknownEntitiesEndpointHeaderDescriptor.SCOPE.name(), List.of(Scope.LIVE.name(), Scope.ARCHIVED.name()))
+			.requestParam(ScopeAwareEndpointHeaderDescriptor.SCOPE.name(), List.of(Scope.LIVE.name(), Scope.ARCHIVED.name()))
 			.executeAndThen()
 			.statusCode(200)
 			.body("", containsInAnyOrder(expectedBodyOfArchivedEntities.toArray()));
@@ -285,7 +286,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			.requestParams(map()
 				.e(ATTRIBUTE_CODE, List.of(codeAttribute))
 				.e(ATTRIBUTE_URL, List.of(urlAttribute))
-				.e(ListUnknownEntitiesEndpointHeaderDescriptor.FILTER_JOIN.name(), QueryHeaderFilterArgumentsJoinType.OR.toString())
+				.e(UnknownEntityEndpointHeaderDescriptor.FILTER_JOIN.name(), QueryHeaderFilterArgumentsJoinType.OR.toString())
 				.build())
 			.executeAndThen()
 			.statusCode(200)

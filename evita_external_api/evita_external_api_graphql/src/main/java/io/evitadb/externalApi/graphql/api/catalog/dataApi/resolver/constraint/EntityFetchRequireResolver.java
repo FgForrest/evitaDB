@@ -40,17 +40,19 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceData
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.PaginatedListFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.StripListFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AccompanyingPriceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferencePageFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceStripFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferencesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
@@ -91,7 +93,7 @@ public class EntityFetchRequireResolver {
 	);
 	private static final Set<String> CUSTOM_PRICE_FIELDS = Set.of(
 		GraphQLEntityDescriptor.PRICE.name(), // TOBEDONE #538: deprecated, remove
-		GraphQLEntityDescriptor.PRICES.name()
+		EntityDescriptor.PRICES.name()
 	);
 
 	@Nonnull private final Function<String, EntitySchemaContract> entitySchemaFetcher;
@@ -197,11 +199,11 @@ public class EntityFetchRequireResolver {
 	}
 
 	private static boolean needsVersion(@Nonnull SelectionSetAggregator selectionSetAggregator) {
-		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.VERSION.name());
+		return selectionSetAggregator.containsImmediate(VersionedDescriptor.VERSION.name());
 	}
 
 	private static boolean needsScope(@Nonnull SelectionSetAggregator selectionSetAggregator) {
-		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.SCOPE.name());
+		return selectionSetAggregator.containsImmediate(EntityDescriptor.SCOPE.name());
 	}
 
 	private static boolean needsParent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
@@ -213,8 +215,8 @@ public class EntityFetchRequireResolver {
 	}
 
 	private static boolean needsLocales(@Nonnull SelectionSetAggregator selectionSetAggregator) {
-		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.LOCALES.name()) ||
-			selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.ALL_LOCALES.name());
+		return selectionSetAggregator.containsImmediate(EntityDescriptor.LOCALES.name()) ||
+			selectionSetAggregator.containsImmediate(EntityDescriptor.ALL_LOCALES.name());
 	}
 
 	private static boolean needsAttributes(@Nonnull SelectionSetAggregator selectionSetAggregator) {
@@ -222,12 +224,12 @@ public class EntityFetchRequireResolver {
 	}
 
 	private static boolean needsAssociatedData(@Nonnull SelectionSetAggregator selectionSetAggregator) {
-		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.ASSOCIATED_DATA.name());
+		return selectionSetAggregator.containsImmediate(EntityDescriptor.ASSOCIATED_DATA.name());
 	}
 
 	private static boolean needsPrices(@Nonnull SelectionSetAggregator selectionSetAggregator) {
 		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PRICE.name() + "*") ||
-			selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name()) ||
+			selectionSetAggregator.containsImmediate(EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name()) ||
 			selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name());
 	}
 
@@ -309,7 +311,8 @@ public class EntityFetchRequireResolver {
 			return Optional.empty();
 		}
 
-		final String[] neededAssociatedData = selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.ASSOCIATED_DATA.name())
+		final String[] neededAssociatedData = selectionSetAggregator.getImmediateFields(
+			                                                            EntityDescriptor.ASSOCIATED_DATA.name())
 			.stream()
 			.flatMap(f -> SelectionSetAggregator.getImmediateFields(f.getSelectionSet()).stream())
 			.map(f -> currentEntitySchema.getAssociatedDataByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
@@ -394,9 +397,9 @@ public class EntityFetchRequireResolver {
 
 		final List<ReferenceContent> referenceContents = new LinkedList<>();
 		for (final ReferenceSchemaContract referenceSchema : currentEntitySchema.getReferences().values()) {
-			final String baseReferenceFieldName = GraphQLEntityDescriptor.REFERENCE.name(referenceSchema);
-			final String referencePageFieldName = GraphQLEntityDescriptor.REFERENCE_PAGE.name(referenceSchema);
-			final String referenceStripFieldName = GraphQLEntityDescriptor.REFERENCE_STRIP.name(referenceSchema);
+			final String baseReferenceFieldName = EntityDescriptor.REFERENCE.name(referenceSchema);
+			final String referencePageFieldName = EntityDescriptor.REFERENCE_PAGE.name(referenceSchema);
+			final String referenceStripFieldName = EntityDescriptor.REFERENCE_STRIP.name(referenceSchema);
 			final List<SelectedField> fieldsForReference = selectionSetAggregator.getImmediateFields(Set.of(
 				baseReferenceFieldName,
 				referencePageFieldName,
@@ -499,7 +502,7 @@ public class EntityFetchRequireResolver {
 	private static Optional<AttributeContent> resolveReferenceAttributeContent(@Nonnull FieldsForReferenceHolder fieldsForReferenceHolder) {
 		final List<DataFetchingFieldSelectionSet> attributeFields = fieldsForReferenceHolder.fields()
 			.stream()
-			.flatMap(it -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.ATTRIBUTES.name(), it.getSelectionSet()).stream())
+			.flatMap(it -> SelectionSetAggregator.getImmediateFields(AttributesProviderDescriptor.ATTRIBUTES.name(), it.getSelectionSet()).stream())
 			.map(SelectedField::getSelectionSet)
 			.toList();
 
@@ -603,8 +606,8 @@ public class EntityFetchRequireResolver {
 				return Optional.of(page(1, 0));
 			}
 			return Optional.of(page(
-				(Integer) dataChunkField.getArguments().get(ReferencePageFieldHeaderDescriptor.NUMBER.name()),
-				(Integer) dataChunkField.getArguments().get(ReferencePageFieldHeaderDescriptor.SIZE.name())
+				(Integer) dataChunkField.getArguments().get(PaginatedListFieldHeaderDescriptor.NUMBER.name()),
+				(Integer) dataChunkField.getArguments().get(PaginatedListFieldHeaderDescriptor.SIZE.name())
 			));
 		} else if (dataChunkField.getName().equals(fieldsForReferenceHolder.referenceStripFieldName())) {
 			if (isOnlyTotalCountIsDesiredForReferenceDataChunk(dataChunkField)) {
@@ -612,8 +615,8 @@ public class EntityFetchRequireResolver {
 				return Optional.of(strip(0, 0));
 			}
 			return Optional.of(strip(
-				(Integer) dataChunkField.getArguments().get(ReferenceStripFieldHeaderDescriptor.OFFSET.name()),
-				(Integer) dataChunkField.getArguments().get(ReferenceStripFieldHeaderDescriptor.LIMIT.name())
+				(Integer) dataChunkField.getArguments().get(StripListFieldHeaderDescriptor.OFFSET.name()),
+				(Integer) dataChunkField.getArguments().get(StripListFieldHeaderDescriptor.LIMIT.name())
 			));
 		} else {
 			throw new GraphQLInternalError(
@@ -643,14 +646,14 @@ public class EntityFetchRequireResolver {
 			neededLocales.add(desiredLocale);
 		}
 		neededLocales.addAll(
-			selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.ATTRIBUTES.name())
+			selectionSetAggregator.getImmediateFields(AttributesProviderDescriptor.ATTRIBUTES.name())
 				.stream()
 				.map(f -> (Locale) f.getArguments().get(AttributesFieldHeaderDescriptor.LOCALE.name()))
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet())
 		);
 		neededLocales.addAll(
-			selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.ASSOCIATED_DATA.name())
+			selectionSetAggregator.getImmediateFields(EntityDescriptor.ASSOCIATED_DATA.name())
 				.stream()
 				.map(f -> (Locale) f.getArguments().get(AssociatedDataFieldHeaderDescriptor.LOCALE.name()))
 				.filter(Objects::nonNull)

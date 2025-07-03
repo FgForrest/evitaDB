@@ -39,7 +39,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Name(AbstractChangeCatalogCaptureEvent.PACKAGE_NAME + ".ChangeCatalogCaptureStatisticsPerArea")
+@Name(AbstractChangeCaptureEvent.PACKAGE_NAME + ".ChangeCatalogCaptureStatisticsPerArea")
 @Description("Event that is fired in regular intervals capturing base statistics of CDC per area.")
 @Label("CDC catalog statistics per area")
 @Getter

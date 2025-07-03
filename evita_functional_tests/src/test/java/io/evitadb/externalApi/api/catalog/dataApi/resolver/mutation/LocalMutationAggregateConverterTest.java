@@ -37,8 +37,8 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.test.Entities;
@@ -94,13 +94,13 @@ public class LocalMutationAggregateConverterTest {
 		final List<LocalMutation<?, ?>> convertedMutations = this.converter.convertFromInput(
 			map()
 				.e(LocalMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.name(), map()
-					.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
-					.e(ApplyDeltaAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+					.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
 					.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
 					.e(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), List.of(0, 20)))
 				.e(LocalMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
-					.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
-					.e(RemoveAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH))
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+					.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH))
 				.build()
 		);
 
@@ -133,15 +133,15 @@ public class LocalMutationAggregateConverterTest {
 				list()
 					.i(map()
 						.e(ReferenceAttributeMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.name(), map()
-							.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
-							.e(ApplyDeltaAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
+							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+							.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
 							.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
 							.e(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), array()
 								.i(0).i(20))))
 					.i(map()
 						.e(ReferenceAttributeMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
-							.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
-							.e(RemoveAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())))
+							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+							.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())))
 					.build()
 			);
 	}

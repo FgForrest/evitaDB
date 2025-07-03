@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.test.Entities;
@@ -81,8 +82,8 @@ class ApplyDeltaAttributeMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
-				.e(ApplyDeltaAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
+				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+				.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
 				.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
 				.e(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), List.of(0, 20))
 				.build()
@@ -91,8 +92,8 @@ class ApplyDeltaAttributeMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
-				.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
-				.e(ApplyDeltaAttributeMutationDescriptor.LOCALE.name(), "en")
+				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+				.e(AttributeMutationDescriptor.LOCALE.name(), "en")
 				.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), "10")
 				.e(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), List.of("0", "20"))
 				.build()
@@ -107,7 +108,7 @@ class ApplyDeltaAttributeMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 				.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
 				.build()
 		);
@@ -120,7 +121,7 @@ class ApplyDeltaAttributeMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 					.build()
 			)
 		);
@@ -147,8 +148,8 @@ class ApplyDeltaAttributeMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
-					.e(ApplyDeltaAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+					.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
 					.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
 					.e(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), array()
 						.i(0).i(20))

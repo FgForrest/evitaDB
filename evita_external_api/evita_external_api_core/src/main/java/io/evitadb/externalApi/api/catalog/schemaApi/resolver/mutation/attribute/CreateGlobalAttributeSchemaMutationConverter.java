@@ -32,7 +32,9 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PropertyObjectListMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
@@ -76,7 +78,7 @@ public class CreateGlobalAttributeSchemaMutationConverter
 				CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_IN_SCOPES,
 				ScopedAttributeUniquenessType.class,
 				nestedInput -> new ScopedAttributeUniquenessType(
-					nestedInput.getProperty(ScopedAttributeUniquenessTypeDescriptor.SCOPE),
+					nestedInput.getProperty(ScopedDataDescriptor.SCOPE),
 					nestedInput.getProperty(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE)
 				)
 			)
@@ -89,14 +91,14 @@ public class CreateGlobalAttributeSchemaMutationConverter
 				CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES,
 				ScopedGlobalAttributeUniquenessType.class,
 				nestedInput -> new ScopedGlobalAttributeUniquenessType(
-					nestedInput.getProperty(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE),
+					nestedInput.getProperty(ScopedDataDescriptor.SCOPE),
 					nestedInput.getProperty(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE)
 				)
 			)
 		);
 
 		return new CreateGlobalAttributeSchemaMutation(
-			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.NAME),
+			input.getProperty(AttributeSchemaMutationDescriptor.NAME),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION),
 			input.getProperty(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
 			uniqueInScopes,

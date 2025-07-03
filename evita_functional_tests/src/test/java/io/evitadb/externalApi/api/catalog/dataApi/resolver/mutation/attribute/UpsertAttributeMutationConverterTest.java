@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
@@ -84,8 +85,8 @@ class UpsertAttributeMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
-				.e(UpsertAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
+				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+				.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
 				.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
 				.build()
 		);
@@ -93,8 +94,8 @@ class UpsertAttributeMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
-				.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
-				.e(UpsertAttributeMutationDescriptor.LOCALE.name(), "en")
+				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+				.e(AttributeMutationDescriptor.LOCALE.name(), "en")
 				.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
 				.build()
 		);
@@ -105,7 +106,7 @@ class UpsertAttributeMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 				.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
 				.build()
 		);
@@ -119,7 +120,7 @@ class UpsertAttributeMutationConverterTest {
 	void shouldResolveMutationWithNewAttribute() {
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 				.e(UpsertAttributeMutationDescriptor.VALUE.name(), "1.2")
 				.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), BigDecimal.class)
 				.build()
@@ -138,7 +139,7 @@ class UpsertAttributeMutationConverterTest {
 
 		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(UpsertAttributeMutationDescriptor.NAME.name(), "longNumberRangeAttribute")
+				.e(AttributeMutationDescriptor.NAME.name(), "longNumberRangeAttribute")
 				.e(UpsertAttributeMutationDescriptor.VALUE.name(), range)
 				.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), LongNumberRange.class)
 				.build()
@@ -160,7 +161,7 @@ class UpsertAttributeMutationConverterTest {
 
 		final UpsertAttributeMutation localMutation = (UpsertAttributeMutation) this.converter.convertFromInput(
 			map()
-				.e(UpsertAttributeMutationDescriptor.NAME.name(), "arrayOfRangesAttribute")
+				.e(AttributeMutationDescriptor.NAME.name(), "arrayOfRangesAttribute")
 				.e(
 					UpsertAttributeMutationDescriptor.VALUE.name(),
 					List.of(
@@ -189,7 +190,7 @@ class UpsertAttributeMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 					.build()
 			)
 		);
@@ -211,7 +212,7 @@ class UpsertAttributeMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
 					.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), Integer.class)
 					.build()
@@ -225,7 +226,7 @@ class UpsertAttributeMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "1.2")
 					.build()
 			)
@@ -242,8 +243,8 @@ class UpsertAttributeMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
-					.e(UpsertAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+					.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
 					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
 					.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), String.class.getSimpleName())
 					.build()

@@ -33,9 +33,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePo
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyFromNodeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyOfDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyOfReferenceHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyOfSelfHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyParentsHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyRequireHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
@@ -81,7 +81,7 @@ public class HierarchyOfConverter extends RequireConverter {
 				final ArgumentSupplier[] arguments = hierarchyOfSelf.getOrderBy()
 					.map(orderBy -> new ArgumentSupplier[] {
 						(offset, multipleArguments) -> new Argument(
-							HierarchyOfSelfHeaderDescriptor.ORDER_BY,
+							HierarchyHeaderDescriptor.ORDER_BY,
 							offset,
 							multipleArguments,
 							convertOrderConstraint(new EntityDataLocator(new ManagedEntityTypePointer(entityType)), orderBy).orElse(null)
@@ -116,7 +116,7 @@ public class HierarchyOfConverter extends RequireConverter {
 						if (hierarchyOfReference.getOrderBy().isPresent()) {
 							arguments.add(
 								(offset, multipleArguments) -> new Argument(
-									HierarchyOfReferenceHeaderDescriptor.ORDER_BY,
+									HierarchyHeaderDescriptor.ORDER_BY,
 									offset,
 									multipleArguments,
 									convertOrderConstraint(
