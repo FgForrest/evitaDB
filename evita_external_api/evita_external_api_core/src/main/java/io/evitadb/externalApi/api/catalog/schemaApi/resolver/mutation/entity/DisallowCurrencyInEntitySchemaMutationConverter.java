@@ -35,10 +35,13 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class DisallowCurrencyInEntitySchemaMutationConverter extends EntitySchemaMutationConverter<DisallowCurrencyInEntitySchemaMutation> {
+public class DisallowCurrencyInEntitySchemaMutationConverter
+	extends EntitySchemaMutationConverter<DisallowCurrencyInEntitySchemaMutation> {
 
-	public DisallowCurrencyInEntitySchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                       @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public DisallowCurrencyInEntitySchemaMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 

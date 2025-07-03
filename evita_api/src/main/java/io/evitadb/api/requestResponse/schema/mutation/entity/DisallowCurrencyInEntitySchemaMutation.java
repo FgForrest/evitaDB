@@ -42,7 +42,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Arrays;
 import java.util.Currency;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -65,11 +65,11 @@ public class DisallowCurrencyInEntitySchemaMutation implements CombinableLocalEn
 
 	@SerializableCreator
 	public DisallowCurrencyInEntitySchemaMutation(@Nonnull Currency... currencies) {
-		this.currencies = new HashSet<>(Arrays.asList(currencies));
+		this.currencies = new LinkedHashSet<>(Arrays.asList(currencies));
 	}
 
 	public DisallowCurrencyInEntitySchemaMutation(@Nonnull Set<Currency> currencies) {
-		this.currencies = new HashSet<>(currencies);
+		this.currencies = new LinkedHashSet<>(currencies);
 	}
 
 	@Nullable

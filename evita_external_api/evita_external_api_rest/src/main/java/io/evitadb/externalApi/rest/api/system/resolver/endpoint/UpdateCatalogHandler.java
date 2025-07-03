@@ -26,7 +26,6 @@ package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.NotFoundEndpointResponse;
@@ -77,11 +76,11 @@ public class UpdateCatalogHandler extends CatalogHandler {
 					requestExecutedEvent.finishOperationExecution();
 					requestExecutedEvent.finishResultSerialization();
 					return new NotFoundEndpointResponse();
-				}
+				};
 
 				final CatalogContract updatedCatalog = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
 					final Optional<String> newCatalogName = renameCatalog(catalog.get(), requestBody);
-					switchCatalogToAliveState(executionContext.session(), requestBody);
+					switchCatalogToAliveState(catalog.get(), requestBody);
 
 					final String nameOfUpdateCatalog = newCatalogName.orElse(catalogName);
 					return this.restHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
@@ -128,8 +127,10 @@ public class UpdateCatalogHandler extends CatalogHandler {
 		return newCatalogName;
 	}
 
-	private static void switchCatalogToAliveState(@Nonnull EvitaSessionContract session,
-	                                              @Nonnull UpdateCatalogRequestDto requestBody) {
+	private void switchCatalogToAliveState(
+		@Nonnull CatalogContract catalog,
+		@Nonnull UpdateCatalogRequestDto requestBody
+	) {
 		final Optional<CatalogState> newCatalogState = Optional.ofNullable(requestBody.catalogState());
 		if (newCatalogState.isEmpty()) {
 			return;
@@ -140,14 +141,10 @@ public class UpdateCatalogHandler extends CatalogHandler {
 			() -> new RestInvalidArgumentException("A catalog can be switched only to the `ALIVE` state.")
 		);
 		Assert.isTrue(
-			session.getCatalogState() == CatalogState.WARMING_UP,
+			catalog.getCatalogState() == CatalogState.WARMING_UP,
 			() -> new RestInvalidArgumentException("Only a catalog in the `WARMING_UP` state can be switched to the `ALIVE` state.")
 		);
 
-		final boolean switched = session.goLiveAndClose();
-		Assert.isTrue(
-			switched,
-			() -> new RestInvalidArgumentException("A catalog couldn't be switched to the `ALIVE` state.")
-		);
+		restHandlingContext.getEvita().makeCatalogAlive(catalog.getName());
 	}
 }

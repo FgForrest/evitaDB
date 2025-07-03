@@ -30,20 +30,30 @@ import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptio
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.SetEntitySchemaWithPriceMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Tests for {@link SetEntitySchemaWithPriceMutationConverter}
+ * Tests for {@link SetEntitySchemaWithPriceMutationConverter}.
+ *
+ * This test class verifies the functionality of the converter that handles the transformation
+ * between external API input/output format and internal {@link SetEntitySchemaWithPriceMutation} objects.
+ * The converter is responsible for:
+ * - Converting input maps to mutation objects with proper type conversion and validation
+ * - Converting mutation objects back to output maps for serialization
+ * - Handling required field validation and error cases
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@DisplayName("SetEntitySchemaWithPriceMutationConverter functionality")
 class SetEntitySchemaWithPriceMutationConverterTest {
 
 	private SetEntitySchemaWithPriceMutationConverter converter;
@@ -54,6 +64,7 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 	}
 
 	@Test
+	@DisplayName("should resolve input to local mutation with all fields")
 	void shouldResolveInputToLocalMutation() {
 		final SetEntitySchemaWithPriceMutation expectedMutation = new SetEntitySchemaWithPriceMutation(
 			true,
@@ -61,6 +72,7 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 			2
 		);
 
+		// Test with native types
 		final SetEntitySchemaWithPriceMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE.name(), true)
@@ -71,6 +83,7 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
+		// Test with string representations (common in external APIs)
 		final SetEntitySchemaWithPriceMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE.name(), "true")
@@ -83,7 +96,27 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 	}
 
 	@Test
+	@DisplayName("should resolve input to local mutation with only required data")
+	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
+		// Test with null indexedInScopes (should default to Scope.NO_SCOPE)
+		final SetEntitySchemaWithPriceMutation expectedMutation = new SetEntitySchemaWithPriceMutation(
+			false,
+			null, // This will be converted to Scope.NO_SCOPE internally
+			3
+		);
+		final SetEntitySchemaWithPriceMutation convertedMutation = this.converter.convertFromInput(
+			map()
+				.e(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE.name(), false)
+				.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_PRICE_PLACES.name(), 3)
+				.build()
+		);
+		assertEquals(expectedMutation, convertedMutation);
+	}
+
+	@Test
+	@DisplayName("should not resolve input when missing required data")
 	void shouldNotResolveInputWhenMissingRequiredData() {
+		// Missing withPrice field
 		assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
@@ -92,6 +125,8 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 					.build()
 			)
 		);
+
+		// Missing indexedPricePlaces field
 		assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
@@ -100,7 +135,57 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 					.build()
 			)
 		);
+
+		// Empty input
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+
+		// Null input
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	@DisplayName("should serialize local mutation to output")
+	void shouldSerializeLocalMutationToOutput() {
+		// Test with all fields populated
+		final SetEntitySchemaWithPriceMutation inputMutation = new SetEntitySchemaWithPriceMutation(
+			true,
+			new Scope[] { Scope.LIVE, Scope.ARCHIVED },
+			2
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE.name(), true)
+					.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_IN_SCOPES.name(), new String[] { "LIVE", "ARCHIVED" })
+					.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_PRICE_PLACES.name(), 2)
+					.build()
+			);
+	}
+
+	@Test
+	@DisplayName("should serialize local mutation to output with minimal data")
+	void shouldSerializeLocalMutationToOutputWithMinimalData() {
+		// Test with null indexedInScopes (defaults to Scope.NO_SCOPE)
+		final SetEntitySchemaWithPriceMutation inputMutation = new SetEntitySchemaWithPriceMutation(
+			false,
+			null,
+			0
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE.name(), false)
+					.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_IN_SCOPES.name(), new String[0]) // Scope.NO_SCOPE is an empty array
+					.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_PRICE_PLACES.name(), 0)
+					.build()
+			);
 	}
 }

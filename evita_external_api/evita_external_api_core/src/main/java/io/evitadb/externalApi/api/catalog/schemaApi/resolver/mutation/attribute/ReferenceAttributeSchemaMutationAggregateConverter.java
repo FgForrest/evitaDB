@@ -49,8 +49,10 @@ public class ReferenceAttributeSchemaMutationAggregateConverter extends Mutation
 	@Getter(AccessLevel.PROTECTED)
 	private final Map<String, AttributeSchemaMutationConverter<ReferenceAttributeSchemaMutation>> converters = createHashMap(15);
 
-	public ReferenceAttributeSchemaMutationAggregateConverter(@Nonnull MutationObjectParser objectParser,
-	                                                          @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ReferenceAttributeSchemaMutationAggregateConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 
 		registerConverter(CREATE_ATTRIBUTE_SCHEMA_MUTATION.name(), new CreateAttributeSchemaMutationConverter(objectParser, exceptionFactory));

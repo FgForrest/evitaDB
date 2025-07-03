@@ -48,7 +48,6 @@ import io.swagger.v3.oas.models.parameters.Parameter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
@@ -140,7 +139,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
     /**
      * Tries to create a {@link EvitaSessionContract} automatically from context.
      */
-    @Nullable
+    @Nonnull
     protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExecutionContext exchange) {
         if (!(this.restHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext)) {
             // we don't have any catalog to create session on

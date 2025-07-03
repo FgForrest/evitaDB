@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,7 +29,10 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Enumeration of message types used in the GraphQL WebSocket protocol. This enum defines
+ * all the standard message types that can be exchanged between client and server during
+ * a GraphQL WebSocket session, including connection lifecycle messages, subscription
+ * management, and data transmission messages as specified by the GraphQL WebSocket subprotocol.
  *
  * Based on <a href="https://github.com/spring-projects/spring-graphql/blob/main/spring-graphql/src/main/java/org/springframework/graphql/server/support/GraphQlWebSocketMessageType.java">Spring GraphQL library</a>.
  *

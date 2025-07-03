@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,7 +33,10 @@ import javax.annotation.Nonnull;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * TODO lho docs
+ * Socket handler implementation for GraphQL WebSocket connections. This class provides
+ * the low-level WebSocket handling functionality, managing the actual socket connections,
+ * message transmission, and connection lifecycle events. It serves as the bridge between
+ * the WebSocket transport layer and the GraphQL protocol implementation.
  *
  * @author Lukáš Hornych, 2023
  */

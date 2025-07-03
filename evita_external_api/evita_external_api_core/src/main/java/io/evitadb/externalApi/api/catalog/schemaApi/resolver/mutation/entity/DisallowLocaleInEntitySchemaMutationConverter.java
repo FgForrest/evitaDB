@@ -35,10 +35,13 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class DisallowLocaleInEntitySchemaMutationConverter extends EntitySchemaMutationConverter<DisallowLocaleInEntitySchemaMutation> {
+public class DisallowLocaleInEntitySchemaMutationConverter
+	extends EntitySchemaMutationConverter<DisallowLocaleInEntitySchemaMutation> {
 
-	public DisallowLocaleInEntitySchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                     @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public DisallowLocaleInEntitySchemaMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 

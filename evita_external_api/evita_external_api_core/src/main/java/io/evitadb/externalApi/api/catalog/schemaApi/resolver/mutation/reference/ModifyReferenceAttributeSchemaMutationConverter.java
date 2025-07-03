@@ -45,15 +45,19 @@ import java.util.Optional;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifyReferenceAttributeSchemaMutationConverter extends ReferenceSchemaMutationConverter<ModifyReferenceAttributeSchemaMutation> {
+public class ModifyReferenceAttributeSchemaMutationConverter
+	extends ReferenceSchemaMutationConverter<ModifyReferenceAttributeSchemaMutation> {
 
 	@Nonnull
 	private final ReferenceAttributeSchemaMutationAggregateConverter referenceAttributeSchemaMutationAggregateResolver;
 
-	public ModifyReferenceAttributeSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                       @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ModifyReferenceAttributeSchemaMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
-		this.referenceAttributeSchemaMutationAggregateResolver = new ReferenceAttributeSchemaMutationAggregateConverter(objectParser, exceptionFactory);
+		this.referenceAttributeSchemaMutationAggregateResolver = new ReferenceAttributeSchemaMutationAggregateConverter(
+			objectParser, exceptionFactory);
 	}
 
 	@Nonnull
@@ -65,20 +69,25 @@ public class ModifyReferenceAttributeSchemaMutationConverter extends ReferenceSc
 	@Nonnull
 	@Override
 	protected ModifyReferenceAttributeSchemaMutation convertFromInput(@Nonnull Input input) {
-		final Map<String, Object> inputAttributeSchemaMutation = Optional.of(input.getRequiredProperty(ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name()))
+		final Map<String, Object> inputAttributeSchemaMutation = Optional
+			.of(input.getRequiredProperty(
+				ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name()))
 			.map(m -> {
 				Assert.isTrue(
 					m instanceof Map<?, ?>,
-					() -> getExceptionFactory().createInvalidArgumentException("Field `" + ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name() + "` of mutation `" + getMutationName() + "` is expected to be an object.")
+					() -> getExceptionFactory().createInvalidArgumentException(
+						"Field `" + ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name() + "` of mutation `" + getMutationName() + "` is expected to be an object.")
 				);
 				//noinspection unchecked
 				return (Map<String, Object>) m;
 			})
 			.get();
-		final List<ReferenceAttributeSchemaMutation> attributeSchemaMutations = this.referenceAttributeSchemaMutationAggregateResolver.convertFromInput(inputAttributeSchemaMutation);
+		final List<ReferenceAttributeSchemaMutation> attributeSchemaMutations = this.referenceAttributeSchemaMutationAggregateResolver
+			.convertFromInput(inputAttributeSchemaMutation);
 		Assert.isTrue(
 			attributeSchemaMutations.size() == 1,
-			() -> getExceptionFactory().createInvalidArgumentException("Field `" + ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name() + "` in mutation `" + getMutationName() + "` is required and is expected to have exactly one mutation")
+			() -> getExceptionFactory().createInvalidArgumentException(
+				"Field `" + ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name() + "` in mutation `" + getMutationName() + "` is required and is expected to have exactly one mutation")
 		);
 
 		return new ModifyReferenceAttributeSchemaMutation(
@@ -91,7 +100,8 @@ public class ModifyReferenceAttributeSchemaMutationConverter extends ReferenceSc
 	protected void convertToOutput(@Nonnull ModifyReferenceAttributeSchemaMutation mutation, @Nonnull Output output) {
 		output.setProperty(
 			ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION,
-			this.referenceAttributeSchemaMutationAggregateResolver.convertToOutput(mutation.getAttributeSchemaMutation())
+			this.referenceAttributeSchemaMutationAggregateResolver.convertToOutput(
+				mutation.getAttributeSchemaMutation())
 		);
 		super.convertToOutput(mutation, output);
 	}

@@ -39,7 +39,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * TODO lho docs
+ * Test class for {@link CreateCatalogSchemaMutationConverter}. This test suite verifies
+ * the functionality of the catalog schema creation mutation converter, ensuring proper
+ * conversion and handling of catalog schema creation operations in the external API context.
+ * Tests cover various catalog creation scenarios and validation of input parameters.
  *
  * @author Lukáš Hornych, 2023
  */

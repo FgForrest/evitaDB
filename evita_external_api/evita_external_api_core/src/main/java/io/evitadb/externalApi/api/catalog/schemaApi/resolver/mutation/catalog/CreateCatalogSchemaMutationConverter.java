@@ -30,14 +30,19 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExc
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Implementation of {@link TopLevelCatalogSchemaMutationConverter} for resolving {@link CreateCatalogSchemaMutation}.
+ * This converter handles the conversion of external API requests into catalog schema creation mutations,
+ * enabling the creation of new catalog schemas through the external API.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CreateCatalogSchemaMutationConverter extends TopLevelCatalogSchemaMutationConverter<CreateCatalogSchemaMutation> {
+public class CreateCatalogSchemaMutationConverter
+	extends TopLevelCatalogSchemaMutationConverter<CreateCatalogSchemaMutation> {
 
-	public CreateCatalogSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                            @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public CreateCatalogSchemaMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 

@@ -30,14 +30,19 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExc
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Implementation of {@link LocalCatalogSchemaMutationConverter} for resolving {@link ModifyCatalogSchemaNameMutation}.
+ * This converter handles the conversion of external API requests into catalog schema name modification mutations,
+ * enabling renaming of existing catalog schemas through the external API.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifyCatalogSchemaNameMutationConverter extends TopLevelCatalogSchemaMutationConverter<ModifyCatalogSchemaNameMutation> {
+public class ModifyCatalogSchemaNameMutationConverter
+	extends TopLevelCatalogSchemaMutationConverter<ModifyCatalogSchemaNameMutation> {
 
-	public ModifyCatalogSchemaNameMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ModifyCatalogSchemaNameMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 
@@ -47,5 +52,4 @@ public class ModifyCatalogSchemaNameMutationConverter extends TopLevelCatalogSch
 		return ModifyCatalogSchemaNameMutation.class;
 	}
 
-	// todo jno add test for serializing to JSON based on io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutationConverterTest.shouldSerializeLocalMutationToOutput
 }

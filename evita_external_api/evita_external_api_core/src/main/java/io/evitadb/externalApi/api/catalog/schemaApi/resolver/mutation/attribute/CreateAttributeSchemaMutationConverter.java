@@ -42,10 +42,13 @@ import java.io.Serializable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CreateAttributeSchemaMutationConverter extends AttributeSchemaMutationConverter<CreateAttributeSchemaMutation> {
+public class CreateAttributeSchemaMutationConverter
+	extends AttributeSchemaMutationConverter<CreateAttributeSchemaMutation> {
 
-	public CreateAttributeSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                              @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public CreateAttributeSchemaMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 

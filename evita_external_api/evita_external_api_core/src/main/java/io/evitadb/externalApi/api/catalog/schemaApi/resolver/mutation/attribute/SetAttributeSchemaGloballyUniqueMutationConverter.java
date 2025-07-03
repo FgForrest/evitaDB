@@ -40,10 +40,13 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class SetAttributeSchemaGloballyUniqueMutationConverter extends AttributeSchemaMutationConverter<SetAttributeSchemaGloballyUniqueMutation> {
+public class SetAttributeSchemaGloballyUniqueMutationConverter
+	extends AttributeSchemaMutationConverter<SetAttributeSchemaGloballyUniqueMutation> {
 
-	public SetAttributeSchemaGloballyUniqueMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                         @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public SetAttributeSchemaGloballyUniqueMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 

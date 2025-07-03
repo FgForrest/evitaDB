@@ -43,15 +43,19 @@ import java.util.Optional;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifyEntitySchemaMutationConverter extends LocalCatalogSchemaMutationConverter<ModifyEntitySchemaMutation> {
+public class ModifyEntitySchemaMutationConverter
+	extends LocalCatalogSchemaMutationConverter<ModifyEntitySchemaMutation> {
 
 	@Nonnull
 	private final EntitySchemaMutationAggregateConverter entitySchemaMutationAggregateResolver;
 
-	public ModifyEntitySchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                           @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ModifyEntitySchemaMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
-		this.entitySchemaMutationAggregateResolver = new EntitySchemaMutationAggregateConverter(objectParser, exceptionFactory);
+		this.entitySchemaMutationAggregateResolver = new EntitySchemaMutationAggregateConverter(
+			objectParser, exceptionFactory);
 	}
 
 	@Nonnull
@@ -63,19 +67,26 @@ public class ModifyEntitySchemaMutationConverter extends LocalCatalogSchemaMutat
 	@Nonnull
 	@Override
 	protected ModifyEntitySchemaMutation convertFromInput(@Nonnull Input input) {
-		final List<Object> inputEntitySchemaMutations = Optional.of(input.getRequiredProperty(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name()))
+		final List<Object> inputEntitySchemaMutations = Optional
+			.of(
+				input.getRequiredProperty(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name()))
 			.map(m -> {
 				Assert.isTrue(
 					m instanceof List<?>,
-					() -> getExceptionFactory().createInvalidArgumentException("Field `" + ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name() + "` of mutation `" + getMutationName() + "` is expected to be a list.")
+					() -> getExceptionFactory().createInvalidArgumentException(
+						"Field `" + ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name() + "` of mutation `" + getMutationName() + "` is expected to be a list.")
 				);
 				//noinspection unchecked
 				return (List<Object>) m;
 			})
 			.get();
-		final LocalEntitySchemaMutation[] entitySchemaMutations = inputEntitySchemaMutations.stream()
-			.flatMap(m -> this.entitySchemaMutationAggregateResolver.convertFromInput(m).stream())
-			.toArray(LocalEntitySchemaMutation[]::new);
+		final LocalEntitySchemaMutation[] entitySchemaMutations = inputEntitySchemaMutations
+			.stream()
+			.flatMap(
+				m -> this.entitySchemaMutationAggregateResolver.convertFromInput(
+					m).stream())
+			.toArray(
+				LocalEntitySchemaMutation[]::new);
 
 		return new ModifyEntitySchemaMutation(
 			input.getProperty(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE),

@@ -45,15 +45,19 @@ import java.util.Optional;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter extends ReferenceSchemaMutationConverter<ModifyReferenceSortableAttributeCompoundSchemaMutation> {
+public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter
+	extends ReferenceSchemaMutationConverter<ModifyReferenceSortableAttributeCompoundSchemaMutation> {
 
 	@Nonnull
 	private final ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter sortableAttributeCompoundSchemaMutationAggregateConverter;
 
-	public ModifyReferenceSortableAttributeCompoundSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                                       @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ModifyReferenceSortableAttributeCompoundSchemaMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
-		this.sortableAttributeCompoundSchemaMutationAggregateConverter = new ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter(objectParser, exceptionFactory);
+		this.sortableAttributeCompoundSchemaMutationAggregateConverter = new ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter(
+			objectParser, exceptionFactory);
 	}
 
 	@Nonnull
@@ -65,20 +69,25 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter ext
 	@Nonnull
 	@Override
 	protected ModifyReferenceSortableAttributeCompoundSchemaMutation convertFromInput(@Nonnull Input input) {
-		final Map<String, Object> inputAttributeSchemaMutation = Optional.of(input.getRequiredProperty(ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name()))
+		final Map<String, Object> inputAttributeSchemaMutation = Optional
+			.of(input.getRequiredProperty(
+				ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name()))
 			.map(m -> {
 				Assert.isTrue(
 					m instanceof Map<?, ?>,
-					() -> getExceptionFactory().createInvalidArgumentException("Field `" + ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name() + "` of mutation `" + getMutationName() + "` is expected to be an object.")
+					() -> getExceptionFactory().createInvalidArgumentException(
+						"Field `" + ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name() + "` of mutation `" + getMutationName() + "` is expected to be an object.")
 				);
 				//noinspection unchecked
 				return (Map<String, Object>) m;
 			})
 			.get();
-		final List<ReferenceSortableAttributeCompoundSchemaMutation> sortableAttributeCompoundSchemaMutations = this.sortableAttributeCompoundSchemaMutationAggregateConverter.convertFromInput(inputAttributeSchemaMutation);
+		final List<ReferenceSortableAttributeCompoundSchemaMutation> sortableAttributeCompoundSchemaMutations = this.sortableAttributeCompoundSchemaMutationAggregateConverter.convertFromInput(
+			inputAttributeSchemaMutation);
 		Assert.isTrue(
 			sortableAttributeCompoundSchemaMutations.size() == 1,
-			() -> getExceptionFactory().createInvalidArgumentException("Field `" + ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name() + "` in mutation `" + getMutationName() + "` is required and is expected to have exactly one mutation")
+			() -> getExceptionFactory().createInvalidArgumentException(
+				"Field `" + ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name() + "` in mutation `" + getMutationName() + "` is required and is expected to have exactly one mutation")
 		);
 
 		return new ModifyReferenceSortableAttributeCompoundSchemaMutation(
@@ -88,10 +97,12 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter ext
 	}
 
 	@Override
-	protected void convertToOutput(@Nonnull ModifyReferenceSortableAttributeCompoundSchemaMutation mutation, @Nonnull Output output) {
+	protected void convertToOutput(
+		@Nonnull ModifyReferenceSortableAttributeCompoundSchemaMutation mutation, @Nonnull Output output) {
 		output.setProperty(
 			ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION,
-			this.sortableAttributeCompoundSchemaMutationAggregateConverter.convertToOutput(mutation.getSortableAttributeCompoundSchemaMutation())
+			this.sortableAttributeCompoundSchemaMutationAggregateConverter.convertToOutput(
+				mutation.getSortableAttributeCompoundSchemaMutation())
 		);
 		super.convertToOutput(mutation, output);
 	}

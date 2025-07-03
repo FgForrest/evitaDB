@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,7 +32,10 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * TODO lho docs
+ * Main handler for GraphQL WebSocket connections. This class manages the lifecycle of
+ * WebSocket connections for GraphQL operations, including connection establishment,
+ * message processing, subscription management, and connection termination. It implements
+ * the GraphQL WebSocket subprotocol to enable real-time GraphQL subscriptions and queries.
  *
  * @author Lukáš Hornych, 2023
  */

@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -86,5 +87,24 @@ class ModifyAssociatedDataSchemaNameMutationConverterTest {
 		);
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ModifyAssociatedDataSchemaNameMutation inputMutation = new ModifyAssociatedDataSchemaNameMutation(
+			"labels",
+			"labels2"
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(ModifyAssociatedDataSchemaNameMutationDescriptor.NAME.name(), "labels")
+					.e(ModifyAssociatedDataSchemaNameMutationDescriptor.NEW_NAME.name(), "labels2")
+					.build()
+			);
 	}
 }

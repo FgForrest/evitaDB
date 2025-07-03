@@ -35,7 +35,10 @@ import org.reactivestreams.Subscription;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Represents an active GraphQL subscription within a WebSocket connection. This class
+ * manages the lifecycle of a single subscription, including subscription execution,
+ * result streaming, error handling, and cleanup operations. It maintains the context
+ * and state necessary for delivering subscription results to the client over the WebSocket.
  *
  * @author Lukáš Hornych, 2023
  */

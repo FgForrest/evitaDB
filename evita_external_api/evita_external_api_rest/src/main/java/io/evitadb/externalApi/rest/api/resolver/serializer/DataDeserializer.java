@@ -66,7 +66,6 @@ import java.util.Currency;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -273,7 +272,7 @@ public class DataDeserializer {
 	 * @param data the string representation of the data to be deserialized
 	 * @return the deserialized object based on the provided schema and data
 	 */
-	@Nonnull
+	@Nullable
 	@SuppressWarnings({"rawtypes"})
 	private Object deserializeValue(@Nonnull Schema schema, @Nonnull String data) {
 		return deserializeValue(resolveDataClass(schema), data);
@@ -288,7 +287,7 @@ public class DataDeserializer {
 	 * @return an instance of the specified type containing the deserialized data
 	 * @throws NullPointerException if the deserialization result is null (when applicable)
 	 */
-	@Nonnull
+	@Nullable
 	private static <T extends Serializable> T deserializeValue(@Nonnull Class<T> requestedType, @Nonnull String data) {
 		if (requestedType.isEnum()) {
 			return deserializeEnum(requestedType, data);
@@ -296,7 +295,7 @@ public class DataDeserializer {
 			//noinspection unchecked
 			return (T) ExpressionFactory.parse(data);
 		} else {
-			return Objects.requireNonNull(EvitaDataTypes.toTargetType(data, requestedType));
+			return EvitaDataTypes.toTargetType(data, requestedType);
 		}
 	}
 

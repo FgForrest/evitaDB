@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -78,5 +79,27 @@ class ModifyEntitySchemaDeprecationNoticeMutationConverterTest {
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	/**
+	 * Tests that the converter properly serializes local mutation object back to output map.
+	 * This test verifies the reverse conversion from mutation object to API output format,
+	 * ensuring that the serialized output contains the correct field names and deprecation notice values.
+	 */
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ModifyEntitySchemaDeprecationNoticeMutation inputMutation = new ModifyEntitySchemaDeprecationNoticeMutation(
+			"depr"
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(ModifyEntitySchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
+					.build()
+			);
 	}
 }

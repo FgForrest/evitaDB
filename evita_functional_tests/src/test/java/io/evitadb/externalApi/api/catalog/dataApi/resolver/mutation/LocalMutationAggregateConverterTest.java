@@ -59,7 +59,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * TODO lho docs
+ * Test class for {@link LocalMutationAggregateConverter}. This test suite verifies
+ * the functionality of the local mutation aggregate converter, ensuring proper
+ * conversion and handling of local mutations in the external API context.
+ * Tests cover various mutation scenarios and edge cases.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

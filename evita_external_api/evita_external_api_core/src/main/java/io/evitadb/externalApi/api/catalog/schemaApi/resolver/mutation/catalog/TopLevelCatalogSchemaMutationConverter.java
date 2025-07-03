@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,14 +31,19 @@ import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMuta
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Abstract base implementation for {@link SchemaMutationConverter}s that handle top-level catalog schema mutations.
+ * This converter serves as an ancestor for all converters that process {@link TopLevelCatalogSchemaMutation}s,
+ * providing common functionality for resolving mutations that affect the catalog schema at the top level.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public abstract class TopLevelCatalogSchemaMutationConverter<M extends TopLevelCatalogSchemaMutation> extends SchemaMutationConverter<M> {
+public abstract class TopLevelCatalogSchemaMutationConverter<M extends TopLevelCatalogSchemaMutation>
+	extends SchemaMutationConverter<M> {
 
-	protected TopLevelCatalogSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                 @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	protected TopLevelCatalogSchemaMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 }

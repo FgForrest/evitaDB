@@ -53,7 +53,9 @@ import java.util.stream.Collectors;
 import static io.evitadb.utils.MapBuilder.map;
 
 /**
- * TODO lho docs
+ * Represents the output result of a mutation operation in the external API context.
+ * This record encapsulates the result data that is returned after executing a mutation,
+ * providing a standardized way to handle mutation responses across different API implementations.
  *
  * @author Lukáš Hornych, 2023
  */

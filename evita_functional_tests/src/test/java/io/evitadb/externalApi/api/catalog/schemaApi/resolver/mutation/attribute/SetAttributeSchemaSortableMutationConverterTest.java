@@ -37,6 +37,7 @@ import java.util.Map;
 
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -90,15 +91,26 @@ class SetAttributeSchemaSortableMutationConverterTest {
 					.build()
 			)
 		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> this.converter.convertFromInput(
-				map()
-					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-					.build()
-			)
-		);
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final SetAttributeSchemaSortableMutation inputMutation = new SetAttributeSchemaSortableMutation(
+			"code",
+			new Scope[] { Scope.LIVE }
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+					.e(SetAttributeSchemaSortableMutationDescriptor.SORTABLE_IN_SCOPES.name(), new String[] { Scope.LIVE.name() })
+					.build()
+			);
 	}
 }

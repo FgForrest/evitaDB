@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,9 @@ package io.evitadb.externalApi.graphql.io.webSocket;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Represents a close message in the GraphQL WebSocket protocol. This record encapsulates
+ * the information needed to properly close a WebSocket connection, including the close
+ * code and reason for closure, following the GraphQL WebSocket subprotocol specifications.
  *
  * @author Lukáš Hornych, 2023
  */

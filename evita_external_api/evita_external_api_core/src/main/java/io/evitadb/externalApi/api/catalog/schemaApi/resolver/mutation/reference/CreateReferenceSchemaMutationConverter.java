@@ -35,10 +35,13 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CreateReferenceSchemaMutationConverter extends ReferenceSchemaMutationConverter<CreateReferenceSchemaMutation> {
+public class CreateReferenceSchemaMutationConverter
+	extends ReferenceSchemaMutationConverter<CreateReferenceSchemaMutation> {
 
-	public CreateReferenceSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                              @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public CreateReferenceSchemaMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 

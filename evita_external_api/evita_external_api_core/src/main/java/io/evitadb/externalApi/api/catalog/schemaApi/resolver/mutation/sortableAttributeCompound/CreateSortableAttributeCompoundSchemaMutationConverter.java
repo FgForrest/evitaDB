@@ -38,7 +38,8 @@ import javax.annotation.Nonnull;
 public class CreateSortableAttributeCompoundSchemaMutationConverter
 	extends SortableAttributeCompoundSchemaMutationConverter<CreateSortableAttributeCompoundSchemaMutation> {
 
-	public CreateSortableAttributeCompoundSchemaMutationConverter(@Nonnull MutationObjectParser objectParser, @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public CreateSortableAttributeCompoundSchemaMutationConverter(
+		@Nonnull MutationObjectParser objectParser, @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}
 

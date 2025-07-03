@@ -38,19 +38,25 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * TODO lho docs
+ * Implementation of {@link LocalCatalogSchemaMutationConverter} for resolving {@link ModifyCatalogSchemaMutation}.
+ * This converter handles the conversion of external API requests into catalog schema modification mutations,
+ * enabling updates to existing catalog schema properties through the external API.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifyCatalogSchemaMutationConverter extends TopLevelCatalogSchemaMutationConverter<ModifyCatalogSchemaMutation> {
+public class ModifyCatalogSchemaMutationConverter
+	extends TopLevelCatalogSchemaMutationConverter<ModifyCatalogSchemaMutation> {
 
 	@Nonnull
 	private final LocalCatalogSchemaMutationAggregateConverter localCatalogSchemaMutationAggregateConverter;
 
-	public ModifyCatalogSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                            @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ModifyCatalogSchemaMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
-		this.localCatalogSchemaMutationAggregateConverter = new LocalCatalogSchemaMutationAggregateConverter(objectParser, exceptionFactory);
+		this.localCatalogSchemaMutationAggregateConverter = new LocalCatalogSchemaMutationAggregateConverter(
+			objectParser, exceptionFactory);
 	}
 
 	@Nonnull
@@ -62,19 +68,26 @@ public class ModifyCatalogSchemaMutationConverter extends TopLevelCatalogSchemaM
 	@Nonnull
 	@Override
 	protected ModifyCatalogSchemaMutation convertFromInput(@Nonnull Input input) {
-		final List<Object> inputEntitySchemaMutations = Optional.of(input.getRequiredProperty(ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name()))
+		final List<Object> inputEntitySchemaMutations = Optional
+			.of(
+				input.getRequiredProperty(ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name()))
 			.map(m -> {
 				Assert.isTrue(
 					m instanceof List<?>,
-					() -> getExceptionFactory().createInvalidArgumentException("Field `" + ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name() + "` of mutation `" + getMutationName() + "` is expected to be a list.")
+					() -> getExceptionFactory().createInvalidArgumentException(
+						"Field `" + ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name() + "` of mutation `" + getMutationName() + "` is expected to be a list.")
 				);
 				//noinspection unchecked
 				return (List<Object>) m;
 			})
 			.get();
-		final LocalCatalogSchemaMutation[] localCatalogSchemaMutations = inputEntitySchemaMutations.stream()
-			.flatMap(m -> this.localCatalogSchemaMutationAggregateConverter.convertFromInput(m).stream())
-			.toArray(LocalCatalogSchemaMutation[]::new);
+		final LocalCatalogSchemaMutation[] localCatalogSchemaMutations = inputEntitySchemaMutations
+			.stream()
+			.flatMap(
+				m -> this.localCatalogSchemaMutationAggregateConverter.convertFromInput(
+					m).stream())
+			.toArray(
+				LocalCatalogSchemaMutation[]::new);
 
 		return new ModifyCatalogSchemaMutation(
 			input.getProperty(ModifyCatalogSchemaMutationDescriptor.CATALOG_NAME),

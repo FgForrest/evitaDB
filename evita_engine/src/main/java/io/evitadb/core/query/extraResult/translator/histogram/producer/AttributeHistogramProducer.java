@@ -118,7 +118,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 		// prepare filtering bitmap
 		final RoaringBitmap filteredRecordIds;
 		if (filteringFormula == null) {
-			filteredRecordIds = new RoaringBitmap();
+			filteredRecordIds = null;
 		} else {
 			filteredRecordIds = RoaringBitmapBackedBitmap.getRoaringBitmap(filteringFormula.compute());
 		}

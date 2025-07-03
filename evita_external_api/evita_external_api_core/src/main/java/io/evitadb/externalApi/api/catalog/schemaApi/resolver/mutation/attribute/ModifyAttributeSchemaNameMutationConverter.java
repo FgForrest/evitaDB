@@ -35,10 +35,13 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifyAttributeSchemaNameMutationConverter extends AttributeSchemaMutationConverter<ModifyAttributeSchemaNameMutation> {
+public class ModifyAttributeSchemaNameMutationConverter
+	extends AttributeSchemaMutationConverter<ModifyAttributeSchemaNameMutation> {
 
-	public ModifyAttributeSchemaNameMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                  @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ModifyAttributeSchemaNameMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 
@@ -47,6 +50,4 @@ public class ModifyAttributeSchemaNameMutationConverter extends AttributeSchemaM
 	protected Class<ModifyAttributeSchemaNameMutation> getMutationClass() {
 		return ModifyAttributeSchemaNameMutation.class;
 	}
-
-	// todo jno add test for serializing to JSON based on io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutationConverterTest.shouldSerializeLocalMutationToOutput
 }

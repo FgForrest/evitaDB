@@ -791,6 +791,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					   "startedAt": "VARIABLE",
 					   "uptime": VARIABLE,
 					   "uptimeForHuman": "VARIABLE",
+					   "engineVersion": 1,
+					   "introducedAt: "VARIABLE",
 					   "catalogsCorrupted": 0,
 					   "catalogsOk": 0,
 					   "catalogsInactive": 0,

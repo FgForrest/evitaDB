@@ -54,6 +54,7 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 
 	@Override
 	public void onNext(ChangeSystemCapture item) {
+		/* TODO JNO - add try catch, tohle se nesmí nikdy zastavit + logovat výjimku! + TOTÉŽ PRO REST */
 		final Mutation body = item.body();
 		if (body instanceof CreateCatalogSchemaMutation create) {
 			this.graphQLManager.registerCatalog(create.getCatalogName());

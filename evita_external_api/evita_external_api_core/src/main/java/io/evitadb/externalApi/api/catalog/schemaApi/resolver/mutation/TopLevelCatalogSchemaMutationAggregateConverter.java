@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,7 +46,10 @@ import static io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.TopLev
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * TODO lho docs
+ * Aggregate converter that handles the resolution of top-level catalog schema mutations from external API requests.
+ * This converter serves as a central point for processing various types of top-level catalog schema mutations,
+ * delegating to specific converters based on the mutation type and providing a unified interface for
+ * catalog schema mutation resolution.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */

@@ -35,10 +35,13 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifySortableAttributeCompoundSchemaNameMutationConverter extends SortableAttributeCompoundSchemaMutationConverter<ModifySortableAttributeCompoundSchemaNameMutation> {
+public class ModifySortableAttributeCompoundSchemaNameMutationConverter
+	extends SortableAttributeCompoundSchemaMutationConverter<ModifySortableAttributeCompoundSchemaNameMutation> {
 
-	public ModifySortableAttributeCompoundSchemaNameMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                                  @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ModifySortableAttributeCompoundSchemaNameMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 
@@ -48,5 +51,4 @@ public class ModifySortableAttributeCompoundSchemaNameMutationConverter extends 
 		return ModifySortableAttributeCompoundSchemaNameMutation.class;
 	}
 
-	// todo jno add test for serializing to JSON based on io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutationConverterTest.shouldSerializeLocalMutationToOutput
 }

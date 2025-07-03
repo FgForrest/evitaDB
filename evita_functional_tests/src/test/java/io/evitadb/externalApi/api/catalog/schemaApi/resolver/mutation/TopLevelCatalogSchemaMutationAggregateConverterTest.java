@@ -45,7 +45,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * TODO lho docs
+ * Test class for {@link TopLevelCatalogSchemaMutationAggregateConverter}. This test suite
+ * verifies the functionality of the top-level catalog schema mutation aggregate converter,
+ * ensuring proper conversion and handling of catalog schema mutations in the external API context.
+ * Tests cover various catalog schema mutation scenarios including creation, modification, and removal.
  *
  * @author Lukáš Hornych, 2023
  */

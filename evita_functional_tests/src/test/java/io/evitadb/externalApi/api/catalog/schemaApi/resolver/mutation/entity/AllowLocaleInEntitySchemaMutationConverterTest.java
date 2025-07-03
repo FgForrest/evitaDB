@@ -36,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -50,7 +51,8 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new AllowLocaleInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new AllowLocaleInEntitySchemaMutationConverter(
+			new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -62,23 +64,28 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 
 		final AllowLocaleInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
-				.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
-					Locale.FRENCH,
-					Locale.ENGLISH
-				))
+				.e(
+					AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
+						Locale.FRENCH,
+						Locale.ENGLISH
+					)
+				)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
 		final AllowLocaleInEntitySchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
-				.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
-					"fr", "en"
-				))
+				.e(
+					AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
+						"fr", "en"
+					)
+				)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
 	}
+
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final AllowLocaleInEntitySchemaMutation expectedMutation = new AllowLocaleInEntitySchemaMutation();
@@ -95,5 +102,35 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	/**
+	 * Tests that the converter properly serializes local mutation object back to output map.
+	 * This test verifies the reverse conversion from mutation object to API output format,
+	 * ensuring that the serialized output contains the correct field names and locale values.
+	 */
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final AllowLocaleInEntitySchemaMutation inputMutation = new AllowLocaleInEntitySchemaMutation(
+			Locale.FRENCH,
+			Locale.ENGLISH
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(
+			inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(
+						AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(),
+						new String[]{
+							Locale.FRENCH.toLanguageTag(),
+							Locale.ENGLISH.toLanguageTag()
+						}
+					)
+					.build()
+			);
 	}
 }

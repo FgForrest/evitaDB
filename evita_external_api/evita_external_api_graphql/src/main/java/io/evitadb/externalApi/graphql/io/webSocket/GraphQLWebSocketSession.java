@@ -35,7 +35,10 @@ import java.util.Optional;
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 
 /**
- * TODO lho docs
+ * Represents a GraphQL WebSocket session that manages the state and lifecycle of a single
+ * WebSocket connection. This class handles session-specific operations including connection
+ * state management, subscription tracking, message routing, and cleanup operations.
+ * It maintains the context for all GraphQL operations performed within a single WebSocket connection.
  * TODO LHO REWRITE TO ARMERIA
  *
  * @author Lukáš Hornych, 2023

@@ -23,13 +23,9 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 
-import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowEvolutionModeInEntitySchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowEvolutionModeInEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -39,10 +35,13 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class DisallowEvolutionModeInEntitySchemaMutationConverter extends EntitySchemaMutationConverter<DisallowEvolutionModeInEntitySchemaMutation> {
+public class DisallowEvolutionModeInEntitySchemaMutationConverter
+	extends EntitySchemaMutationConverter<DisallowEvolutionModeInEntitySchemaMutation> {
 
-	public DisallowEvolutionModeInEntitySchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                            @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public DisallowEvolutionModeInEntitySchemaMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 

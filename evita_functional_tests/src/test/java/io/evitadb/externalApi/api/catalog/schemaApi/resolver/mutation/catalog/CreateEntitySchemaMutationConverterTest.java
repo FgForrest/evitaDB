@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -69,14 +70,17 @@ class CreateEntitySchemaMutationConverterTest {
 	}
 
 	@Test
-	void shouldConvertMutationToOutput() {
-		final Map<String, Object> expectedOutput = map()
-			.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
-			.build();
+	void shouldSerializeLocalMutationToOutput() {
+		final CreateEntitySchemaMutation inputMutation = new CreateEntitySchemaMutation("product");
+
 		//noinspection unchecked
-		final Map<String, Object> convertedOutput = (Map<String, Object>) this.converter.convertToOutput(
-			new CreateEntitySchemaMutation("product")
-		);
-		assertEquals(expectedOutput, convertedOutput);
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
+					.build()
+			);
 	}
 }

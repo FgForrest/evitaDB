@@ -30,20 +30,28 @@ import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptio
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.SetEntitySchemaWithHierarchyMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Tests for {@link SetEntitySchemaWithHierarchyMutationConverter}
+ * Tests for {@link SetEntitySchemaWithHierarchyMutationConverter}.
+ *
+ * This test class verifies the functionality of the converter that handles mutations for setting
+ * entity schema hierarchy configuration. It tests both input-to-mutation conversion and
+ * mutation-to-output serialization, ensuring proper handling of required and optional fields,
+ * edge cases, and error conditions.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@DisplayName("SetEntitySchemaWithHierarchyMutationConverter functionality")
 class SetEntitySchemaWithHierarchyMutationConverterTest {
 
 	private SetEntitySchemaWithHierarchyMutationConverter converter;
@@ -54,6 +62,7 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 	}
 
 	@Test
+	@DisplayName("should resolve input to local mutation with all fields")
 	void shouldResolveInputToLocalMutation() {
 		final SetEntitySchemaWithHierarchyMutation expectedMutation = new SetEntitySchemaWithHierarchyMutation(
 			true,
@@ -80,8 +89,101 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 	}
 
 	@Test
+	@DisplayName("should resolve input to local mutation with only required data")
+	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
+		final SetEntitySchemaWithHierarchyMutation expectedMutation = new SetEntitySchemaWithHierarchyMutation(
+			false,
+			null
+		);
+
+		final SetEntitySchemaWithHierarchyMutation convertedMutation = this.converter.convertFromInput(
+			map()
+				.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), false)
+				.build()
+		);
+		assertEquals(expectedMutation, convertedMutation);
+	}
+
+	@Test
+	@DisplayName("should resolve input to local mutation with multiple scopes")
+	void shouldResolveInputToLocalMutationWithMultipleScopes() {
+		final SetEntitySchemaWithHierarchyMutation expectedMutation = new SetEntitySchemaWithHierarchyMutation(
+			true,
+			new Scope[] { Scope.LIVE, Scope.ARCHIVED }
+		);
+
+		final SetEntitySchemaWithHierarchyMutation convertedMutation = this.converter.convertFromInput(
+			map()
+				.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), true)
+				.e(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
+					.i(Scope.LIVE)
+					.i(Scope.ARCHIVED))
+				.build()
+		);
+		assertEquals(expectedMutation, convertedMutation);
+	}
+
+	@Test
+	@DisplayName("should resolve input to local mutation with empty scopes array")
+	void shouldResolveInputToLocalMutationWithEmptyScopes() {
+		final SetEntitySchemaWithHierarchyMutation expectedMutation = new SetEntitySchemaWithHierarchyMutation(
+			true,
+			new Scope[0]
+		);
+
+		final SetEntitySchemaWithHierarchyMutation convertedMutation = this.converter.convertFromInput(
+			map()
+				.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), true)
+				.e(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES.name(), list())
+				.build()
+		);
+		assertEquals(expectedMutation, convertedMutation);
+	}
+
+	@Test
+	@DisplayName("should not resolve input when missing required data")
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	@DisplayName("should serialize local mutation to output")
+	void shouldSerializeLocalMutationToOutput() {
+		final SetEntitySchemaWithHierarchyMutation inputMutation = new SetEntitySchemaWithHierarchyMutation(
+			true,
+			new Scope[] { Scope.LIVE, Scope.ARCHIVED }
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), true)
+					.e(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES.name(), new String[] { "LIVE", "ARCHIVED" })
+					.build()
+			);
+	}
+
+	@Test
+	@DisplayName("should serialize local mutation to output with only required data")
+	void shouldSerializeLocalMutationToOutputWithOnlyRequiredData() {
+		final SetEntitySchemaWithHierarchyMutation inputMutation = new SetEntitySchemaWithHierarchyMutation(
+			false,
+			null
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), false)
+					.e(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES.name(), Scope.NO_SCOPE)
+					.build()
+			);
 	}
 }

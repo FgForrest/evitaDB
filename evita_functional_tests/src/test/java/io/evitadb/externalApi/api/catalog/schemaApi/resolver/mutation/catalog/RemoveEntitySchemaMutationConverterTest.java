@@ -29,19 +29,26 @@ import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptio
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Tests for {@link RemoveEntitySchemaMutationConverter}
+ * Tests for {@link RemoveEntitySchemaMutationConverter}.
+ *
+ * This test class verifies the functionality of the converter that handles
+ * {@link RemoveEntitySchemaMutation} objects, including input conversion,
+ * output serialization, and error handling for missing required data.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@DisplayName("RemoveEntitySchemaMutationConverter functionality")
 class RemoveEntitySchemaMutationConverterTest {
 
 	private RemoveEntitySchemaMutationConverter converter;
@@ -52,6 +59,7 @@ class RemoveEntitySchemaMutationConverterTest {
 	}
 
 	@Test
+	@DisplayName("should resolve input map to RemoveEntitySchemaMutation")
 	void shouldResolveInputToLocalMutation() {
 		final RemoveEntitySchemaMutation expectedMutation = new RemoveEntitySchemaMutation("product");
 
@@ -64,8 +72,25 @@ class RemoveEntitySchemaMutationConverterTest {
 	}
 
 	@Test
+	@DisplayName("should throw exception when required entity name is missing")
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	@DisplayName("should serialize RemoveEntitySchemaMutation to output map")
+	void shouldSerializeLocalMutationToOutput() {
+		final RemoveEntitySchemaMutation inputMutation = new RemoveEntitySchemaMutation("product");
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(RemoveEntitySchemaMutationDescriptor.NAME.name(), "product")
+					.build()
+			);
 	}
 }

@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -95,5 +96,31 @@ class AllowEvolutionModeInEntitySchemaMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	/**
+	 * Tests that the converter properly serializes local mutation object back to output map.
+	 * This test verifies the reverse conversion from mutation object to API output format,
+	 * ensuring that the serialized output contains the correct field names and evolution mode values.
+	 */
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final AllowEvolutionModeInEntitySchemaMutation inputMutation = new AllowEvolutionModeInEntitySchemaMutation(
+			EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION,
+			EvolutionMode.ADDING_LOCALES
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(AllowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES.name(), new String[]{
+						"ADAPT_PRIMARY_KEY_GENERATION",
+						"ADDING_LOCALES"
+					})
+					.build()
+			);
 	}
 }

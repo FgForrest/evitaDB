@@ -35,10 +35,13 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class AllowEvolutionModeInCatalogSchemaMutationConverter extends LocalCatalogSchemaMutationConverter<AllowEvolutionModeInCatalogSchemaMutation> {
+public class AllowEvolutionModeInCatalogSchemaMutationConverter
+	extends LocalCatalogSchemaMutationConverter<AllowEvolutionModeInCatalogSchemaMutation> {
 
-	public AllowEvolutionModeInCatalogSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                          @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public AllowEvolutionModeInCatalogSchemaMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 
@@ -47,6 +50,4 @@ public class AllowEvolutionModeInCatalogSchemaMutationConverter extends LocalCat
 	protected Class<AllowEvolutionModeInCatalogSchemaMutation> getMutationClass() {
 		return AllowEvolutionModeInCatalogSchemaMutation.class;
 	}
-
-	// todo jno add test for serializing to JSON based on io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutationConverterTest.shouldSerializeLocalMutationToOutput
 }

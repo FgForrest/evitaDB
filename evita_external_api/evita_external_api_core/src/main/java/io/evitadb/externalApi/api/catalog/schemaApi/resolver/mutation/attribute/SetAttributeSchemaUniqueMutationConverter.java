@@ -42,10 +42,13 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class SetAttributeSchemaUniqueMutationConverter extends AttributeSchemaMutationConverter<SetAttributeSchemaUniqueMutation> {
+public class SetAttributeSchemaUniqueMutationConverter
+	extends AttributeSchemaMutationConverter<SetAttributeSchemaUniqueMutation> {
 
-	public SetAttributeSchemaUniqueMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                 @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public SetAttributeSchemaUniqueMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 

@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -115,5 +116,26 @@ class ModifyReferenceSchemaRelatedEntityGroupMutationConverterTest {
 		);
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ModifyReferenceSchemaRelatedEntityGroupMutation inputMutation = new ModifyReferenceSchemaRelatedEntityGroupMutation(
+			"tags",
+			"tagGroup",
+			true
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.REFERENCED_GROUP_TYPE.name(), "tagGroup")
+					.e(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), true)
+					.build()
+			);
 	}
 }

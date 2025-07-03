@@ -34,13 +34,14 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * TODO lho docs
+ * Tests for {@link ModifyCatalogSchemaNameMutationConverter}
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class ModifyCatalogSchemaNameMutationConverterTest {
 
@@ -99,5 +100,26 @@ public class ModifyCatalogSchemaNameMutationConverterTest {
 			)
 		);
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ModifyCatalogSchemaNameMutation inputMutation = new ModifyCatalogSchemaNameMutation(
+			"oldCatalogName",
+			"newCatalogName",
+			true
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(ModifyCatalogSchemaNameMutationDescriptor.CATALOG_NAME.name(), "oldCatalogName")
+					.e(ModifyCatalogSchemaNameMutationDescriptor.NEW_CATALOG_NAME.name(), "newCatalogName")
+					.e(ModifyCatalogSchemaNameMutationDescriptor.OVERWRITE_TARGET.name(), true)
+					.build()
+			);
 	}
 }

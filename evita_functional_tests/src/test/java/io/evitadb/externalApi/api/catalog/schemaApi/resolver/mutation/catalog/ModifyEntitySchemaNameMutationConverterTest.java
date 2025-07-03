@@ -21,15 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
+package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog;
 
-import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceSchemaNameMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -40,62 +40,79 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Tests for {@link ModifyReferenceSchemaNameMutationConverter}
+ * Tests for {@link ModifyEntitySchemaNameMutationConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-class ModifyReferenceSchemaNameMutationConverterTest {
+@DisplayName("ModifyEntitySchemaNameMutationConverter should")
+class ModifyEntitySchemaNameMutationConverterTest {
 
-	private ModifyReferenceSchemaNameMutationConverter converter;
+	private ModifyEntitySchemaNameMutationConverter converter;
 
 	@BeforeEach
 	void init() {
-		this.converter = new ModifyReferenceSchemaNameMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyEntitySchemaNameMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
+	@DisplayName("resolve input to local mutation")
 	void shouldResolveInputToLocalMutation() {
-		final ModifyReferenceSchemaNameMutation expectedMutation = new ModifyReferenceSchemaNameMutation(
-			"tags",
-			"stitky"
+		final ModifyEntitySchemaNameMutation expectedMutation = new ModifyEntitySchemaNameMutation(
+			"product",
+			"newProduct",
+			true
 		);
-
-		final ModifyReferenceSchemaNameMutation convertedMutation = this.converter.convertFromInput(
+		final ModifyEntitySchemaNameMutation convertedMutation = this.converter.convertFromInput(
 			map()
-				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-				.e(ModifyReferenceSchemaNameMutationDescriptor.NEW_NAME.name(), "stitky")
+				.e(ModifyEntitySchemaNameMutationDescriptor.NAME.name(), "product")
+				.e(ModifyEntitySchemaNameMutationDescriptor.NEW_NAME.name(), "newProduct")
+				.e(ModifyEntitySchemaNameMutationDescriptor.OVERWRITE_TARGET.name(), true)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation);
 	}
 
 	@Test
+	@DisplayName("not resolve input when missing required data")
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> this.converter.convertFromInput(
-				map()
-					.e(ModifyReferenceSchemaNameMutationDescriptor.NEW_NAME.name(), "stitky")
-					.build()
-			)
-		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> this.converter.convertFromInput(
-				map()
-					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-					.build()
-			)
-		);
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> this.converter.convertFromInput(
+				map()
+					.e(ModifyEntitySchemaNameMutationDescriptor.NAME.name(), "product")
+					.e(ModifyEntitySchemaNameMutationDescriptor.NEW_NAME.name(), "newProduct")
+					.build()
+			)
+		);
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> this.converter.convertFromInput(
+				map()
+					.e(ModifyEntitySchemaNameMutationDescriptor.NAME.name(), "product")
+					.e(ModifyEntitySchemaNameMutationDescriptor.OVERWRITE_TARGET.name(), true)
+					.build()
+			)
+		);
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> this.converter.convertFromInput(
+				map()
+					.e(ModifyEntitySchemaNameMutationDescriptor.NEW_NAME.name(), "newProduct")
+					.e(ModifyEntitySchemaNameMutationDescriptor.OVERWRITE_TARGET.name(), true)
+					.build()
+			)
+		);
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
+	@DisplayName("serialize local mutation to output")
 	void shouldSerializeLocalMutationToOutput() {
-		final ModifyReferenceSchemaNameMutation inputMutation = new ModifyReferenceSchemaNameMutation(
-			"tags",
-			"stitky"
+		final ModifyEntitySchemaNameMutation inputMutation = new ModifyEntitySchemaNameMutation(
+			"product",
+			"newProduct",
+			false
 		);
 
 		//noinspection unchecked
@@ -104,8 +121,9 @@ class ModifyReferenceSchemaNameMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
-					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-					.e(ModifyReferenceSchemaNameMutationDescriptor.NEW_NAME.name(), "stitky")
+					.e(ModifyEntitySchemaNameMutationDescriptor.NAME.name(), "product")
+					.e(ModifyEntitySchemaNameMutationDescriptor.NEW_NAME.name(), "newProduct")
+					.e(ModifyEntitySchemaNameMutationDescriptor.OVERWRITE_TARGET.name(), false)
 					.build()
 			);
 	}

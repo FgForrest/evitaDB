@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,8 +49,10 @@ public class ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter 
 	@Getter(AccessLevel.PROTECTED)
 	private final Map<String, SortableAttributeCompoundSchemaMutationConverter<ReferenceSortableAttributeCompoundSchemaMutation>> converters = createHashMap(15);
 
-	public ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter(@Nonnull MutationObjectParser objectParser,
-	                                                                          @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 
 		registerConverter(CREATE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name(), new CreateSortableAttributeCompoundSchemaMutationConverter(objectParser, exceptionFactory));
