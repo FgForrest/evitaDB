@@ -1168,6 +1168,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 	 * @param intervalInMillis the fixed intervalInMillis for the task execution if applicable
 	 * @return a configured instance of {@code DelayedAsyncTask}
 	 */
+	@Nonnull
 	protected abstract DelayedAsyncTask createDelayedAsyncTask(
 		@Nonnull String name,
 		@Nonnull Scheduler scheduler,
@@ -1895,5 +1896,10 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 			return Long.hashCode(this.version);
 		}
 
+		@Nonnull
+		@Override
+		public String toString() {
+			return "PendingRemoval: version=" + this.version;
+		}
 	}
 }

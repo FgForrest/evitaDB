@@ -131,7 +131,7 @@ public class EngineWriteAheadLog extends AbstractWriteAheadLog<EngineMutation> {
 		@Nonnull OffsetDateTime introducedAt
 	) {
 		try (
-			final MutationSupplier supplier = createSupplier(
+			final MutationSupplier<?> supplier = createSupplier(
 				previousKnownVersion + 1, null
 			)
 		) {
@@ -196,6 +196,7 @@ public class EngineWriteAheadLog extends AbstractWriteAheadLog<EngineMutation> {
 		new WalCacheSizeChangedEvent(cacheSize).commit();
 	}
 
+	@Nonnull
 	@Override
 	protected DelayedAsyncTask createDelayedAsyncTask(
 		@Nonnull String name,
@@ -204,10 +205,11 @@ public class EngineWriteAheadLog extends AbstractWriteAheadLog<EngineMutation> {
 		long intervalInMillis
 	) {
 		return new DelayedAsyncTask(
-			null, "WAL cache cutter",
+			null,
+			name,
 			scheduler,
-			this::cutWalCache,
-			CUT_WAL_CACHE_AFTER_INACTIVITY_MS, TimeUnit.MILLISECONDS
+			lambda,
+			intervalInMillis, TimeUnit.MILLISECONDS
 		);
 	}
 

@@ -273,17 +273,18 @@ public class CatalogWriteAheadLog extends AbstractWriteAheadLog<CatalogBoundMuta
 	}
 
 	@Override
-	protected DelayedAsyncTask createDelayedAsyncTask(
+	protected @Nonnull DelayedAsyncTask createDelayedAsyncTask(
 		@Nonnull String name,
 		@Nonnull Scheduler scheduler,
 		@Nonnull LongSupplier lambda,
 		long intervalInMillis
 	) {
 		return new DelayedAsyncTask(
-			this.catalogName, "WAL cache cutter",
+			this.catalogName,
+			name,
 			scheduler,
-			this::cutWalCache,
-			CUT_WAL_CACHE_AFTER_INACTIVITY_MS, TimeUnit.MILLISECONDS
+			lambda,
+			intervalInMillis, TimeUnit.MILLISECONDS
 		);
 	}
 
