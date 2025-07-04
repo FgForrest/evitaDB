@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.filter.translator.hierarchy;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
@@ -51,10 +52,13 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
+
+import static io.evitadb.api.query.QueryConstraints.*;
 
 /**
  * Abstract super class for hierarchy query translators containing the shared logic.
@@ -69,41 +73,40 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 */
 	@Nullable
 	protected static HierarchyFilteringPredicate createAndStoreHavingPredicate(
-		@Nullable int[] parentId,
+		@Nullable int[] parentPks,
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull Set<Scope> requestedScopes,
-		@Nullable FilterBy havingFilter,
-		@Nullable FilterBy exclusionFilter,
+		@Nonnull FilterConstraint[] havingFilter,
+		@Nonnull FilterConstraint[] havingAnyFilter,
+		@Nonnull FilterConstraint[] exclusionFilter,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
-		final boolean havingNotPresent = havingFilter == null || !havingFilter.isApplicable();
-		final boolean exclusionNotPresent = exclusionFilter == null || !exclusionFilter.isApplicable();
-		Assert.isTrue(
-			havingNotPresent || exclusionNotPresent,
-			() -> "Having and exclusion filters are mutually exclusive! " +
-				"The query contains both having: " + havingFilter + " and exclusion: " + exclusionFilter + " constraints."
-		);
-		if (exclusionNotPresent && havingNotPresent) {
+		final boolean havingPresent = Arrays.stream(havingFilter).anyMatch(Constraint::isApplicable);
+		final boolean havingAnyPresent = Arrays.stream(havingAnyFilter).anyMatch(Constraint::isApplicable);
+		final boolean exclusionPresent = Arrays.stream(exclusionFilter).anyMatch(Constraint::isApplicable);
+
+		if (!(exclusionPresent || havingPresent || havingAnyPresent)) {
 			return null;
 		} else {
-			final HierarchyFilteringPredicate predicate;
-			if (havingNotPresent) {
-				predicate = new FilteringFormulaHierarchyEntityPredicate(
-					parentId, false,
-					queryContext,
-					requestedScopes,
-					exclusionFilter,
-					referenceSchema
-				).negate();
+			final FilterBy nodeFilter;
+			if (havingPresent && exclusionPresent) {
+				nodeFilter = filterBy(and(or(entityPrimaryKeyInSet(parentPks), and(havingFilter)), not(and(exclusionFilter))));
+			} else if (havingPresent) {
+				nodeFilter = filterBy(or(entityPrimaryKeyInSet(parentPks), and(havingFilter)));
+			} else if (exclusionPresent) {
+				nodeFilter = filterBy(not(and(exclusionFilter)));
 			} else {
-				predicate = new FilteringFormulaHierarchyEntityPredicate(
-					parentId, true,
-					queryContext,
-					requestedScopes,
-					havingFilter,
-					referenceSchema
-				);
+				nodeFilter = null;
 			}
+
+			final HierarchyFilteringPredicate predicate = new FilteringFormulaHierarchyEntityPredicate(
+				parentPks,
+				queryContext,
+				requestedScopes,
+				nodeFilter,
+				havingAnyPresent ? filterBy(havingAnyFilter) : null,
+				referenceSchema
+			);
 
 			queryContext.setHierarchyHavingPredicate(predicate);
 			return predicate;

@@ -104,6 +104,7 @@ class ConstraintRegistry {
 		HierarchyExcluding.class,
 		HierarchyExcludingRoot.class,
 		HierarchyHaving.class,
+		HierarchyAnyHaving.class,
 		HierarchyWithin.class,
 		HierarchyWithinRoot.class,
 		// facet

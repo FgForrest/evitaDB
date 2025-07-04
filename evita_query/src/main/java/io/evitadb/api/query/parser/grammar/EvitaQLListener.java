@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -640,6 +640,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitHierarchyHavingConstraint(EvitaQLParser.HierarchyHavingConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code hierarchyAnyHavingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterHierarchyAnyHavingConstraint(EvitaQLParser.HierarchyAnyHavingConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code hierarchyAnyHavingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitHierarchyAnyHavingConstraint(EvitaQLParser.HierarchyAnyHavingConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code hierarchyExcludingRootConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.

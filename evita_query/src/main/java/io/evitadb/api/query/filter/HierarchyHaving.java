@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,14 +42,14 @@ import java.io.Serializable;
  * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
  * that are transitively or directly related to them, and the parent node itself.
  *
- * The having constraint allows you to set a constraint that must be fulfilled by all categories in the category scope
- * in order to be accepted by hierarchy within filter. This constraint is especially useful if you want to conditionally
- * display certain parts of the tree. Imagine you have a category Christmas Sale that should only be available during
- * a certain period of the year, or a category B2B Partners that should only be accessible to a certain role of users.
- * All of these scenarios can take advantage of the having constraint (but there are other approaches to solving
- * the above use cases).
+ * The `having` constraint allows you to set a constraint that must be fulfilled by each hierarchical entity in while
+ * traversing through the hierarchical tree from top to down to be accepted by the filter. This constraint is especially
+ * useful if you want to conditionally display certain parts of the tree. Imagine you have a category Christmas Sale
+ * that should only be available during a certain period of the year, or a category B2B Partners that should only be
+ * accessible to a certain role of users. All of these scenarios can take advantage of the having constraint (but there
+ * are other approaches to solving the above use cases).
  *
- * The constraint accepts following arguments:
+ * The constraint accepts the following arguments:
  *
  * - one or more mandatory constraints that must be satisfied by all returned hierarchy nodes and that mark the visible
  *   part of the tree, the implicit relation between constraints is logical conjunction (boolean AND)
@@ -138,7 +138,7 @@ import java.io.Serializable;
  */
 @ConstraintDefinition(
 	name = "having",
-	shortDescription = "The constraint narrows hierarchy within parent constraint to include specified hierarchy subtrees from search.",
+	shortDescription = "The constraint narrows the hierarchy within a parent constraint to include only the subtrees that satisfy the inner filter constraint.",
 	userDocsLink = "/documentation/query/filtering/hierarchy#having",
 	supportedIn = ConstraintDomain.HIERARCHY
 )

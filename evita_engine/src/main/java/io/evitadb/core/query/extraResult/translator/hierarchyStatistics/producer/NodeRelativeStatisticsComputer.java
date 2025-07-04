@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -91,8 +91,8 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 		if (!parentId.isEmpty()) {
 			Assert.isTrue(
 				parentId.size() == 1,
-				() -> "The filter by constraint: `" + parentIdPredicate.getFilterBy() + "` matches multiple (" + parentId.size() + ") hierarchy nodes! " +
-					"Hierarchy statistics computation expects only single node will be matched (due to performance reasons)."
+				() -> "The filter by constraint: `" + parentIdPredicate.getFilterDescription() + "` matches multiple (" + parentId.size() + ") hierarchy nodes! " +
+					"Hierarchy statistics computation expects only a single node will be matched (due to performance reasons)."
 			);
 			final Bitmap hierarchyNodes = context.rootHierarchyNodesSupplier().get();
 			// we always start at specific node, but we respect the excluded children

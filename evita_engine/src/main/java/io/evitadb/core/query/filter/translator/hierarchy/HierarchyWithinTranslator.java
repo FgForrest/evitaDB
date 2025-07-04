@@ -24,7 +24,6 @@
 package io.evitadb.core.query.filter.translator.hierarchy;
 
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
-import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyWithin;
@@ -59,7 +58,6 @@ import java.util.Set;
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.core.query.filter.FilterByVisitor.createFormulaForTheFilter;
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -171,12 +169,9 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 				nodeIds,
 				queryContext,
 				scopesToLookup,
-				of(new FilterBy(hierarchyWithin.getHavingChildrenFilter()))
-					.filter(ConstraintContainer::isApplicable)
-					.orElse(null),
-				of(new FilterBy(hierarchyWithin.getExcludedChildrenFilter()))
-					.filter(ConstraintContainer::isApplicable)
-					.orElse(null),
+				hierarchyWithin.getHavingChildrenFilter(),
+				hierarchyWithin.getHavingAnyChildFilter(),
+				hierarchyWithin.getExcludedChildrenFilter(),
 				referenceSchema
 			),
 			hierarchyWithin.isDirectRelation(),
