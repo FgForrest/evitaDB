@@ -386,6 +386,54 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@Test
 	void shouldReturnAllProductsInCategoriesHavingSpecifiedSubtrees(Evita evita, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> originalCategoryIndex, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		final Set<Integer> requestedChildren = new HashSet<>(Arrays.asList(1, 7, 13, 16, 40, 55));
+		final Set<Integer> parentsOfRequestedChildren = requestedChildren
+			.stream()
+			.flatMap(
+				pk -> categoryHierarchy.getParentItems(String.valueOf(pk))
+					.stream()
+					.map(HierarchyItem::getCode)
+					.map(Integer::parseInt)
+			)
+			.collect(Collectors.toSet());
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(hierarchyWithinRoot(Entities.CATEGORY, anyHaving(entityPrimaryKeyInSet(requestedChildren.toArray(new Integer[0]))))),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity
+						.getReferences(Entities.CATEGORY)
+						.stream()
+						.anyMatch(category -> {
+							// is requested child
+							return requestedChildren.contains(category.getReferenceKey().primaryKey()) ||
+								// or its parent
+								parentsOfRequestedChildren.contains(category.getReferenceKey().primaryKey());
+						}),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return all products in categories having specific child")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnAllProductsInCategoriesHavingMatchingChild(Evita evita, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> originalCategoryIndex, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
 		final Set<Integer> excluded = new HashSet<>(Arrays.asList(1, 7, 13, 16, 40, 55));
 		final Set<Integer> includedCategories = originalCategoryIndex.values().stream()
 			.filter(sealedEntity ->
@@ -822,10 +870,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								Entities.CATEGORY,
 								entityPrimaryKeyInSet(1),
 								excluding(
-									or(
-										entityPrimaryKeyInSet(1), // this should not exclude the root node
-										entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))
-									)
+									entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))
 								)
 							)
 						),

@@ -34,6 +34,7 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenC
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenExceptConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FilterInScopeConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.HierarchyAnyHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
 
@@ -622,6 +623,19 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new HierarchyHaving(
+				ctx.args.constraints
+					.stream()
+					.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
+					.toArray(FilterConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public FilterConstraint visitHierarchyAnyHavingConstraint(HierarchyAnyHavingConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyAnyHaving(
 				ctx.args.constraints
 					.stream()
 					.map(fc -> visitChildConstraint(fc, FilterConstraint.class))

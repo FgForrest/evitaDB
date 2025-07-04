@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -391,6 +391,13 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitHierarchyHavingConstraint(EvitaQLParser.HierarchyHavingConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code hierarchyAnyHavingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitHierarchyAnyHavingConstraint(EvitaQLParser.HierarchyAnyHavingConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code hierarchyExcludingRootConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
