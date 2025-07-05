@@ -26,23 +26,32 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 	session -> {
 		return session.querySealedEntity(
 			query(
-				collection("Product"),
+				collection("Category"),
 				filterBy(
-					hierarchyWithin(
-						"categories",
-						attributeEquals("code", "accessories"),
+					hierarchyWithinRootSelf(
 						having(
-							or(
-								attributeIs("validity", NULL),
-								attributeInRange(
-									"validity",
-									OffsetDateTime.parse("2023-10-01T01:00:00-01:00", DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+							attributeEquals("status", "ACTIVE")
+						),
+						anyHaving(
+							and(
+								referenceHaving(
+									"tags",
+									entityHaving(
+										attributeEquals("code", "HP")
+									)
+								),
+								referenceHaving(
+									"products",
+									entityHaving(
+										attributeEquals("status", "ACTIVE")
+									)
 								)
 							)
 						)
 					)
 				),
 				require(
+					page(1, 20),
 					entityFetch(
 						attributeContent("code")
 					)

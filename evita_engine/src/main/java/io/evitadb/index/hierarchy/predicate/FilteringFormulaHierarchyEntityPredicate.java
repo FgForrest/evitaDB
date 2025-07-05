@@ -230,8 +230,8 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 							if (theAnyChildFormula != null) {
 								theAnyChildFormula.initialize(executionContext);
 								theAnyChildFormulaResult = globalEntityIndex == null ?
-									formula.compute() :
-									globalEntityIndex.listNodesIncludingParents(formula.compute());
+									theAnyChildFormula.compute() :
+									globalEntityIndex.listNodesIncludingParents(theAnyChildFormula.compute());
 							} else {
 								theAnyChildFormulaResult = EmptyBitmap.INSTANCE;
 							}

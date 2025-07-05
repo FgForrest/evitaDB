@@ -19,7 +19,7 @@
       {
         "primaryKey" : 66467,
         "type" : "Category",
-        "version" : 1,
+        "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
           "en"
@@ -49,7 +49,7 @@
       {
         "primaryKey" : 66469,
         "type" : "Category",
-        "version" : 1,
+        "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
           "en"
@@ -63,7 +63,7 @@
       {
         "primaryKey" : 66470,
         "type" : "Category",
-        "version" : 1,
+        "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
           "en"
@@ -77,7 +77,7 @@
       {
         "primaryKey" : 347154,
         "type" : "Category",
-        "version" : 1,
+        "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
           "en"

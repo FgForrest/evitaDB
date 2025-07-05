@@ -3,6 +3,20 @@
   "recordPage" : {
     "data" : [
       {
+        "primaryKey" : 66467,
+        "type" : "Category",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "laptops"
+          }
+        }
+      },
+      {
         "primaryKey" : 66468,
         "type" : "Category",
         "version" : 1,
@@ -19,7 +33,7 @@
         }
       },
       {
-        "primaryKey" : 66480,
+        "primaryKey" : 66479,
         "type" : "Category",
         "version" : 2,
         "scope" : "LIVE",
@@ -28,7 +42,7 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "christmas-electronics"
+            "code" : "macbooks"
           }
         }
       },
@@ -47,64 +61,24 @@
         }
       },
       {
-        "primaryKey" : 66482,
-        "type" : "Category",
-        "version" : 1,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "audio"
-          }
-        }
-      },
-      {
-        "primaryKey" : 66483,
+        "primaryKey" : 66486,
         "type" : "Category",
         "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
           "global" : {
-            "code" : "monitors"
-          }
-        }
-      },
-      {
-        "primaryKey" : 66484,
-        "type" : "Category",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "keyboards"
-          }
-        }
-      },
-      {
-        "primaryKey" : 66537,
-        "type" : "Category",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "mouses"
+            "code" : "smartwatches"
           }
         }
       }
     ],
     "type" : "PAGE",
-    "totalRecordCount" : 7,
+    "totalRecordCount" : 5,
     "first" : true,
     "last" : true,
     "hasPrevious" : false,
@@ -115,7 +89,7 @@
     "pageNumber" : 1,
     "lastPageNumber" : 1,
     "firstPageItemNumber" : 0,
-    "lastPageItemNumber" : 7
+    "lastPageItemNumber" : 5
   }
 }
 ```
