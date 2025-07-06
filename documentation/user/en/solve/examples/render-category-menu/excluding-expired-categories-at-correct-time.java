@@ -12,7 +12,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 							or(
 								attributeIs("validity", NULL),
 								attributeInRange(
-									"validity", 
+									"validity",
 									OffsetDateTime.parse("2023-12-05T12:00:00Z", DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 								)
 							)
@@ -22,7 +22,6 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				require(
 					hierarchyOfReference(
 						"categories",
-						REMOVE_EMPTY,
 						fromRoot(
 							"topLevel",
 							entityFetch(

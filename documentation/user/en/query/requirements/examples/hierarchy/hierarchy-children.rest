@@ -10,7 +10,6 @@ POST /rest/evita/Product/query
   },
   "require" : {
     "hierarchyCategoriesOfReference" : {
-      "emptyHierarchicalEntityBehaviour" : "REMOVE_EMPTY",
       "requirements" : [
         {
           "children" : {
@@ -25,7 +24,6 @@ POST /rest/evita/Product/query
                 "distance" : 1
               },
               "statistics" : {
-                "statisticsBase" : "WITHOUT_USER_FILTER",
                 "statisticsType" : [
                   "CHILDREN_COUNT",
                   "QUERIED_ENTITY_COUNT"

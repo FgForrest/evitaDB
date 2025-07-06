@@ -56,7 +56,7 @@
           "entity" : {
             "primaryKey" : 66490,
             "type" : "Category",
-            "version" : 1,
+            "version" : 2,
             "scope" : "LIVE",
             "allLocales" : [
               "en"
@@ -73,7 +73,7 @@
           "entity" : {
             "primaryKey" : 66491,
             "type" : "Category",
-            "version" : 1,
+            "version" : 2,
             "scope" : "LIVE",
             "allLocales" : [
               "en"

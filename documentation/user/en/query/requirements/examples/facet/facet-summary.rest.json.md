@@ -79,17 +79,17 @@
   ],
   "tags" : [
     {
-      "count" : 18,
+      "count" : 30,
       "groupEntity" : {
-        "primaryKey" : 0,
-        "type" : "tagCategory"
+        "primaryKey" : 8,
+        "type" : "TagCategory"
       },
       "facetStatistics" : [
         {
           "requested" : false,
-          "count" : 2,
+          "count" : 17,
           "facetEntity" : {
-            "primaryKey" : 9,
+            "primaryKey" : 10,
             "type" : "Tag"
           }
         },
@@ -136,17 +136,17 @@
       ]
     },
     {
-      "count" : 29,
+      "count" : 15,
       "groupEntity" : {
         "primaryKey" : 9,
-        "type" : "tagCategory"
+        "type" : "TagCategory"
       },
       "facetStatistics" : [
         {
           "requested" : false,
-          "count" : 17,
+          "count" : 2,
           "facetEntity" : {
-            "primaryKey" : 10,
+            "primaryKey" : 9,
             "type" : "Tag"
           }
         },

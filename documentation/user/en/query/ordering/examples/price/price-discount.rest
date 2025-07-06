@@ -10,7 +10,6 @@ POST /rest/evita/Product/query
   "orderBy" : [
     {
       "priceDiscount" : {
-        "order" : "DESC",
         "inPriceLists" : [
           "basic"
         ]

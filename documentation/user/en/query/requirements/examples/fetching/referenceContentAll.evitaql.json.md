@@ -17,6 +17,14 @@
             "referencedKey" : 66472
           }
         ],
+        "media" : [
+          {
+            "referencedKey" : 1934
+          },
+          {
+            "referencedKey" : 1936
+          }
+        ],
         "parameterValues" : [
           {
             "group" : 66518,

@@ -9,7 +9,6 @@
     orderBy: [
       {
         priceDiscount: {
-          order: DESC,
           inPriceLists: [
             "basic"
           ]

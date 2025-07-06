@@ -7,6 +7,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -46,6 +48,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -99,6 +103,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -152,6 +158,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -191,6 +199,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -244,6 +254,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -283,6 +295,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -336,6 +350,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -389,6 +405,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -428,6 +446,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",

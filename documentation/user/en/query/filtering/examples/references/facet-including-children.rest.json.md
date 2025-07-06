@@ -14,7 +14,7 @@
         "facetEntity" : {
           "primaryKey" : 66467,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -37,7 +37,7 @@
         "facetEntity" : {
           "primaryKey" : 66471,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -60,7 +60,7 @@
         "facetEntity" : {
           "primaryKey" : 66474,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -83,7 +83,7 @@
         "facetEntity" : {
           "primaryKey" : 66475,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -106,7 +106,7 @@
         "facetEntity" : {
           "primaryKey" : 66476,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -129,7 +129,7 @@
         "facetEntity" : {
           "primaryKey" : 66477,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -152,7 +152,7 @@
         "facetEntity" : {
           "primaryKey" : 66478,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -175,7 +175,7 @@
         "facetEntity" : {
           "primaryKey" : 66483,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -198,7 +198,7 @@
         "facetEntity" : {
           "primaryKey" : 66495,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -221,7 +221,7 @@
         "facetEntity" : {
           "primaryKey" : 66496,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -244,7 +244,7 @@
         "facetEntity" : {
           "primaryKey" : 66497,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -267,7 +267,7 @@
         "facetEntity" : {
           "primaryKey" : 66498,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -290,7 +290,7 @@
         "facetEntity" : {
           "primaryKey" : 66499,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"

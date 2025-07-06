@@ -8,6 +8,7 @@
       "scope" : "LIVE",
       "allLocales" : [
         "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",

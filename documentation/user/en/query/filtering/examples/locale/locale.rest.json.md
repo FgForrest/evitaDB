@@ -11,6 +11,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -33,6 +35,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -55,6 +59,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -77,6 +83,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -99,6 +107,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -121,6 +131,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {

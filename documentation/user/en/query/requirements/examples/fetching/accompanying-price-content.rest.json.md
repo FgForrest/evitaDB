@@ -7,6 +7,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",

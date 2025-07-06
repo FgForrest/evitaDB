@@ -10,7 +10,6 @@ POST /rest/evita/Product/query
   },
   "require" : {
     "hierarchyCategoriesOfReference" : {
-      "emptyHierarchicalEntityBehaviour" : "REMOVE_EMPTY",
       "requirements" : [
         {
           "parents" : {
@@ -23,7 +22,6 @@ POST /rest/evita/Product/query
             "siblings" : { },
             "requirements" : {
               "statistics" : {
-                "statisticsBase" : "WITHOUT_USER_FILTER",
                 "statisticsType" : [
                   "CHILDREN_COUNT",
                   "QUERIED_ENTITY_COUNT"

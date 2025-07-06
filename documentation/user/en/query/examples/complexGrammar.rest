@@ -1,14 +1,10 @@
 POST /rest/evita/Product/query
 
 {
-  "head": [
-    {
-      "label" : {
-        "name" : "query-name",
-        "value" : "my-query"
-      }
-    }
-  ],
+  "label" : {
+    "name" : "query-name",
+    "value" : "my-query"
+  },
   "filterBy" : {
     "and" : [
       {
@@ -34,8 +30,6 @@ POST /rest/evita/Product/query
       "attributeContentAll" : true,
       "priceContentAll" : true
     },
-    "facetSummary" : {
-      "statisticsDepth" : "COUNTS"
-    }
+    "facetSummary" : { }
   }
 }

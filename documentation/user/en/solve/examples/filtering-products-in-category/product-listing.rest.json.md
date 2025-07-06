@@ -11,6 +11,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "LOWEST_PRICE",
@@ -88,6 +90,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "NONE",
@@ -142,6 +146,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "NONE",
@@ -196,6 +202,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "NONE",
@@ -250,6 +258,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "LOWEST_PRICE",
@@ -327,6 +337,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "NONE",
@@ -381,6 +393,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "NONE",
@@ -435,6 +449,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "NONE",
@@ -489,6 +505,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "LOWEST_PRICE",
@@ -577,6 +595,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "NONE",
@@ -631,6 +651,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "NONE",
@@ -685,6 +707,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "NONE",
@@ -739,6 +763,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "NONE",
@@ -793,6 +819,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "LOWEST_PRICE",
@@ -870,6 +898,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "NONE",
@@ -924,6 +954,8 @@
           "en"
         ],
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "priceInnerRecordHandling" : "NONE",

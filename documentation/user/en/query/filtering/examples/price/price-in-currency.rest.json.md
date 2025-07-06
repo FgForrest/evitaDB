@@ -8,6 +8,7 @@
       "scope" : "LIVE",
       "allLocales" : [
         "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -150,6 +151,7 @@
       "scope" : "LIVE",
       "allLocales" : [
         "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "LOWEST_PRICE",
@@ -2000,6 +2002,7 @@
       "scope" : "LIVE",
       "allLocales" : [
         "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "LOWEST_PRICE",
@@ -2210,6 +2213,8 @@
       "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "LOWEST_PRICE",
@@ -4508,6 +4513,8 @@
       "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "LOWEST_PRICE",
@@ -6409,6 +6416,8 @@
       "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "LOWEST_PRICE",
@@ -8572,6 +8581,8 @@
       "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "LOWEST_PRICE",
@@ -10730,6 +10741,8 @@
       "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "LOWEST_PRICE",
@@ -13042,6 +13055,8 @@
       "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "LOWEST_PRICE",
@@ -14007,6 +14022,8 @@
       "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "LOWEST_PRICE",
@@ -16181,6 +16198,8 @@
       "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "LOWEST_PRICE",
@@ -16592,6 +16611,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -16722,6 +16743,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -16830,6 +16853,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -16946,6 +16971,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -17076,6 +17103,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -17239,6 +17268,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -17413,6 +17444,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -17554,6 +17587,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "NONE",
@@ -17662,6 +17697,8 @@
       "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "priceInnerRecordHandling" : "LOWEST_PRICE",
