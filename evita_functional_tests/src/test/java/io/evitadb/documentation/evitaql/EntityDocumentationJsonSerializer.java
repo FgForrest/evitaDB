@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.Serializable;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -160,30 +161,56 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 				gen.writeFieldName("attributes");
 				gen.writeStartObject();
 				for (AttributeValue attributeValue : value.getAttributeValues()) {
-					final Serializable theValue = attributeValue.value();
 					final String fieldName = attributeValue.key().toString();
 					gen.writeFieldName(fieldName);
-					if (theValue instanceof Number number) {
-						writeNumber(gen, number);
-					} else if (theValue instanceof String string) {
-						gen.writeString(string);
-					} else if (theValue instanceof Boolean booleanValue) {
-						gen.writeBoolean(booleanValue);
-					} else if (theValue instanceof Character character) {
-						gen.writeString(String.valueOf(character));
-					} else if (theValue instanceof OffsetDateTime dateTime) {
-						writeDateTime(gen, dateTime);
-					} else if (theValue instanceof DateTimeRange range) {
-						writeDateTimeRange(gen, range);
-					} else if (theValue instanceof NumberRange<?> range) {
-						writeNumberRange(gen, range);
+					final Serializable theValue = attributeValue.value();
+					if (theValue.getClass().isArray()) {
+						gen.writeStartArray();
+						final int length = Array.getLength(theValue);
+						for (int i = 0; i < length; i++) {
+							writeAttribute(gen, (Serializable) Array.get(theValue, i));
+						}
+						gen.writeEndArray();
 					} else {
-						gen.writeString(EvitaDataTypes.formatValue(theValue));
+						writeAttribute(gen, theValue);
 					}
 				}
 				gen.writeEndObject();
 			});
 
+		}
+	}
+
+	/**
+	 * Writes a given attribute value into a JSON using the provided {@link JsonGenerator}.
+	 * Depending on the type of the provided value, appropriate serialization methods are used.
+	 * Supports multiple types such as numbers, strings, booleans, characters, date-time values,
+	 * and various range types.
+	 *
+	 * @param gen The JSON generator used for writing the attribute value. Must not be null.
+	 * @param value The attribute value to write. Must not be null and must implement {@link Serializable}.
+	 * @throws IOException If an error occurs during JSON writing.
+	 */
+	private static void writeAttribute(
+		@Nonnull JsonGenerator gen,
+		@Nonnull Serializable value
+	) throws IOException {
+		if (value instanceof Number number) {
+			writeNumber(gen, number);
+		} else if (value instanceof String string) {
+			gen.writeString(string);
+		} else if (value instanceof Boolean booleanValue) {
+			gen.writeBoolean(booleanValue);
+		} else if (value instanceof Character character) {
+			gen.writeString(String.valueOf(character));
+		} else if (value instanceof OffsetDateTime dateTime) {
+			writeDateTime(gen, dateTime);
+		} else if (value instanceof DateTimeRange range) {
+			writeDateTimeRange(gen, range);
+		} else if (value instanceof NumberRange<?> range) {
+			writeNumberRange(gen, range);
+		} else {
+			gen.writeString(EvitaDataTypes.formatValue(value));
 		}
 	}
 

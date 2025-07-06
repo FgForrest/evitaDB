@@ -199,17 +199,34 @@
   ],
   "tags" : [
     {
-      "count" : 18,
+      "count" : 30,
       "groupEntity" : {
-        "primaryKey" : 0,
-        "type" : "tagCategory"
+        "primaryKey" : 8,
+        "type" : "TagCategory",
+        "version" : 1,
+        "scope" : "LIVE",
+        "locales" : [
+          "en"
+        ],
+        "allLocales" : [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes" : {
+          "localized" : {
+            "en" : {
+              "name" : "E-shop default"
+            }
+          }
+        }
       },
       "facetStatistics" : [
         {
           "requested" : false,
-          "count" : 2,
+          "count" : 17,
           "facetEntity" : {
-            "primaryKey" : 9,
+            "primaryKey" : 10,
             "type" : "Tag",
             "version" : 1,
             "scope" : "LIVE",
@@ -224,7 +241,7 @@
             "attributes" : {
               "localized" : {
                 "en" : {
-                  "name" : "Sale"
+                  "name" : "New"
                 }
               }
             }
@@ -358,17 +375,34 @@
       ]
     },
     {
-      "count" : 29,
+      "count" : 15,
       "groupEntity" : {
         "primaryKey" : 9,
-        "type" : "tagCategory"
+        "type" : "TagCategory",
+        "version" : 1,
+        "scope" : "LIVE",
+        "locales" : [
+          "en"
+        ],
+        "allLocales" : [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes" : {
+          "localized" : {
+            "en" : {
+              "name" : "E-shop filters"
+            }
+          }
+        }
       },
       "facetStatistics" : [
         {
           "requested" : false,
-          "count" : 17,
+          "count" : 2,
           "facetEntity" : {
-            "primaryKey" : 10,
+            "primaryKey" : 9,
             "type" : "Tag",
             "version" : 1,
             "scope" : "LIVE",
@@ -383,7 +417,7 @@
             "attributes" : {
               "localized" : {
                 "en" : {
-                  "name" : "New"
+                  "name" : "Sale"
                 }
               }
             }
@@ -451,7 +485,7 @@
         "facetEntity" : {
           "primaryKey" : 66473,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "locales" : [
             "en"

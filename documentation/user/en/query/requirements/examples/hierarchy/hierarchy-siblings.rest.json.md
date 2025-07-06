@@ -4,7 +4,7 @@
     "entity" : {
       "primaryKey" : 66480,
       "type" : "Category",
-      "version" : 1,
+      "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
         "en"
@@ -61,7 +61,7 @@
     "entity" : {
       "primaryKey" : 66483,
       "type" : "Category",
-      "version" : 1,
+      "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
         "en"
@@ -80,7 +80,7 @@
     "entity" : {
       "primaryKey" : 66484,
       "type" : "Category",
-      "version" : 1,
+      "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
         "en"
@@ -99,7 +99,7 @@
     "entity" : {
       "primaryKey" : 66537,
       "type" : "Category",
-      "version" : 1,
+      "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
         "en"

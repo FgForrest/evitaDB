@@ -1,0 +1,48 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeProductTypeInSet: [
+        "BASIC",
+        "MASTER"
+      ],
+      hierarchyCategoriesWithinRoot: {
+        having: [
+          {
+            attributeStatusEquals: "ACTIVE"
+          }
+        ],
+        anyHaving: [
+          {
+            and: [
+              {
+                referenceTagsHaving: [
+                  {
+                    entityHaving: {
+                      attributeCodeEquals: "HP"
+                    }
+                  }
+                ],
+                referenceProductsHaving: [
+                  {
+                    entityHaving: {
+                      attributeStatusEquals: "ACTIVE"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ) {
+    recordPage(size: 10) {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}

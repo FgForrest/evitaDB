@@ -258,9 +258,72 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.CATEGORY),
-						filterBy(hierarchyWithinRootSelf(having(entityPrimaryKeyInSet(originalCategoryEntities.stream()
-							.filter(includedPredicate)
-							.map(EntityContract::getPrimaryKey).distinct().toArray(Integer[]::new))))),
+						filterBy(
+							hierarchyWithinRootSelf(
+								having(
+									entityPrimaryKeyInSet(
+										originalCategoryEntities.stream()
+											.filter(includedPredicate)
+											.map(EntityContract::getPrimaryKey).distinct().toArray(Integer[]::new)
+									)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalCategoryEntities,
+					includedPredicate,
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return all categories having specific child")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnAllCategoriesAnyHavingMatchingChild(Evita evita, List<SealedEntity> originalCategoryEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		final Set<Integer> requestedChildren = new HashSet<>(Arrays.asList(1, 7, 13, 16, 40, 55));
+		final Set<Integer> parentsOfRequestedChildren = requestedChildren
+			.stream()
+			.flatMap(
+				pk -> categoryHierarchy.getParentItems(String.valueOf(pk))
+					.stream()
+					.map(HierarchyItem::getCode)
+					.map(Integer::parseInt)
+			)
+			.collect(Collectors.toSet());
+		final Predicate<SealedEntity> includedPredicate = sealedEntity ->
+			// is requested child
+			requestedChildren.contains(sealedEntity.getPrimaryKey()) ||
+				// is parent of requested children
+				parentsOfRequestedChildren.contains(sealedEntity.getPrimaryKey());
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							hierarchyWithinRootSelf(
+								anyHaving(
+									entityPrimaryKeyInSet(
+										originalCategoryEntities.stream()
+											.filter(includedPredicate)
+											.map(EntityContract::getPrimaryKey).distinct().toArray(Integer[]::new)
+									)
+								)
+							)
+						),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
@@ -630,10 +693,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyWithinSelf(
 								entityPrimaryKeyInSet(1),
 								excluding(
-									or(
-										entityPrimaryKeyInSet(1), // this should not exclude the root node
-										entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))
-									)
+									entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))
 								)
 							)
 						),

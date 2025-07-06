@@ -802,6 +802,129 @@ of the tree.
 
 </Note>
 
+## Any Having
+
+The constraint <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyAnyHaving.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/HierarchyAnyHaving.cs</SourceClass></LS>
+is a constraint that can only be used within the `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. Using it
+anywhere else simply makes no sense because it changes the default behavior of those constraints. Hierarchy constraints return
+all hierarchy children of the parent node, as well as entities that are transitively or directly related to them, and the parent
+node itself.
+
+The `anyHaving` constraint allows you to set a condition that must be met by at least one nested hierarchical entity 
+for the filter to accept it.
+
+```evitaql-syntax
+anyHaving(
+    filterConstraint:+
+)
+```
+
+<dl>
+    <dt>filterConstraint:+</dt>
+    <dd>
+        one or more mandatory constraints that must be satisfied by at least one child node of the examined hierarchy 
+        node or directly by that examined hierarchy node, the implicit relation between constraints is logical 
+        conjunction (boolean AND)
+    </dd>
+</dl>
+
+### Self
+
+Imagine that you want a category tree and want to verify whether certain categories, either directly or indirectly via 
+their subcategories, contain at least one valid product. This can be accomplished using the `anyHaving` constraint in 
+your query.
+
+When the hierarchy constraint targets the hierarchy entity, children with no child that satisfies the inner constraints 
+are excluded from the result.
+
+For example, let's write a query for the following situation. In our hierarchy tree, we have two categories marked with 
+the tag *HP*:
+
+![Categories tagged by HP with products](assets/categories-with-products-and-HP-tag.png "Categories tagged by HP with products")
+
+We want to list all categories containing a tagged category with at least one active product assigned to it. We only
+consider tree paths consisting of active categories. The query will look like this:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Filtering categories that have at least one product, transitively](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-any-having.evitaql)
+</SourceCodeTabs>
+
+Fortunately, both categories marked with the *HP* tag have at least one active product assigned to them, as do all their
+parent categories. Therefore, the query returns five categories, as expected.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all subcategories with HP tag and their parent categories
+</NoteTitle>
+
+<LS to="e,j,c">
+
+<MDInclude>[List of all subcategories with HP tag and their parent categories](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-any-having.evitaql.md)</MDInclude>
+
+</LS>
+
+<LS to="g">
+
+<MDInclude>[List of all subcategories with HP tag and their parent categories](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-any-having.graphql.json.md)</MDInclude>
+
+</LS>
+
+<LS to="r">
+
+<MDInclude>[List of all subcategories with HP tag and their parent categories](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-any-having.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+### Referenced entity
+
+If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example is
+a product assigned to a category), the `anyHaving` constraint is evaluated against the hierarchical entity (category), but
+affects the queried non-hierarchical entities (products). It excludes all products referencing categories that don't
+satisfy the `anyHaving` inner constraints.
+
+Again, let's use our example of categories tagged with the *HP* tag. Issue the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Category listing excluding parent](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-any-having.evitaql)
+</SourceCodeTabs>
+
+In this case the result will be a list of all the active products with product type *BASIC* or *MASTER* in the categories 
+tagged with the *HP* tag, as well as all products in their parent categories. As you can see there is quite a lot of products
+because also the product from the entire *Laptop* category (which is parent of the *Macbooks* category) is returned.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all products in categories with HP tag and their parent categories
+</NoteTitle>
+
+<LS to="e,j,c">
+
+<MDInclude>[List of all products in categories with HP tag and their parent categories](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-any-having.evitaql.md)</MDInclude>
+
+</LS>
+
+<LS to="g">
+
+<MDInclude>[List of all products in categories with HP tag and their parent categories](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-any-having.graphql.json.md)</MDInclude>
+
+</LS>
+
+<LS to="r">
+
+<MDInclude>[List of all products in categories with HP tag and their parent categories](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-any-having.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
 ## Excluding
 
 The constraint <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyExcluding.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/HierarchyExcluding.cs</SourceClass></LS>

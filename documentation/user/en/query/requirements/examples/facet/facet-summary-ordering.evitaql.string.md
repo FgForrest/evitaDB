@@ -169,15 +169,15 @@ Facet summary:
 		[ ] '173' (1)
 	stocks: non-grouped [41]:
 		[ ] 'Evita' (41)
-	tags: 0 [18]:
+	tags: 'E-shop default' [30]:
 		[ ] 'For men' (1)
 		[ ] 'For women' (4)
-		[ ] 'Sale' (2)
+		[ ] 'New' (17)
 		[ ] 'Sell-off' (1)
 		[ ] 'Special offer' (11)
 		[ ] 'Valentine' (1)
-	tags: 9 [29]:
+	tags: 'E-shop filters' [15]:
 		[ ] 'Gift' (12)
-		[ ] 'New' (17)
 		[ ] 'Recommended' (5)
+		[ ] 'Sale' (2)
 ```

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,6 +53,13 @@ public interface HierarchyFilterConstraint extends FilterConstraint, HierarchyCo
 	 */
 	@Nonnull
 	FilterConstraint[] getHavingChildrenFilter();
+
+	/**
+	 * Returns filtering constraints that return entities whose have at least one children satisfying the filter in order
+	 * the hierarchy tree should be included in the hierarchy query.
+	 */
+	@Nonnull
+	FilterConstraint[] getHavingAnyChildFilter();
 
 	/**
 	 * Returns filtering constraints that return entities whose trees should be excluded from hierarchy query.

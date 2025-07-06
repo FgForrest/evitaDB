@@ -16,8 +16,8 @@
           published
           filterParameterIds
           validity
-          changed
           status
+          changed
           order
         }
       }

@@ -4,7 +4,7 @@
     "entity" : {
       "primaryKey" : 66480,
       "type" : "Category",
-      "version" : 1,
+      "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
         "en"
@@ -42,7 +42,7 @@
         "entity" : {
           "primaryKey" : 66486,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "cs",
@@ -63,7 +63,7 @@
         "entity" : {
           "primaryKey" : 66487,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -82,7 +82,7 @@
         "entity" : {
           "primaryKey" : 108126,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -160,7 +160,7 @@
         "entity" : {
           "primaryKey" : 66490,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -179,7 +179,7 @@
         "entity" : {
           "primaryKey" : 66491,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -200,7 +200,7 @@
     "entity" : {
       "primaryKey" : 66483,
       "type" : "Category",
-      "version" : 1,
+      "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
         "en"
@@ -219,7 +219,7 @@
     "entity" : {
       "primaryKey" : 66484,
       "type" : "Category",
-      "version" : 1,
+      "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
         "en"
@@ -238,7 +238,7 @@
         "entity" : {
           "primaryKey" : 66492,
           "type" : "Category",
-          "version" : 1,
+          "version" : 2,
           "scope" : "LIVE",
           "allLocales" : [
             "en"
@@ -259,7 +259,7 @@
     "entity" : {
       "primaryKey" : 66537,
       "type" : "Category",
-      "version" : 1,
+      "version" : 2,
       "scope" : "LIVE",
       "allLocales" : [
         "en"

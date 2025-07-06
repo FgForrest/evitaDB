@@ -29,15 +29,14 @@
           depthInMm
           codeShort
           published
-          unit
           isAlias
           saleEnded
           minOrderQuantity
           heightSourceA
           heightInMm
           maxOrderQuantity
-          changed
           status
+          changed
           relatedFiles
           widthMerge
           code
@@ -67,7 +66,6 @@
           snr
           stockItemPrimaryKey
           width
-          snippetExpirationDateTime
           validity
           rearCameraResoluti
           widthInMm

@@ -5,6 +5,20 @@
       "recordPage" : {
         "data" : [
           {
+            "primaryKey" : 113054,
+            "attributes" : {
+              "code" : "xiaomi-buds-3-pro"
+            },
+            "groups" : [
+              {
+                "referencedPrimaryKey" : 66505,
+                "attributes" : {
+                  "orderInGroup" : -1
+                }
+              }
+            ]
+          },
+          {
             "primaryKey" : 107827,
             "attributes" : {
               "code" : "zte-axon-10"
@@ -13,7 +27,7 @@
               {
                 "referencedPrimaryKey" : 66505,
                 "attributes" : {
-                  "orderInGroup" : -1
+                  "orderInGroup" : 113054
                 }
               }
             ]
@@ -47,20 +61,6 @@
             ]
           },
           {
-            "primaryKey" : 113054,
-            "attributes" : {
-              "code" : "xiaomi-buds-3-pro"
-            },
-            "groups" : [
-              {
-                "referencedPrimaryKey" : 66505,
-                "attributes" : {
-                  "orderInGroup" : 108540
-                }
-              }
-            ]
-          },
-          {
             "primaryKey" : 113172,
             "attributes" : {
               "code" : "trust-kuza"
@@ -69,7 +69,7 @@
               {
                 "referencedPrimaryKey" : 66505,
                 "attributes" : {
-                  "orderInGroup" : 113054
+                  "orderInGroup" : 108540
                 }
               }
             ]

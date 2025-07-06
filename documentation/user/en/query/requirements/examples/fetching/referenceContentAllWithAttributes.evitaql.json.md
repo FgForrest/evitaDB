@@ -16,14 +16,52 @@
           {
             "referencedKey" : 66472,
             "attributes" : {
-              "categoryPriority" : 0,
-              "orderInCategory" : "Predecessor[predecessorPk=-1]"
+              "assignmentValidity" : [
+                [
+                  "0001-01-01T18:00:00+18:00",
+                  "9999-12-31T05:59:59-18:00"
+                ]
+              ],
+              "categoryPriority" : 0
             }
           }
         ],
         "master" : [
           {
-            "referencedKey" : 103911
+            "referencedKey" : 103911,
+            "attributes" : {
+              "priorityInMaster" : 10
+            }
+          }
+        ],
+        "media" : [
+          {
+            "referencedKey" : 1938,
+            "attributes" : {
+              "gallery" : "hlavni-motiv",
+              "order" : 1
+            }
+          },
+          {
+            "referencedKey" : 1940,
+            "attributes" : {
+              "gallery" : "galerie",
+              "order" : 3
+            }
+          },
+          {
+            "referencedKey" : 1941,
+            "attributes" : {
+              "gallery" : "galerie",
+              "order" : 2
+            }
+          },
+          {
+            "referencedKey" : 1942,
+            "attributes" : {
+              "gallery" : "galerie",
+              "order" : 1
+            }
           }
         ],
         "parameterValues" : [
@@ -253,7 +291,7 @@
         ],
         "tags" : [
           {
-            "group" : 9,
+            "group" : 8,
             "referencedKey" : 10
           }
         ]

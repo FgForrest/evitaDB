@@ -15,7 +15,7 @@
           "changed" : "2024-02-25T14:35:38+01:00",
           "code" : "samsung",
           "order" : -1,
-          "published" : "2024-11-30T15:28:44.165+01:00",
+          "published" : "2025-07-05T11:53:00.384+02:00",
           "status" : "ACTIVE",
           "visibility" : "VISIBLE"
         }

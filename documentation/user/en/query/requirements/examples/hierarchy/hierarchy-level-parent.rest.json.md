@@ -38,7 +38,7 @@
             "entity" : {
               "primaryKey" : 66494,
               "type" : "Category",
-              "version" : 1,
+              "version" : 2,
               "scope" : "LIVE",
               "allLocales" : [
                 "en"

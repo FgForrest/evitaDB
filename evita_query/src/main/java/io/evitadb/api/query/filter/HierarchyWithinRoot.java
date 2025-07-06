@@ -64,6 +64,7 @@ import static java.util.Optional.ofNullable;
  *
  *      - {@link HierarchyDirectRelation}
  *      - {@link HierarchyHaving}
+ *      - {@link HierarchyAnyHaving}
  *      - {@link HierarchyExcluding}
  *
  * The `hierarchyWithinRoot`, which targets the Category collection itself, returns all categories except those that
@@ -126,9 +127,10 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer
 			Assert.isTrue(
 				filterConstraint instanceof HierarchyExcluding ||
 						filterConstraint instanceof HierarchyHaving ||
+						filterConstraint instanceof HierarchyAnyHaving ||
 					(filterConstraint instanceof HierarchyDirectRelation && referenceName.isEmpty()),
 				() -> "Constraint hierarchyWithinRoot accepts only " +
-					(referenceName.isEmpty() ? "Excluding, Having, or DirectRelation when it targets same entity type" :
+					(referenceName.isEmpty() ? "Excluding, Having, AnyHaving, or DirectRelation when it targets same entity type" :
 						"Excluding when it targets different entity type") + " as inner query!"
 			);
 		}
@@ -189,6 +191,20 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer
 		return Arrays.stream(getChildren())
 			.filter(HierarchyHaving.class::isInstance)
 			.map(it -> ((HierarchyHaving) it).getFiltering())
+			.findFirst()
+			.orElseGet(() -> new FilterConstraint[0]);
+	}
+
+	/**
+	 * Returns filtering constraints that return entities whose have at least one children satisfying the filter in order
+	 * the hierarchy tree should be included in the hierarchy query.
+	 */
+	@Override
+	@Nonnull
+	public FilterConstraint[] getHavingAnyChildFilter() {
+		return Arrays.stream(getChildren())
+			.filter(HierarchyAnyHaving.class::isInstance)
+			.map(it -> ((HierarchyAnyHaving) it).getFiltering())
 			.findFirst()
 			.orElseGet(() -> new FilterConstraint[0]);
 	}

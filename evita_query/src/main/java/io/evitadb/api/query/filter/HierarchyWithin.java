@@ -63,6 +63,7 @@ import static java.util.Optional.ofNullable;
  *
  *      - {@link HierarchyDirectRelation}
  *      - {@link HierarchyHaving}
+ *      - {@link HierarchyAnyHaving}
  *      - {@link HierarchyExcluding}
  *      - {@link HierarchyExcludingRoot}
  *
@@ -199,7 +200,7 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer
 	}
 
 	/**
-	 * Returns filtering constraints that return entities whose trees should be included from hierarchy query.
+	 * Returns filtering constraints that return entities whose trees should be included in the hierarchy query.
 	 */
 	@Override
 	@Nonnull
@@ -207,6 +208,20 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer
 		return Arrays.stream(getChildren())
 			.filter(HierarchyHaving.class::isInstance)
 			.map(it -> ((HierarchyHaving) it).getFiltering())
+			.findFirst()
+			.orElseGet(() -> new FilterConstraint[0]);
+	}
+
+	/**
+	 * Returns filtering constraints that return entities whose have at least one children satisfying the filter in order
+	 * the hierarchy tree should be included in the hierarchy query.
+	 */
+	@Override
+	@Nonnull
+	public FilterConstraint[] getHavingAnyChildFilter() {
+		return Arrays.stream(getChildren())
+			.filter(HierarchyAnyHaving.class::isInstance)
+			.map(it -> ((HierarchyAnyHaving) it).getFiltering())
 			.findFirst()
 			.orElseGet(() -> new FilterConstraint[0]);
 	}

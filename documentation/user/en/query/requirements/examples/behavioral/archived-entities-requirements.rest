@@ -30,8 +30,7 @@ POST /rest/evita/Product/query
       "scope" : "LIVE",
       "require" : {
         "priceHistogram" : {
-          "requestedBucketCount" : 5,
-          "behavior" : "STANDARD"
+          "requestedBucketCount" : 5
         }
       }
     }

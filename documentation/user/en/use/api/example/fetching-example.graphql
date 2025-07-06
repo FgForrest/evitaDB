@@ -23,14 +23,10 @@
         }
         associatedData {
           localization
-          feedGoogle
-          feedHeureka
           allActiveUrls
+          hreflang
           contentBlocks
           allRelatedFiles
-          feedGlami
-          feedFacebook
-          feedZbozi
         }
         priceForSale {
           priceWithoutTax(

@@ -18,7 +18,7 @@
               "references" : {
                 "tags" : [
                   {
-                    "group" : 0,
+                    "group" : 8,
                     "referencedKey" : 11,
                     "referencedEntity" : {
                       "primaryKey" : 11,
