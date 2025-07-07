@@ -284,7 +284,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
-			assertEquals(7, reverseCaptures.size());
+			assertEquals(9, reverseCaptures.size());
 
 			// first mutation is transaction boundary mutation
 			assertInstanceOf(TransactionMutation.class, reverseCaptures.get(0).body());

@@ -67,10 +67,11 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
 			mutationEntitySchemaAccessor
-				.getEntitySchema(this.name).map(it -> mutate(catalogSchema, it))
+				.getEntitySchema(this.name)
+				.map(it -> mutate(catalogSchema, it))
 				.ifPresentOrElse(
 					it -> mutationEntitySchemaAccessor.replaceEntitySchema(this.name, it),
 					() -> {

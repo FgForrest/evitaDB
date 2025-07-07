@@ -1834,18 +1834,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver
 	) {
 		executeWithClientContext(
-			session -> {
-				// Create the cancellable wrapper
-				final CancellableStreamObserver<GrpcRegisterChangeCatalogCaptureResponse> cancellableObserver =
-					CancellableStreamObserver.wrap(responseObserver);
-
-				session.registerChangeCatalogCapture(
-					ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
-				).subscribe(
-					new ChangeCatalogCaptureSubscriber(cancellableObserver)
-				);
-
-			},
+			session -> session.registerChangeCatalogCapture(
+				ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
+			).subscribe(
+				new ChangeCatalogCaptureSubscriber(
+					(ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse>) responseObserver)
+			),
 			this.evita.getRequestExecutor(),
 			responseObserver,
 			this.tracingContext
@@ -1903,13 +1897,13 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 */
 	@RequiredArgsConstructor
 	private static class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogCapture> {
-		private final CancellableStreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver;
+		private final ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver;
 		private Subscription subscription;
 
 		@Override
 		public void onSubscribe(Subscription subscription) {
 			this.subscription = subscription;
-			this.responseObserver.setCancellationHandler(this.subscription::cancel);
+			this.responseObserver.setOnCancelHandler(this.subscription::cancel);
 			final GrpcRegisterChangeCatalogCaptureResponse.Builder response = GrpcRegisterChangeCatalogCaptureResponse
 				.newBuilder();
 			if (subscription instanceof ChangeCaptureSubscription ccs) {

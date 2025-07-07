@@ -385,7 +385,8 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 						subscriber,
 						this.cdcExecutor,
 						this::fillBuffer,
-						this.onNextConsumer
+						this.onNextConsumer,
+						this::unsubscribe
 					);
 				}
 			);
@@ -508,16 +509,18 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	private void clearUnusedDataInRingBuffer() {
 		// clear unused data from the ring buffer / statistics
 		final long lowestAvailableCatalogVersion = this.lastCaptures.getEffectiveStartCatalogVersion();
-		Long lowestUsedCatalogVersion = this.versionSubscribersCount.firstKey();
-		// if the lowest available catalog version is lower than the lowest used catalog version
-		if (lowestUsedCatalogVersion != null && lowestAvailableCatalogVersion < lowestUsedCatalogVersion) {
-			// it means that we keep unnecessary data in the ring buffer and we may strip it
-			this.lastCaptures.clearAllUntil(lowestAvailableCatalogVersion);
-		} else {
-			// otherwise we may clear the statistics
-			while (lowestUsedCatalogVersion != null && lowestUsedCatalogVersion < lowestAvailableCatalogVersion) {
-				this.versionSubscribersCount.remove(lowestUsedCatalogVersion);
-				lowestUsedCatalogVersion = this.versionSubscribersCount.firstKey();
+		if (!this.versionSubscribersCount.isEmpty()) {
+			Long lowestUsedCatalogVersion = this.versionSubscribersCount.firstKey();
+			// if the lowest available catalog version is lower than the lowest used catalog version
+			if (lowestUsedCatalogVersion != null && lowestAvailableCatalogVersion < lowestUsedCatalogVersion) {
+				// it means that we keep unnecessary data in the ring buffer and we may strip it
+				this.lastCaptures.clearAllUntil(lowestAvailableCatalogVersion);
+			} else {
+				// otherwise we may clear the statistics
+				while (lowestUsedCatalogVersion != null && lowestUsedCatalogVersion < lowestAvailableCatalogVersion) {
+					this.versionSubscribersCount.remove(lowestUsedCatalogVersion);
+					lowestUsedCatalogVersion = this.versionSubscribersCount.firstKey();
+				}
 			}
 		}
 	}

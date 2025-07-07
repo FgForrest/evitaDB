@@ -184,7 +184,8 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 					this.cdcOptions.recentEventsCacheLimit(),
 					this.cdcOptions.subscriberBufferSize(),
 					cb,
-					this::updateStatistics
+					this::updateStatistics,
+					this.uniquePublishers::remove
 				)
 			),
 			request
@@ -218,6 +219,15 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 			this.uniquePublishers.clear();
 			this.currentCatalog.set(null);
 		}
+	}
+
+	/**
+	 * Retrieves the count of unique publishers currently being tracked.
+	 *
+	 * @return the number of unique publishers
+	 */
+	public int getUniquePublishersCount() {
+		return this.uniquePublishers.size();
 	}
 
 	/**

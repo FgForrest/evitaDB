@@ -37,7 +37,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface ChangeCaptureDescriptor {
 
-	// todo jno: feel free to reimplement this... this is the way how we could track if the subscriber received all events
+	// todo lho: feel free to reimplement this... this is the way how we could track if the subscriber received all events
 	PropertyDescriptor INDEX = PropertyDescriptor.builder()
 		.name("index")
 		.description("""

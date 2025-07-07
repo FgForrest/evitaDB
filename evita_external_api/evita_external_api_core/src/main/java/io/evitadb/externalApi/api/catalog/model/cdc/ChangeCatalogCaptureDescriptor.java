@@ -43,7 +43,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface ChangeCatalogCaptureDescriptor extends ChangeCaptureDescriptor {
 
-	// todo jno: should there be these fields? check todo in the ChangeCatalogCapture for more info
+	// todo lho: should there be these fields? check todo in the ChangeCatalogCapture for more info
 	PropertyDescriptor AREA = PropertyDescriptor.builder()
 		.name("area")
 		.description("""

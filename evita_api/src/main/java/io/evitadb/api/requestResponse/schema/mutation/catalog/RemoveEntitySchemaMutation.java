@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.AllArgsConstructor;
@@ -58,13 +59,13 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 @AllArgsConstructor
-public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutation {
+public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutation, EntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -1294172811385202717L;
 	@Getter @Nonnull private final String name;
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
 			mutationEntitySchemaAccessor
 				.getEntitySchema(this.name)
@@ -83,6 +84,15 @@ public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 	@Override
 	public Operation operation() {
 		return Operation.REMOVE;
+	}
+
+	@Nullable
+	@Override
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nullable EntitySchemaContract entitySchema
+	) {
+		return null;
 	}
 
 	@Override

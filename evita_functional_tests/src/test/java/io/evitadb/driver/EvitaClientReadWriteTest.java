@@ -71,6 +71,9 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.core.Catalog;
+import io.evitadb.core.Evita;
+import io.evitadb.core.cdc.CatalogChangeObserver;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
@@ -200,22 +203,17 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final int lastDash = serverCertificates.lastIndexOf('-');
 		assertTrue(lastDash > 0, "Dash not found! Look at the evita-configuration.yml in test resources!");
 		final Path clientCertificates = Path.of(serverCertificates.substring(0, lastDash) + "-client");
-		final EvitaClientConfiguration evitaClientConfiguration = EvitaClientConfiguration.builder()
-		                                                                                  .host(grpcHost.hostAddress())
-		                                                                                  .port(grpcHost.port())
-		                                                                                  .systemApiPort(
-			                                                                                  systemHost.port())
-		                                                                                  .mtlsEnabled(false)
-		                                                                                  .certificateFolderPath(
-			                                                                                  clientCertificates)
-		                                                                                  .certificateFileName(Path.of(
-			                                                                                  CertificateUtils.getGeneratedClientCertificateFileName()))
-		                                                                                  .certificateKeyFileName(
-			                                                                                  Path.of(
-				                                                                                  CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
-		                                                                                  .timeoutUnit(
-			                                                                                  10, TimeUnit.MINUTES)
-		                                                                                  .build();
+		final EvitaClientConfiguration evitaClientConfiguration = EvitaClientConfiguration
+			.builder()
+			.host(grpcHost.hostAddress())
+			.port(grpcHost.port())
+			.systemApiPort(systemHost.port())
+			.mtlsEnabled(false)
+			.certificateFolderPath(clientCertificates)
+			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
+			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+			.timeout(10, TimeUnit.MINUTES)
+			.build();
 
 		final AtomicReference<EntitySchemaContract> productSchema = new AtomicReference<>();
 		AtomicReference<Map<Integer, SealedEntity>> products = new AtomicReference<>();
@@ -399,22 +397,17 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final int lastDash = serverCertificates.lastIndexOf('-');
 		assertTrue(lastDash > 0, "Dash not found! Look at the evita-configuration.yml in test resources!");
 		final Path clientCertificates = Path.of(serverCertificates.substring(0, lastDash) + "-client");
-		final EvitaClientConfiguration evitaClientConfiguration = EvitaClientConfiguration.builder()
-		                                                                                  .host(grpcHost.hostAddress())
-		                                                                                  .port(grpcHost.port())
-		                                                                                  .systemApiPort(
-			                                                                                  systemHost.port())
-		                                                                                  .mtlsEnabled(false)
-		                                                                                  .certificateFolderPath(
-			                                                                                  clientCertificates)
-		                                                                                  .certificateFileName(Path.of(
-			                                                                                  CertificateUtils.getGeneratedClientCertificateFileName()))
-		                                                                                  .certificateKeyFileName(
-			                                                                                  Path.of(
-				                                                                                  CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
-		                                                                                  .timeoutUnit(
-			                                                                                  10, TimeUnit.MINUTES)
-		                                                                                  .build();
+		final EvitaClientConfiguration evitaClientConfiguration = EvitaClientConfiguration
+			.builder()
+			.host(grpcHost.hostAddress())
+			.port(grpcHost.port())
+			.systemApiPort(systemHost.port())
+			.mtlsEnabled(false)
+			.certificateFolderPath(clientCertificates)
+			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
+			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
+			.timeout(10, TimeUnit.MINUTES)
+			.build();
 
 		return new EvitaClient(evitaClientConfiguration);
 	}
@@ -2569,5 +2562,91 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final ReferenceContract productsAfterRestore = categoryAfterRestore.getReference("products", 100).orElse(null);
 		assertNotNull(productsAfterRestore);
 		assertEquals("EU", productsAfterRestore.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldCancelCatalogChangeSubscriberAndEvictPublisherOnServerSide(EvitaClient evitaClient, Evita evita) {
+		final String testCatalogName = "testCatalogForCancellation";
+
+		try {
+			// Create a test catalog
+			evitaClient.defineCatalog(testCatalogName);
+
+			evitaClient.updateCatalog(
+				testCatalogName,
+				session -> {
+					session.goLiveAndClose();
+					return null;
+				}
+			);
+
+			final CatalogChangeObserver changeObserver = (CatalogChangeObserver)
+				evita.getCatalogInstance(testCatalogName)
+				     .map(Catalog.class::cast)
+				     .orElseThrow()
+				     .getTransactionManager()
+				     .getChangeObserver();
+
+			final int initialUniquePublishersCount = changeObserver.getUniquePublishersCount();
+
+			final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
+
+			// Register catalog change capture and get the subscription
+			evitaClient.updateCatalog(
+				testCatalogName,
+				session -> {
+					final ChangeCapturePublisher<ChangeCatalogCapture> publisher = session.registerChangeCatalogCapture(
+						ChangeCatalogCaptureRequest
+							.builder()
+							.content(ChangeCaptureContent.BODY)
+							.criteria(
+								ChangeCatalogCaptureCriteria
+									.builder()
+									.schemaArea()
+									.build()
+							)
+							.build()
+					);
+
+					publisher.subscribe(catalogSubscriber);
+
+					// Create an entity collection to trigger a change event
+					session.defineEntitySchema(Entities.BRAND)
+					       .updateVia(session);
+
+					return null;
+				}
+			);
+
+			assertEquals(initialUniquePublishersCount + 1, changeObserver.getUniquePublishersCount());
+
+			// Verify that the subscriber received the event
+			assertEquals(1, catalogSubscriber.getEntityCollectionCreated(Entities.BRAND, 10, TimeUnit.SECONDS, 1));
+
+			// Cancel the subscription from client side
+			catalogSubscriber.cancel();
+
+			// Try to create another entity collection - this should not be received by the cancelled subscriber
+			evitaClient.updateCatalog(
+				testCatalogName,
+				session -> {
+					session.defineEntitySchema("AnotherEntity")
+						.updateVia(session);
+					return null;
+				}
+			);
+
+			// Verify that the subscriber did not receive the second event (still only 1 event for BRAND)
+			assertEquals(1, catalogSubscriber.getEntityCollectionCreated(Entities.BRAND));
+			assertEquals(0, catalogSubscriber.getEntityCollectionCreated("AnotherEntity"));
+
+			// check that the server discarded particular publisher
+			assertEquals(initialUniquePublishersCount, changeObserver.getUniquePublishersCount());
+
+		} finally {
+			// Clean up the test catalog
+			evitaClient.deleteCatalogIfExists(testCatalogName);
+		}
 	}
 }

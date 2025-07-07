@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.utils.Assert;
@@ -60,7 +61,7 @@ import java.util.stream.Stream;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutation {
+public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutation, EntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 5167037327442001715L;
 	@Nonnull @Getter private final String entityType;
 
@@ -72,7 +73,7 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 	@Nullable
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(
-		@Nullable CatalogSchemaContract catalogSchema,
+		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull EntitySchemaProvider entitySchemaAccessor
 	) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
@@ -83,6 +84,15 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 			"Catalog schema cannot be null when creating entity schema mutation!"
 		);
 		return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nullable EntitySchemaContract entitySchema
+	) {
+		return EntitySchema._internalBuild(this.entityType);
 	}
 
 	@Nonnull

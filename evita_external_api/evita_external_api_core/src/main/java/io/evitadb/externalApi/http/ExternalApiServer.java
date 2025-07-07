@@ -502,7 +502,7 @@ public class ExternalApiServer implements AutoCloseable {
 		// due to context switching between threads and branch misses
 		final EventLoopGroup workerGroup = EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt());
 		serverBuilder
-			.blockingTaskExecutor(evita.getServiceExecutor(), gracefulShutdown)
+			.blockingTaskExecutor(evita.getServiceExecutor(), false)
 			// this may be changed in future versions to a limited set
 			// but without trusting all client IP addresses the client address source wouldn't be evaluated
 			.clientAddressTrustedProxyFilter(inetAddress -> true)
@@ -533,10 +533,9 @@ public class ExternalApiServer implements AutoCloseable {
 			.gracefulShutdownTimeout(gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO, gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO)
 			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis())
 			.requestTimeoutMillis(apiOptions.requestTimeoutInMillis())
-			.serviceWorkerGroup(workerGroup, gracefulShutdown)
+			.serviceWorkerGroup(workerGroup, true)
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
-			.verboseResponses(true)
-			.workerGroup(workerGroup, gracefulShutdown)
+			.workerGroup(workerGroup, true)
 			.unloggedExceptionsReportInterval(Duration.ofMillis(10));
 
 		if (apiOptions.accessLog()) {

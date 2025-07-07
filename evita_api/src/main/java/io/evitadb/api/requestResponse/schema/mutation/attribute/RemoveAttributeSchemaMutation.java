@@ -116,7 +116,7 @@ public class RemoveAttributeSchemaMutation implements
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final Optional<GlobalAttributeSchemaContract> existingAttributeSchema = catalogSchema.getAttribute(this.name);
 		if (existingAttributeSchema.isEmpty()) {

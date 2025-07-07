@@ -53,6 +53,7 @@ import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.utils.UUIDUtil;
 import io.grpc.Metadata;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -439,22 +440,17 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver
 	) {
 		executeWithClientContext(
-			() -> {
-				// Create the cancellable wrapper
-				// TODO JNO - write test for cancelling the subscription on the client side
-				final CancellableStreamObserver<GrpcRegisterSystemChangeCaptureResponse> cancellableObserver =
-					CancellableStreamObserver.wrap(responseObserver);
-
-				this.evita.registerSystemChangeCapture(
-					new ChangeSystemCaptureRequest(
-						request.hasSinceVersion() ? request.getSinceVersion().getValue() : null,
-						request.hasSinceIndex() ? request.getSinceIndex().getValue() : null,
-						toCaptureContent(request.getContent())
-					)
-				).subscribe(
-					new ChangeSystemCaptureSubscriber(cancellableObserver)
-				);
-			},
+			() -> this.evita.registerSystemChangeCapture(
+				new ChangeSystemCaptureRequest(
+					request.hasSinceVersion() ? request.getSinceVersion().getValue() : null,
+					request.hasSinceIndex() ? request.getSinceIndex().getValue() : null,
+					toCaptureContent(request.getContent())
+				)
+			).subscribe(
+				new ChangeSystemCaptureSubscriber(
+					(ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>) responseObserver
+				)
+			),
 			this.evita.getRequestExecutor(),
 			responseObserver,
 			this.context
@@ -471,13 +467,13 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@RequiredArgsConstructor
 	private static class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCapture> {
-		private final CancellableStreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver;
+		private final ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver;
 		private Subscription subscription;
 
 		@Override
 		public void onSubscribe(Subscription subscription) {
 			this.subscription = subscription;
-			this.responseObserver.setCancellationHandler(this.subscription::cancel);
+			this.responseObserver.setOnCancelHandler(this.subscription::cancel);
 			final GrpcRegisterSystemChangeCaptureResponse.Builder response = GrpcRegisterSystemChangeCaptureResponse
 				.newBuilder();
 			if (subscription instanceof ChangeCaptureSubscription ccs) {

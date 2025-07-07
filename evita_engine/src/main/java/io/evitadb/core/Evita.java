@@ -46,7 +46,6 @@ import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
-import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
@@ -253,7 +252,7 @@ public final class Evita implements EvitaContract {
 	public Evita(@Nonnull EvitaConfiguration configuration) {
 		this.configuration = configuration;
 
-		this.serviceExecutor = DevelopmentConstants.isTestRun() ?
+		this.serviceExecutor = configuration.server().directExecutor() ?
 			// in test environment we use immediate (synchronous) executor to avoid race conditions
 			new Scheduler(new ImmediateScheduledThreadPoolExecutor()) :
 			// in standard environment we use a scheduled thread pool executor
@@ -262,7 +261,7 @@ public final class Evita implements EvitaContract {
 			"request", configuration.server().requestThreadPool(),
 			this.serviceExecutor,
 			configuration.server().queryTimeoutInMilliseconds(),
-			DevelopmentConstants.isTestRun()
+			configuration.server().directExecutor()
 		);
 		this.transactionExecutor = new ObservableThreadExecutor(
 			"transaction",

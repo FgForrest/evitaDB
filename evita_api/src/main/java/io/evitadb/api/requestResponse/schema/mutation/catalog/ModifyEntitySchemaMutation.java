@@ -99,10 +99,11 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
 			mutationEntitySchemaAccessor
-				.getEntitySchema(this.entityType).map(it -> mutate(catalogSchema, it))
+				.getEntitySchema(this.entityType)
+				.map(it -> mutate(catalogSchema, it))
 				.ifPresentOrElse(
 					mutationEntitySchemaAccessor::addUpsertedEntitySchema,
 					() -> {
@@ -116,7 +117,7 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 		);
 	}
 
-	@Nonnull
+	@Nullable
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		EntitySchemaContract alteredSchema = entitySchema;

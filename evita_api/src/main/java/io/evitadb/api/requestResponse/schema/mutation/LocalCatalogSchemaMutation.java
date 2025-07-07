@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchema
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
@@ -49,7 +50,10 @@ public interface LocalCatalogSchemaMutation extends CatalogSchemaMutation {
 	@Nullable
 	@Override
 	default CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
-		return mutate(catalogSchema, MutationEntitySchemaAccessor.INSTANCE);
+		return mutate(
+			Objects.requireNonNull(catalogSchema),
+			MutationEntitySchemaAccessor.INSTANCE
+		);
 	}
 
 	/**
@@ -61,7 +65,10 @@ public interface LocalCatalogSchemaMutation extends CatalogSchemaMutation {
 	 * @param entitySchemaAccessor entity schema provider allowing to access list of entity schemas in the catalog
 	 */
 	@Nullable
-	CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor);
+	CatalogSchemaWithImpactOnEntitySchemas mutate(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaProvider entitySchemaAccessor
+	);
 
 	/**
 	 * In this method we override the default implementation to move the index of the {@link MutationPredicateContext}

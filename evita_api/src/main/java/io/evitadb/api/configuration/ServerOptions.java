@@ -24,6 +24,7 @@
 package io.evitadb.api.configuration;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import lombok.ToString;
 
@@ -54,6 +55,10 @@ import javax.annotation.Nullable;
  * @param readOnly                              starts the database in full read-only mode, prohibiting write operations
  *                                              on {@link EntityContract} level and open read-write {@link EvitaSessionContract}.
  * @param quiet                                 If true, all output to the system console is suppressed.
+ * @param directExecutor                        Undocumented internal option that allows to use direct executor for
+ *                                              the request thread pool and scheduler. It avoids using asynchronous
+ *                                              execution and instead runs tasks directly in the calling thread, which
+ *                                              makes tests more predictable and easier to debug.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ServerOptions(
@@ -66,13 +71,15 @@ public record ServerOptions(
 	@Nonnull ChangeDataCaptureOptions changeDataCapture,
 	@Nonnull TrafficRecordingOptions trafficRecording,
 	boolean readOnly,
-	boolean quiet
+	boolean quiet,
+	boolean directExecutor
 ) {
 	public static final long DEFAULT_QUERY_TIMEOUT_IN_MILLISECONDS = 5000L;
 	public static final long DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS = 300 * 1000L;
 	public static final int DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY = 60 * 20;
 	public static final boolean DEFAULT_READ_ONLY = false;
 	public static final boolean DEFAULT_QUIET = false;
+	public static final boolean DEFAULT_DIRECT_EXECUTOR = DevelopmentConstants.isTestRun();
 
 	/**
 	 * Builder for the server options. Recommended to use to avoid binary compatibility problems in the future.
@@ -98,7 +105,8 @@ public record ServerOptions(
 		@Nullable ChangeDataCaptureOptions changeDataCapture,
 		@Nullable TrafficRecordingOptions trafficRecording,
 		boolean readOnly,
-		boolean quiet
+		boolean quiet,
+		boolean directExecutor
 	) {
 		this.requestThreadPool = requestThreadPool == null ? ThreadPoolOptions.requestThreadPoolBuilder().build() : requestThreadPool;
 		this.transactionThreadPool = transactionThreadPool == null ? ThreadPoolOptions.transactionThreadPoolBuilder().build() : transactionThreadPool;
@@ -110,6 +118,7 @@ public record ServerOptions(
 		this.trafficRecording = trafficRecording == null ? TrafficRecordingOptions.builder().build() : trafficRecording;
 		this.readOnly = readOnly;
 		this.quiet = quiet;
+		this.directExecutor = directExecutor;
 	}
 
 	public ServerOptions() {
@@ -123,7 +132,8 @@ public record ServerOptions(
 			ChangeDataCaptureOptions.builder().build(),
 			TrafficRecordingOptions.builder().build(),
 			DEFAULT_READ_ONLY,
-			DEFAULT_QUIET
+			DEFAULT_QUIET,
+			DEFAULT_DIRECT_EXECUTOR
 		);
 	}
 
@@ -231,7 +241,8 @@ public record ServerOptions(
 				this.changeDataCapture,
 				this.trafficRecording,
 				this.readOnly,
-				this.quiet
+				this.quiet,
+				DEFAULT_DIRECT_EXECUTOR
 			);
 		}
 

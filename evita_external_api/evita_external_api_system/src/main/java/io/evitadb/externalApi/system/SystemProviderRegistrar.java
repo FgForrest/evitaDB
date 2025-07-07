@@ -136,7 +136,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 								   "startedAt": "%s",
 								   "uptime": %d,
 								   "uptimeForHuman": "%s",
-								   "engineVersion": "%s",
+								   "engineVersion": %s,
 								   "introducedAt": "%s",
 								   "catalogsCorrupted": %d,
 								   "catalogsActive": %d,

@@ -85,6 +85,11 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	@Nonnull private final TriConsumer<WalPointer, DefaultChangeCaptureSubscription<T>, Queue<T>> queueFiller;
 
 	/**
+	 * Consumer that is called when the subscription is cancelled.
+	 */
+	@Nonnull private final Consumer<UUID> onCancellation;
+
+	/**
 	 * The subscriber that receives catalog change events from this subscription.
 	 */
 	@Nonnull private final Subscriber<? super T> subscriber;
@@ -146,7 +151,8 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 		@Nonnull Subscriber<? super T> subscriber,
 		@Nonnull ExecutorService executorService,
 		@Nonnull TriConsumer<WalPointer, DefaultChangeCaptureSubscription<T>, Queue<T>> queueFiller,
-		@Nonnull Consumer<T> onNextConsumer
+		@Nonnull Consumer<T> onNextConsumer,
+		@Nonnull Consumer<UUID> onCancellation
 	) {
 		this.subscriptionId = subscriptionId;
 		this.subscriber = subscriber;
@@ -157,6 +163,7 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 		this.content = specification.content();
 		this.queueFiller = queueFiller;
 		this.onNextConsumer = onNextConsumer;
+		this.onCancellation = onCancellation;
 		this.executorService = executorService;
 		// Register this subscription with the subscriber
 		this.subscriber.onSubscribe(this);
@@ -217,6 +224,7 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 			// Clear the queue to release memory
 			this.queue.clear();
 			this.subscriber.onComplete();
+			this.onCancellation.accept(this.subscriptionId);
 		}
 	}
 

@@ -679,6 +679,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 								.build();
 							responseObserver.onNext(response);
 						}
+						responseObserver.onCompleted();
 					} catch (IOException e) {
 						throw new UnexpectedIOException(
 							"Failed to fetch the designated file: " + e.getMessage(),
@@ -686,7 +687,6 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 							e
 						);
 					}
-					responseObserver.onCompleted();
 				}
 			},
 			this.evita.getRequestExecutor(),

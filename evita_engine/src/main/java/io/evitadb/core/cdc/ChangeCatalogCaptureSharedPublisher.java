@@ -95,6 +95,12 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	@Nonnull private final Consumer<ChangeCatalogCapture> onNextConsumer;
 
 	/**
+	 * Consumer that is called when the publisher is closed. This can be used to perform
+	 * cleanup operations or notify other components that the publisher is no longer active.
+	 */
+	@Nonnull private final Consumer<ChangeCatalogCriteriaBundle> onClose;
+
+	/**
 	 * Map of active subscriptions, keyed by their unique identifier. This allows
 	 * efficient lookup and management of subscriptions.
 	 */
@@ -151,12 +157,14 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		int bufferSize,
 		int subscriberBufferSize,
 		@Nonnull ChangeCatalogCriteriaBundle criteria,
-		@Nonnull Consumer<ChangeCatalogCapture> onNextConsumer
+		@Nonnull Consumer<ChangeCatalogCapture> onNextConsumer,
+		@Nonnull Consumer<ChangeCatalogCriteriaBundle> onClose
 	) {
 		this.currentCatalog = new AtomicReference<>(catalog);
 		final long currentCatalogVersion = catalog.getVersion();
 		this.cdcExecutor = cdcExecutor;
 		this.onNextConsumer = onNextConsumer;
+		this.onClose = onClose;
 		// Initialize the ring buffer with the current catalog version
 		this.lastCaptures = new ChangeCaptureRingBuffer<>(
 			// we need to use the current catalog version plus one, because the current catalog version mutations will not
@@ -265,7 +273,9 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	public boolean unsubscribe(@Nonnull UUID subscriptionId) {
 		final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription = this.subscribers.get(subscriptionId);
 		if (subscription != null) {
-			subscription.cancel();
+			if (!subscription.isFinished()) {
+				subscription.cancel();
+			}
 			this.subscribers.remove(subscriptionId);
 			// decrement the subscriber count for the version
 			this.versionSubscribersCount.compute(
@@ -296,6 +306,8 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 				for (DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription : this.subscribers.values()) {
 					subscription.cancel();
 				}
+				// notify that the publisher is closed
+				this.onClose.accept(this.criteria);
 			}
 		} finally {
 			this.lock.unlock();
@@ -385,7 +397,8 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 						subscriber,
 						this.cdcExecutor,
 						this::fillBuffer,
-						this.onNextConsumer
+						this.onNextConsumer,
+						this::unsubscribe
 					);
 				}
 			);
@@ -506,16 +519,18 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	private void clearUnusedDataInRingBuffer() {
 		// clear unused data from the ring buffer / statistics
 		final long lowestAvailableCatalogVersion = this.lastCaptures.getEffectiveStartCatalogVersion();
-		Long lowestUsedCatalogVersion = this.versionSubscribersCount.firstKey();
-		// if the lowest available catalog version is lower than the lowest used catalog version
-		if (lowestUsedCatalogVersion != null && lowestAvailableCatalogVersion < lowestUsedCatalogVersion) {
-			// it means that we keep unnecessary data in the ring buffer and we may strip it
-			this.lastCaptures.clearAllUntil(lowestAvailableCatalogVersion);
-		} else {
-			// otherwise we may clear the statistics
-			while (lowestUsedCatalogVersion != null && lowestUsedCatalogVersion < lowestAvailableCatalogVersion) {
-				this.versionSubscribersCount.remove(lowestUsedCatalogVersion);
-				lowestUsedCatalogVersion = this.versionSubscribersCount.firstKey();
+		if (!this.versionSubscribersCount.isEmpty()) {
+			Long lowestUsedCatalogVersion = this.versionSubscribersCount.firstKey();
+			// if the lowest available catalog version is lower than the lowest used catalog version
+			if (lowestUsedCatalogVersion != null && lowestAvailableCatalogVersion < lowestUsedCatalogVersion) {
+				// it means that we keep unnecessary data in the ring buffer and we may strip it
+				this.lastCaptures.clearAllUntil(lowestAvailableCatalogVersion);
+			} else {
+				// otherwise we may clear the statistics
+				while (lowestUsedCatalogVersion != null && lowestUsedCatalogVersion < lowestAvailableCatalogVersion) {
+					this.versionSubscribersCount.remove(lowestUsedCatalogVersion);
+					lowestUsedCatalogVersion = this.versionSubscribersCount.firstKey();
+				}
 			}
 		}
 	}

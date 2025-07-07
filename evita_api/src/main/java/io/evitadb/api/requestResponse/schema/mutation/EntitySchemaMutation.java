@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ public interface EntitySchemaMutation extends SchemaMutation {
 	 * @param catalogSchema owner catalog schema that contains shared global {@link CatalogSchemaContract#getAttributes()}
 	 * @param entitySchema current version of the schema as an input to mutate
 	 */
-	@Nonnull
+	@Nullable
 	EntitySchemaContract mutate(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nullable EntitySchemaContract entitySchema
