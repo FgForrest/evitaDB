@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Transaction;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
@@ -219,8 +220,8 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	 * Returns collection of {@link FacetIndexStoragePart} that were modified and need persistence to the persistent
 	 * storage.
 	 */
-	public List<FacetIndexStoragePart> getModifiedStorageParts(int entityIndexPK) {
-		return this.facetingEntities.entrySet()
+	public void getModifiedStorageParts(int entityIndexPK, @Nonnull TrappedChanges trappedChanges) {
+		this.facetingEntities.entrySet()
 			.stream()
 			.filter(it -> this.dirtyIndexes.contains(it.getKey()))
 			.map(
@@ -231,7 +232,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 					it.getValue().getGroupsAsMap()
 				)
 			)
-			.collect(Collectors.toList());
+			.forEach(trappedChanges::addChangeToStore);
 	}
 
 	/**
@@ -245,7 +246,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 
 	@Override
 	public String toString() {
-		final StringBuilder sb = new StringBuilder();
+		final StringBuilder sb = new StringBuilder(512);
 		this.facetingEntities.keySet().stream().sorted().forEach(it ->
 			sb.append(it)
 				.append(":\n")

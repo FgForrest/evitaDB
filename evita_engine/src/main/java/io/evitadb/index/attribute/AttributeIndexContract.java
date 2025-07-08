@@ -27,13 +27,12 @@ import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Scope;
-import io.evitadb.store.model.StoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.Collection;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Function;
@@ -254,9 +253,10 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * Returns true when this index contains no data and may be safely purged.
 	 */
 	boolean isAttributeIndexEmpty();
+
 	/**
 	 * Method returns collection of all modified parts of this index that were modified and needs to be stored.
 	 */
-	@Nonnull
-	Collection<StoragePart> getModifiedStorageParts(int entityIndexPrimaryKey);
+	void getModifiedStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges trappedChanges);
+
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,11 +27,11 @@ import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.store.model.StoragePart;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -41,11 +41,10 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.notNull;
+import static java.util.Optional.ofNullable;
 
 /**
  * Price index contains data structures that allow processing price related filtering and sorting constraints such as
@@ -164,14 +163,11 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 	/**
 	 * Method returns collection of all modified parts of this index that were modified and needs to be stored.
 	 */
-	@Nonnull
-	public Collection<StoragePart> getModifiedStorageParts(int entityIndexPrimaryKey) {
-		return this.getPriceIndexes()
-			.values()
-			.stream()
-			.map(it -> it.createStoragePart(entityIndexPrimaryKey))
-			.filter(Objects::nonNull)
-			.collect(Collectors.toList());
+	public void getModifiedStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges trappedChanges) {
+		for (T index : this.getPriceIndexes().values()) {
+			ofNullable(index.createStoragePart(entityIndexPrimaryKey))
+				.ifPresent(trappedChanges::addChangeToStore);
+		}
 	}
 
 	@Override

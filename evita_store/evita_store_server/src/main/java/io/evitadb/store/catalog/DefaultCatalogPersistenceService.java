@@ -48,8 +48,10 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogConsumersListener;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService;
@@ -87,6 +89,7 @@ import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.model.PersistentStorageDescriptor;
+import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
@@ -158,6 +161,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -2368,10 +2372,17 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void flushTrappedUpdates(long version, @Nonnull DataStoreChanges dataStoreChanges) {
+	public void flushTrappedUpdates(
+		long catalogVersion,
+		@Nonnull TrappedChanges trappedChanges,
+		@Nonnull IntConsumer trappedUpdatedProgress
+	) {
 		// now store all the entity trapped updates
-		dataStoreChanges.popTrappedUpdates()
-			.forEach(it -> getStoragePartPersistenceService(version).putStoragePart(version, it));
+		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(catalogVersion);
+		final Iterator<StoragePart> it = trappedChanges.getTrappedChangesIterator();
+		while (it.hasNext()) {
+			storagePartPersistenceService.putStoragePart(catalogVersion, it.next());
+		}
 	}
 
 	@Override

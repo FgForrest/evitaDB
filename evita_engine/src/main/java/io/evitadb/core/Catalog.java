@@ -29,9 +29,11 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.GoLiveProgressRecord;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CatalogNotAliveException;
@@ -79,9 +81,13 @@ import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.EntityCollection.EntityCollectionHeaderWithCollection;
+import io.evitadb.core.async.ObservableExecutorService;
+import io.evitadb.core.async.ProgressingFuture;
+import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
@@ -146,6 +152,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -913,13 +920,14 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			.map(EntityCollection::getSchema);
 	}
 
-	/**
-	 * Transitions the catalog to the "live" state, ensuring it’s only called once and
-	 * verifying the current state is WARMING_UP. This method creates a new catalog
-	 * in the ALIVE state, copies relevant components into the new catalog, and
-	 * emits a `CatalogGoesLiveEvent` upon successful transition.
-	 */
-	public void goLive() {
+	@Override
+	public boolean isGoingLive() {
+		return this.goingLive.get();
+	}
+
+	@Nonnull
+	@Override
+	public GoLiveProgressRecord goLive(@Nullable IntConsumer progressObserver) {
 		try {
 			Assert.isTrue(
 				this.goingLive.compareAndSet(false, true),
@@ -927,32 +935,67 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			);
 
 			Assert.isTrue(this.state == CatalogState.WARMING_UP, "Catalog has already alive state!");
-			final CatalogGoesLiveEvent event = new CatalogGoesLiveEvent(getName());
 
-			flush();
+			final String catalogName = getName();
+			final GoLiveProgressRecord progress = new GoLiveProgressRecord(progressObserver);
+			final CatalogGoesLiveEvent event = new CatalogGoesLiveEvent(catalogName);
 
-			final List<EntityCollection> newCollections = this.entityCollections
-				.values()
-				.stream()
-				.map(collection -> collection.createCopyForNewCatalogAttachment(CatalogState.ALIVE))
-				.toList();
+			flush(
+				// last one percent is dedicated to finalization operations (see whenComplete)
+				new IntConsumer() {
+					private long lastLoggedPercent = 0L;
 
-			final Catalog newCatalog = new Catalog(
-				1L,
-				CatalogState.ALIVE,
-				this.catalogIndex.createCopyForNewCatalogAttachment(CatalogState.ALIVE),
-				this.archiveCatalogIndex == null ? null : this.archiveCatalogIndex.createCopyForNewCatalogAttachment(CatalogState.ALIVE),
-				newCollections,
-				this.persistenceService,
-				this,
-				true
+					@Override
+					public void accept(int percentDone) {
+						// we don't want to log every percent, but only from time to time
+						if (System.currentTimeMillis() + 1000 < this.lastLoggedPercent || percentDone == 100) {
+							log.info("Catalog `{}` is going live: {}% done.", catalogName, percentDone);
+							this.lastLoggedPercent = System.currentTimeMillis();
+						}
+						progress.updatePercentCompleted(percentDone);
+					}
+				}
+			).whenComplete(
+				(__, throwable) -> {
+					if (throwable == null) {
+						try {
+							final List<EntityCollection> newCollections = this.entityCollections
+								.values()
+								.stream()
+								.map(collection -> collection.createCopyForNewCatalogAttachment(CatalogState.ALIVE))
+								.toList();
+
+							final Catalog newCatalog = new Catalog(
+								1L,
+								CatalogState.ALIVE,
+								this.catalogIndex.createCopyForNewCatalogAttachment(CatalogState.ALIVE),
+								this.archiveCatalogIndex == null ? null : this.archiveCatalogIndex.createCopyForNewCatalogAttachment(CatalogState.ALIVE),
+								newCollections,
+								this.persistenceService,
+								this,
+								true
+							);
+
+							this.transactionManager.advanceVersion(newCatalog.getVersion());
+							this.newCatalogVersionConsumer.accept(newCatalog);
+
+							// emit the event
+							event.finish().commit();
+							progress.complete(new CommitVersions(newCatalog.getVersion(), newCatalog.getSchema().version()));
+
+							log.info("Catalog `{}` is now alive!", catalogName);
+						} catch (Throwable e) {
+							progress.completeExceptionally(e);
+							log.error("Error while going live with catalog `{}`!", catalogName, e);
+						}
+					} else {
+						progress.completeExceptionally(throwable);
+						log.error("Error while flushing catalog `{}` to disk!", catalogName, throwable);
+					}
+				}
 			);
 
-			this.transactionManager.advanceVersion(newCatalog.getVersion());
-			this.newCatalogVersionConsumer.accept(newCatalog);
-
-			// emit the event
-			event.finish().commit();
+			return progress;
 		} finally {
 			this.goingLive.set(false);
 		}
@@ -1374,7 +1417,9 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		if (changeOccurred) {
 			this.persistenceService.flushTrappedUpdates(
 				catalogVersion,
-				this.dataStoreBuffer.getTrappedChanges()
+				this.dataStoreBuffer.popTrappedChanges(),
+				// TODO JNO - migrate to FunctionUtils.noOp()
+				stepsDone -> {}
 			);
 			this.persistenceService.storeHeader(
 				this.catalogId,
@@ -1454,47 +1499,70 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 * Method stores {@link EntityCollectionHeader} in case there were any changes in the file offset index executed
 	 * in BULK / non-transactional mode.
 	 */
-	void flush() {
+	@Nonnull
+	ProgressingFuture<Void, ?> flush(@Nullable IntConsumer progressObserver) {
 		// if we're going live start with TRUE (force flush), otherwise start with false
-		boolean changeOccurred = this.goingLive.get() || getInternalSchema().version() != this.lastPersistedSchemaVersion;
+		final boolean changeOccurred = this.goingLive.get() || getInternalSchema().version() != this.lastPersistedSchemaVersion;
 		Assert.isPremiseValid(
 			getCatalogState() == CatalogState.WARMING_UP,
 			"Cannot flush catalog in transactional mode. Any changes could occur only in transaction!"
 		);
 
-		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
-		for (EntityCollection entityCollection : this.entityCollections.values()) {
-			final long lastSeenVersion = entityCollection.getVersion();
-			entityHeaders.add(
-				updateIndexIfNecessary(
-					entityCollection.flush()
-				)
-			);
-			changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
-		}
+		final CatalogState nextCatalogState = this.goingLive.get() ? CatalogState.ALIVE : getCatalogState();
+		final TrappedChanges trappedChanges = this.dataStoreBuffer.popTrappedChanges();
+		return new ProgressingFuture<>(
+			trappedChanges.getTrappedChangesCount(),
+			// update progress observer to report progress in percents, if provided
+			progressObserver == null ?
+				null :
+				(stepsDone, totalSteps) -> progressObserver.accept((int) (((double) stepsDone / totalSteps) * 100d)),
+			// first flush all entity collections
+			this.entityCollections
+				.values()
+				.stream()
+				.map(
+					collection -> (Function<IntConsumer, ProgressingFuture<EntityCollectionHeaderWithCollection, ?>>)
+						(c -> collection.flush(c, this.transactionalExecutor))
+				).toList(),
+			// when all entity collections are flushed, we can update the catalog header
+			(progress, collectionOfHeaders) -> {
+				final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(collectionOfHeaders.size());
+				// start with the changeOccurred flag, which is true is schema was changed or if we are going live
+				boolean resolvedChangeOccurred = changeOccurred;
+				for (EntityCollectionHeaderWithCollection collectionOfHeader : collectionOfHeaders) {
+					// collect correct headers for each collection
+					entityHeaders.add(updateIndexIfNecessary(collectionOfHeader));
+					// set it to true if any of the collections changed
+					resolvedChangeOccurred = resolvedChangeOccurred || collectionOfHeader.changeOccurred();
+				}
+				// if any of the collections changed, we need to flush the trapped changes and store the catalog header
+				if (resolvedChangeOccurred) {
+					this.persistenceService.flushTrappedUpdates(
+						0L,
+						trappedChanges,
+						progress::updateProgress
+					);
 
-		if (changeOccurred) {
-			this.persistenceService.flushTrappedUpdates(
-				0L,
-				this.dataStoreBuffer.getTrappedChanges()
-			);
-
-			final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader(0L);
-			Assert.isPremiseValid(
-				catalogHeader != null && catalogHeader.catalogState() == CatalogState.WARMING_UP,
-				"Catalog header is expected to be present in the storage in WARMING_UP flag!"
-			);
-			this.persistenceService.storeHeader(
-				this.catalogId,
-				this.goingLive.get() ? CatalogState.ALIVE : getCatalogState(),
-				0L,
-				this.entityTypeSequence.get(),
-				null,
-				entityHeaders,
-				this.dataStoreBuffer
-			);
-			this.lastPersistedSchemaVersion = getInternalSchema().version();
-		}
+					final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader(0L);
+					Assert.isPremiseValid(
+						catalogHeader != null && catalogHeader.catalogState() == CatalogState.WARMING_UP,
+						"Catalog header is expected to be present in the storage in WARMING_UP flag!"
+					);
+					this.persistenceService.storeHeader(
+						this.catalogId,
+						nextCatalogState,
+						0L,
+						this.entityTypeSequence.get(),
+						null,
+						entityHeaders,
+						this.dataStoreBuffer
+					);
+					this.lastPersistedSchemaVersion = getInternalSchema().version();
+				}
+				return null;
+			},
+			this.transactionalExecutor
+		);
 	}
 
 	@Nonnull
@@ -1657,7 +1725,8 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		entitySchemaUpdated(newCollection.getSchema());
 		// when the catalog is in WARM-UP state we need to execute immediate flush when collection is created
 		if (transaction == null) {
-			this.flush();
+			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
+			this.flush(null).join();
 		}
 		return newSchema;
 	}
@@ -1684,6 +1753,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				catalogVersion > 0L ?
 					collectionToRemove.flush(catalogVersion) :
 					updateIndexIfNecessary(
+						// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
 						collectionToRemove.flush()
 					)
 			);
@@ -1703,7 +1773,8 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		}
 		// when the catalog is in WARM-UP state we need to execute immediate flush when collection is removed
 		if (transaction == null) {
-			this.flush();
+			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
+			this.flush(null).join();
 		}
 		return result;
 	}
@@ -1796,6 +1867,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		);
 		if (!transactionOpen) {
 			updateIndexIfNecessary(
+				// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
 				entityCollectionToBeReplacedWith.flush()
 			);
 			final long catalogVersion = getVersion();
@@ -1818,12 +1890,14 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				);
 				if (schemaUpdated) {
 					updateIndexIfNecessary(
+						// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
 						otherCollection.flush()
 					);
 				}
 			}
 			// store catalog with a new file pointer
-			this.flush();
+			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
+			this.flush(null).join();
 		} else {
 			// update managed reference entity types and groups that target renamed entity
 			for (EntityCollection otherCollection : this.entityCollections.values()) {
@@ -1856,6 +1930,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 					final long lastSeenVersion = entityCollection.getVersion();
 					entityHeaders.add(
 						updateIndexIfNecessary(
+							// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
 							entityCollection.flush()
 						)
 					);
@@ -1943,4 +2018,5 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			return Catalog.this.getEntitySchema(entityType).map(EntitySchemaContract.class::cast);
 		}
 	}
+
 }

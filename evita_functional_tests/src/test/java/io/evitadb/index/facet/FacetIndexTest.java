@@ -24,6 +24,7 @@
 package io.evitadb.index.facet;
 
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
@@ -143,8 +144,11 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldInsertNewFacetingEntityId() {
-		this.facetIndex.resetDirty();
-		assertEquals(0, this.facetIndex.getModifiedStorageParts(1).size());
+		final TrappedChanges trappedChanges = new TrappedChanges();
+
+		facetIndex.resetDirty();
+		facetIndex.getModifiedStorageParts(1, trappedChanges);
+		assertEquals(0, trappedChanges.getTrappedChangesCount());
 
 		this.facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 2), 2, 8);
 
@@ -152,13 +156,18 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 			BRAND_ENTITY, this.fct.apply(BRAND_ENTITY), new ArrayBitmap(2)
 		);
 		assertArrayEquals(new int[]{2, 8}, FormulaFactory.and(brandReferencingEntityIds.toArray(Formula[]::new)).compute().getArray());
-		assertEquals(1, this.facetIndex.getModifiedStorageParts(1).size());
+
+		facetIndex.getModifiedStorageParts(1, trappedChanges);
+		assertEquals(1, trappedChanges.getTrappedChangesCount());
 	}
 
 	@Test
 	void shouldRemoveExistingFacetingEntityId() {
-		this.facetIndex.resetDirty();
-		assertEquals(0, this.facetIndex.getModifiedStorageParts(1).size());
+		final TrappedChanges trappedChanges = new TrappedChanges();
+
+		facetIndex.resetDirty();
+		facetIndex.getModifiedStorageParts(1, trappedChanges);
+		assertEquals(0, trappedChanges.getTrappedChangesCount());
 
 		this.facetIndex.removeFacet(new ReferenceKey(Entities.BRAND, 2), 2, 2);
 
@@ -166,7 +175,8 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 			BRAND_ENTITY, this.fct.apply(BRAND_ENTITY), new ArrayBitmap(1)
 		);
 		assertArrayEquals(new int[]{1, 3}, FormulaFactory.and(brandReferencingEntityIds.toArray(Formula[]::new)).compute().getArray());
-		assertEquals(1, this.facetIndex.getModifiedStorageParts(1).size());
+		facetIndex.getModifiedStorageParts(1, trappedChanges);
+		assertEquals(1, trappedChanges.getTrappedChangesCount());
 	}
 
 	@ParameterizedTest(name = "FacetIndex should survive generational randomized test applying modifications on it")

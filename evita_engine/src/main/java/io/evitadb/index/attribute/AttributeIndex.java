@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.Transaction;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -56,10 +57,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -559,27 +557,24 @@ public class AttributeIndex implements AttributeIndexContract,
 		return this.uniqueIndex.isEmpty() && this.filterIndex.isEmpty() &&
 			this.sortIndex.isEmpty() && this.chainIndex.isEmpty();
 	}
-	@Nonnull
 	@Override
-	public Collection<StoragePart> getModifiedStorageParts(int entityIndexPrimaryKey) {
-		final List<StoragePart> dirtyParts = new LinkedList<>();
+	public void getModifiedStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges trappedChanges) {
 		for (Entry<AttributeKey, UniqueIndex> entry : this.uniqueIndex.entrySet()) {
 			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
-				.ifPresent(dirtyParts::add);
+				.ifPresent(trappedChanges::addChangeToStore);
 		}
 		for (Entry<AttributeKey, FilterIndex> entry : this.filterIndex.entrySet()) {
 			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
-				.ifPresent(dirtyParts::add);
+				.ifPresent(trappedChanges::addChangeToStore);
 		}
 		for (Entry<AttributeKey, SortIndex> entry : this.sortIndex.entrySet()) {
 			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
-				.ifPresent(dirtyParts::add);
+				.ifPresent(trappedChanges::addChangeToStore);
 		}
 		for (Entry<AttributeKey, ChainIndex> entry : this.chainIndex.entrySet()) {
 			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
-				.ifPresent(dirtyParts::add);
+				.ifPresent(trappedChanges::addChangeToStore);
 		}
-		return dirtyParts;
 	}
 
 	@Override

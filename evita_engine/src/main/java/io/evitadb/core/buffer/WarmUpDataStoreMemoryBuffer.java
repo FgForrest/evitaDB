@@ -151,9 +151,10 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 		this.dataStoreChanges.trapPutStoragePart(value);
 	}
 
+	@Nonnull
 	@Override
-	public DataStoreChanges getTrappedChanges() {
-		return this.dataStoreChanges;
+	public TrappedChanges popTrappedChanges() {
+		return this.dataStoreChanges.popTrappedUpdates();
 	}
 
 }

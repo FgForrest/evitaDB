@@ -172,7 +172,7 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 		@Override
 		public Iterable<EntityContract> getNonSortedEntities() {
 			return this.nonSortedEntities == null ?
-				EmptyIterator.iteratorInstance(EntityContract.class) :
+				EmptyIterator.iterableInstance(EntityContract.class) :
 				this.nonSortedEntities;
 		}
 

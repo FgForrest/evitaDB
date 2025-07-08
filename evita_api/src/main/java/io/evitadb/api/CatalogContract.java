@@ -58,6 +58,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
@@ -262,6 +263,23 @@ public interface CatalogContract {
 	 */
 	@Nonnull
 	Optional<SealedEntitySchema> getEntitySchema(@Nonnull String entityType);
+
+	/**
+	 * Determines whether the entity or process is going live. When the catalog is in the process of going live,
+	 * no sessions should be created or mutations applied to the catalog.
+	 *
+	 * @return true if the entity or process is going live, otherwise false.
+	 */
+	boolean isGoingLive();
+
+	/**
+	 * Changes state of the catalog from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}.
+	 *
+	 * @param progressObserver optional observer that will be notified about the progress of the go-live operation
+	 * @see CatalogState
+	 */
+	@Nonnull
+	GoLiveProgress goLive(@Nullable IntConsumer progressObserver);
 
 	/**
 	 * Creates new publisher that emits {@link ChangeCatalogCapture}s that match the request. Change catalog capture

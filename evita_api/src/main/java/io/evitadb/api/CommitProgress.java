@@ -99,6 +99,12 @@ public interface CommitProgress {
 	}
 
 	/**
+	 * Returns true if this commit progress is done, either successfully or exceptionally.
+	 * @return true if the commit progress is done, false otherwise.
+	 */
+	boolean isDone();
+
+	/**
 	 * Returns true if all the commit stages are completed successfully.
 	 * @return true if all stages are completed successfully, false otherwise.
 	 */

@@ -36,6 +36,7 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
+import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
@@ -1151,6 +1152,10 @@ public final class Evita implements EvitaContract {
 			sessionRegistry -> {
 				if (this.readOnly) {
 					isTrue(!sessionTraits.isReadWrite() || sessionTraits.isDryRun(), ReadOnlyException::new);
+				}
+
+				if (catalog.isGoingLive()) {
+					throw new CatalogGoingLiveException(catalog.getName());
 				}
 
 				final EvitaSessionTerminationCallback terminationCallback =

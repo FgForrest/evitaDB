@@ -110,6 +110,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -397,9 +398,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return this.closedFuture == null || this.beingClosed.get();
 	}
 
+	@Nonnull
 	@Traced
 	@Override
-	public boolean goLiveAndClose() {
+	public GoLiveProgress goLiveAndCloseWithProgress(@Nullable IntConsumer progressObserver) {
 		// added read only check
 		isTrue(
 			!isReadOnly(),
@@ -408,9 +410,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		if (this.catalog.getCatalogState() == CatalogState.ALIVE) {
 			return false;
 		} else {
-			this.evita.makeCatalogAlive(this.catalog.getName());
-			close();
-			return true;
+			this.closedFuture = CompletableFuture.completedFuture(new CommitVersions(this.catalog.getVersion() + 1, this.catalog.getSchema().version()));
+			/* TODO JNO - tady si to nesedlo, co s tím? */
+			//this.evita.makeCatalogAlive(this.catalog.getName());
+			return theCatalog.goLive(progressObserver);
 		}
 	}
 
@@ -1682,32 +1685,35 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 						transaction == null,
 						"In warming-up mode no transaction is expected to be opened!"
 					);
-					this.catalog.flush();
-					// immediately complete future
-					if (!this.commitProgress.isCompletedExceptionally()) {
-						try {
-							validateCatalogSchema(this.catalog);
-							this.commitProgress.complete(
-								new CommitVersions(
-									this.catalog.getVersion(),
-									this.catalog.getSchema().version()
-								)
-							);
-						} catch (Exception ex) {
-							this.commitProgress.completeExceptionally(ex);
-						}
-					}
+					this.catalog.flush(null)
+						.whenComplete(
+							(__, throwable) -> {
+								if (throwable == null) {
+									try {
+										validateCatalogSchema(this.catalog);
+										this.commitProgress.complete(
+											new CommitVersions(
+												this.catalog.getVersion(),
+												this.catalog.getSchema().version()
+											)
+										);
+									} catch (Exception ex) {
+										this.commitProgress.completeExceptionally(ex);
+									}
+								} else {
+									this.commitProgress.completeExceptionally(throwable);
+								}
+							}
+						);
 				} else {
 					if (transaction != null) {
-						try {
+						// close transaction at the end of this block
+						try (transaction) {
 							if (!transaction.isRollbackOnly()) {
 								validateCatalogSchema(this.catalog);
 							}
 						} catch (Exception ex) {
 							this.commitProgress.completeExceptionally(ex);
-						} finally {
-							// close transaction
-							transaction.close();
 						}
 					} else {
 						// immediately complete future
@@ -1730,6 +1736,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				this.closingSequenceFuture.get().join();
 				return this.commitProgress;
 			}
+		} else if (this.closedFuture != null && !this.commitProgress.isDone()) {
+			// this case is only possible when catalog is going live and session is closed
+			this.commitProgress.complete(this.closedFuture.toCompletableFuture().getNow(null));
 		}
 		return this.commitProgress;
 	}
