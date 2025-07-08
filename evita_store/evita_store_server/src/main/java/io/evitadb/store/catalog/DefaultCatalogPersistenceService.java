@@ -2377,11 +2377,24 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull TrappedChanges trappedChanges,
 		@Nonnull IntConsumer trappedUpdatedProgress
 	) {
+		final int[] counter = {0};
+		final int division = Math.max(200, trappedChanges.getTrappedChangesCount() / 100);
+
 		// now store all the entity trapped updates
 		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(catalogVersion);
 		final Iterator<StoragePart> it = trappedChanges.getTrappedChangesIterator();
 		while (it.hasNext()) {
 			storagePartPersistenceService.putStoragePart(catalogVersion, it.next());
+
+			// Increment the counter and update progress every X items
+			if (++counter[0] % division == 0) {
+				trappedUpdatedProgress.accept(counter[0]);
+			}
+		}
+
+		// Final progress update if there are remaining items
+		if (counter[0] % division != 0) {
+			trappedUpdatedProgress.accept(counter[0]);
 		}
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -355,7 +355,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       entityType_ = s;
@@ -377,7 +377,7 @@ private static final long serialVersionUID = 0L;
       getEntityTypeBytes() {
     java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       entityType_ = b;
@@ -555,7 +555,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_GlobalAttributesEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_GlobalAttributesEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -652,7 +652,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_LocalizedAttributesEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_LocalizedAttributesEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -764,7 +764,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
       getPricesOrBuilderList() {
     return prices_;
   }
@@ -897,7 +897,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
       getReferencesOrBuilderList() {
     return references_;
   }
@@ -945,7 +945,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_GlobalAssociatedDataEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_GlobalAssociatedDataEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -1042,7 +1042,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_LocalizedAssociatedDataEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_LocalizedAssociatedDataEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -1156,7 +1156,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
       getLocalesOrBuilderList() {
     return locales_;
   }
@@ -1231,7 +1231,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_ReferenceOffsetAndLimitsEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_ReferenceOffsetAndLimitsEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -1332,7 +1332,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_AccompanyingPricesEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_AccompanyingPricesEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -2198,7 +2198,7 @@ private static final long serialVersionUID = 0L;
             pricesBuilder_ = null;
             prices_ = other.prices_;
             bitField0_ = (bitField0_ & ~0x00000004);
-            pricesBuilder_ =
+            pricesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getPricesFieldBuilder() : null;
           } else {
@@ -2230,7 +2230,7 @@ private static final long serialVersionUID = 0L;
             referencesBuilder_ = null;
             references_ = other.references_;
             bitField0_ = (bitField0_ & ~0x00000008);
-            referencesBuilder_ =
+            referencesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getReferencesFieldBuilder() : null;
           } else {
@@ -2260,7 +2260,7 @@ private static final long serialVersionUID = 0L;
             localesBuilder_ = null;
             locales_ = other.locales_;
             bitField0_ = (bitField0_ & ~0x00000040);
-            localesBuilder_ =
+            localesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getLocalesFieldBuilder() : null;
           } else {
@@ -2342,7 +2342,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeBytes() {
       java.lang.Object ref = entityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         entityType_ = b;
@@ -2367,7 +2367,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       entityType_ = value;
       onChanged();
       return this;
@@ -2383,7 +2383,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityType() {
-
+      
       entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
@@ -2405,7 +2405,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       entityType_ = value;
       onChanged();
       return this;
@@ -2436,7 +2436,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPrimaryKey(int value) {
-
+      
       primaryKey_ = value;
       onChanged();
       return this;
@@ -2451,7 +2451,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPrimaryKey() {
-
+      
       primaryKey_ = 0;
       onChanged();
       return this;
@@ -2482,7 +2482,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setVersion(int value) {
-
+      
       version_ = value;
       onChanged();
       return this;
@@ -2497,7 +2497,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-
+      
       version_ = 0;
       onChanged();
       return this;
@@ -2528,7 +2528,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setSchemaVersion(int value) {
-
+      
       schemaVersion_ = value;
       onChanged();
       return this;
@@ -2543,7 +2543,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSchemaVersion() {
-
+      
       schemaVersion_ = 0;
       onChanged();
       return this;
@@ -2664,7 +2664,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
     public com.google.protobuf.Int32Value.Builder getParentBuilder() {
-
+      
       onChanged();
       return getParentFieldBuilder().getBuilder();
     }
@@ -2691,7 +2691,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
         getParentFieldBuilder() {
       if (parentBuilder_ == null) {
         parentBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2819,7 +2819,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.Builder getParentReferenceBuilder() {
-
+      
       onChanged();
       return getParentReferenceFieldBuilder().getBuilder();
     }
@@ -2846,7 +2846,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent parentReference = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParentOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParentOrBuilder> 
         getParentReferenceFieldBuilder() {
       if (parentReferenceBuilder_ == null) {
         parentReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2974,7 +2974,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getParentEntityBuilder() {
-
+      
       onChanged();
       return getParentEntityFieldBuilder().getBuilder();
     }
@@ -3001,7 +3001,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
         getParentEntityFieldBuilder() {
       if (parentEntityBuilder_ == null) {
         parentEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3587,7 +3587,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
          getPricesOrBuilderList() {
       if (pricesBuilder_ != null) {
         return pricesBuilder_.getMessageOrBuilderList();
@@ -3625,12 +3625,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder> 
          getPricesBuilderList() {
       return getPricesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
         getPricesFieldBuilder() {
       if (pricesBuilder_ == null) {
         pricesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -3773,7 +3773,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder getPriceForSaleBuilder() {
-
+      
       onChanged();
       return getPriceForSaleFieldBuilder().getBuilder();
     }
@@ -3804,7 +3804,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
         getPriceForSaleFieldBuilder() {
       if (priceForSaleBuilder_ == null) {
         priceForSaleBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3839,7 +3839,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPriceInnerRecordHandlingValue(int value) {
-
+      
       priceInnerRecordHandling_ = value;
       onChanged();
       return this;
@@ -3871,7 +3871,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-
+      
       priceInnerRecordHandling_ = value.getNumber();
       onChanged();
       return this;
@@ -3885,7 +3885,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPriceInnerRecordHandling() {
-
+      
       priceInnerRecordHandling_ = 0;
       onChanged();
       return this;
@@ -4161,7 +4161,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
          getReferencesOrBuilderList() {
       if (referencesBuilder_ != null) {
         return referencesBuilder_.getMessageOrBuilderList();
@@ -4202,12 +4202,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference.Builder> 
          getReferencesBuilderList() {
       return getReferencesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcReference, io.evitadb.externalApi.grpc.generated.GrpcReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcReference, io.evitadb.externalApi.grpc.generated.GrpcReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
         getReferencesFieldBuilder() {
       if (referencesBuilder_ == null) {
         referencesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -4809,7 +4809,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
          getLocalesOrBuilderList() {
       if (localesBuilder_ != null) {
         return localesBuilder_.getMessageOrBuilderList();
@@ -4850,12 +4850,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder> 
          getLocalesBuilderList() {
       return getLocalesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
         getLocalesFieldBuilder() {
       if (localesBuilder_ == null) {
         localesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -4891,7 +4891,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setScopeValue(int value) {
-
+      
       scope_ = value;
       onChanged();
       return this;
@@ -4923,7 +4923,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-
+      
       scope_ = value.getNumber();
       onChanged();
       return this;
@@ -4937,7 +4937,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearScope() {
-
+      
       scope_ = 0;
       onChanged();
       return this;

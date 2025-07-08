@@ -753,7 +753,6 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						(commitVersions, throwable) -> {
 							if (throwable == null) {
 								final GrpcGoLiveAndCloseResponse response = GrpcGoLiveAndCloseResponse.newBuilder()
-									.setSuccess(true)
 									.setCatalogVersion(commitVersions.catalogVersion())
 									.setCatalogSchemaVersion(commitVersions.catalogSchemaVersion())
 									.setSuccess(true)
