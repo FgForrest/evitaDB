@@ -405,8 +405,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			!isReadOnly(),
 			ReadOnlyException::new
 		);
-		final CatalogContract theCatalog = this.catalog;
+
+		final Catalog theCatalog = this.catalog;
 		isTrue(!theCatalog.supportsTransaction(), "Catalog went live already and is currently in transactional mode!");
+		executeTerminationSteps(null, theCatalog);
 		this.closedFuture = CompletableFuture.completedFuture(new CommitVersions(this.catalog.getVersion() + 1, this.catalog.getSchema().version()));
 		return theCatalog.goLive(progressObserver);
 	}
