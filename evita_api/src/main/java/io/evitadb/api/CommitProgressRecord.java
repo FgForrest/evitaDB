@@ -159,6 +159,13 @@ public class CommitProgressRecord implements CommitProgress {
 	}
 
 	@Override
+	public boolean isDone() {
+		return this.onConflictResolved.isDone() &&
+			this.onWalAppended.isDone() &&
+			this.onChangesVisible.isDone();
+	}
+
+	@Override
 	public boolean isCompletedSuccessfully() {
 		return this.onConflictResolved.isDone() &&
 			this.onWalAppended.isDone() &&

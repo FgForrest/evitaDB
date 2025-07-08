@@ -213,12 +213,13 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 		}
 	}
 
+	@Nonnull
 	@Override
-	public DataStoreChanges getTrappedChanges() {
+	public TrappedChanges popTrappedChanges() {
 		final DataStoreChanges layer = Transaction.getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
 		// return current transactional layer that contains trapped updates
 		// or fallback to shared memory buffer with trapped updates
-		return Objects.requireNonNullElse(layer, this.dataStoreChanges);
+		return Objects.requireNonNullElse(layer, this.dataStoreChanges).popTrappedUpdates();
 	}
 
 }

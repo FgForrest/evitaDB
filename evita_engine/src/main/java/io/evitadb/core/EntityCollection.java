@@ -80,10 +80,12 @@ import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
+import io.evitadb.core.async.ProgressingFuture;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.QueryPlan;
@@ -143,10 +145,12 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -1362,13 +1366,56 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Flush operation persists all information kept in non-transactional buffers to the disk asynchronously.
+	 * After future is done the {@link CatalogPersistenceService} is fully synced with the disk file and will not
+	 * contain any non-persisted data.
+	 * Flush operation is ignored when there are no changes present in {@link CatalogPersistenceService}.
+	 */
+	@Nonnull
+	public ProgressingFuture<EntityCollectionHeaderWithCollection, Void> flush(
+		@Nonnull IntConsumer progressObserver,
+		@Nonnull Executor executor
+	) {
+		final TrappedChanges trappedChanges = this.dataStoreBuffer.popTrappedChanges();
+		return new ProgressingFuture<>(
+			trappedChanges.getTrappedChangesCount(),
+			(stepsDone, totalSteps) -> progressObserver.accept(stepsDone),
+			() -> flushInternal(progressObserver, trappedChanges),
+			executor
+		);
+	}
+
+	/**
 	 * Flush operation persists immediately all information kept in non-transactional buffers to the disk.
-	 * {@link CatalogPersistenceService} is fully synced with the disk file and will not contain any non-persisted data. Flush operation
+	 * At the end of this method call {@link CatalogPersistenceService} is fully synced with the disk file and will
+	 * not contain any non-persisted data. Flush operation
 	 * is ignored when there are no changes present in {@link CatalogPersistenceService}.
 	 */
 	@Nonnull
 	public EntityCollectionHeaderWithCollection flush() {
-		this.persistenceService.flushTrappedUpdates(0L, this.dataStoreBuffer.getTrappedChanges());
+		final TrappedChanges trappedChanges = this.dataStoreBuffer.popTrappedChanges();
+		return flushInternal(
+			/* TODO JNO replace with FunctionUtils.noOp() */
+			__ -> {},
+			trappedChanges
+		);
+	}
+
+	/**
+	 * Flushes the internal state by persisting trapped changes and returning an updated
+	 * entity collection header alongside an updated collection instance.
+	 *
+	 * @param progressObserver an {@link IntConsumer} used to observe the progress of the flush operation
+	 * @param trappedChanges an instance of {@link TrappedChanges} representing changes to be persisted during the flush
+	 * @return an instance of {@link EntityCollectionHeaderWithCollection} containing the updated entity collection header
+	 *         and the corresponding collection state
+	 */
+	@Nonnull
+	private EntityCollectionHeaderWithCollection flushInternal(
+		@Nonnull IntConsumer progressObserver,
+		@Nonnull TrappedChanges trappedChanges
+	) {
+		this.persistenceService.flushTrappedUpdates(0L, trappedChanges, progressObserver);
 		return this.catalogPersistenceService.flush(
 				0L,
 				this.headerInfoSupplier,
@@ -1379,15 +1426,16 @@ public final class EntityCollection implements
 				it -> {
 					final EntityCollectionHeader theHeader = it.getEntityCollectionHeader();
 					return this.persistenceService == it ?
-						new EntityCollectionHeaderWithCollection(theHeader, this) :
+						new EntityCollectionHeaderWithCollection(theHeader, this, false) :
 						new EntityCollectionHeaderWithCollection(
 							theHeader,
-							this.createCopyWithNewPersistenceService(theHeader.version(), CatalogState.WARMING_UP, it)
+							this.createCopyWithNewPersistenceService(theHeader.version(), CatalogState.WARMING_UP, it),
+							true
 						);
 				}
 			)
 			.orElseGet(
-				() -> new EntityCollectionHeaderWithCollection(this.getEntityCollectionHeader(), this)
+				() -> new EntityCollectionHeaderWithCollection(this.getEntityCollectionHeader(), this, false)
 			);
 	}
 
@@ -1560,7 +1608,12 @@ public final class EntityCollection implements
 	 */
 	@Nonnull
 	EntityCollectionHeader flush(long catalogVersion) {
-		this.persistenceService.flushTrappedUpdates(catalogVersion, this.dataStoreBuffer.getTrappedChanges());
+		this.persistenceService.flushTrappedUpdates(
+			catalogVersion,
+			this.dataStoreBuffer.popTrappedChanges(),
+			// TODO JNO - migrate to FunctionUtils.noOp()
+			stepsDone -> {}
+		);
 		return this.catalogPersistenceService.flush(
 				catalogVersion,
 				this.headerInfoSupplier,
@@ -2522,7 +2575,8 @@ public final class EntityCollection implements
 	 */
 	public record EntityCollectionHeaderWithCollection(
 		@Nonnull EntityCollectionHeader header,
-		@Nonnull EntityCollection collection
+		@Nonnull EntityCollection collection,
+		boolean changeOccurred
 	) {}
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ public interface DataStoreMemoryBuffer extends DataStoreReader {
 
 	/**
 	 * Removes container from the target storage in the memory only. Changes are written at the moment when
-	 * buffer is flushed and {@link #getTrappedChanges()} is called.
+	 * buffer is flushed and {@link #popTrappedChanges()} is called.
 	 */
 	<T extends StoragePart> boolean trapRemoveByPrimaryKey(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass);
 
@@ -76,13 +76,15 @@ public interface DataStoreMemoryBuffer extends DataStoreReader {
 
 	/**
 	 * Inserts or updates container in the target storage in the memory only. Changes are written at the moment when
-	 * buffer is flushed and {@link #getTrappedChanges()} is called.
+	 * buffer is flushed and {@link #popTrappedChanges()} is called.
 	 */
 	<T extends StoragePart> void trapUpdate(long catalogVersion, @Nonnull T value);
 
 	/**
-	 * Method returns current buffer with trapped changes.
+	 * Method pops all trapped changes from the memory buffer and returns them. Additional call to this method will
+	 * return empty {@link TrappedChanges} instance unless new changes are trapped in the memory buffer.
 	 */
-	DataStoreChanges getTrappedChanges();
+	@Nonnull
+	TrappedChanges popTrappedChanges();
 
 }

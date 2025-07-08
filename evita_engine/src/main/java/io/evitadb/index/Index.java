@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@
 
 package io.evitadb.index;
 
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.store.model.StoragePart;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
 
 /**
  * Index provides access to the read optimized data structures related to the client data. This base contract defines
@@ -48,7 +48,6 @@ public interface Index<T extends IndexKey> {
 	 * Returns collection of {@link StoragePart} that represents various sub-indexes the index consists of. Collection
 	 * contains only those sub-indexes/parts that have been modified since last index flush to the storage.
 	 */
-	@Nonnull
-	Collection<StoragePart> getModifiedStorageParts();
+	void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges);
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogRelatedDataStructure;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -46,7 +47,6 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.StringUtils;
@@ -63,7 +63,6 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -302,12 +301,10 @@ public class ReducedEntityIndex extends EntityIndex
 		return super.isEmpty() && this.priceIndex.isPriceIndexEmpty();
 	}
 
-	@Nonnull
 	@Override
-	public Collection<StoragePart> getModifiedStorageParts() {
-		final Collection<StoragePart> dirtyList = super.getModifiedStorageParts();
-		dirtyList.addAll(this.priceIndex.getModifiedStorageParts(this.primaryKey));
-		return dirtyList;
+	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
+		super.getModifiedStorageParts(trappedChanges);
+		this.priceIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
 	}
 
 	@Override

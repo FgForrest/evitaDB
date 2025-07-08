@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.index;
 
 import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -40,7 +41,6 @@ import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceSuperIndex;
-import io.evitadb.store.model.StoragePart;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
@@ -229,12 +229,10 @@ public class GlobalEntityIndex extends EntityIndex
 		this.priceIndex.removeLayer(transactionalLayer);
 	}
 
-	@Nonnull
 	@Override
-	public Collection<StoragePart> getModifiedStorageParts() {
-		final Collection<StoragePart> dirtyList = super.getModifiedStorageParts();
-		dirtyList.addAll(this.priceIndex.getModifiedStorageParts(this.primaryKey));
-		return dirtyList;
+	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
+		super.getModifiedStorageParts(trappedChanges);
+		this.priceIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
 	}
 
 	@Override

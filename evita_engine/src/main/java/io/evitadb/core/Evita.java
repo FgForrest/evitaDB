@@ -29,6 +29,7 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
+import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.ReadOnlyException;
@@ -1049,6 +1050,11 @@ public final class Evita implements EvitaContract {
 		final EvitaInternalSessionContract newSession = catalogSessionRegistry.createSession(
 			sessionRegistry -> {
 				final Catalog catalog = sessionRegistry.getCatalog();
+
+				if (catalog.isGoingLive()) {
+					throw new CatalogGoingLiveException(catalog.getName());
+				}
+
 				final NonTransactionalCatalogDescriptor nonTransactionalCatalogDescriptor =
 					catalog.getCatalogState() == CatalogState.WARMING_UP && sessionTraits.isReadWrite() && !sessionTraits.isDryRun() ?
 						new NonTransactionalCatalogDescriptor(catalog, this.structuralChangeObservers) : null;
