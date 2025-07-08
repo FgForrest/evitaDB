@@ -33,6 +33,8 @@ import io.evitadb.api.CommitProgress;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.GoLiveProgress;
+import io.evitadb.api.GoLiveProgressRecord;
 import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
@@ -138,6 +140,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -394,26 +397,59 @@ public class EvitaClientSession implements EvitaSessionContract {
 		return this.closedFuture == null;
 	}
 
+	@Nonnull
 	@Override
-	public boolean goLiveAndClose() {
+	public GoLiveProgress goLiveAndCloseWithProgress(@Nullable IntConsumer progressObserver) {
 		assertActive();
-		final GrpcGoLiveAndCloseResponse grpcResponse = executeWithBlockingEvitaSessionService(evitaSessionService ->
-			evitaSessionService.goLiveAndClose(Empty.newBuilder().build())
+
+		final GoLiveProgressRecord goLiveProgress = new GoLiveProgressRecord(progressObserver);
+		executeWithAsyncEvitaSessionService(
+			evitaSessionService -> {
+				final StreamObserver<GrpcGoLiveAndCloseWithProgressResponse> observer = new StreamObserver<>() {
+					private long catalogVersion = -1;
+					private int catalogSchemaVersion = -1;
+
+					@Override
+					public void onNext(GrpcGoLiveAndCloseWithProgressResponse grpcResponse) {
+						goLiveProgress.updatePercentCompleted(
+							grpcResponse.getProgressInPercent()
+						);
+
+						this.catalogVersion = grpcResponse.getCatalogVersion();
+						this.catalogSchemaVersion = grpcResponse.getCatalogSchemaVersion();
+
+						if (progressObserver != null) {
+							progressObserver.accept(grpcResponse.getProgressInPercent());
+						}
+					}
+
+					@Override
+					public void onError(Throwable throwable) {
+						goLiveProgress.completeExceptionally(throwable);
+					}
+
+					@Override
+					public void onCompleted() {
+						goLiveProgress.complete(
+							new CommitVersions(this.catalogVersion, this.catalogSchemaVersion)
+						);
+
+						if (this.catalogVersion > -1 && this.catalogSchemaVersion > -1) {
+							EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
+								this.catalogVersion, this.catalogSchemaVersion
+							);
+						}
+					}
+				};
+				evitaSessionService.goLiveAndCloseWithProgress(
+					Empty.newBuilder().build(),
+					observer
+				);
+				return null;
+			}
 		);
-		final boolean success = grpcResponse.getSuccess();
-		if (success) {
-			closeInternally().complete(
-				new CommitVersions(
-					grpcResponse.getCatalogVersion(),
-					grpcResponse.getCatalogSchemaVersion()
-				)
-			);
-			EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
-				grpcResponse.getCatalogVersion(),
-				grpcResponse.getCatalogSchemaVersion()
-			);
-		}
-		return success;
+
+		return goLiveProgress;
 	}
 
 	@Nonnull

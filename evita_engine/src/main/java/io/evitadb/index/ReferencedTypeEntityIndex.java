@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.Transaction;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -71,7 +72,6 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -412,15 +412,14 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		);
 	}
 
-	@Nonnull
 	@Override
-	public Collection<StoragePart> getModifiedStorageParts() {
-		final Collection<StoragePart> dirtyParts = super.getModifiedStorageParts();
+	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
+		super.getModifiedStorageParts(trappedChanges);
+
 		for (Entry<AttributeKey, CardinalityIndex> entry : this.cardinalityIndexes.entrySet()) {
 			ofNullable(entry.getValue().createStoragePart(this.primaryKey, entry.getKey()))
-				.ifPresent(dirtyParts::add);
+				.ifPresent(trappedChanges::addChangeToStore);
 		}
-		return dirtyParts;
 	}
 
 	/**

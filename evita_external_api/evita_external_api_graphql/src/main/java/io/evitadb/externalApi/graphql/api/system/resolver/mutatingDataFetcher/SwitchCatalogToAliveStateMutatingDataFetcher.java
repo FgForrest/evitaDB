@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import io.evitadb.externalApi.graphql.api.system.model.SwitchCatalogToAliveState
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * Tries to switch a {@link CatalogContract} to {@link io.evitadb.api.CatalogState#ALIVE} state.
@@ -45,8 +46,10 @@ public class SwitchCatalogToAliveStateMutatingDataFetcher implements DataFetcher
 
     @Nonnull
     @Override
-    public Boolean get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        final String catalogName = environment.getArgument(SwitchCatalogToAliveStateMutationHeaderDescriptor.NAME.name());
-        return evita.getCatalogInstanceOrThrowException(catalogName).goLive();
+    public Boolean get(DataFetchingEnvironment environment) throws Exception {
+        final String catalogName = Objects.requireNonNull(environment.getArgument(SwitchCatalogToAliveStateMutationHeaderDescriptor.NAME.name()));
+        /* we need to synchronously wait here */
+        this.evita.getCatalogInstanceOrThrowException(catalogName).goLive(null).onCompletion().toCompletableFuture().join();
+        return true;
     }
 }

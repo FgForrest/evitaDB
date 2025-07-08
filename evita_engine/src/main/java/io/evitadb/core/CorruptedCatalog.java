@@ -29,6 +29,7 @@ import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.GoLiveProgress;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
@@ -62,6 +63,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
@@ -233,7 +235,13 @@ public final class CorruptedCatalog implements CatalogContract {
 	}
 
 	@Override
-	public boolean goLive() {
+	public boolean isGoingLive() {
+		return false;
+	}
+
+	@Nonnull
+	@Override
+	public GoLiveProgress goLive(IntConsumer progressObserver) {
 		throw new CatalogCorruptedException(this);
 	}
 
