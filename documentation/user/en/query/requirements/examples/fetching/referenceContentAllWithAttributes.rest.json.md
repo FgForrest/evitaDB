@@ -8,6 +8,7 @@
       "scope" : "LIVE",
       "allLocales" : [
         "cs",
+        "de",
         "en"
       ],
       "attributes" : {
@@ -18,6 +19,44 @@
       "productSetItems" : [ ],
       "relatedProducts" : [ ],
       "groups" : [ ],
+      "media" : [
+        {
+          "referencedPrimaryKey" : 1938,
+          "attributes" : {
+            "global" : {
+              "gallery" : "hlavni-motiv",
+              "order" : 1
+            }
+          }
+        },
+        {
+          "referencedPrimaryKey" : 1940,
+          "attributes" : {
+            "global" : {
+              "gallery" : "galerie",
+              "order" : 3
+            }
+          }
+        },
+        {
+          "referencedPrimaryKey" : 1941,
+          "attributes" : {
+            "global" : {
+              "gallery" : "galerie",
+              "order" : 2
+            }
+          }
+        },
+        {
+          "referencedPrimaryKey" : 1942,
+          "attributes" : {
+            "global" : {
+              "gallery" : "galerie",
+              "order" : 1
+            }
+          }
+        }
+      ],
       "variants" : [ ],
       "variantParameters" : [ ],
       "stockVisibilities" : [
@@ -39,13 +78,18 @@
         {
           "referencedPrimaryKey" : 10,
           "groupEntity" : {
-            "primaryKey" : 9,
-            "type" : "tagCategory"
+            "primaryKey" : 8,
+            "type" : "TagCategory"
           }
         }
       ],
       "master" : {
-        "referencedPrimaryKey" : 103911
+        "referencedPrimaryKey" : 103911,
+        "attributes" : {
+          "global" : {
+            "priorityInMaster" : 10
+          }
+        }
       },
       "bundles" : [ ],
       "categories" : [
@@ -54,7 +98,12 @@
           "attributes" : {
             "global" : {
               "categoryPriority" : 0,
-              "orderInCategory" : -1
+              "assignmentValidity" : [
+                [
+                  "0001-01-01T18:00:00+18:00",
+                  "9999-12-31T05:59:59-18:00"
+                ]
+              ]
             }
           }
         }

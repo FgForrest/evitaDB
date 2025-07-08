@@ -7,7 +7,6 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				require(
 					hierarchyOfReference(
 						"categories",
-						REMOVE_EMPTY,
 						fromRoot(
 							"megaMenu",
 							entityFetch(

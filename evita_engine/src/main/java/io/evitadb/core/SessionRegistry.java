@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.observability.trace.RepresentsMutation;
 import io.evitadb.api.observability.trace.RepresentsQuery;
@@ -569,17 +570,18 @@ final class SessionRegistry {
 		 */
 		@Nullable
 		private Object executeDelegateMethod(@Nonnull Method method, @Nullable Object[] args) {
+			final EvitaSession theSession = this.evitaSession;
 			try {
-				this.evitaSession.increaseNestLevel();
+				theSession.increaseNestLevel();
 				// invoke original method on delegate
 				return Transaction.executeInTransactionIfProvided(
-					this.evitaSession.getOpenedTransaction().orElse(null),
+					theSession.getOpenedTransaction().orElse(null),
 					() -> {
 						final Supplier<Object> invocation = () -> {
 							try {
 								this.insideInvocation.incrementAndGet();
 								this.lastCall.set(System.currentTimeMillis());
-								return method.invoke(this.evitaSession, args);
+								return method.invoke(theSession, args);
 							} catch (InvocationTargetException ex) {
 								// handle the error
 								final Throwable targetException = ex.getTargetException() instanceof CompletionException completionException ?
@@ -587,6 +589,19 @@ final class SessionRegistry {
 								if (targetException instanceof TransactionException transactionException) {
 									// just unwrap and rethrow
 									throw transactionException;
+								} else if (targetException instanceof RollbackException rollbackException) {
+									if (theSession.isDryRun()) {
+										// client expects rollback exception in dry run mode, so we just log it
+										log.debug("Session was initiated in dry run mode, so transaction was rolled back.");
+										Assert.isPremiseValid(
+											void.class.equals(method.getReturnType()),
+											"RollbackException is expected only for close method that returns void!"
+										);
+										return null;
+									} else {
+										// rethrow the rollback exception to notify client that transaction was rolled back
+										throw rollbackException;
+									}
 								} else if (targetException instanceof EvitaInvalidUsageException evitaInvalidUsageException) {
 									// just unwrap and rethrow
 									throw evitaInvalidUsageException;
@@ -646,7 +661,7 @@ final class SessionRegistry {
 								() -> {
 									final Parameter[] parameters = method.getParameters();
 									final SpanAttribute[] spanAttributes = new SpanAttribute[1 + parameters.length];
-									spanAttributes[0] = new SpanAttribute("session.id", this.evitaSession.getId().toString());
+									spanAttributes[0] = new SpanAttribute("session.id", theSession.getId().toString());
 									if (args == null || args.length == 0) {
 										return spanAttributes;
 									} else {
@@ -666,10 +681,10 @@ final class SessionRegistry {
 							return invocation.get();
 						}
 					},
-					this.evitaSession.isRootLevelExecution()
+					theSession.isRootLevelExecution()
 				);
 			} finally {
-				this.evitaSession.decreaseNestLevel();
+				theSession.decreaseNestLevel();
 			}
 		}
 	}

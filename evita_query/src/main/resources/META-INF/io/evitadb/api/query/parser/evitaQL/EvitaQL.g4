@@ -83,6 +83,7 @@ filterConstraint
     | 'hierarchyWithinRootSelf'             (emptyArgs | args = hierarchyWithinRootSelfConstraintArgs)      # hierarchyWithinRootSelfConstraint
     | 'directRelation'                      emptyArgs                                                       # hierarchyDirectRelationConstraint
     | 'having'                              args = filterConstraintListArgs                                 # hierarchyHavingConstraint
+    | 'anyHaving'                           args = filterConstraintListArgs                                 # hierarchyAnyHavingConstraint
     | 'excludingRoot'                       emptyArgs                                                       # hierarchyExcludingRootConstraint
     | 'excluding'                           args = filterConstraintListArgs                                 # hierarchyExcludingConstraint
     | 'entityHaving'                        args = filterConstraintArgs                                     # entityHavingConstraint
@@ -156,6 +157,9 @@ requireConstraint
     | 'hierarchyContent'                    emptyArgs                                                       # emptyHierarchyContentConstraint
     | 'hierarchyContent'                    args = singleRequireHierarchyContentArgs                        # singleRequireHierarchyContentConstraint
     | 'hierarchyContent'                    args = allRequiresHierarchyContentArgs                          # allRequiresHierarchyContentConstraint
+    | 'defaultAccompanyingPriceLists'       args = classifierListArgs                                       # defaultAccompanyingPriceListsConstraint
+    | 'accompanyingPriceContentDefault'     emptyArgs                                                       # accompanyingPriceContentDefaultConstraint
+    | 'accompanyingPriceContent'            args = classifierWithOptionalValueListArgs                      # accompanyingPriceContentConstraint
     | 'priceType'                           args = valueArgs                                                # priceTypeConstraint
     | 'dataInLocalesAll'                    emptyArgs                                                       # dataInLocalesAllConstraint
     | 'dataInLocales'                       args = valueListArgs                                            # dataInLocalesConstraint

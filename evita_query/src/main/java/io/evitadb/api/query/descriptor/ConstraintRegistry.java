@@ -104,6 +104,7 @@ class ConstraintRegistry {
 		HierarchyExcluding.class,
 		HierarchyExcludingRoot.class,
 		HierarchyHaving.class,
+		HierarchyAnyHaving.class,
 		HierarchyWithin.class,
 		HierarchyWithinRoot.class,
 		// facet
@@ -159,7 +160,9 @@ class ConstraintRegistry {
 		// price
 		PriceHistogram.class,
 		PriceContent.class,
+		AccompanyingPriceContent.class,
 		PriceType.class,
+		DefaultAccompanyingPriceLists.class,
 		// references
 		ReferenceContent.class,
 		// hierarchy

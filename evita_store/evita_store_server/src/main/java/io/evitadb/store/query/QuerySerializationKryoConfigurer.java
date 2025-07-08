@@ -114,6 +114,7 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(HierarchyWithinRoot.class, new HierarchyWithinRootSerializer(), index++);
 		kryo.register(EntityScope.class, new EntityScopeSerializer(), index++);
 		kryo.register(FilterInScope.class, new FilterInScopeSerializer(), index++);
+		kryo.register(HierarchyAnyHaving.class, new HierarchyAnyHavingSerializer(), index++);
 
 		index = QUERY_BASE + 300;
 		kryo.register(AttributeNatural.class, new AttributeNaturalSerializer(), index++);
@@ -183,6 +184,9 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 
 		kryo.register(FacetIncludingChildren.class, new FacetIncludingChildrenSerializer(), index++);
 		kryo.register(FacetIncludingChildrenExcept.class, new FacetIncludingChildrenExceptSerializer(), index++);
+
+		kryo.register(DefaultAccompanyingPriceLists.class, new DefaultAccompanyingPriceSerializer(), index++);
+		kryo.register(AccompanyingPriceContent.class, new AccompanyingPriceContentSerializer(), index++);
 
 		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}

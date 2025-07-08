@@ -95,6 +95,8 @@ public class CommitProgressRecord implements CommitProgress {
 					// if the future is cancelled, we complete it with the result anyway
 					if (throwable instanceof CancellationException) {
 						thisStage.complete(result);
+					} else if (throwable != null) {
+						thisStage.completeExceptionally(throwable);
 					}
 				});
 
@@ -154,6 +156,13 @@ public class CommitProgressRecord implements CommitProgress {
 	@Nonnull
 	public CompletionStage<CommitVersions> onChangesVisible() {
 		return this.onChangesVisible;
+	}
+
+	@Override
+	public boolean isDone() {
+		return this.onConflictResolved.isDone() &&
+			this.onWalAppended.isDone() &&
+			this.onChangesVisible.isDone();
 	}
 
 	@Override

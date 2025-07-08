@@ -38,8 +38,8 @@ import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -324,6 +325,18 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	);
 
 	/**
+	 * Method updates {@link CatalogHeader} with the given entity collection headers. All other information in the catalog
+	 * header remains unchanged.
+	 *
+	 * @param catalogVersion       version of the catalog
+	 * @param entityCollectionHeaders the array of entity collection headers to update
+	 */
+	void updateEntityCollectionHeaders(
+		long catalogVersion,
+		@Nonnull EntityCollectionHeader[] entityCollectionHeaders
+	);
+
+	/**
 	 * Method creates the service allowing to store and read Write-Ahead-Log entries.
 	 */
 	@Nonnull
@@ -520,6 +533,19 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	) throws TemporalDataNotAvailableException;
 
 	/**
+	 * Creates a full backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 *
+	 * @param onStart        callback that is called before the backup starts
+	 * @param onComplete     callback that is called when the backup is finished (either successfully or with an error)
+	 * @return path to the file where the backup was created
+	 */
+	@Nonnull
+	ServerTask<?, FileForFetch> createFullBackupTask(
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	);
+
+	/**
 	 * Verifies the integrity of a system, component, or data structure.
 	 * This method performs an internal check to ensure that the state
 	 * or configuration adheres to expected standards or rules.
@@ -549,7 +575,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * via. {@link #getOrCreateEntityCollectionPersistenceService(long, String, int)}.
 	 *
 	 * You need to call {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}
-	 * or {@link #flushTrappedUpdates(long, DataStoreChanges)} before this method is called, or you will lose your
+	 * or {@link #flushTrappedUpdates(long, TrappedChanges, IntConsumer)}  before this method is called, or you will lose your
 	 * data in memory buffers.
 	 */
 	@Override

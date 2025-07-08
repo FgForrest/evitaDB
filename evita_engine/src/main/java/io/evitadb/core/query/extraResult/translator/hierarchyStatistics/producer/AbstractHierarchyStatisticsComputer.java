@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
 import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.api.query.filter.HierarchyAnyHaving;
 import io.evitadb.api.query.filter.HierarchyExcluding;
 import io.evitadb.api.query.filter.HierarchyHaving;
 import io.evitadb.api.query.filter.HierarchyWithin;
@@ -83,7 +84,7 @@ abstract class AbstractHierarchyStatisticsComputer {
 	/**
 	 * The predicate controlling which hierarchical entities will be taken into an account
 	 * in {@link LevelInfo#childrenCount()} and {@link LevelInfo#queriedEntityCount()}. The predicate is driven
-	 * by {@link HierarchyExcluding} / {@link HierarchyHaving} filtering constraint.
+	 * by {@link HierarchyExcluding} / {@link HierarchyHaving} / {@link HierarchyAnyHaving} filtering constraint.
 	 */
 	@Nullable
 	protected final HierarchyFilteringPredicate havingPredicate;

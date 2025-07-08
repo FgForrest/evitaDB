@@ -30,6 +30,7 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.GoLiveProgress;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.SessionNotFoundException;
 import io.evitadb.api.file.FileForFetch;
@@ -114,6 +115,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import java.util.function.UnaryOperator;
 import java.util.stream.BaseStream;
 import java.util.stream.Stream;
@@ -731,7 +733,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
-	 * Method used to switch catalog state to {@link CatalogState#ALIVE} and close currently used session by calling {@link EvitaSessionContract#goLiveAndClose()}.
+	 * Method used to switch catalog state to {@link CatalogState#ALIVE} and close currently used session by calling
+	 * {@link EvitaSessionContract#goLiveAndCloseWithProgress(IntConsumer)}.
 	 *
 	 * @param request          empty request
 	 * @param responseObserver observer on which errors might be thrown and result returned
@@ -740,18 +743,84 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	public void goLiveAndClose(Empty request, StreamObserver<GrpcGoLiveAndCloseResponse> responseObserver) {
 		executeWithClientContext(
 			session -> {
-				final boolean success;
 				if (session == null) {
-					success = false;
+					responseObserver.onError(new SessionNotFoundException("No session for going live found!"));
+					responseObserver.onCompleted();
 				} else {
-					success = session.goLiveAndClose();
+					session.goLiveAndCloseWithProgress()
+						.onCompletion()
+						.whenComplete(
+						(commitVersions, throwable) -> {
+							if (throwable == null) {
+								final GrpcGoLiveAndCloseResponse response = GrpcGoLiveAndCloseResponse.newBuilder()
+									.setCatalogVersion(commitVersions.catalogVersion())
+									.setCatalogSchemaVersion(commitVersions.catalogSchemaVersion())
+									.setSuccess(true)
+									.build();
+								responseObserver.onNext(response);
+							} else {
+								responseObserver.onError(throwable);
+							}
+							responseObserver.onCompleted();
+					});
 				}
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
+		);
+	}
 
-				final GrpcGoLiveAndCloseResponse response = GrpcGoLiveAndCloseResponse.newBuilder()
-					.setSuccess(success)
-					.build();
-				responseObserver.onNext(response);
-				responseObserver.onCompleted();
+	/**
+	 * Method used to switch catalog state to {@link CatalogState#ALIVE} and close currently used session by calling
+	 * {@link EvitaSessionContract#goLiveAndCloseWithProgress(IntConsumer)}. This method is streaming variant of
+	 * {@link #goLiveAndClose(Empty, StreamObserver)} method that returns progress of the go live operation.
+	 *
+	 * @param request          empty request
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void goLiveAndCloseWithProgress(Empty request, StreamObserver<GrpcGoLiveAndCloseWithProgressResponse> responseObserver) {
+		executeWithClientContext(
+			session -> {
+				if (session == null) {
+					responseObserver.onError(new SessionNotFoundException("No session for going live found!"));
+					responseObserver.onCompleted();
+				} else {
+					final GoLiveProgress goLiveProgress = session.goLiveAndCloseWithProgress(
+						new IntConsumer() {
+							private int percentDone;
+							private long lastUpdate = System.currentTimeMillis();
+
+							@Override
+							public void accept(int percentDoneCurrently) {
+								if (percentDoneCurrently > this.percentDone && this.lastUpdate + 1000 < System.currentTimeMillis()) {
+									this.percentDone = percentDoneCurrently;
+									final GrpcGoLiveAndCloseWithProgressResponse response = GrpcGoLiveAndCloseWithProgressResponse.newBuilder()
+										.setProgressInPercent(this.percentDone)
+										.build();
+									responseObserver.onNext(response);
+									this.lastUpdate = System.currentTimeMillis();
+								}
+							}
+						}
+					);
+
+					goLiveProgress.onCompletion().whenComplete(
+						(commitVersions, throwable) -> {
+							if (throwable == null) {
+								final GrpcGoLiveAndCloseWithProgressResponse response = GrpcGoLiveAndCloseWithProgressResponse.newBuilder()
+									.setCatalogVersion(commitVersions.catalogVersion())
+									.setCatalogSchemaVersion(commitVersions.catalogSchemaVersion())
+									.setProgressInPercent(100)
+									.build();
+								responseObserver.onNext(response);
+							} else {
+								responseObserver.onError(throwable);
+							}
+							responseObserver.onCompleted();
+						});
+				}
 			},
 			this.evita.getRequestExecutor(),
 			responseObserver,
@@ -780,6 +849,32 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 				responseObserver.onNext(
 					GrpcBackupCatalogResponse.newBuilder()
+						.setTaskStatus(toGrpcTaskStatus(backupTask.getStatus()))
+						.build()
+				);
+
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
+		);
+	}
+
+	/**
+	 * Method allows to fully backup a catalog and send the backup file to the client.
+	 *
+	 * @param request          empty request
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void fullBackupCatalog(Empty request, StreamObserver<GrpcFullBackupCatalogResponse> responseObserver) {
+		executeWithClientContext(
+			session -> {
+				final Task<?, FileForFetch> backupTask = session.fullBackupCatalog();
+
+				responseObserver.onNext(
+					GrpcFullBackupCatalogResponse.newBuilder()
 						.setTaskStatus(toGrpcTaskStatus(backupTask.getStatus()))
 						.build()
 				);
@@ -1732,7 +1827,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				return constraint;
 			} else if (constraint instanceof HeadConstraint headConstraint) {
 				this.appended = true;
-				final List<HeadConstraint> constraints = new ArrayList<>(labels.length + 1);
+				final List<HeadConstraint> constraints = new ArrayList<>(this.labels.length + 1);
 				constraints.add(headConstraint);
 				Arrays.stream(this.labels).filter(Objects::nonNull).forEach(constraints::add);
 

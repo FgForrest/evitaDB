@@ -316,6 +316,17 @@ message GrpcGoLiveAndCloseResponse {
   int32 catalogSchemaVersion = 3;
 }
 
+message GrpcGoLiveAndCloseWithProgressResponse {
+  // Contains next catalog version
+  int64 catalogVersion = 1;
+  // Contains the version of the catalog schema that will be valid at the moment of closing the session.
+  // If session relates to a writable transaction, this schema version becomes valid at the moment the next catalog
+  // version (i.e. the one that is returned in the response) becomes visible.
+  int32 catalogSchemaVersion = 2;
+  // The progress of the go live operation in percents.
+  int32 progressInPercent = 3;
+}
+
 // Response to a catalog backup request.
 message GrpcBackupCatalogRequest {
   // The moment in time to which the catalog should be backed up. Might be null for current time.
@@ -330,6 +341,12 @@ message GrpcBackupCatalogRequest {
 
 // Response to a catalog backup request.
 message GrpcBackupCatalogResponse {
+  // the task that is used to backup the catalog and getting its progress
+  GrpcTaskStatus taskStatus = 1;
+}
+
+// Response to a catalog full backup request.
+message GrpcFullBackupCatalogResponse {
   // the task that is used to backup the catalog and getting its progress
   GrpcTaskStatus taskStatus = 1;
 }
@@ -543,8 +560,13 @@ service EvitaSessionService {
   rpc GetAllEntityTypes(google.protobuf.Empty) returns (GrpcEntityTypesResponse);
   // Procedure that changes the state of the catalog to ALIVE and closes the session.
   rpc GoLiveAndClose(google.protobuf.Empty) returns (GrpcGoLiveAndCloseResponse);
+  // Procedure that changes the state of the catalog to ALIVE and closes the session opening a stream that listens
+  // to updates of go live procedure.
+  rpc GoLiveAndCloseWithProgress(google.protobuf.Empty) returns (GrpcGoLiveAndCloseWithProgressResponse);
   // Procedure used to backup an existing catalog.
   rpc BackupCatalog(GrpcBackupCatalogRequest) returns (GrpcBackupCatalogResponse);
+  // Procedure used to backup an existing catalog.
+  rpc FullBackupCatalog(google.protobuf.Empty) returns (GrpcFullBackupCatalogResponse);
   // Procedure that closes the session.
   rpc Close(GrpcCloseRequest) returns (GrpcCloseResponse);
   // Procedure that closes the session opening a stream that listens to transaction processing phases.

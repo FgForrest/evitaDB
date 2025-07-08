@@ -24,7 +24,6 @@ POST /rest/evita/Product/query
   },
   "require" : {
     "hierarchyCategoriesOfReference" : {
-      "emptyHierarchicalEntityBehaviour" : "REMOVE_EMPTY",
       "requirements" : [
         {
           "fromRoot" : {

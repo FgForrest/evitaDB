@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForS
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 
 import javax.annotation.Nonnull;
@@ -53,16 +54,29 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<P> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public DataFetcherResult<P> get(DataFetchingEnvironment environment) throws Exception {
 		final EntityDecorator entity = environment.getSource();
+		if (entity == null) {
+			throw new GraphQLInternalError("Missing entity");
+		}
 		final EntityQueryContext context = environment.getLocalContext();
+		if (context == null) {
+			throw new GraphQLInternalError("Missing entity context");
+		}
 
 		final String[] priceLists = resolveDesiredPricesLists(environment, context);
 		final Currency currency = resolveDesiredCurrency(environment, context);
 		final OffsetDateTime validIn = resolveDesiredValidIn(environment, entity, context);
-		final AccompanyingPrice[] desiredAccompanyingPrices = resolveDesiredAccompanyingPrices(environment);
 
-		final P result = computePrices(entity, priceLists, currency, validIn, desiredAccompanyingPrices);
+		final P result;
+		if (environment.getArguments().isEmpty()) {
+			// default priceForSale computed by evita engine from resolved constraints
+			result = computeDefaultPrices(entity);
+		} else {
+			// custom priceForSale based on specified user arguments on fields, doesn't use evita defaults
+			final AccompanyingPrice[] desiredAccompanyingPrices = resolveDesiredAccompanyingPricesForCustomPriceForSale(environment);
+			result = computePrices(entity, priceLists, currency, validIn, desiredAccompanyingPrices);
+		}
 
 		final Locale customLocale = environment.getArgument(PriceForSaleFieldHeaderDescriptor.LOCALE.name());
 		final EntityQueryContext newContext = context.toBuilder()
@@ -80,7 +94,16 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 	}
 
 	/**
-	 * Computes actual price for sale or all prices for sale. Also should prefetch accompanying prices for nested price
+	 * Computes actual default price for sale or all prices for sale based on request constraints.
+	 *
+	 * @param entity parent entity
+	 * @return computed price for sale
+	 */
+	@Nullable
+	protected abstract P computeDefaultPrices(@Nonnull EntityDecorator entity);
+
+	/**
+	 * Computes actual custom price for sale or all prices for sale based on user field arguments. Also should prefetch accompanying prices for nested price
 	 * fields.
 	 *
 	 * @param entity parent entity
@@ -100,6 +123,7 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 	@Nonnull
 	protected String[] resolveDesiredPricesLists(@Nonnull DataFetchingEnvironment environment,
 	                                             @Nonnull EntityQueryContext context) {
+		//noinspection unchecked
 		return Optional.ofNullable((List<String>) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LISTS.name()))
 			.map(it -> it.toArray(String[]::new))
 			.or(() -> Optional.ofNullable((String) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
@@ -130,14 +154,19 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 	}
 
 	@Nonnull
-	protected AccompanyingPrice[] resolveDesiredAccompanyingPrices(@Nonnull DataFetchingEnvironment environment) {
+	protected AccompanyingPrice[] resolveDesiredAccompanyingPricesForCustomPriceForSale(@Nonnull DataFetchingEnvironment environment) {
 		return SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), environment.getSelectionSet())
 			.stream()
-			.map(f -> new AccompanyingPrice(
-				f.getAlias() != null ? f.getAlias() : f.getName(),
-				((List<String>) f.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name()))
-					.toArray(String[]::new)
-			))
+			.map(f -> {
+				final String priceName = f.getAlias() != null ? f.getAlias() : f.getName();
+
+				//noinspection unchecked
+				final List<String> priceLists = (List<String>) f.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name());
+				if (priceLists == null || priceLists.isEmpty()) {
+					throw new GraphQLInvalidArgumentException("Custom price for sale requires custom price lists for accompanying prices.");
+				}
+				return new AccompanyingPrice(priceName, priceLists.toArray(String[]::new));
+			})
 			.toArray(AccompanyingPrice[]::new);
 	}
 }

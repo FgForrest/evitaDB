@@ -496,6 +496,7 @@ if (currency != null) {
 		final List<SealedEntity> originalProducts = (List<SealedEntity>) dataCarrier.getValueByName("originalProducts");
 		final List<SealedEntity> productsWithCzkSellingPrice = originalProducts
 			.stream()
+			.filter(it -> it.getLocales().contains(Locale.ENGLISH))
 			.filter(it -> it.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC).isPresent())
 			.limit(2)
 			.toList();

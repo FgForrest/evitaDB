@@ -3,7 +3,10 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 	session -> {
 		return session.querySealedEntity(
 			query(
-				collection("Product"),
+				head(
+					collection("Product"),
+					label("query-name", "my-query")
+				),
 				filterBy(
 					and(
 						entityPrimaryKeyInSet(1, 2, 3),

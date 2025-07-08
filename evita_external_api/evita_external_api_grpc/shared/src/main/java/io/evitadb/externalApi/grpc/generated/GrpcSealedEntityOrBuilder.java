@@ -655,4 +655,58 @@ public interface GrpcSealedEntityOrBuilder extends
 
   io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit getReferenceOffsetAndLimitsOrThrow(
       java.lang.String key);
+
+  /**
+   * <pre>
+   * Contains prices that has been requested to be calculated beside the main price for sale.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+   */
+  int getAccompanyingPricesCount();
+  /**
+   * <pre>
+   * Contains prices that has been requested to be calculated beside the main price for sale.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+   */
+  boolean containsAccompanyingPrices(
+      java.lang.String key);
+  /**
+   * Use {@link #getAccompanyingPricesMap()} instead.
+   */
+  @java.lang.Deprecated
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice>
+  getAccompanyingPrices();
+  /**
+   * <pre>
+   * Contains prices that has been requested to be calculated beside the main price for sale.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+   */
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice>
+  getAccompanyingPricesMap();
+  /**
+   * <pre>
+   * Contains prices that has been requested to be calculated beside the main price for sale.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+   */
+
+  io.evitadb.externalApi.grpc.generated.GrpcPrice getAccompanyingPricesOrDefault(
+      java.lang.String key,
+      io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue);
+  /**
+   * <pre>
+   * Contains prices that has been requested to be calculated beside the main price for sale.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+   */
+
+  io.evitadb.externalApi.grpc.generated.GrpcPrice getAccompanyingPricesOrThrow(
+      java.lang.String key);
 }

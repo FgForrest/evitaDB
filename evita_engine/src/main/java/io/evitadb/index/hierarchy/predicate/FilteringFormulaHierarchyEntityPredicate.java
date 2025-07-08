@@ -34,23 +34,33 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
+import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static io.evitadb.index.bitmap.RoaringBitmapBackedBitmap.getRoaringBitmap;
 
 /**
  * The predicate evaluates the nested query filter function to get the {@link Bitmap} of all hierarchy entity primary
@@ -65,17 +75,17 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 */
 	@Nullable private final int[] parent;
 	/**
-	 * The result that should be returned for parent node (constant).
+	 * Field contains the original filter by constraint the {@link #filteringFormula} was created by.
 	 */
-	private final boolean parentResult;
+	@Nullable private final FilterBy filterBy;
 	/**
 	 * Field contains the original filter by constraint the {@link #filteringFormula} was created by.
 	 */
-	@Getter @Nonnull private final FilterBy filterBy;
+	@Nullable private final FilterBy anyChildFilter;
 	/**
 	 * The name of the target entity schema that is used to create the {@link #filteringFormula}.
 	 */
-	@Nonnull private final String targetEntitySchema;
+	@Nonnull private final String targetEntityType;
 	/**
 	 * The scope of the target entity schema.
 	 */
@@ -98,34 +108,39 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 */
 	private boolean initialized;
 
-
 	/**
 	 * This constructor should be used from filtering translators that need to take the attributes on references
 	 * into an account.
 	 *
 	 * @param parent          identification of the root node this predicate relates to
-	 * @param parentResult    the result that should be returned for parent node (constant)
 	 * @param queryContext    current query context
 	 * @param filterBy        the filtering that targets reference attributes but may also contain {@link EntityHaving}
 	 *                        constraint (but only when reference schema is not null and the entity targets different entity hierarchy)
+	 * @param anyChildFilter  the filtering that means, node is included in hierarchy tree if it has at least one child
+	 *                        satisfying the filter
 	 * @param referenceSchema the optional reference schema if the entity targets itself hierarchy tree
 	 */
 	public FilteringFormulaHierarchyEntityPredicate(
 		@Nullable int[] parent,
-		boolean parentResult,
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull Set<Scope> requestedScopes,
-		@Nonnull FilterBy filterBy,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterBy anyChildFilter,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
+		Assert.isPremiseValid(
+			filterBy != null || anyChildFilter != null,
+			"At least one of the filterBy or anyChildFilter must be specified!"
+		);
+
 		this.parent = parent;
-		this.parentResult = parentResult;
 		this.filterBy = filterBy;
+		this.anyChildFilter = anyChildFilter;
 		try {
 			final Supplier<String> stepDescriptionSupplier =
 				() -> referenceSchema == null ?
-					"Hierarchy statistics of `" + queryContext.getSchema().getName() + "` : " + filterBy
-					: "Hierarchy statistics of `" + referenceSchema.getName() + "` (`" + referenceSchema.getReferencedEntityType() + "`): " + filterBy;
+					"Hierarchy statistics of `" + queryContext.getSchema().getName() + "` : " + getFilterDescription()
+					: "Hierarchy statistics of `" + referenceSchema.getName() + "` (`" + referenceSchema.getReferencedEntityType() + "`): " + getFilterDescription();
 			queryContext.pushStep(
 				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
 				stepDescriptionSupplier
@@ -138,50 +153,102 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			);
 			this.requestedScopes = requestedScopes;
 			final Formula theFormula;
+			final Formula theAnyChildFormula;
+			final Scope scope = requestedScopes.iterator().next();
+			final GlobalEntityIndex globalEntityIndex;
 			if (referenceSchema == null) {
 				Assert.isTrue(
 					requestedScopes.size() == 1,
 					() -> "The query contains multiple scopes: " +
 						requestedScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ". " +
-						"The hierarchy filter can't be resolved - hierarchy tree is maintained separately for each scope and multiple trees cannot be merged."
+						"The hierarchy filter can't be resolved - a hierarchy tree is maintained separately for each scope, and multiple trees cannot be merged."
 				);
 
-				final Scope scope = requestedScopes.iterator().next();
-				this.targetEntitySchema = queryContext.getSchema().getName();
-				theFormula = queryContext.analyse(
+				this.targetEntityType = queryContext.getSchema().getName();
+				final AttributeSchemaAccessor attributeSchemaAccessor = new AttributeSchemaAccessor(queryContext);
+				globalEntityIndex = queryContext.getGlobalEntityIndex(scope);
+				final List<GlobalEntityIndex> globalEntityIndices = Collections.singletonList(globalEntityIndex);
+				final Function<FilterBy, Formula> formulaFactory = theFilterBy -> queryContext.analyse(
 					theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
 						GlobalEntityIndex.class,
-						() -> Collections.singletonList(queryContext.getGlobalEntityIndex(scope)),
+						() -> globalEntityIndices,
 						null,
 						queryContext.getSchema(),
 						null,
 						null,
 						null,
-						new AttributeSchemaAccessor(queryContext),
+						attributeSchemaAccessor,
 						(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
 						() -> {
-							filterBy.accept(theFilterByVisitor);
+							theFilterBy.accept(theFilterByVisitor);
 							// get the result and clear the visitor internal structures
 							return theFilterByVisitor.getFormulaAndClear();
 						}
 					)
 				);
+				theFormula = filterBy == null ? null : formulaFactory.apply(filterBy);
+				theAnyChildFormula = anyChildFilter == null ? null : formulaFactory.apply(anyChildFilter);
 			} else {
-				this.targetEntitySchema = referenceSchema.getReferencedEntityType();
-				theFormula = FilterByVisitor.createFormulaForTheFilter(
-					queryContext, requestedScopes, filterBy,
-					this.targetEntitySchema, stepDescriptionSupplier
-				);
+				this.targetEntityType = referenceSchema.getReferencedEntityType();
+				theFormula = filterBy == null ?
+					null :
+					FilterByVisitor.createFormulaForTheFilter(
+						queryContext, requestedScopes, filterBy,
+						this.targetEntityType, stepDescriptionSupplier
+					);
+				theAnyChildFormula = anyChildFilter == null ?
+					null :
+					FilterByVisitor.createFormulaForTheFilter(
+						queryContext, requestedScopes, anyChildFilter,
+						this.targetEntityType, stepDescriptionSupplier
+					);
+				globalEntityIndex = anyChildFilter == null ?
+					null :
+					queryContext.getGlobalEntityIndexIfExists(this.targetEntityType, scope).orElse(null);
 			}
 			// create a deferred formula that will log the execution time to query telemetry
 			this.filteringFormula = new DeferredFormula(
 				new FormulaWrapper(
-					theFormula,
+					// this is only fake formula used to estimate cardinality and computation time of the formula
+					// wrapper and other methods declared on formula interface except the compute() method
+					FormulaFactory.or(
+						Stream.of(theFormula, theAnyChildFormula)
+							.filter(Objects::nonNull)
+							.toArray(Formula[]::new)
+					),
 					(executionContext, formula) -> {
 						try {
 							executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
-							formula.initialize(executionContext);
-							return formula.compute();
+							final Bitmap theFormulaResult;
+							if (theFormula != null) {
+								theFormula.initialize(executionContext);
+								theFormulaResult = theFormula.compute();
+							} else {
+								theFormulaResult = EmptyBitmap.INSTANCE;
+							}
+							final Bitmap theAnyChildFormulaResult;
+							if (theAnyChildFormula != null) {
+								theAnyChildFormula.initialize(executionContext);
+								theAnyChildFormulaResult = globalEntityIndex == null ?
+									theAnyChildFormula.compute() :
+									globalEntityIndex.listNodesIncludingParents(theAnyChildFormula.compute());
+							} else {
+								theAnyChildFormulaResult = EmptyBitmap.INSTANCE;
+							}
+							if (theFormula != null && theAnyChildFormula != null) {
+								return new BaseBitmap(
+									RoaringBitmapBackedBitmap.and(
+										new RoaringBitmap[] {
+											getRoaringBitmap(theFormulaResult),
+											getRoaringBitmap(theAnyChildFormulaResult)
+										}
+									)
+								);
+							} else if (theFormula != null) {
+								return theFormulaResult;
+							} else {
+								return theAnyChildFormulaResult;
+							}
 						} finally {
 							executionContext.popStep();
 						}
@@ -201,16 +268,16 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 * @param filteringFormula the formula containing valid entity primary keys that should be matched by this predicate
 	 */
 	public FilteringFormulaHierarchyEntityPredicate(
-		@Nonnull String targetEntitySchema,
+		@Nonnull String targetEntityType,
 		@Nonnull Set<Scope> requestedScopes,
 		@Nonnull FilterBy filterBy,
 		@Nonnull Formula filteringFormula
 	) {
 		this.parent = null;
-		this.parentResult = false;
-		this.targetEntitySchema = targetEntitySchema;
+		this.targetEntityType = targetEntityType;
 		this.requestedScopes = requestedScopes;
 		this.filterBy = filterBy;
+		this.anyChildFilter = null;
 		this.filteringFormula = filteringFormula;
 		this.hash = this.filteringFormula.getHash();
 	}
@@ -232,8 +299,8 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
 		this.parent = null;
-		this.parentResult = false;
 		this.filterBy = filterBy;
+		this.anyChildFilter = null;
 		try {
 			final Supplier<String> stepDescriptionSupplier =
 				() -> referenceSchema == null ?
@@ -249,7 +316,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 				Collections.emptyList(),
 				TargetIndexes.EMPTY
 			);
-			this.targetEntitySchema = entitySchema.getName();
+			this.targetEntityType = entitySchema.getName();
 			this.requestedScopes = Set.of(entityIndex.getIndexKey().scope());
 			// now analyze the filter by in a nested context with exchanged primary entity index
 			final Formula theFormula = queryContext.analyse(
@@ -294,6 +361,18 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		}
 	}
 
+	/**
+	 * Generates a description of the filtering criteria applied to the hierarchy entity predicate.
+	 * The description includes details about the primary filtering constraint and any child-specific filters.
+	 *
+	 * @return A string representation of the filter criteria. If no filters are applied, returns an empty string.
+	 */
+	@Nonnull
+	public String getFilterDescription() {
+		return (this.filterBy == null ? "" : this.filterBy) +
+			(this.anyChildFilter == null ? "" : (this.filterBy == null ? "child: " + this.anyChildFilter : " and any child matching: " + this.anyChildFilter));
+	}
+
 	@Override
 	public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
 		if (!this.initialized) {
@@ -310,19 +389,17 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 
 	@Override
 	public boolean test(int hierarchyNodeId, int level, int distance) {
-		return !stopNodeEncountered;
+		return !this.stopNodeEncountered;
 	}
 
 	@Override
 	public void traverse(int hierarchyNodeId, int level, int distance, @Nonnull Runnable traverser) {
-		if (parent != null && Arrays.stream(parent).anyMatch(it -> it == hierarchyNodeId)) {
-			traverser.run();
-		} else if (filteringFormula.compute().contains(hierarchyNodeId)) {
+		if (this.filteringFormula.compute().contains(hierarchyNodeId)) {
 			try {
-				stopNodeEncountered = true;
+				this.stopNodeEncountered = true;
 				traverser.run();
 			} finally {
-				stopNodeEncountered = false;
+				this.stopNodeEncountered = false;
 			}
 		} else {
 			traverser.run();
@@ -331,10 +408,16 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 
 	@Override
 	public boolean test(int hierarchyNodeId) {
-		if (parent != null && Arrays.stream(parent).anyMatch(it -> it == hierarchyNodeId)) {
-			return parentResult;
-		}
-		return filteringFormula.compute().contains(hierarchyNodeId);
+		return this.filteringFormula.compute().contains(hierarchyNodeId);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = Arrays.hashCode(this.parent);
+		result = 31 * result + (this.filterBy == null ? 0 : this.filterBy.hashCode());
+		result = 31 * result + this.targetEntityType.hashCode();
+		result = 31 * result + this.requestedScopes.hashCode();
+		return result;
 	}
 
 	@Override
@@ -343,30 +426,19 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		if (o == null || getClass() != o.getClass()) return false;
 
 		FilteringFormulaHierarchyEntityPredicate that = (FilteringFormulaHierarchyEntityPredicate) o;
-		return parentResult == that.parentResult &&
-			Arrays.equals(parent, that.parent) &&
-			filterBy.equals(that.filterBy) &&
-			targetEntitySchema.equals(that.targetEntitySchema) &&
-			requestedScopes.equals(that.requestedScopes);
-	}
-
-	@Override
-	public int hashCode() {
-		int result = Arrays.hashCode(parent);
-		result = 31 * result + Boolean.hashCode(parentResult);
-		result = 31 * result + filterBy.hashCode();
-		result = 31 * result + targetEntitySchema.hashCode();
-		result = 31 * result + requestedScopes.hashCode();
-		return result;
+		return Arrays.equals(this.parent, that.parent) &&
+			Objects.equals(this.filterBy, that.filterBy) &&
+			this.targetEntityType.equals(that.targetEntityType) &&
+			this.requestedScopes.equals(that.requestedScopes);
 	}
 
 	@Override
 	public String toString() {
 		return "HIERARCHY (" +
-			"parent=" + Arrays.toString(parent) +
-			", filterBy=" + filterBy +
-			", targetEntitySchema='" + targetEntitySchema + '\'' +
-			", requestedScopes=" + requestedScopes.stream().map(Enum::toString).collect(Collectors.joining(", ")) +
+			"parent=" + Arrays.toString(this.parent) +
+			", filterBy=" + this.filterBy +
+			", targetEntitySchema='" + this.targetEntityType + '\'' +
+			", requestedScopes=" + this.requestedScopes.stream().map(Enum::toString).collect(Collectors.joining(", ")) +
 			')';
 	}
 }

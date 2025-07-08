@@ -34,7 +34,7 @@
 		<version>2025.5-SNAPSHOT</version>
 	</parent>
 	<properties>
-		<antlr4.version>4.9.2</antlr4.version>
+		<antlr4.version>4.13.2</antlr4.version>
 		<sonar.exclusions>src/main/java/io/evitadb/api/query/parser/grammar/**</sonar.exclusions>
 	</properties>
 	<dependencies>

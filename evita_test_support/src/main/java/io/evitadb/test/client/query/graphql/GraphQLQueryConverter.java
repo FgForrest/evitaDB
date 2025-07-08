@@ -78,7 +78,8 @@ public class GraphQLQueryConverter {
 		FacetGroupsNegation.class,
 		FacetCalculationRules.class,
 		FacetGroupsExclusivity.class,
-		PriceType.class
+		PriceType.class,
+		DefaultAccompanyingPriceLists.class
 	);
 
 	@Nullable private final EvitaContract evita;
@@ -115,7 +116,7 @@ public class GraphQLQueryConverter {
 		final OrderConstraintToJsonConverter orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
 		final RequireConstraintToJsonConverter requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(
 			catalogSchema,
-			allowedRequireConstraints::contains,
+			this.allowedRequireConstraints::contains,
 			new AtomicReference<>(filterConstraintToJsonConverter),
 			new AtomicReference<>(orderConstraintToJsonConverter)
 		);

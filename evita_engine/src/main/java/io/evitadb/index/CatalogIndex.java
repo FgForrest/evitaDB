@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogRelatedDataStructure;
 import io.evitadb.core.Transaction;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -49,10 +50,7 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -147,18 +145,15 @@ public class CatalogIndex implements
 		);
 	}
 
-	@Nonnull
 	@Override
-	public Collection<StoragePart> getModifiedStorageParts() {
-		final List<StoragePart> dirtyParts = new LinkedList<>();
-		if (dirty.isTrue()) {
-			dirtyParts.add(createStoragePart());
+	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
+		if (this.dirty.isTrue()) {
+			trappedChanges.addChangeToStore(createStoragePart());
 		}
-		for (Entry<AttributeKey, GlobalUniqueIndex> entry : uniqueIndex.entrySet()) {
+		for (Entry<AttributeKey, GlobalUniqueIndex> entry : this.uniqueIndex.entrySet()) {
 			ofNullable(entry.getValue().createStoragePart(entry.getKey()))
-				.ifPresent(dirtyParts::add);
+				.ifPresent(trappedChanges::addChangeToStore);
 		}
-		return dirtyParts;
 	}
 
 	/**

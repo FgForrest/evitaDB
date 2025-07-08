@@ -1,5 +1,9 @@
 {
   queryProduct(
+    label: {
+      name: "query-name",
+      value: "my-query"
+    },
     filterBy: {
       and: [
         {
@@ -46,15 +50,14 @@
           depthInMm
           codeShort
           published
-          unit
           isAlias
           saleEnded
           minOrderQuantity
           heightSourceA
           heightInMm
           maxOrderQuantity
-          changed
           status
+          changed
           relatedFiles
           widthMerge
           code
@@ -84,7 +87,6 @@
           snr
           stockItemPrimaryKey
           width
-          snippetExpirationDateTime
           validity
           rearCameraResoluti
           widthInMm

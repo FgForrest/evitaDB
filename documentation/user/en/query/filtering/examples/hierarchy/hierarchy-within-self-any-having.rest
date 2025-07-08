@@ -1,0 +1,46 @@
+POST /rest/evita/Category/query
+
+{
+  "filterBy" : {
+    "hierarchyWithinRootSelf" : {
+      "having" : [
+        {
+          "attributeStatusEquals" : "ACTIVE"
+        }
+      ],
+      "anyHaving" : [
+        {
+          "and" : [
+            {
+              "referenceTagsHaving" : [
+                {
+                  "entityHaving" : {
+                    "attributeCodeEquals" : "HP"
+                  }
+                }
+              ],
+              "referenceProductsHaving" : [
+                {
+                  "entityHaving" : {
+                    "attributeStatusEquals" : "ACTIVE"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "require" : {
+    "page" : {
+      "number" : 1,
+      "size" : 20
+    },
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ]
+    }
+  }
+}

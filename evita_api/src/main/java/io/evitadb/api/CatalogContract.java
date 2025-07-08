@@ -54,6 +54,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
@@ -251,11 +252,21 @@ public interface CatalogContract {
 	Optional<SealedEntitySchema> getEntitySchema(@Nonnull String entityType);
 
 	/**
+	 * Determines whether the entity or process is going live. When the catalog is in the process of going live,
+	 * no sessions should be created or mutations applied to the catalog.
+	 *
+	 * @return true if the entity or process is going live, otherwise false.
+	 */
+	boolean isGoingLive();
+
+	/**
 	 * Changes state of the catalog from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}.
 	 *
+	 * @param progressObserver optional observer that will be notified about the progress of the go-live operation
 	 * @see CatalogState
 	 */
-	boolean goLive();
+	@Nonnull
+	GoLiveProgress goLive(@Nullable IntConsumer progressObserver);
 
 	/**
 	 * Method checks whether there are new records in the WAL that haven't been incorporated into the catalog yet and
@@ -349,6 +360,22 @@ public interface CatalogContract {
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
 	) throws TemporalDataNotAvailableException;
+
+	/**
+	 * Creates a full backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 * Full backup includes all data files, WAL files, and the catalog header file from the catalog storage.
+	 * After restoring catalog from the full backup, the catalog will contain all the data - so you should be able to
+	 * create even point-in-time backups from it.
+	 *
+	 * @param onStart        callback that will be executed before the backup process starts
+	 * @param onComplete     callback that will be executed when the backup process is completed
+	 * @return jobId of the backup process
+	 */
+	@Nonnull
+	ServerTask<?, FileForFetch> fullBackup(
+		@Nullable LongConsumer onStart,
+		@Nullable LongConsumer onComplete
+	);
 
 	/**
 	 * Returns catalog statistics aggregating basic information about the catalog and the data stored in it.

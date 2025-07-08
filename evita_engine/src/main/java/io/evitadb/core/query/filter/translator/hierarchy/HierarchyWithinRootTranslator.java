@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,8 +24,6 @@
 package io.evitadb.core.query.filter.translator.hierarchy;
 
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
-import io.evitadb.api.query.ConstraintContainer;
-import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -50,7 +48,6 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
 
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -100,12 +97,9 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 								null,
 								queryContext,
 								scopesToLookup,
-								of(new FilterBy(hierarchyWithinRoot.getHavingChildrenFilter()))
-									.filter(ConstraintContainer::isApplicable)
-									.orElse(null),
-								of(new FilterBy(hierarchyWithinRoot.getExcludedChildrenFilter()))
-									.filter(ConstraintContainer::isApplicable)
-									.orElse(null),
+								hierarchyWithinRoot.getHavingChildrenFilter(),
+								hierarchyWithinRoot.getHavingAnyChildFilter(),
+								hierarchyWithinRoot.getExcludedChildrenFilter(),
 								referenceSchema
 							),
 							hierarchyWithinRoot.isDirectRelation(),
@@ -154,15 +148,15 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 			);
 		}
 
-		final Formula matchingHierarchyNodIds = createFormulaFromHierarchyIndex(hierarchyWithinRoot, filterByVisitor);
+		final Formula matchingHierarchyNodeIds = createFormulaFromHierarchyIndex(hierarchyWithinRoot, filterByVisitor);
 		if (hierarchyWithinRoot.getReferenceName().isEmpty()) {
-			return new HierarchyFormula(matchingHierarchyNodIds);
+			return new HierarchyFormula(matchingHierarchyNodeIds);
 		} else {
 			return new HierarchyFormula(
 				createFormulaForReferencingEntities(
 					hierarchyWithinRoot,
 					filterByVisitor,
-					() -> matchingHierarchyNodIds
+					() -> matchingHierarchyNodeIds
 				)
 			);
 		}

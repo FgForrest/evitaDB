@@ -773,7 +773,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	}
 
 	@Override
-	public boolean isArgumentImplicitForSuffix(@Nonnull Serializable argument) {
+	public boolean isArgumentImplicitForSuffix(int argumentPosition, @Nonnull Serializable argument) {
 		return argument instanceof ManagedReferencesBehaviour mrb &&
 			mrb == ManagedReferencesBehaviour.ANY;
 	}

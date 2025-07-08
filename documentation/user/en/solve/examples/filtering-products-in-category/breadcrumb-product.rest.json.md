@@ -12,6 +12,7 @@
         ],
         "allLocales" : [
           "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -30,7 +31,7 @@
             "referencedEntity" : {
               "primaryKey" : 66470,
               "type" : "Category",
-              "version" : 1,
+              "version" : 2,
               "scope" : "LIVE",
               "locales" : [
                 "en"
@@ -55,12 +56,12 @@
             "referencedEntity" : {
               "primaryKey" : 66479,
               "type" : "Category",
-              "version" : 1,
+              "version" : 2,
               "scope" : "LIVE",
               "parentEntity" : {
                 "primaryKey" : 66467,
                 "type" : "Category",
-                "version" : 1,
+                "version" : 2,
                 "scope" : "LIVE",
                 "locales" : [
                   "en"

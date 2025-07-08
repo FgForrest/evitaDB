@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.filter.HierarchyAnyHaving;
 import io.evitadb.api.query.filter.HierarchyExcluding;
 import io.evitadb.api.query.filter.HierarchyHaving;
 import io.evitadb.api.query.filter.HierarchyWithin;
@@ -120,10 +121,10 @@ import static java.util.Optional.of;
  * </pre>
  *
  * The calculated result for `fromNode` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
- * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
- * the `fromNode` respects them. The reason is simple: when you render a menu for the query result, you want
- * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
- * remains consistent for the end user.
+ * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
+ * or {@link HierarchyExcluding}, the `fromNode` respects them. The reason is simple: when you render a menu for
+ * the query result, you want the calculated statistics to respect the rules that apply to the hierarchyWithin so that
+ * the calculated number remains consistent for the end user.
  *
  * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a></p>
  *

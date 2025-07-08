@@ -1,0 +1,17 @@
+query(
+  collection("Product"),
+  filterBy(
+    attributeEquals("code", "iget-blackview-tab-g11"),
+    priceInCurrency("EUR"),
+    priceInPriceLists("basic")
+  ),
+  require(
+    defaultAccompanyingPriceLists("reference"),
+    entityFetch(
+      priceContent(RESPECTING_FILTER),
+      accompanyingPriceContentDefault(),
+      accompanyingPriceContent("custom"),
+      accompanyingPriceContent("special", "employee-basic-price", "b2b-basic-price"),
+    )
+  )
+)

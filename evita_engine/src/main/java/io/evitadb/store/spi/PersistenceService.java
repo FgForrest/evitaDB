@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,10 +23,11 @@
 
 package io.evitadb.store.spi;
 
-import io.evitadb.core.buffer.DataStoreChanges;
+import io.evitadb.core.buffer.TrappedChanges;
 
 import javax.annotation.Nonnull;
 import java.io.Closeable;
+import java.util.function.IntConsumer;
 
 /**
  * This interface defines shared methods for permited set of persistence services.
@@ -39,6 +40,8 @@ sealed interface PersistenceService
 
 	/**
 	 * Returns true if underlying file was not yet created.
+	 *
+	 * @return true if underlying file was not yet created
 	 */
 	boolean isNew();
 
@@ -46,10 +49,15 @@ sealed interface PersistenceService
 	 * Flushes all trapped memory data to the persistent storage.
 	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
 	 */
-	void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreChanges dataStoreChanges);
+	void flushTrappedUpdates(
+		long catalogVersion,
+		@Nonnull TrappedChanges trappedChanges,
+		@Nonnull IntConsumer trappedUpdatedProgress
+	);
 
 	/**
 	 * Returns true if the persistence service is closed.
+	 *
 	 * @return true if the persistence service is closed
 	 */
 	boolean isClosed();

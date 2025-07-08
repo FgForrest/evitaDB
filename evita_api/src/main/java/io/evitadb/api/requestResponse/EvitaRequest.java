@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
 import io.evitadb.api.requestResponse.chunk.NoTransformer;
 import io.evitadb.api.requestResponse.chunk.PageTransformer;
 import io.evitadb.api.requestResponse.chunk.StripTransformer;
+import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -55,6 +56,7 @@ import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
@@ -76,14 +78,13 @@ import static java.util.Optional.ofNullable;
  */
 public class EvitaRequest {
 	private static final ConditionalGap[] EMPTY_GAPS = new ConditionalGap[0];
-	private static final String[] EMPTY_PRICE_LISTS = new String[0];
 
 	@Getter private final Query query;
 	@Getter private final OffsetDateTime alignedNow;
 	private final String entityType;
-	@Nullable private Label[] labels;
 	private final Locale implicitLocale;
 	@Getter private final Class<?> expectedType;
+	@Nullable private Label[] labels;
 	@Nullable private int[] primaryKeys;
 	private boolean localeExamined;
 	@Nullable private Locale locale;
@@ -107,6 +108,8 @@ public class EvitaRequest {
 	private Boolean requiresPriceLists;
 	private String[] priceLists;
 	private String[] additionalPriceLists;
+	private String[] defaultAccompanyingPricePriceLists;
+	@Nullable private AccompanyingPrice[] accompanyingPrices;
 	@Nullable private Integer start;
 	@Nullable private ConditionalGap[] conditionalGaps;
 	@Nullable private Map<String, HierarchyFilterConstraint> hierarchyWithin;
@@ -205,6 +208,8 @@ public class EvitaRequest {
 		this.currency = evitaRequest.currency;
 		this.requiresPriceLists = evitaRequest.requiresPriceLists;
 		this.additionalPriceLists = evitaRequest.additionalPriceLists;
+		this.defaultAccompanyingPricePriceLists = evitaRequest.defaultAccompanyingPricePriceLists;
+		this.accompanyingPrices = evitaRequest.accompanyingPrices;
 		this.priceLists = evitaRequest.priceLists;
 		this.start = evitaRequest.start;
 		this.conditionalGaps = evitaRequest.conditionalGaps;
@@ -230,9 +235,10 @@ public class EvitaRequest {
 	public EvitaRequest(
 		@Nonnull EvitaRequest evitaRequest,
 		@Nullable String entityType,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
 		@Nonnull EntityFetchRequire requirements
 	) {
-
 		this.requiresEntity = true;
 		this.entityRequirement = new EntityFetch(requirements.getRequirements());
 		this.entityType = entityType;
@@ -244,8 +250,8 @@ public class EvitaRequest {
 						evitaRequest.query.getHead(),
 						(constraintCloneVisitor, constraint) -> constraint instanceof Collection ? null : constraint
 					),
-				evitaRequest.query.getFilterBy(),
-				evitaRequest.query.getOrderBy(),
+				filterBy == null ? evitaRequest.query.getFilterBy() : filterBy,
+				orderBy == null ? evitaRequest.query.getOrderBy() : orderBy,
 				require(this.entityRequirement)
 			) :
 			Query.query(
@@ -255,22 +261,30 @@ public class EvitaRequest {
 						evitaRequest.query.getHead(),
 						(constraintCloneVisitor, constraint) -> constraint instanceof Collection ? collection(entityType) : constraint
 					),
-				evitaRequest.query.getFilterBy(),
-				evitaRequest.query.getOrderBy(),
+				filterBy == null ? evitaRequest.query.getFilterBy() : filterBy,
+				orderBy == null ? evitaRequest.query.getOrderBy() : orderBy,
 				require(this.entityRequirement)
 			);
 		this.labels = evitaRequest.labels;
 		this.alignedNow = evitaRequest.alignedNow;
 		this.implicitLocale = evitaRequest.implicitLocale;
 		this.primaryKeys = evitaRequest.primaryKeys;
-		this.localeExamined = evitaRequest.localeExamined;
-		this.locale = evitaRequest.locale;
-		if (Arrays.stream(requirements.getRequirements()).anyMatch(it -> it instanceof DataInLocales)) {
+		if (filterBy != null) {
+			this.localeExamined = true;
+			this.locale = ofNullable(QueryUtils.findConstraint(filterBy, EntityLocaleEquals.class))
+				.map(EntityLocaleEquals::getLocale)
+				.orElseGet(evitaRequest::getLocale);
+		} else {
+			this.localeExamined = evitaRequest.localeExamined;
+			this.locale = evitaRequest.locale;
+		}
+		if (Arrays.stream(requirements.getRequirements()).anyMatch(DataInLocales.class::isInstance)) {
 			this.requiredLocales = null;
 			this.requiredLocaleSet = null;
 		} else {
 			this.requiredLocales = evitaRequest.requiredLocales;
-			this.requiredLocaleSet = evitaRequest.requiredLocaleSet;
+			this.requiredLocaleSet = this.locale == null ?
+				evitaRequest.requiredLocaleSet : Set.of(this.locale);
 		}
 		this.queryPriceMode = evitaRequest.queryPriceMode;
 		this.priceValidInTimeSet = evitaRequest.priceValidInTimeSet;
@@ -289,6 +303,8 @@ public class EvitaRequest {
 		this.currency = evitaRequest.currency;
 		this.requiresPriceLists = evitaRequest.requiresPriceLists;
 		this.additionalPriceLists = evitaRequest.additionalPriceLists;
+		this.defaultAccompanyingPricePriceLists = evitaRequest.defaultAccompanyingPricePriceLists;
+		this.accompanyingPrices = null;
 		this.priceLists = evitaRequest.priceLists;
 		this.start = evitaRequest.start;
 		this.conditionalGaps = evitaRequest.conditionalGaps;
@@ -342,6 +358,8 @@ public class EvitaRequest {
 		this.requiresPriceLists = evitaRequest.isRequiresPriceLists();
 		this.priceLists = evitaRequest.getRequiresPriceLists();
 		this.additionalPriceLists = evitaRequest.getFetchesAdditionalPriceLists();
+		this.defaultAccompanyingPricePriceLists = evitaRequest.getDefaultAccompanyingPricePriceLists();
+		this.accompanyingPrices = null;
 		this.localeExamined = true;
 		this.locale = locale == null ? evitaRequest.getLocale() : locale;
 		this.requiredLocales = null;
@@ -638,18 +656,79 @@ public class EvitaRequest {
 			final EntityFetch entityFetch = QueryUtils.findRequire(this.query, EntityFetch.class, SeparateEntityContentRequireContainer.class);
 			if (entityFetch == null) {
 				this.entityPrices = PriceContentMode.NONE;
-				this.additionalPriceLists = EMPTY_PRICE_LISTS;
+				this.additionalPriceLists = ArrayUtils.EMPTY_STRING_ARRAY;
 			} else {
 				final Optional<PriceContent> priceContentRequirement = ofNullable(QueryUtils.findConstraint(entityFetch, PriceContent.class, SeparateEntityContentRequireContainer.class));
 				this.entityPrices = priceContentRequirement
 					.map(PriceContent::getFetchMode)
 					.orElse(PriceContentMode.NONE);
-				this.additionalPriceLists = priceContentRequirement
-					.map(PriceContent::getAdditionalPriceListsToFetch)
-					.orElse(EMPTY_PRICE_LISTS);
+				final String[] theDefaultAccompaniedPriceLists = this.getDefaultAccompanyingPricePriceLists();
+				this.accompanyingPrices = QueryUtils.findConstraints(entityFetch, AccompanyingPriceContent.class, SeparateEntityContentRequireContainer.class)
+					.stream()
+					.map(it -> {
+						final String priceName = it.getAccompanyingPriceName().orElse(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE);
+						if (it.getPriceLists().length == 0) {
+							Assert.isTrue(
+								!ArrayUtils.isEmptyOrItsValuesNull(theDefaultAccompaniedPriceLists),
+								"Default accompanying price lists must be defined in the query if no accompanying price name and no price lists are specified in the query!"
+							);
+							return new AccompanyingPrice(priceName, theDefaultAccompaniedPriceLists);
+						} else {
+							return new AccompanyingPrice(priceName, it.getPriceLists());
+						}
+					})
+					.toArray(AccompanyingPrice[]::new);
+				this.additionalPriceLists = theDefaultAccompaniedPriceLists.length == 0 && this.accompanyingPrices.length == 0 ?
+					priceContentRequirement
+						.map(PriceContent::getAdditionalPriceListsToFetch)
+						.orElse(ArrayUtils.EMPTY_STRING_ARRAY) :
+					// default accompanying price lists are always fetched, so we can merge them with additional price lists
+					Stream.concat(
+							Stream.concat(
+								Arrays.stream(theDefaultAccompaniedPriceLists), Arrays.stream(
+									priceContentRequirement
+										.map(PriceContent::getAdditionalPriceListsToFetch)
+										.orElse(ArrayUtils.EMPTY_STRING_ARRAY)
+								)
+							),
+							Arrays.stream(this.accompanyingPrices)
+								.flatMap(accompanyingPrice -> Arrays.stream(accompanyingPrice.priceListPriority())
+								)
+						)
+						.distinct()
+						.toArray(String[]::new);
 			}
 		}
 		return this.entityPrices;
+	}
+
+	/**
+	 * Retrieves an array of accompanying prices. If the accompanying prices have not
+	 * been initialized, it triggers the loading of entity prices.
+	 *
+	 * @return an array of AccompanyingPrice objects representing the accompanying prices.
+	 *         The returned array is non-null.
+	 */
+	@Nonnull
+	public AccompanyingPrice[] getAccompanyingPrices() {
+		if (this.accompanyingPrices == null) {
+			getRequiresEntityPrices();
+		}
+		return this.accompanyingPrices;
+	}
+
+	/**
+	 * Returns array of price list ids if requirement {@link DefaultAccompanyingPriceLists} is present in the query.
+	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
+	 */
+	@Nonnull
+	public String[] getDefaultAccompanyingPricePriceLists() {
+		if (this.defaultAccompanyingPricePriceLists == null) {
+			this.defaultAccompanyingPricePriceLists = ofNullable(QueryUtils.findRequire(this.query, DefaultAccompanyingPriceLists.class, SeparateEntityContentRequireContainer.class))
+				.map(DefaultAccompanyingPriceLists::getPriceLists)
+				.orElse(ArrayUtils.EMPTY_STRING_ARRAY);
+		}
+		return this.defaultAccompanyingPricePriceLists;
 	}
 
 	/**
@@ -919,8 +998,8 @@ public class EvitaRequest {
 	 * initialize it by searching for constraints of type ConditionalGap in the query.
 	 *
 	 * @return An array of ConditionalGap objects representing the constraints
-	 *         found in the query. If no such constraints are found, an empty array
-	 *         is returned.
+	 * found in the query. If no such constraints are found, an empty array
+	 * is returned.
 	 */
 	@Nonnull
 	public ConditionalGap[] getConditionalGaps() {
@@ -1029,7 +1108,27 @@ public class EvitaRequest {
 	public EvitaRequest deriveCopyWith(@Nullable String entityType, @Nonnull EntityFetchRequire requirements) {
 		return new EvitaRequest(
 			this,
-			entityType, requirements
+			entityType,
+			null, null,
+			requirements
+		);
+	}
+
+	/**
+	 * Method creates copy of this request with changed `entityType` and entity `requirements`. The copy will share
+	 * already resolved and memoized values of this request except those that relate to the changed entity type and
+	 * requirements.
+	 */
+	@Nonnull
+	public EvitaRequest deriveCopyWith(
+		@Nullable String entityType,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nonnull EntityFetchRequire requirements
+	) {
+		return new EvitaRequest(
+			this,
+			entityType, filterBy, orderBy, requirements
 		);
 	}
 
@@ -1174,6 +1273,7 @@ public class EvitaRequest {
 
 		/**
 		 * Returns true if the settings require initialization of referenced entities.
+		 *
 		 * @return true if the settings require initialization of referenced entities
 		 */
 		public boolean requiresInit() {

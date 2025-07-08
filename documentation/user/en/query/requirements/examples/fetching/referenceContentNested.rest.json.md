@@ -7,6 +7,8 @@
       "version" : 1,
       "scope" : "LIVE",
       "allLocales" : [
+        "cs",
+        "de",
         "en"
       ],
       "attributes" : {
@@ -55,8 +57,8 @@
                   ]
                 },
                 "groupEntity" : {
-                  "primaryKey" : 0,
-                  "type" : "tagCategory"
+                  "primaryKey" : 8,
+                  "type" : "TagCategory"
                 }
               }
             ]

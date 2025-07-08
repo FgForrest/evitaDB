@@ -150,35 +150,35 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
 		this.orderConstraintResolver = new OrderConstraintResolver(
 			catalogSchema,
-			new AtomicReference<>(filterConstraintResolver)
+			new AtomicReference<>(this.filterConstraintResolver)
 		);
 		this.requireConstraintResolver = new RequireConstraintResolver(
 			catalogSchema,
-			new AtomicReference<>(filterConstraintResolver)
+			new AtomicReference<>(this.filterConstraintResolver)
 		);
-		this.pagingRequireResolver = new PagingRequireResolver(entitySchema, requireConstraintResolver);
+		this.pagingRequireResolver = new PagingRequireResolver(entitySchema, this.requireConstraintResolver);
 		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
-			filterConstraintResolver,
-			orderConstraintResolver,
-			requireConstraintResolver
+			this.filterConstraintResolver,
+			this.orderConstraintResolver,
+			this.requireConstraintResolver
 		);
 		this.attributeHistogramResolver = new AttributeHistogramResolver(entitySchema);
 		this.priceHistogramResolver = new PriceHistogramResolver();
 		this.facetSummaryResolver = new FacetSummaryResolver(
 			entitySchema,
-			referencedEntitySchemas,
-			referencedGroupEntitySchemas,
-			entityFetchRequireResolver,
-			filterConstraintResolver,
-			orderConstraintResolver
+			this.referencedEntitySchemas,
+			this.referencedGroupEntitySchemas,
+			this.entityFetchRequireResolver,
+			this.filterConstraintResolver,
+			this.orderConstraintResolver
 		);
 		this.hierarchyExtraResultRequireResolver = new HierarchyExtraResultRequireResolver(
 			entitySchema,
 			catalogSchema::getEntitySchemaOrThrowException,
-			entityFetchRequireResolver,
-			orderConstraintResolver,
-			requireConstraintResolver
+			this.entityFetchRequireResolver,
+			this.orderConstraintResolver,
+			this.requireConstraintResolver
 		);
 		this.queryTelemetryResolver = new QueryTelemetryResolver();
 	}
@@ -198,7 +198,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			final Require require = buildRequire(environment, arguments, extractDesiredLocale(filterBy));
 			return query(head, filterBy, orderBy, require);
 		});
-		log.debug("Generated evitaDB query for entity query fetch of type `{}` is `{}`.", entitySchema.getName(), query);
+		log.debug("Generated evitaDB query for entity query fetch of type `{}` is `{}`.", this.entitySchema.getName(), query);
 
 		final EvitaSessionContract evitaSession = graphQlContext.get(GraphQLContextKey.EVITA_SESSION);
 		final EvitaResponse<EntityClassifier> response = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
@@ -213,7 +213,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	@Nullable
 	private Head buildHead(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
 		final List<HeadConstraint> headConstraints = new LinkedList<>();
-		headConstraints.add(collection(entitySchema.getName()));
+		headConstraints.add(collection(this.entitySchema.getName()));
 		headConstraints.add(label(Label.LABEL_SOURCE_TYPE, GraphQLQueryLabels.GRAPHQL_SOURCE_TYPE_VALUE));
 		headConstraints.add(label(GraphQLQueryLabels.OPERATION_NAME, environment.getOperationDefinition().getName()));
 
@@ -223,8 +223,8 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			headConstraints.add(label(Label.LABEL_SOURCE_QUERY, sourceRecordingId));
 		}
 
-		final Head userHeadConstraints = (Head) headConstraintResolver.resolve(
-			entitySchema.getName(),
+		final Head userHeadConstraints = (Head) this.headConstraintResolver.resolve(
+			this.entitySchema.getName(),
 			QueryEntitiesHeaderDescriptor.HEAD.name(),
 			arguments.head()
 		);
@@ -240,8 +240,8 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		if (arguments.filterBy() == null) {
 			return null;
 		}
-		return (FilterBy) filterConstraintResolver.resolve(
-			entitySchema.getName(),
+		return (FilterBy) this.filterConstraintResolver.resolve(
+			this.entitySchema.getName(),
 			QueryEntitiesHeaderDescriptor.FILTER_BY.name(),
 			arguments.filterBy()
 		);
@@ -252,8 +252,8 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		if (arguments.orderBy() == null) {
 			return null;
 		}
-		return (OrderBy) orderConstraintResolver.resolve(
-			entitySchema.getName(),
+		return (OrderBy) this.orderConstraintResolver.resolve(
+			this.entitySchema.getName(),
 			QueryEntitiesHeaderDescriptor.ORDER_BY.name(),
 			arguments.orderBy()
 		);
@@ -267,8 +267,8 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 
 		// build explicit require container
 		if (arguments.require() != null) {
-			final Require explicitRequire = (Require) requireConstraintResolver.resolve(
-				entitySchema.getName(),
+			final Require explicitRequire = (Require) this.requireConstraintResolver.resolve(
+				this.entitySchema.getName(),
 				QueryEntitiesHeaderDescriptor.REQUIRE.name(),
 				arguments.require()
 			);
@@ -293,7 +293,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			final SelectedField recordField = recordFields.get(0);
 
 			// build paging require
-			requireConstraints.add(pagingRequireResolver.resolve(recordField));
+			requireConstraints.add(this.pagingRequireResolver.resolve(recordField));
 
 			// build content requires
 			final List<SelectedField> recordData = SelectionSetAggregator.getImmediateFields(DataChunkDescriptor.DATA.name(), recordField.getSelectionSet());
@@ -305,10 +305,10 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 						.toList()
 				);
 
-				final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
+				final Optional<EntityFetch> entityFetch = this.entityFetchRequireResolver.resolveEntityFetch(
 					selectionSetAggregator,
 					desiredLocale,
-					entitySchema
+					this.entitySchema
 				);
 				entityFetch.ifPresent(requireConstraints::add);
 			}
@@ -321,11 +321,11 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 				.map(SelectedField::getSelectionSet)
 				.toList()
 		);
-		requireConstraints.addAll(attributeHistogramResolver.resolve(extraResultsSelectionSet));
-		requireConstraints.add(priceHistogramResolver.resolve(extraResultsSelectionSet).orElse(null));
-		requireConstraints.addAll(facetSummaryResolver.resolve(extraResultsSelectionSet, desiredLocale));
-		requireConstraints.addAll(hierarchyExtraResultRequireResolver.resolve(extraResultsSelectionSet, desiredLocale));
-		requireConstraints.add(queryTelemetryResolver.resolve(extraResultsSelectionSet).orElse(null));
+		requireConstraints.addAll(this.attributeHistogramResolver.resolve(extraResultsSelectionSet));
+		requireConstraints.add(this.priceHistogramResolver.resolve(extraResultsSelectionSet).orElse(null));
+		requireConstraints.addAll(this.facetSummaryResolver.resolve(extraResultsSelectionSet, desiredLocale));
+		requireConstraints.addAll(this.hierarchyExtraResultRequireResolver.resolve(extraResultsSelectionSet, desiredLocale));
+		requireConstraints.add(this.queryTelemetryResolver.resolve(extraResultsSelectionSet).orElse(null));
 
 		return require(
 			requireConstraints.toArray(RequireConstraint[]::new)

@@ -25,7 +25,9 @@ package io.evitadb.core.buffer;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
 import com.carrotsearch.hppc.LongObjectMap;
+import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.LongObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
@@ -34,16 +36,16 @@ import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.model.storageParts.StoragePartKey;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static java.util.Optional.ofNullable;
 
@@ -76,7 +78,7 @@ public class DataStoreChanges {
 	 * the <a href="https://github.com/FgForrest/evitaDB/issues/689">issue #689</a> revealed that it's beneficial to
 	 * store some of them in memory and flush them once in a while to the persistent storage.
 	 */
-	private Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> trappedChanges;
+	@Nullable private Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> trappedChanges;
 
 	public DataStoreChanges(@Nonnull StoragePartPersistenceService persistenceService) {
 		this.persistenceService = persistenceService;
@@ -98,23 +100,24 @@ public class DataStoreChanges {
 	 * the moments when it has a sense.
 	 */
 	@Nonnull
-	public Stream<StoragePart> popTrappedUpdates() {
+	public TrappedChanges popTrappedUpdates() {
+		final TrappedChanges trappedChanges = new TrappedChanges();
+
 		final Map<IndexKey, Index<? extends IndexKey>> theDirtyEntityIndexes = this.dirtyEntityIndexes;
 		this.dirtyEntityIndexes = new HashMap<>(64);
-		final Stream<StoragePart> dirtyIndexesStream = theDirtyEntityIndexes
-			.values()
-			.stream()
-			.flatMap(it -> it.getModifiedStorageParts().stream());
+		for (Index<? extends IndexKey> index : theDirtyEntityIndexes.values()) {
+			index.getModifiedStorageParts(trappedChanges);
+		}
 		final Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> theTrappedChanges = this.trappedChanges;
 		this.trappedChanges = null;
-		return theTrappedChanges == null ?
-			dirtyIndexesStream :
-			Stream.concat(
-				theTrappedChanges.values()
-					.stream()
-					.flatMap(map -> StreamSupport.stream(map.values().spliterator(), false).map(it -> it.value)),
-				dirtyIndexesStream
-			);
+		if (theTrappedChanges != null) {
+			for (LongObjectMap<StoragePart> changesIndex : theTrappedChanges.values()) {
+				final ObjectContainer<StoragePart> values = changesIndex.values();
+				trappedChanges.addIterator(new LongObjectIterator<>(values.iterator()), values.size());
+			}
+		}
+
+		return trappedChanges;
 	}
 
 	/**
@@ -219,7 +222,8 @@ public class DataStoreChanges {
 	 */
 	public <T extends StoragePart> void putStoragePart(long catalogVersion, @Nonnull T value) {
 		if (this.trappedChanges != null) {
-			ofNullable(this.trappedChanges.get(value.getClass())).ifPresent(it -> it.remove(value.getStoragePartPK()));
+			ofNullable(this.trappedChanges.get(value.getClass()))
+				.ifPresent(it -> it.remove(value.getStoragePartPKOrElseThrowException()));
 		}
 		this.persistenceService.putStoragePart(catalogVersion, value);
 	}
@@ -232,7 +236,7 @@ public class DataStoreChanges {
 	 */
 	public <T extends StoragePart> void trapPutStoragePart(@Nonnull T value) {
 		this.trappedChanges = this.trappedChanges == null ? new HashMap<>(64) : this.trappedChanges;
-		final Long storagePartPK = value.getStoragePartPK();
+		final long storagePartPK = value.getStoragePartPKOrElseThrowException();
 		final Class<? extends StoragePart> containerType = value.getClass();
 		this.trappedChanges.computeIfAbsent(containerType, aClass -> new LongObjectHashMap<>(256))
 			.put(storagePartPK, value);
@@ -276,7 +280,7 @@ public class DataStoreChanges {
 	@Nonnull
 	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK indexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		//noinspection unchecked,rawtypes
-		return (I) dirtyEntityIndexes.computeIfAbsent(
+		return (I) this.dirtyEntityIndexes.computeIfAbsent(
 			indexKey, (Function) accessorWhenMissing
 		);
 	}
@@ -288,7 +292,7 @@ public class DataStoreChanges {
 	@Nullable
 	public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK indexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		//noinspection unchecked
-		return ofNullable((I)dirtyEntityIndexes.get(indexKey))
+		return ofNullable((I) this.dirtyEntityIndexes.get(indexKey))
 			.orElseGet(() -> accessorWhenMissing.apply(indexKey));
 	}
 
@@ -299,7 +303,7 @@ public class DataStoreChanges {
 	@Nonnull
 	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
 		//noinspection unchecked
-		final I dirtyIndexesRemoval = (I) dirtyEntityIndexes.remove(entityIndexKey);
+		final I dirtyIndexesRemoval = (I) this.dirtyEntityIndexes.remove(entityIndexKey);
 		final I baseIndexesRemoval = removalPropagation.apply(entityIndexKey);
 		return ofNullable(dirtyIndexesRemoval).orElse(baseIndexesRemoval);
 	}
@@ -317,7 +321,7 @@ public class DataStoreChanges {
 	) implements StoragePart {
 		@Serial private static final long serialVersionUID = -3939591252705809288L;
 
-		@Nullable
+		@Nonnull
 		@Override
 		public Long getStoragePartPK() {
 			return this.storagePartPK;
@@ -329,4 +333,25 @@ public class DataStoreChanges {
 		}
 	}
 
+	/**
+	 * An iterator implementation for iterating over elements of type T, backed by an iterator
+	 * of {@link ObjectCursor} objects for efficient traversal.
+	 *
+	 * @param <T> the type of elements returned by this iterator
+	 */
+	@RequiredArgsConstructor
+	private static class LongObjectIterator<T> implements Iterator<T> {
+		private final Iterator<ObjectCursor<T>> iterator;
+
+		@Override
+		public boolean hasNext() {
+			return this.iterator.hasNext();
+		}
+
+		@Override
+		public T next() {
+			return this.iterator.next().value;
+		}
+
+	}
 }

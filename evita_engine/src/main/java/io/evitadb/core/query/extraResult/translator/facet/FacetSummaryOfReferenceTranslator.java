@@ -279,7 +279,10 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 
 	@Nullable
 	@Override
-	public ExtraResultProducer createProducer(@Nonnull FacetSummaryOfReference facetSummaryOfReference, @Nonnull ExtraResultPlanningVisitor extraResultPlanner) {
+	public ExtraResultProducer createProducer(
+		@Nonnull FacetSummaryOfReference facetSummaryOfReference,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
+	) {
 		final String referenceName = facetSummaryOfReference.getReferenceName();
 		final EntitySchemaContract entitySchema = extraResultPlanner.getSchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)

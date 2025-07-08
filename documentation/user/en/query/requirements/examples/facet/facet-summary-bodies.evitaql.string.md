@@ -169,15 +169,15 @@ Facet summary:
 		[ ] 'usb' (31)
 	stocks: non-grouped [41]:
 		[ ] 'evita' (41)
-	tags: 0 [18]:
-		[ ] 'sale' (2)
+	tags: 'EDEESHOP_DEFAULT' [30]:
+		[ ] 'new' (17)
 		[ ] 'special-offer' (11)
 		[ ] 'sell-off' (1)
 		[ ] 'valentine' (1)
 		[ ] 'for-women' (4)
 		[ ] 'for-men' (1)
-	tags: 9 [29]:
-		[ ] 'new' (17)
+	tags: 'EDEESHOP_FILTER' [15]:
+		[ ] 'sale' (2)
 		[ ] 'recommended' (5)
 		[ ] 'gift' (12)
 ```

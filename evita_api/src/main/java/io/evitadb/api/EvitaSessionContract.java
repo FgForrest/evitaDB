@@ -88,6 +88,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
+import java.util.function.IntConsumer;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
@@ -172,16 +173,60 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	boolean isActive();
 
 	/**
-	 * Switches catalog to the {@link CatalogState#ALIVE} state and terminates the Evita session so that next session is
-	 * operating in the new catalog state.
+	 * Method switches catalog to the {@link CatalogState#ALIVE} state and terminates the current Evita session. It's not
+	 * possible to open any session while catalog transitions from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}.
+	 * That means until this operation is fully finished. The next opened session will be operating in the new
+	 * catalog state.
 	 *
-	 * Session is {@link #close() closed} only when the state transition successfully occurs and this is signalized
-	 * by return value.
+	 * Session is {@link #close() closed} immediately and method returns a {@link GoLiveProgress} object that can be
+	 * used to monitor the progress of the go-live operation or to wait for it to finish via. completion stage accessible
+	 * via {@link GoLiveProgress#onCompletion()}.
 	 *
-	 * @return TRUE if catalog was successfully switched to {@link CatalogState#ALIVE} state
+	 * @param progressObserver optional progress observer that can be used to monitor the percentage progress of the go-live operation.
+	 * @return {@link GoLiveProgress} object that can be used to monitor the progress of the go-live operation or to
+	 *          wait for it to finish using completion stage accessible via {@link GoLiveProgress#onCompletion()}
 	 * @see CatalogState
 	 */
-	boolean goLiveAndClose();
+	@Nonnull
+	GoLiveProgress goLiveAndCloseWithProgress(@Nullable IntConsumer progressObserver);
+
+	/**
+	 * Method switches catalog to the {@link CatalogState#ALIVE} state and terminates the current Evita session. It's not
+	 * possible to open any session while catalog transitions from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}.
+	 * That means until this operation is fully finished. The next opened session will be operating in the new
+	 * catalog state.
+	 *
+	 * Session is {@link #close() closed} immediately and method returns a {@link GoLiveProgress} object that can be
+	 * used to monitor the progress of the go-live operation or to wait for it to finish via. completion stage accessible
+	 * via {@link GoLiveProgress#onCompletion()}.
+	 *
+	 * @return {@link GoLiveProgress} object that can be used to monitor the progress of the go-live operation or to
+	 *          wait for it to finish using completion stage accessible via {@link GoLiveProgress#onCompletion()}
+	 * @see CatalogState
+	 */
+	@Nonnull
+	default GoLiveProgress goLiveAndCloseWithProgress() {
+		return goLiveAndCloseWithProgress(null);
+	}
+
+	/**
+	 * Method switches catalog to the {@link CatalogState#ALIVE} state and terminates the current Evita session. It's not
+	 * possible to open any session while catalog transitions from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}.
+	 * That means until this operation is fully finished. The next opened session will be operating in the new
+	 * catalog state.
+	 *
+	 * Session is {@link #close() closed} immediately. This method finishes when entire go-live operation is finished
+	 * (i.e. block until the catalog is in {@link CatalogState#ALIVE} state), which may take some time depending on
+	 * the size of the catalog and the number of changes that need to be processed.
+	 *
+	 * @see CatalogState
+	 */
+	default void goLiveAndClose() {
+		goLiveAndCloseWithProgress(null)
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
+	}
 
 	/**
 	 * Terminates Evita session and releases all used resources. This method renders the session unusable and any further
@@ -1234,6 +1279,17 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 		@Nullable Long catalogVersion,
 		boolean includingWAL
 	) throws TemporalDataNotAvailableException;
+
+	/**
+	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
+	 * Full backup includes all data files, WAL files, and the catalog header file from the catalog storage.
+	 * After restoring catalog from the full backup, the catalog will contain all the data - so you should be able to
+	 * create even point-in-time backups from it.
+	 *
+	 * @return jobId of the backup process
+	 */
+	@Nonnull
+	Task<?, FileForFetch> fullBackupCatalog();
 
 	/**
 	 * Default implementation uses ID for comparing two sessions (and to distinguish one session from another).

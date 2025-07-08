@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -93,6 +93,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
     @Nonnull private final HeadConstraintResolver headConstraintResolver;
     @Nonnull private final FilterConstraintResolver filterConstraintResolver;
     @Nonnull private final OrderConstraintResolver orderConstraintResolver;
+    @Nonnull private final RequireConstraintResolver requireConstraintResolver;
     @Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
     public ListEntitiesDataFetcher(@Nonnull CatalogSchemaContract catalogSchema,
@@ -103,17 +104,17 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
         this.orderConstraintResolver = new OrderConstraintResolver(
             catalogSchema,
-            new AtomicReference<>(filterConstraintResolver)
+            new AtomicReference<>(this.filterConstraintResolver)
         );
-        final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(
+        this.requireConstraintResolver = new RequireConstraintResolver(
             catalogSchema,
-            new AtomicReference<>(filterConstraintResolver)
+            new AtomicReference<>(this.filterConstraintResolver)
         );
         this.entityFetchRequireResolver = new EntityFetchRequireResolver(
             catalogSchema::getEntitySchemaOrThrowException,
-            filterConstraintResolver,
-            orderConstraintResolver,
-            requireConstraintResolver
+	        this.filterConstraintResolver,
+	        this.orderConstraintResolver,
+            this.requireConstraintResolver
         );
     }
 
@@ -135,7 +136,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
                 require
             );
         });
-        log.debug("Generated evitaDB query for entity list fetch of type `{}` is `{}`.", entitySchema.getName(), query);
+        log.debug("Generated evitaDB query for entity list fetch of type `{}` is `{}`.", this.entitySchema.getName(), query);
 
         final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
         final List<EntityClassifier> entities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
@@ -152,7 +153,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
     @Nullable
     private Head buildHead(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
         final List<HeadConstraint> headConstraints = new LinkedList<>();
-        headConstraints.add(collection(entitySchema.getName()));
+        headConstraints.add(collection(this.entitySchema.getName()));
         headConstraints.add(label(Label.LABEL_SOURCE_TYPE, GraphQLQueryLabels.GRAPHQL_SOURCE_TYPE_VALUE));
         headConstraints.add(label(GraphQLQueryLabels.OPERATION_NAME, environment.getOperationDefinition().getName()));
 
@@ -162,8 +163,8 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             headConstraints.add(label(Label.LABEL_SOURCE_QUERY, sourceRecordingId));
         }
 
-        final Head userHeadConstraints = (Head) headConstraintResolver.resolve(
-            entitySchema.getName(),
+        final Head userHeadConstraints = (Head) this.headConstraintResolver.resolve(
+	        this.entitySchema.getName(),
             ListEntitiesHeaderDescriptor.HEAD.name(),
             arguments.head()
         );
@@ -179,8 +180,8 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         if (arguments.filterBy() == null) {
             return null;
         }
-        return (FilterBy) filterConstraintResolver.resolve(
-            entitySchema.getName(),
+        return (FilterBy) this.filterConstraintResolver.resolve(
+	        this.entitySchema.getName(),
             ListEntitiesHeaderDescriptor.FILTER_BY.name(),
             arguments.filterBy()
         );
@@ -191,8 +192,8 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         if (arguments.orderBy() == null) {
             return null;
         }
-        return (OrderBy) orderConstraintResolver.resolve(
-            entitySchema.getName(),
+        return (OrderBy) this.orderConstraintResolver.resolve(
+	        this.entitySchema.getName(),
             ListEntitiesHeaderDescriptor.ORDER_BY.name(),
             arguments.orderBy()
         );
@@ -205,10 +206,22 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
 
         final List<RequireConstraint> requireConstraints = new LinkedList<>();
 
-        final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
+        // build explicit require container
+        if (arguments.require() != null) {
+            final Require explicitRequire = (Require) this.requireConstraintResolver.resolve(
+                this.entitySchema.getName(),
+                ListEntitiesHeaderDescriptor.REQUIRE.name(),
+                arguments.require()
+            );
+            if (explicitRequire != null) {
+                requireConstraints.addAll(Arrays.asList(explicitRequire.getChildren()));
+            }
+        }
+
+        final Optional<EntityFetch> entityFetch = this.entityFetchRequireResolver.resolveEntityFetch(
             SelectionSetAggregator.from(environment.getSelectionSet()),
             extractDesiredLocale(filterBy),
-            entitySchema
+	        this.entitySchema
         );
         entityFetch.ifPresent(requireConstraints::add);
 
@@ -268,6 +281,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
     private record Arguments(@Nullable Object head,
                              @Nullable Object filterBy,
                              @Nullable Object orderBy,
+                             @Nullable Object require,
                              @Nullable Integer offset,
                              @Nullable Integer limit) {
 
@@ -275,6 +289,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             final Object head = environment.getArgument(ListEntitiesHeaderDescriptor.HEAD.name());
             final Object filterBy = environment.getArgument(ListEntitiesHeaderDescriptor.FILTER_BY.name());
             final Object orderBy = environment.getArgument(ListEntitiesHeaderDescriptor.ORDER_BY.name());
+            final Object require = environment.getArgument(ListEntitiesHeaderDescriptor.REQUIRE.name());
             final Integer offset = environment.getArgument(ListEntitiesHeaderDescriptor.OFFSET.name());
             final Integer limit = environment.getArgument(ListEntitiesHeaderDescriptor.LIMIT.name());
 
@@ -282,6 +297,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
                 head,
                 filterBy,
                 orderBy,
+                require,
                 offset,
                 limit
             );

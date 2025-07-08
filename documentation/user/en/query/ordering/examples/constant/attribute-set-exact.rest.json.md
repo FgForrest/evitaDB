@@ -8,6 +8,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -22,6 +24,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -36,6 +40,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -50,6 +56,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -64,6 +72,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -78,6 +88,8 @@
         "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -92,6 +104,8 @@
         "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -106,6 +120,8 @@
         "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -120,6 +136,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -134,6 +152,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -148,6 +168,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -162,6 +184,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -176,6 +200,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -190,6 +216,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -204,6 +232,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -218,6 +248,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -232,6 +264,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -246,6 +280,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -260,6 +296,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -274,6 +312,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {

@@ -1322,6 +1322,48 @@ class EvitaQLFilterConstraintVisitorTest {
     }
 
     @Test
+    void shouldParseHierarchyAnyHavingConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("anyHaving(entityPrimaryKeyInSet(1))");
+        assertEquals(anyHaving(entityPrimaryKeyInSet(1)), constraint1);
+
+        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("anyHaving(entityPrimaryKeyInSet(1,5,6))");
+        assertEquals(anyHaving(entityPrimaryKeyInSet(1, 5, 6)), constraint2);
+
+        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("anyHaving ( entityPrimaryKeyInSet (  1 , 6, 2 ) )");
+        assertEquals(anyHaving(entityPrimaryKeyInSet(1, 6, 2)), constraint3);
+
+        final FilterConstraint constraint4 = parseFilterConstraint("anyHaving(entityPrimaryKeyInSet(?))", 1);
+        assertEquals(anyHaving(entityPrimaryKeyInSet(1)), constraint4);
+
+        final FilterConstraint constraint5 = parseFilterConstraint("anyHaving(entityPrimaryKeyInSet(@pk))", Map.of("pk", 1));
+        assertEquals(anyHaving(entityPrimaryKeyInSet(1)), constraint5);
+
+        final FilterConstraint constraint6 = parseFilterConstraint("anyHaving(entityPrimaryKeyInSet(?))", List.of(1,2));
+        assertEquals(anyHaving(entityPrimaryKeyInSet(1, 2)), constraint6);
+
+        final FilterConstraint constraint7 = parseFilterConstraint("anyHaving(entityPrimaryKeyInSet(@pk))", Map.of("pk", List.of(1, 2)));
+        assertEquals(anyHaving(entityPrimaryKeyInSet(1, 2)), constraint7);
+
+        final FilterConstraint constraint8 = parseFilterConstraint("anyHaving(entityPrimaryKeyInSet(?,?))", 1, 2);
+        assertEquals(anyHaving(entityPrimaryKeyInSet(1, 2)), constraint8);
+
+        final FilterConstraint constraint9 = parseFilterConstraint("anyHaving(entityPrimaryKeyInSet(@pk1,@pk2))", Map.of("pk1", 1, "pk2", 2));
+        assertEquals(anyHaving(entityPrimaryKeyInSet(1, 2)), constraint9);
+    }
+
+    @Test
+    void shouldNotParseHierarchyAnyHavingConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("anyHaving(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("anyHaving(?)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("anyHaving(@a)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("anyHaving(1)"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("anyHaving"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("anyHaving()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("anyHaving('a','b')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("anyHaving(1,'a')"));
+    }
+
+    @Test
     void shouldParseExcludingRootConstraint() {
         final FilterConstraint constraint1 = parseFilterConstraintUnsafe("excludingRoot()");
         assertEquals(excludingRoot(), constraint1);
@@ -1514,4 +1556,3 @@ class EvitaQLFilterConstraintVisitorTest {
         );
     }
 }
-

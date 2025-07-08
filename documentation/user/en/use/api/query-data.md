@@ -260,6 +260,13 @@ structure details required for the schema definition:
         <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass> type
         to provide access to price for sale of the entity.
     </dd>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AccompaniedPrice.java</SourceClass></dt>
+    <dd>
+        Annotation can be placed on method returning
+        <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass> type
+        to provide access to additional price computed long with price for sale of the entity. There might be multiple
+        such prices that are differentiated by their `name` attribute.
+    </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReferenceRef.java</SourceClass></dt>
     <dd>
         Annotation can be placed on methods that should return entity [reference or reflected reference](../../use/schema.md#reference) 
@@ -369,8 +376,9 @@ from ["complex data type"](../data-types.md#complex-data-types) using [documente
 To access the entity prices, you must always work with
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass> data type
 and annotate the methods with the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Price.java</SourceClass>,
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PriceForSale.java</SourceClass> or
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PriceForSaleRef.java</SourceClass>
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PriceForSale.java</SourceClass>,
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PriceForSaleRef.java</SourceClass> or
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AccompanyingPrice.java</SourceClass>
 annotation. The datatype can be wrapped in
 [Optional](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Optional.html)
 (or its counterparts [OptionalInt](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalInt.html)

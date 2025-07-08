@@ -48,12 +48,12 @@ import java.util.Locale;
 import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
 import static io.evitadb.api.query.require.FacetRelationType.CONJUNCTION;
 import static io.evitadb.api.query.require.FacetRelationType.DISJUNCTION;
 import static io.evitadb.api.query.require.FacetRelationType.EXCLUSIVITY;
 import static io.evitadb.api.query.require.FacetRelationType.NEGATION;
-import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
 import static io.evitadb.api.query.require.FacetStatisticsDepth.COUNTS;
 import static io.evitadb.api.query.require.FacetStatisticsDepth.IMPACT;
 import static io.evitadb.api.query.require.QueryPriceMode.WITH_TAX;
@@ -2042,6 +2042,111 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceType('a')"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceType(WITH_TAX,WITH_TAX)"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("priceType(TAX)"));
+	}
+
+	@Test
+	void shouldParseDefaultAccompanyingPriceConstraint() {
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("defaultAccompanyingPriceLists('A')");
+		assertEquals(defaultAccompanyingPriceLists("A"), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("defaultAccompanyingPriceLists('A','B','C','E')");
+		assertEquals(defaultAccompanyingPriceLists("A", "B", "C", "E"), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("defaultAccompanyingPriceLists ( 'A' ,  'B' , 'C' , 'D' )");
+		assertEquals(defaultAccompanyingPriceLists("A", "B", "C", "D"), constraint3);
+
+		final RequireConstraint constraint4 = parseRequireConstraintUnsafe("defaultAccompanyingPriceLists('basic')");
+		assertEquals(defaultAccompanyingPriceLists("basic"), constraint4);
+
+		final RequireConstraint constraint5 = parseRequireConstraintUnsafe("defaultAccompanyingPriceLists('basic','reference')");
+		assertEquals(defaultAccompanyingPriceLists("basic", "reference"), constraint5);
+
+		final RequireConstraint constraint6 = parseRequireConstraintUnsafe("defaultAccompanyingPriceLists ( 'basic' ,  'reference' , 'action' )");
+		assertEquals(defaultAccompanyingPriceLists("basic", "reference", "action"), constraint6);
+
+		final RequireConstraint constraint8 = parseRequireConstraint("defaultAccompanyingPriceLists(?)", "basic");
+		assertEquals(defaultAccompanyingPriceLists("basic"), constraint8);
+
+		final RequireConstraint constraint9 = parseRequireConstraint("defaultAccompanyingPriceLists(@pl)", Map.of("pl", "basic"));
+		assertEquals(defaultAccompanyingPriceLists("basic"), constraint9);
+
+		final RequireConstraint constraint10 = parseRequireConstraint("defaultAccompanyingPriceLists(?)", List.of("basic", "vip"));
+		assertEquals(defaultAccompanyingPriceLists("basic", "vip"), constraint10);
+
+		final RequireConstraint constraint11 = parseRequireConstraint("defaultAccompanyingPriceLists(@pl)", Map.of("pl", List.of("basic", "vip")));
+		assertEquals(defaultAccompanyingPriceLists("basic", "vip"), constraint11);
+
+		final RequireConstraint constraint12 = parseRequireConstraint("defaultAccompanyingPriceLists(?,?)", "basic", "vip");
+		assertEquals(defaultAccompanyingPriceLists("basic", "vip"), constraint12);
+
+		final RequireConstraint constraint13 = parseRequireConstraint("defaultAccompanyingPriceLists(@pl1,@pl2)", Map.of("pl1", "basic", "pl2", "vip"));
+		assertEquals(defaultAccompanyingPriceLists("basic", "vip"), constraint13);
+	}
+
+	@Test
+	void shouldNotParseDefaultAccompanyingPriceConstraint() {
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("defaultAccompanyingPriceLists('basic')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("defaultAccompanyingPriceLists(?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("defaultAccompanyingPriceLists(@a)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("defaultAccompanyingPriceLists"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("defaultAccompanyingPriceLists()"));
+	}
+
+	@Test
+	void shouldParseAccompanyingPriceContentDefaultConstraint() {
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("accompanyingPriceContentDefault()");
+		assertEquals(accompanyingPriceContentDefault(), constraint1);
+	}
+
+	@Test
+	void shouldNotParseAccompanyingPriceContentDefaultConstraint() {
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("accompanyingPriceContentDefault"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("accompanyingPriceContentDefault(123)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("accompanyingPriceContentDefault('myCalculatedPrice',123)"));
+	}
+
+	@Test
+	void shouldParseAccompanyingPriceContentConstraint() {
+		// Test the first variant: accompanyingPriceContent("myCalculatedPrice", "reference", "basic")
+		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("accompanyingPriceContent('myCalculatedPrice','reference','basic')");
+		assertEquals(accompanyingPriceContent("myCalculatedPrice", "reference", "basic"), constraint1);
+
+		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("accompanyingPriceContent('myCalculatedPrice','reference')");
+		assertEquals(accompanyingPriceContent("myCalculatedPrice", "reference"), constraint2);
+
+		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("accompanyingPriceContent ( 'myCalculatedPrice' ,  'reference' , 'basic' )");
+		assertEquals(accompanyingPriceContent("myCalculatedPrice", "reference", "basic"), constraint3);
+
+		// Test with parameterized arguments
+		final RequireConstraint constraint4 = parseRequireConstraint("accompanyingPriceContent(?,?)", "myCalculatedPrice", "reference");
+		assertEquals(accompanyingPriceContent("myCalculatedPrice", "reference"), constraint4);
+
+		final RequireConstraint constraint5 = parseRequireConstraint("accompanyingPriceContent(@name,@priceList)", Map.of("name", "myCalculatedPrice", "priceList", "reference"));
+		assertEquals(accompanyingPriceContent("myCalculatedPrice", "reference"), constraint5);
+
+		final RequireConstraint constraint6 = parseRequireConstraint("accompanyingPriceContent(?,?)", "myCalculatedPrice", List.of("reference", "basic"));
+		assertEquals(accompanyingPriceContent("myCalculatedPrice", "reference", "basic"), constraint6);
+
+		// Test the second variant: accompanyingPriceContent("myCalculatedPrice")
+		final RequireConstraint constraint7 = parseRequireConstraintUnsafe("accompanyingPriceContent('myCalculatedPrice')");
+		assertEquals(accompanyingPriceContent("myCalculatedPrice"), constraint7);
+
+		final RequireConstraint constraint8 = parseRequireConstraint("accompanyingPriceContent(?)", "myCalculatedPrice");
+		assertEquals(accompanyingPriceContent("myCalculatedPrice"), constraint8);
+
+		final RequireConstraint constraint9 = parseRequireConstraint("accompanyingPriceContent(@name)", Map.of("name", "myCalculatedPrice"));
+		assertEquals(accompanyingPriceContent("myCalculatedPrice"), constraint9);
+	}
+
+	@Test
+	void shouldNotParseAccompanyingPriceContentConstraint() {
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("accompanyingPriceContent('myCalculatedPrice')"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("accompanyingPriceContent(?)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("accompanyingPriceContent(@name)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("accompanyingPriceContent"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("accompanyingPriceContent()"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("accompanyingPriceContent(123)"));
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("accompanyingPriceContent('myCalculatedPrice',123)"));
 	}
 
 	@Test

@@ -261,6 +261,19 @@ private static final long serialVersionUID = 0L;
                 referenceOffsetAndLimits__.getKey(), referenceOffsetAndLimits__.getValue());
             break;
           }
+          case 154: {
+            if (!((mutable_bitField0_ & 0x00000100) != 0)) {
+              accompanyingPrices_ = com.google.protobuf.MapField.newMapField(
+                  AccompanyingPricesDefaultEntryHolder.defaultEntry);
+              mutable_bitField0_ |= 0x00000100;
+            }
+            com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice>
+            accompanyingPrices__ = input.readMessage(
+                AccompanyingPricesDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
+            accompanyingPrices_.getMutableMap().put(
+                accompanyingPrices__.getKey(), accompanyingPrices__.getValue());
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -309,6 +322,8 @@ private static final long serialVersionUID = 0L;
         return internalGetLocalizedAssociatedData();
       case 18:
         return internalGetReferenceOffsetAndLimits();
+      case 19:
+        return internalGetAccompanyingPrices();
       default:
         throw new RuntimeException(
             "Invalid map field number: " + number);
@@ -1311,6 +1326,103 @@ private static final long serialVersionUID = 0L;
     return map.get(key);
   }
 
+  public static final int ACCOMPANYINGPRICES_FIELD_NUMBER = 19;
+  private static final class AccompanyingPricesDefaultEntryHolder {
+    static final com.google.protobuf.MapEntry<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice> defaultEntry =
+            com.google.protobuf.MapEntry
+            .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice>newDefaultInstance(
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcSealedEntity_AccompanyingPricesEntry_descriptor, 
+                com.google.protobuf.WireFormat.FieldType.STRING,
+                "",
+                com.google.protobuf.WireFormat.FieldType.MESSAGE,
+                io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance());
+  }
+  private com.google.protobuf.MapField<
+      java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice> accompanyingPrices_;
+  private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice>
+  internalGetAccompanyingPrices() {
+    if (accompanyingPrices_ == null) {
+      return com.google.protobuf.MapField.emptyMapField(
+          AccompanyingPricesDefaultEntryHolder.defaultEntry);
+    }
+    return accompanyingPrices_;
+  }
+
+  public int getAccompanyingPricesCount() {
+    return internalGetAccompanyingPrices().getMap().size();
+  }
+  /**
+   * <pre>
+   * Contains prices that has been requested to be calculated beside the main price for sale.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+   */
+
+  @java.lang.Override
+  public boolean containsAccompanyingPrices(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    return internalGetAccompanyingPrices().getMap().containsKey(key);
+  }
+  /**
+   * Use {@link #getAccompanyingPricesMap()} instead.
+   */
+  @java.lang.Override
+  @java.lang.Deprecated
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice> getAccompanyingPrices() {
+    return getAccompanyingPricesMap();
+  }
+  /**
+   * <pre>
+   * Contains prices that has been requested to be calculated beside the main price for sale.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+   */
+  @java.lang.Override
+
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice> getAccompanyingPricesMap() {
+    return internalGetAccompanyingPrices().getMap();
+  }
+  /**
+   * <pre>
+   * Contains prices that has been requested to be calculated beside the main price for sale.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+   */
+  @java.lang.Override
+
+  public io.evitadb.externalApi.grpc.generated.GrpcPrice getAccompanyingPricesOrDefault(
+      java.lang.String key,
+      io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice> map =
+        internalGetAccompanyingPrices().getMap();
+    return map.containsKey(key) ? map.get(key) : defaultValue;
+  }
+  /**
+   * <pre>
+   * Contains prices that has been requested to be calculated beside the main price for sale.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+   */
+  @java.lang.Override
+
+  public io.evitadb.externalApi.grpc.generated.GrpcPrice getAccompanyingPricesOrThrow(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice> map =
+        internalGetAccompanyingPrices().getMap();
+    if (!map.containsKey(key)) {
+      throw new java.lang.IllegalArgumentException();
+    }
+    return map.get(key);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1394,6 +1506,12 @@ private static final long serialVersionUID = 0L;
         internalGetReferenceOffsetAndLimits(),
         ReferenceOffsetAndLimitsDefaultEntryHolder.defaultEntry,
         18);
+    com.google.protobuf.GeneratedMessageV3
+      .serializeStringMapTo(
+        output,
+        internalGetAccompanyingPrices(),
+        AccompanyingPricesDefaultEntryHolder.defaultEntry,
+        19);
     unknownFields.writeTo(output);
   }
 
@@ -1504,6 +1622,16 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(18, referenceOffsetAndLimits__);
     }
+    for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice> entry
+         : internalGetAccompanyingPrices().getMap().entrySet()) {
+      com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice>
+      accompanyingPrices__ = AccompanyingPricesDefaultEntryHolder.defaultEntry.newBuilderForType()
+          .setKey(entry.getKey())
+          .setValue(entry.getValue())
+          .build();
+      size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(19, accompanyingPrices__);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1565,6 +1693,8 @@ private static final long serialVersionUID = 0L;
     if (scope_ != other.scope_) return false;
     if (!internalGetReferenceOffsetAndLimits().equals(
         other.internalGetReferenceOffsetAndLimits())) return false;
+    if (!internalGetAccompanyingPrices().equals(
+        other.internalGetAccompanyingPrices())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -1635,6 +1765,10 @@ private static final long serialVersionUID = 0L;
     if (!internalGetReferenceOffsetAndLimits().getMap().isEmpty()) {
       hash = (37 * hash) + REFERENCEOFFSETANDLIMITS_FIELD_NUMBER;
       hash = (53 * hash) + internalGetReferenceOffsetAndLimits().hashCode();
+    }
+    if (!internalGetAccompanyingPrices().getMap().isEmpty()) {
+      hash = (37 * hash) + ACCOMPANYINGPRICES_FIELD_NUMBER;
+      hash = (53 * hash) + internalGetAccompanyingPrices().hashCode();
     }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
@@ -1763,6 +1897,8 @@ private static final long serialVersionUID = 0L;
           return internalGetLocalizedAssociatedData();
         case 18:
           return internalGetReferenceOffsetAndLimits();
+        case 19:
+          return internalGetAccompanyingPrices();
         default:
           throw new RuntimeException(
               "Invalid map field number: " + number);
@@ -1782,6 +1918,8 @@ private static final long serialVersionUID = 0L;
           return internalGetMutableLocalizedAssociatedData();
         case 18:
           return internalGetMutableReferenceOffsetAndLimits();
+        case 19:
+          return internalGetMutableAccompanyingPrices();
         default:
           throw new RuntimeException(
               "Invalid map field number: " + number);
@@ -1875,6 +2013,7 @@ private static final long serialVersionUID = 0L;
       scope_ = 0;
 
       internalGetMutableReferenceOffsetAndLimits().clear();
+      internalGetMutableAccompanyingPrices().clear();
       return this;
     }
 
@@ -1965,6 +2104,8 @@ private static final long serialVersionUID = 0L;
       result.scope_ = scope_;
       result.referenceOffsetAndLimits_ = internalGetReferenceOffsetAndLimits();
       result.referenceOffsetAndLimits_.makeImmutable();
+      result.accompanyingPrices_ = internalGetAccompanyingPrices();
+      result.accompanyingPrices_.makeImmutable();
       onBuilt();
       return result;
     }
@@ -2132,6 +2273,8 @@ private static final long serialVersionUID = 0L;
       }
       internalGetMutableReferenceOffsetAndLimits().mergeFrom(
           other.internalGetReferenceOffsetAndLimits());
+      internalGetMutableAccompanyingPrices().mergeFrom(
+          other.internalGetAccompanyingPrices());
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -4962,6 +5105,165 @@ private static final long serialVersionUID = 0L;
     public Builder putAllReferenceOffsetAndLimits(
         java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcOffsetAndLimit> values) {
       internalGetMutableReferenceOffsetAndLimits().getMutableMap()
+          .putAll(values);
+      return this;
+    }
+
+    private com.google.protobuf.MapField<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice> accompanyingPrices_;
+    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice>
+    internalGetAccompanyingPrices() {
+      if (accompanyingPrices_ == null) {
+        return com.google.protobuf.MapField.emptyMapField(
+            AccompanyingPricesDefaultEntryHolder.defaultEntry);
+      }
+      return accompanyingPrices_;
+    }
+    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice>
+    internalGetMutableAccompanyingPrices() {
+      onChanged();;
+      if (accompanyingPrices_ == null) {
+        accompanyingPrices_ = com.google.protobuf.MapField.newMapField(
+            AccompanyingPricesDefaultEntryHolder.defaultEntry);
+      }
+      if (!accompanyingPrices_.isMutable()) {
+        accompanyingPrices_ = accompanyingPrices_.copy();
+      }
+      return accompanyingPrices_;
+    }
+
+    public int getAccompanyingPricesCount() {
+      return internalGetAccompanyingPrices().getMap().size();
+    }
+    /**
+     * <pre>
+     * Contains prices that has been requested to be calculated beside the main price for sale.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+     */
+
+    @java.lang.Override
+    public boolean containsAccompanyingPrices(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      return internalGetAccompanyingPrices().getMap().containsKey(key);
+    }
+    /**
+     * Use {@link #getAccompanyingPricesMap()} instead.
+     */
+    @java.lang.Override
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice> getAccompanyingPrices() {
+      return getAccompanyingPricesMap();
+    }
+    /**
+     * <pre>
+     * Contains prices that has been requested to be calculated beside the main price for sale.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+     */
+    @java.lang.Override
+
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice> getAccompanyingPricesMap() {
+      return internalGetAccompanyingPrices().getMap();
+    }
+    /**
+     * <pre>
+     * Contains prices that has been requested to be calculated beside the main price for sale.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+     */
+    @java.lang.Override
+
+    public io.evitadb.externalApi.grpc.generated.GrpcPrice getAccompanyingPricesOrDefault(
+        java.lang.String key,
+        io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice> map =
+          internalGetAccompanyingPrices().getMap();
+      return map.containsKey(key) ? map.get(key) : defaultValue;
+    }
+    /**
+     * <pre>
+     * Contains prices that has been requested to be calculated beside the main price for sale.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+     */
+    @java.lang.Override
+
+    public io.evitadb.externalApi.grpc.generated.GrpcPrice getAccompanyingPricesOrThrow(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice> map =
+          internalGetAccompanyingPrices().getMap();
+      if (!map.containsKey(key)) {
+        throw new java.lang.IllegalArgumentException();
+      }
+      return map.get(key);
+    }
+
+    public Builder clearAccompanyingPrices() {
+      internalGetMutableAccompanyingPrices().getMutableMap()
+          .clear();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains prices that has been requested to be calculated beside the main price for sale.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+     */
+
+    public Builder removeAccompanyingPrices(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      internalGetMutableAccompanyingPrices().getMutableMap()
+          .remove(key);
+      return this;
+    }
+    /**
+     * Use alternate mutation accessors instead.
+     */
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice>
+    getMutableAccompanyingPrices() {
+      return internalGetMutableAccompanyingPrices().getMutableMap();
+    }
+    /**
+     * <pre>
+     * Contains prices that has been requested to be calculated beside the main price for sale.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+     */
+    public Builder putAccompanyingPrices(
+        java.lang.String key,
+        io.evitadb.externalApi.grpc.generated.GrpcPrice value) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      if (value == null) {
+  throw new NullPointerException("map value");
+}
+
+      internalGetMutableAccompanyingPrices().getMutableMap()
+          .put(key, value);
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains prices that has been requested to be calculated beside the main price for sale.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcPrice&gt; accompanyingPrices = 19;</code>
+     */
+
+    public Builder putAllAccompanyingPrices(
+        java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcPrice> values) {
+      internalGetMutableAccompanyingPrices().getMutableMap()
           .putAll(values);
       return this;
     }

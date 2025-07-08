@@ -54,6 +54,7 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 		AttributeContent.class,
 		DataInLocales.class,
 		PriceContent.class,
+		AccompanyingPriceContent.class,
 		ReferenceContent.class,
 		HierarchyContent.class,
 		HierarchyDistance.class,
@@ -69,6 +70,7 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 		Spacing.class,
 		SpacingGap.class,
 		PriceType.class,
+		DefaultAccompanyingPriceLists.class,
 		Strip.class
 	);
 

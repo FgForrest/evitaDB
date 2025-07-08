@@ -818,6 +818,7 @@ public interface QueryConstraints {
 	 *
 	 *      - {@link HierarchyDirectRelation}
 	 *      - {@link HierarchyHaving}
+	 *      - {@link HierarchyAnyHaving}
 	 *      - {@link HierarchyExcluding}
 	 *      - {@link HierarchyExcludingRoot}
 	 *
@@ -892,6 +893,7 @@ public interface QueryConstraints {
 	 *
 	 *      - {@link HierarchyDirectRelation}
 	 *      - {@link HierarchyHaving}
+	 *      - {@link HierarchyAnyHaving}
 	 *      - {@link HierarchyExcluding}
 	 *      - {@link HierarchyExcludingRoot}
 	 *
@@ -968,6 +970,7 @@ public interface QueryConstraints {
 	 *
 	 *      - {@link HierarchyDirectRelation}
 	 *      - {@link HierarchyHaving}
+	 *      - {@link HierarchyAnyHaving}
 	 *      - {@link HierarchyExcluding}
 	 *
 	 * The `hierarchyWithinRoot`, which targets the Category collection itself, returns all categories except those that
@@ -1034,6 +1037,7 @@ public interface QueryConstraints {
 	 *
 	 *      - {@link HierarchyDirectRelation}
 	 *      - {@link HierarchyHaving}
+	 *      - {@link HierarchyAnyHaving}
 	 *      - {@link HierarchyExcluding}
 	 *
 	 * The `hierarchyWithinRoot`, which targets the Category collection itself, returns all categories except those that
@@ -1087,14 +1091,14 @@ public interface QueryConstraints {
 	 * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
 	 * that are transitively or directly related to them, and the parent node itself.
 	 *
-	 * The having constraint allows you to set a constraint that must be fulfilled by all categories in the category scope
-	 * in order to be accepted by hierarchy within filter. This constraint is especially useful if you want to conditionally
-	 * display certain parts of the tree. Imagine you have a category Christmas Sale that should only be available during
-	 * a certain period of the year, or a category B2B Partners that should only be accessible to a certain role of users.
-	 * All of these scenarios can take advantage of the having constraint (but there are other approaches to solving
-	 * the above use cases).
+	 * The `having` constraint allows you to set a constraint that must be fulfilled by each hierarchical entity in while
+	 * traversing through the hierarchical tree from top to down to be accepted by the filter. This constraint is especially
+	 * useful if you want to conditionally display certain parts of the tree. Imagine you have a category Christmas Sale
+	 * that should only be available during a certain period of the year, or a category B2B Partners that should only be
+	 * accessible to a certain role of users. All of these scenarios can take advantage of the having constraint (but there
+	 * are other approaches to solving the above use cases).
 	 *
-	 * The constraint accepts following arguments:
+	 * The constraint accepts the following arguments:
 	 *
 	 * - one or more mandatory constraints that must be satisfied by all returned hierarchy nodes and that mark the visible
 	 *   part of the tree, the implicit relation between constraints is logical conjunction (boolean AND)
@@ -1185,6 +1189,107 @@ public interface QueryConstraints {
 			return null;
 		}
 		return new HierarchyHaving(includeChildTreeConstraints);
+	}
+
+	/**
+	 * The constraint `anyHaving` is a constraint that can only be used within {@link HierarchyWithin} or
+	 * {@link HierarchyWithinRoot} parent constraints. It simply makes no sense anywhere else because it changes the default
+	 * behavior of those constraints. Hierarchy constraints return all hierarchy children of the parent node or entities
+	 * that are transitively or directly related to them, and the parent node itself.
+	 *
+	 * The `anyHaving` constraint allows you to set a constraint that must be fulfilled by at least one nested (child)
+	 * hierarchical entity to be accepted by the filter. Imagine you want to have a category tree, and you want to verify
+	 * if certain categories anywhere in the tree contain directly or transitively via their subcategories at least one
+	 * valid product. This situation can be solved by using the `anyHaving` constraint in your query.
+	 *
+	 * The constraint accepts following arguments:
+	 *
+	 * - one or more mandatory constraints that must be satisfied by at least one child node of the examined hierarchy node
+	 *   or directly by that examined hierarchy node, the implicit relation between constraints is logical conjunction
+	 *   (boolean AND)
+	 *
+	 * When the hierarchy constraint targets the hierarchy entity, the children having no child satisfying the inner
+	 * constraints are excluded from the result.
+	 *
+	 * As an example, let's write the query for the above-defined situation.
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Category"),
+	 *     filterBy(
+	 *         hierarchyWithinSelf(
+	 *             entityPrimaryKeyIn(1, 2, 3),
+	 *             having(
+	 *                 attributeEquals("status", "ACTIVE")
+	 *             ),
+	 *             anyHaving(
+	 *                 referenceHaving(
+	 *                     entityHaving(
+	 *                         attributeEquals("status", "ACTIVE")
+	 *                     )
+	 *                 )
+	 *             ),
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code")
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The query returns only a subset of categories with primary key 1 or 2 or 3, which either directly of any of their
+	 * sub-categories labeled as "ACTIVE" or have at least one product that is labeled as "ACTIVE".
+	 *
+	 * If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example
+	 * is a product assigned to a category), the having constraint is evaluated against the hierarchical entity (category),
+	 * but affects the queried non-hierarchical entities (products). It excludes all products referencing categories that
+	 * don't satisfy the `anyHaving` inner constraints.
+	 *
+	 * Let's say that some categories in the tree are labeled as "favorites" and you want to list all products that relate
+	 * to those categories or any of their parent categories, but only within root category with `code="accessories"`.
+	 * You can use the `anyHaving` constraint to achieve that:
+	 *
+	 * <pre>
+	 * query(
+	 *     collection("Product"),
+	 *     filterBy(
+	 *         hierarchyWithin(
+	 *             "categories",
+	 *             attributeEquals("code", "accessories"),
+	 *             having(
+	 *                 attributeEquals("status", "ACTIVE")
+	 *             ),
+	 *             anyHaving(
+	 *                 referenceHaving(
+	 *                     entityHaving(
+	 *                         attributeEquals("status", "ACTIVE")
+	 *                         attributeEquals("favorite", true)
+	 *                     )
+	 *                 )
+	 *             )
+	 *         )
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent("code")
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 *
+	 * The query will still consider only categories and products that are labeled as "ACTIVE", but it will also include
+	 * only those products that relate to the categories that are either labeled "favorite" or are parent of such a category.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#anyHaving">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static HierarchyAnyHaving anyHaving(@Nullable FilterConstraint... includeChildTreeConstraints) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(includeChildTreeConstraints)) {
+			return null;
+		}
+		return new HierarchyAnyHaving(includeChildTreeConstraints);
 	}
 
 	/**
@@ -5085,10 +5190,10 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * The calculated result for `fromRoot` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
-	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
-	 * the `fromRoot` respects them. The reason is simple: when you render a menu for the query result, you want
-	 * the calculated statistics to respect the rules that apply to the {@link HierarchyWithin} so that the calculated
-	 * number remains consistent for the end user.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
+	 * or {@link HierarchyExcluding}, the `fromRoot` respects them. The reason is simple: when you render a menu for
+	 * the query result, you want the calculated statistics to respect the rules that apply to the {@link HierarchyWithin}
+	 * so that the calculated number remains consistent for the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-root">Visit detailed user documentation</a></p>
 	*/
@@ -5160,10 +5265,10 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * The calculated result for `fromRoot` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
-	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
-	 * the `fromRoot` respects them. The reason is simple: when you render a menu for the query result, you want
-	 * the calculated statistics to respect the rules that apply to the {@link HierarchyWithin} so that the calculated
-	 * number remains consistent for the end user.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
+	 * or {@link HierarchyExcluding}, the `fromRoot` respects them. The reason is simple: when you render a menu for
+	 * the query result, you want the calculated statistics to respect the rules that apply to the {@link HierarchyWithin}
+	 * so that the calculated number remains consistent for the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-root">Visit detailed user documentation</a></p>
 	*/
@@ -5254,10 +5359,10 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * The calculated result for `fromNode` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
-	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
-	 * the `fromNode` respects them. The reason is simple: when you render a menu for the query result, you want
-	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
-	 * remains consistent for the end user.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
+	 * or {@link HierarchyExcluding}, the `fromNode` respects them. The reason is simple: when you render a menu for
+	 * the query result, you want the calculated statistics to respect the rules that apply to the hierarchyWithin so that
+	 * the calculated number remains consistent for the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a></p>
 	*/
@@ -5350,10 +5455,10 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * The calculated result for `fromNode` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
-	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
-	 * the `fromNode` respects them. The reason is simple: when you render a menu for the query result, you want
-	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
-	 * remains consistent for the end user.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
+	 * or {@link HierarchyExcluding}, the `fromNode` respects them. The reason is simple: when you render a menu for
+	 * the query result, you want the calculated statistics to respect the rules that apply to the hierarchyWithin so that
+	 * the calculated number remains consistent for the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a></p>
 	*/
@@ -5424,10 +5529,10 @@ public interface QueryConstraints {
 	 *
 	 * The calculated result for children is connected with the {@link HierarchyWithin} pivot hierarchy node (or
 	 * the "virtual" invisible top root referred to by the hierarchyWithinRoot constraint). If the {@link HierarchyWithin}
-	 * contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding}, the children will respect them as
-	 * well. The reason is simple: when you render a menu for the query result, you want the calculated statistics to
-	 * respect the rules that apply to the hierarchyWithin so that the calculated number remains consistent for the end
-	 * user.
+	 * contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving} or {@link HierarchyExcluding},
+	 * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
+	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
+	 * remains consistent for the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#children">Visit detailed user documentation</a></p>
 	*/
@@ -5495,10 +5600,10 @@ public interface QueryConstraints {
 	 *
 	 * The calculated result for children is connected with the {@link HierarchyWithin} pivot hierarchy node (or
 	 * the "virtual" invisible top root referred to by the hierarchyWithinRoot constraint). If the {@link HierarchyWithin}
-	 * contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding}, the children will respect them as
-	 * well. The reason is simple: when you render a menu for the query result, you want the calculated statistics to
-	 * respect the rules that apply to the hierarchyWithin so that the calculated number remains consistent for the end
-	 * user.
+	 * contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving} or {@link HierarchyExcluding},
+	 * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
+	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
+	 * remains consistent for the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#children">Visit detailed user documentation</a></p>
 	*/
@@ -5565,10 +5670,10 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * The calculated result for siblings is connected with the {@link HierarchyWithin} pivot hierarchy node. If
-	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
-	 * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
-	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
-	 * remains consistent for the end user.
+	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
+	 * or {@link HierarchyExcluding}, the children will respect them as well. The reason is simple: when you render a menu
+	 * for the query result, you want the calculated statistics to respect the rules that apply to the hierarchyWithin so
+	 * that the calculated number remains consistent for the end user.
 	 *
 	 * <strong>Different siblings syntax when used within parents parent constraint</strong>
 	 *
@@ -5644,10 +5749,10 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * The calculated result for siblings is connected with the {@link HierarchyWithin} pivot hierarchy node. If
-	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
-	 * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
-	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
-	 * remains consistent for the end user.
+	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
+	 * or {@link HierarchyExcluding}, the children will respect them as well. The reason is simple: when you render a menu
+	 * for the query result, you want the calculated statistics to respect the rules that apply to the hierarchyWithin so
+	 * that the calculated number remains consistent for the end user.
 	 *
 	 * <strong>Different siblings syntax when used within parents parent constraint</strong>
 	 *
@@ -5722,10 +5827,10 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * The calculated result for siblings is connected with the {@link HierarchyWithin} pivot hierarchy node. If
-	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
-	 * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
-	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
-	 * remains consistent for the end user.
+	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
+	 * or {@link HierarchyExcluding}, the children will respect them as well. The reason is simple: when you render a menu
+	 * for the query result, you want the calculated statistics to respect the rules that apply to the hierarchyWithin so
+	 * that the calculated number remains consistent for the end user.
 	 *
 	 * <strong>Different siblings syntax when used within parents parent constraint</strong>
 	 *
@@ -5796,10 +5901,10 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * The calculated result for siblings is connected with the {@link HierarchyWithin} pivot hierarchy node. If
-	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
-	 * the children will respect them as well. The reason is simple: when you render a menu for the query result, you want
-	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
-	 * remains consistent for the end user.
+	 * the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
+	 * or {@link HierarchyExcluding}, the children will respect them as well. The reason is simple: when you render a menu
+	 * for the query result, you want the calculated statistics to respect the rules that apply to the hierarchyWithin so
+	 * that the calculated number remains consistent for the end user.
 	 *
 	 * <strong>Different siblings syntax when used within parents parent constraint</strong>
 	 *
@@ -5866,10 +5971,11 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * The calculated result for parents is connected with the {@link HierarchyWithin} pivot hierarchy node.
-	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
-	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
-	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
-	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
+	 * or {@link HierarchyExcluding}, the parents will respect them as well during child nodes / queried entities statistics
+	 * calculation. The reason is simple: when you render a menu for the query result, you want the calculated statistics
+	 * to respect the rules that apply to the {@link HierarchyWithin} so that the calculated number remains consistent for
+	 * the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
 	*/
@@ -5936,10 +6042,11 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * The calculated result for parents is connected with the {@link HierarchyWithin} pivot hierarchy node.
-	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
-	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
-	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
-	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
+	 * or {@link HierarchyExcluding}, the parents will respect them as well during child nodes / queried entities statistics
+	 * calculation. The reason is simple: when you render a menu for the query result, you want the calculated statistics
+	 * to respect the rules that apply to the {@link HierarchyWithin} so that the calculated number remains consistent for
+	 * the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
 	*/
@@ -6011,10 +6118,11 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * The calculated result for parents is connected with the {@link HierarchyWithin} pivot hierarchy node.
-	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
-	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
-	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
-	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
+	 * or {@link HierarchyExcluding}, the parents will respect them as well during child nodes / queried entities statistics
+	 * calculation. The reason is simple: when you render a menu for the query result, you want the calculated statistics
+	 * to respect the rules that apply to the {@link HierarchyWithin} so that the calculated number remains consistent for
+	 * the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
 	*/
@@ -6080,10 +6188,11 @@ public interface QueryConstraints {
 	 * </pre>
 	 *
 	 * The calculated result for parents is connected with the {@link HierarchyWithin} pivot hierarchy node.
-	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving} or {@link HierarchyExcluding},
-	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
-	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
-	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
+	 * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
+	 * or {@link HierarchyExcluding}, the parents will respect them as well during child nodes / queried entities statistics
+	 * calculation. The reason is simple: when you render a menu for the query result, you want the calculated statistics
+	 * to respect the rules that apply to the {@link HierarchyWithin} so that the calculated number remains consistent for
+	 * the end user.
 	 *
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
 	*/
@@ -35411,6 +35520,124 @@ public interface QueryConstraints {
 	@Nonnull
 	static PriceContent priceContentRespectingFilter(@Nullable String... priceLists) {
 		return PriceContent.respectingFilter(priceLists);
+	}
+
+	/**
+	 * The `accompanyingPrice` constraint defines the ordered price list names that should be used for calculation of
+	 * so-called accompanying price, which is a price not used for selling, but rather for displaying additional price
+	 * information (such as "previous price", "recommended price", etc.).
+	 *
+	 * <pre>
+	 * defaultAccompanyingPriceLists(
+	 *     "reference",
+	 *     "basic"
+	 * )
+	 * </pre>
+	 *
+	 * This constraint doesn't trigger the accompanying price calculation itself, but rather defines the default price lists
+	 * that should be used in place where {@link AccompanyingPriceContent} requirement is used.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static DefaultAccompanyingPriceLists defaultAccompanyingPriceLists(@Nullable String... priceList) {
+		if (priceList == null) {
+			return null;
+		}
+		// if the array is empty - it was deliberate action which needs to produce empty result of the query
+		if (priceList.length == 0) {
+			return null;
+		}
+		final String[] normalizeNames = Arrays.stream(priceList).filter(Objects::nonNull).filter(it -> !it.isBlank()).toArray(String[]::new);
+		// the array was not empty, but contains only null values - this may not be deliberate action - for example
+		// the initalization was like `accompanyingPrice(nullVariable)` and this should exclude the constraint
+		if (normalizeNames.length == 0) {
+			return null;
+		}
+		// otherwise propagate only non-null values
+		return normalizeNames.length == priceList.length ?
+			new DefaultAccompanyingPriceLists(priceList) : new DefaultAccompanyingPriceLists(normalizeNames);
+	}
+
+	/**
+	 * The `accompanyingPriceContent` constraint defines that entity should have another price calculated with a different
+	 * price list sequence than the price for sale (but this accompanying price cannot be calculated without also calculating
+	 * price for sale).
+	 *
+	 * <pre>
+	 * accompanyingPriceContent(
+	 *     "myCalculatedPrice",
+	 *     "reference",
+	 *     "basic"
+	 * )
+	 * </pre>
+	 *
+	 * First argument is the name of the accompanying price that should be used to label the price calculation. Second and
+	 * subsequent arguments are names of price lists that should be used for default accompanying price calculation.
+	 * The order of price lists is important, because it defines the order in which the prices are used in calculation.
+	 *
+	 * You can also use {@link DefaultAccompanyingPriceLists} constraint to define default rules for accompanying price
+	 * and then use only simple form of this constraint without arguments:
+	 *
+	 * <pre>
+	 *     accompanyingPriceContent()
+	 * </pre>
+	 *
+	 * Calculated price will be labeled as `default` and will use price lists defined in `defaultAccompanyingPriceLists` constraint.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static AccompanyingPriceContent accompanyingPriceContentDefault() {
+		return new AccompanyingPriceContent();
+	}
+
+	/**
+	 * The `accompanyingPriceContent` constraint defines that entity should have another price calculated with a different
+	 * price list sequence than the price for sale (but this accompanying price cannot be calculated without also calculating
+	 * price for sale).
+	 *
+	 * <pre>
+	 * accompanyingPriceContent(
+	 *     "myCalculatedPrice",
+	 *     "reference",
+	 *     "basic"
+	 * )
+	 * </pre>
+	 *
+	 * First argument is the name of the accompanying price that should be used to label the price calculation. Second and
+	 * subsequent arguments are names of price lists that should be used for default accompanying price calculation.
+	 * The order of price lists is important, because it defines the order in which the prices are used in calculation.
+	 *
+	 * You can also use {@link DefaultAccompanyingPriceLists} constraint to define default rules for accompanying price
+	 * and then use only simple form of this constraint without arguments:
+	 *
+	 * <pre>
+	 *     accompanyingPriceContent()
+	 * </pre>
+	 *
+	 * Calculated price will be labeled as `default` and will use price lists defined in `defaultAccompanyingPriceLists` constraint.
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/price#accompanying-price">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static AccompanyingPriceContent accompanyingPriceContent(@Nullable String name, @Nullable String... priceList) {
+		// name is required argument
+		if (name == null || name.isBlank()) {
+			return null;
+		}
+		if (ArrayUtils.isEmptyOrItsValuesNull(priceList)) {
+			return new AccompanyingPriceContent(name);
+		}
+		final String[] normalizeNames = Arrays.stream(priceList).filter(Objects::nonNull).filter(it -> !it.isBlank()).toArray(String[]::new);
+		// the array was not empty, but contains only null values - this may not be deliberate action - for example
+		// the initalization was like `accompanyingPrice(nullVariable)` and this should exclude the constraint
+		if (normalizeNames.length == 0) {
+			return new AccompanyingPriceContent(name);
+		}
+		// otherwise propagate only non-null values
+		return normalizeNames.length == priceList.length ?
+			new AccompanyingPriceContent(name, priceList) : new AccompanyingPriceContent(name, normalizeNames);
 	}
 
 	/**

@@ -52,9 +52,9 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogConsumersListener;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
 import io.evitadb.core.buffer.DataStoreReader;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
@@ -97,6 +97,7 @@ import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.EntityStoragePart;
 import io.evitadb.store.model.PersistentStorageDescriptor;
+import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
@@ -859,20 +860,38 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public void flushTrappedUpdates(long catalogVersion, @Nonnull DataStoreChanges dataStoreChanges) {
+	public void flushTrappedUpdates(
+		long catalogVersion,
+		@Nonnull TrappedChanges trappedChanges,
+		@Nonnull IntConsumer trappedUpdatedProgress
+	) {
+		final int[] counter = {0};
+		final int division = Math.max(200, trappedChanges.getTrappedChangesCount() / 100);
+
 		// now store all entity trapped updates
-		dataStoreChanges.popTrappedUpdates()
-			.forEach(it -> {
-				if (it instanceof RemovedStoragePart removedStoragePart) {
-					this.storagePartPersistenceService.removeStoragePart(
-						catalogVersion,
-						removedStoragePart.getStoragePartPKOrElseThrowException(),
-						removedStoragePart.containerType()
-					);
-				} else {
-					this.storagePartPersistenceService.putStoragePart(catalogVersion, it);
-				}
-			});
+		final Iterator<StoragePart> it = trappedChanges.getTrappedChangesIterator();
+		while (it.hasNext()) {
+			StoragePart storagePart = it.next();
+			if (storagePart instanceof RemovedStoragePart removedStoragePart) {
+				this.storagePartPersistenceService.removeStoragePart(
+					catalogVersion,
+					removedStoragePart.getStoragePartPKOrElseThrowException(),
+					removedStoragePart.containerType()
+				);
+			} else {
+				this.storagePartPersistenceService.putStoragePart(catalogVersion, storagePart);
+			}
+
+			// Increment the counter and update progress every X items
+			if (++counter[0] % division == 0) {
+				trappedUpdatedProgress.accept(counter[0]);
+			}
+		}
+
+		// Final progress update if there are remaining items
+		if (counter[0] % division != 0) {
+			trappedUpdatedProgress.accept(counter[0]);
+		}
 	}
 
 	@Override

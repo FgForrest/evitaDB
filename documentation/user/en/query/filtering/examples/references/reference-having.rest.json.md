@@ -9,6 +9,7 @@
         "scope" : "LIVE",
         "allLocales" : [
           "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -36,6 +37,8 @@
         "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -63,6 +66,8 @@
         "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -90,6 +95,8 @@
         "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -117,6 +124,8 @@
         "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -152,6 +161,8 @@
         "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -179,6 +190,8 @@
         "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -206,6 +219,8 @@
         "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -233,6 +248,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -268,6 +285,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -295,6 +314,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -322,6 +343,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -357,6 +380,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -384,6 +409,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -411,6 +438,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -446,6 +475,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -481,6 +512,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -516,6 +549,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -551,6 +586,8 @@
         "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [
@@ -570,6 +607,8 @@
         "version" : 2,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "relatedProducts" : [

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -143,10 +143,7 @@ public class UpdateCatalogHandler extends CatalogHandler {
 			() -> new RestInvalidArgumentException("Only a catalog in the `WARMING_UP` state can be switched to the `ALIVE` state.")
 		);
 
-		final boolean switched = catalog.goLive();
-		Assert.isTrue(
-			switched,
-			() -> new RestInvalidArgumentException("A catalog couldn't be switched to the `ALIVE` state.")
-		);
+		/* we need to synchronously wait here */
+		catalog.goLive(null).onCompletion().toCompletableFuture().join();
 	}
 }

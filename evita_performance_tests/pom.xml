@@ -35,7 +35,7 @@
 
 	<properties>
 		<sonar.skip>true</sonar.skip>
-		<jmh.version>1.27</jmh.version>
+		<jmh.version>1.37</jmh.version>
 		<javac.target>1.17</javac.target>
 		<uberjar.name>benchmarks</uberjar.name>
 	</properties>
@@ -115,7 +115,7 @@
 		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-junit-jupiter</artifactId>
-			<version>4.6.1</version>
+			<version>5.18.0</version>
 		</dependency>
 	</dependencies>
 

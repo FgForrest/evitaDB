@@ -3,16 +3,18 @@
   "recordPage" : {
     "data" : [
       {
-        "primaryKey" : 107827,
+        "primaryKey" : 113054,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
           "global" : {
-            "code" : "zte-axon-10"
+            "code" : "xiaomi-buds-3-pro"
           }
         },
         "groups" : [
@@ -27,11 +29,39 @@
         ]
       },
       {
+        "primaryKey" : 107827,
+        "type" : "Product",
+        "version" : 1,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "zte-axon-10"
+          }
+        },
+        "groups" : [
+          {
+            "referencedPrimaryKey" : 66505,
+            "attributes" : {
+              "global" : {
+                "orderInGroup" : 113054
+              }
+            }
+          }
+        ]
+      },
+      {
         "primaryKey" : 108543,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -56,6 +86,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -75,16 +107,18 @@
         ]
       },
       {
-        "primaryKey" : 113054,
+        "primaryKey" : 113172,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
           "global" : {
-            "code" : "xiaomi-buds-3-pro"
+            "code" : "trust-kuza"
           }
         },
         "groups" : [
@@ -99,35 +133,13 @@
         ]
       },
       {
-        "primaryKey" : 113172,
-        "type" : "Product",
-        "version" : 1,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "trust-kuza"
-          }
-        },
-        "groups" : [
-          {
-            "referencedPrimaryKey" : 66505,
-            "attributes" : {
-              "global" : {
-                "orderInGroup" : 113054
-              }
-            }
-          }
-        ]
-      },
-      {
         "primaryKey" : 113048,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -152,6 +164,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -176,6 +190,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -200,6 +216,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -224,6 +242,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -248,6 +268,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -272,6 +294,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -296,6 +320,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -320,6 +346,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -344,6 +372,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -368,6 +398,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -392,6 +424,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -416,6 +450,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -440,6 +476,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {
@@ -464,6 +502,8 @@
         "version" : 1,
         "scope" : "LIVE",
         "allLocales" : [
+          "cs",
+          "de",
           "en"
         ],
         "attributes" : {

@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -63,8 +64,6 @@ import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -386,31 +385,28 @@ public abstract class EntityIndex implements
 	/**
 	 * Method returns collection of all modified parts of this index that were modified and needs to be stored.
 	 */
-	@Nonnull
-	public Collection<StoragePart> getModifiedStorageParts() {
-		final List<StoragePart> dirtyList = new LinkedList<>();
+	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
 		final PriceIndexContract priceIndex = getPriceIndex();
 		final boolean hierarchyIndexEmpty = this.hierarchyIndex.isHierarchyIndexEmpty();
 		final Set<AttributeIndexStorageKey> attributeIndexStorageKeys = getAttributeIndexStorageKeys();
 		final Set<PriceIndexKey> priceIndexKeys = getPriceIndexKeys(priceIndex);
 		final Set<String> facetIndexReferencedEntities = getFacetIndexReferencedEntities();
-		if (dirty.isTrue() ||
+		if (this.dirty.isTrue() ||
 			this.originalHierarchyIndexEmpty != hierarchyIndexEmpty ||
 			!Objects.equals(this.originalAttributeIndexes, attributeIndexStorageKeys) ||
 			!Objects.equals(this.originalPriceIndexes, priceIndexKeys) ||
 			!Objects.equals(this.originalFacetIndexes, facetIndexReferencedEntities)
 		) {
-			dirtyList.add(
+			trappedChanges.addChangeToStore(
 				createStoragePart(
 					hierarchyIndexEmpty, attributeIndexStorageKeys, priceIndexKeys, facetIndexReferencedEntities
 				)
 			);
 		}
-		ofNullable(hierarchyIndex.createStoragePart(primaryKey))
-			.ifPresent(dirtyList::add);
-		dirtyList.addAll(attributeIndex.getModifiedStorageParts(primaryKey));
-		dirtyList.addAll(facetIndex.getModifiedStorageParts(primaryKey));
-		return dirtyList;
+		ofNullable(this.hierarchyIndex.createStoragePart(this.primaryKey))
+			.ifPresent(trappedChanges::addChangeToStore);
+		this.attributeIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
+		this.facetIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
 	}
 
 	@Override
