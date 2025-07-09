@@ -295,7 +295,7 @@ message GrpcCloseResponse {
   int32 catalogSchemaVersion = 2;
 }
 
-// Response for Close request that commits or rollbacks the changes in the session.
+// Response for CloseGrpcCloseWithProgress request that commits or rollbacks the changes in the session.
 message GrpcCloseWithProgressRequest {
   // Name of the catalog to which the session relates.
   string catalogName = 1;

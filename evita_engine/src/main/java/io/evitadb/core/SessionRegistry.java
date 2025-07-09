@@ -906,7 +906,7 @@ final class SessionRegistry {
 		}
 
 		/**
-		 * Returns set of all active (currently open) sessions.
+		 * Returns a stream of all active (currently open) sessions.
 		 */
 		@Nonnull
 		public Stream<EvitaSessionContract> getActiveSessions() {
@@ -959,7 +959,7 @@ final class SessionRegistry {
 	/**
 	 * This record is used to keep information about the current suspension period.
 	 */
-	public record InSuspension(
+	private record InSuspension(
 		@Nonnull SuspendOperation suspendOperation,
 		@Nonnull CompletableFuture<Void> suspendFuture,
 		/* TOBEDONE #187 - TRY TO REMOVE THIS LOGIC WITH BETTER REFRESHING LOGIC IN APIS */
