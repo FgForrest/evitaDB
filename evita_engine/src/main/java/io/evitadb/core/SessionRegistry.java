@@ -71,6 +71,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -83,6 +84,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -184,9 +186,16 @@ final class SessionRegistry {
 	 * Method closes and removes all active sessions from the registry.
 	 * All changes are rolled back.
 	 */
-	public void closeAllActiveSessionsAndSuspend(@Nonnull SuspendOperation suspendOperation) {
+	@Nonnull
+	public Optional<SuspensionInformation> closeAllActiveSessionsAndSuspend(@Nonnull SuspendOperation suspendOperation) {
 		if (this.activeSuspendOperation.compareAndSet(null, new InSuspension(suspendOperation))) {
-			final Set<UUID> forcefullyClosedSessionIds = CollectionUtils.createHashSet(this.activeSessions.size());
+			final Set<UUID> forcefullyClosedSessionIds = new ConcurrentSkipListSet<>();
+			// init information about closed sessions
+			final SuspensionInformation suspensionInformation = new SuspensionInformation(
+				OffsetDateTime.now(),
+				forcefullyClosedSessionIds
+			);
+			this.forcefullyClosedSessions.set(suspensionInformation);
 			final long start = System.currentTimeMillis();
 			do {
 				final List<CompletableFuture<CommitVersions>> futures = new ArrayList<>(this.activeSessions.size());
@@ -223,14 +232,6 @@ final class SessionRegistry {
 				// wait for active sessions to be empty, but at most 5 seconds
 			} while (!this.activeSessions.isEmpty() && System.currentTimeMillis() - start < 5000);
 
-			// init information about closed sessions
-			this.forcefullyClosedSessions.set(
-				new SuspensionInformation(
-					OffsetDateTime.now(),
-					forcefullyClosedSessionIds
-				)
-			);
-
 			Assert.isPremiseValid(
 				this.activeSessions.isEmpty(),
 				"Some of the sessions didn't clean themselves (" +
@@ -241,7 +242,9 @@ final class SessionRegistry {
 						.collect(Collectors.joining(", "))
 					+ ")!"
 			);
+			return of(suspensionInformation);
 		}
+		return ofNullable(this.forcefullyClosedSessions.get());
 	}
 
 	/**
@@ -1004,10 +1007,18 @@ final class SessionRegistry {
 	 * - A set of sessions (identified by their unique IDs) that were
 	 *   forcefully terminated as part of the suspension process.
 	 */
-	private record SuspensionInformation(
+	public record SuspensionInformation(
 		@Nonnull OffsetDateTime suspensionDateTime,
 		@Nonnull Set<UUID> forcefullyClosedSessions
 	) {
+
+		/**
+		 * Registers a session ID as forcefully closed during the suspension operation.
+		 * @param sessionId the unique identifier of the session that was forcefully closed.
+		 */
+		void addForcefullyClosedSession(@Nonnull UUID sessionId) {
+			this.forcefullyClosedSessions.add(sessionId);
+		}
 
 		/**
 		 * Checks whether the specified session ID is present in the set of forcefully closed sessions.

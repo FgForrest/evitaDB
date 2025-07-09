@@ -73,6 +73,7 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
+import io.evitadb.core.SessionRegistry.SuspendOperation;
 import io.evitadb.core.async.Interruptible;
 import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
@@ -410,6 +411,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		isTrue(!theCatalog.supportsTransaction(), "Catalog went live already and is currently in transactional mode!");
 		executeTerminationSteps(null, theCatalog);
 		this.closedFuture = CompletableFuture.completedFuture(new CommitVersions(this.catalog.getVersion() + 1, this.catalog.getSchema().version()));
+		this.evita.closeAllSessionsAndSuspend(this.catalog.getName(), SuspendOperation.REJECT)
+			.ifPresent(it -> it.addForcefullyClosedSession(this.id));
 		return theCatalog.goLive(progressObserver);
 	}
 
