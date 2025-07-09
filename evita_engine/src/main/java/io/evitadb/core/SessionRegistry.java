@@ -65,6 +65,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -82,6 +83,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -113,6 +115,11 @@ final class SessionRegistry {
 	 */
 	private final AtomicReference<InSuspension> activeSuspendOperation;
 	/**
+	 * This field is used to keep track of the sessions that were forcefully closed due to an suspension operation.
+	 * The information is held only for a limited time.
+	 */
+	private final AtomicReference<SuspensionInformation> forcefullyClosedSessions = new AtomicReference<>(null);
+	/**
 	 * Keeps information about sessions sorted according to date of creation.
 	 */
 	private final ConcurrentLinkedQueue<EvitaSessionTuple> sessionsFifoQueue;
@@ -124,6 +131,7 @@ final class SessionRegistry {
 
 	/**
 	 * Created data store to be shared among all SessionRegistry instances.
+	 *
 	 * @return the data store
 	 */
 	@Nonnull
@@ -177,8 +185,12 @@ final class SessionRegistry {
 	 * Method closes and removes all active sessions from the registry.
 	 * All changes are rolled back.
 	 */
-	public void closeAllActiveSessionsAndSuspend(@Nonnull SuspendOperation suspendOperation) {
+	@Nonnull
+	public Optional<SuspensionInformation> closeAllActiveSessionsAndSuspend(@Nonnull SuspendOperation suspendOperation) {
 		if (this.activeSuspendOperation.compareAndSet(null, new InSuspension(suspendOperation))) {
+			// init information about closed sessions
+			final SuspensionInformation suspensionInformation = new SuspensionInformation(this.activeSessions.size());
+			this.forcefullyClosedSessions.set(suspensionInformation);
 			final long start = System.currentTimeMillis();
 			do {
 				final List<CompletableFuture<CommitVersions>> futures = new ArrayList<>(this.activeSessions.size());
@@ -196,6 +208,7 @@ final class SessionRegistry {
 										}
 										final UUID sessionId = plainSession.getId();
 										log.info("There is still active session {} - terminating.", sessionId);
+										suspensionInformation.addForcefullyClosedSession(sessionId);
 										futures.add(
 											plainSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE)
 												.toCompletableFuture()
@@ -224,7 +237,9 @@ final class SessionRegistry {
 						.collect(Collectors.joining(", "))
 					+ ")!"
 			);
+			return of(suspensionInformation);
 		}
+		return ofNullable(this.forcefullyClosedSessions.get());
 	}
 
 	/**
@@ -234,6 +249,23 @@ final class SessionRegistry {
 		final InSuspension inSuspension = this.activeSuspendOperation.getAndSet(null);
 		if (inSuspension != null) {
 			inSuspension.suspendFuture().complete(null);
+		}
+	}
+
+	/**
+	 * Clears any temporary information related to forcefully closed sessions in the registry.
+	 *
+	 * If there is information about sessions that were forcefully closed and the suspension event
+	 * occurred more than 5 minutes ago, this method will clear that information.
+	 *
+	 * This helps in cleaning up outdated suspension data to keep the registry up-to-date
+	 * and free from stale information.
+	 */
+	public void clearTemporaryInformation() {
+		final SuspensionInformation suspensionInformation = this.forcefullyClosedSessions.get();
+		if (suspensionInformation != null && suspensionInformation.getSuspensionDateTime().isBefore(OffsetDateTime.now().minusMinutes(5))) {
+			// clear the information about forcefully closed sessions after 5 minutes
+			this.forcefullyClosedSessions.set(null);
 		}
 	}
 
@@ -334,6 +366,7 @@ final class SessionRegistry {
 
 	/**
 	 * Internal method that creates and initializes session and returns it.
+	 *
 	 * @param sessionFactory the function that creates the session
 	 * @return the created session
 	 */
@@ -364,18 +397,30 @@ final class SessionRegistry {
 	}
 
 	/**
+	 * Determines whether the sessions associated with a catalog were forcefully closed.
+	 *
+	 * @param sessionId the unique identifier of the session in the registry
+	 * @return true if the sessions associated with the catalog were forcefully closed; false otherwise
+	 */
+	public boolean wereSessionsForcefullyClosedForCatalog(@Nonnull UUID sessionId) {
+		return ofNullable(this.forcefullyClosedSessions.get())
+			.map(it -> it.contains(sessionId))
+			.orElse(false);
+	}
+
+	/**
 	 * Handles a suspension operation based on the current state.
 	 * If there is an active suspend operation, it evaluates its behavior and
 	 * acts accordingly by either postponing the operation, awaiting completion,
 	 * or throwing an exception. If no active suspend operation is detected, it
 	 * proceeds with the supplied operation.
 	 *
-	 * @param <T> the type of the result provided by the supplier
+	 * @param <T>      the type of the result provided by the supplier
 	 * @param supplier a non-null supplier that provides the operation to execute
 	 *                 if suspension allows it
 	 * @return the result of the supplier's operation if executed successfully
-	 * @throws SessionBusyException if the suspension operation has been postponed
-	 *                              and could not finish within the timeout period
+	 * @throws SessionBusyException        if the suspension operation has been postponed
+	 *                                     and could not finish within the timeout period
 	 * @throws InstanceTerminatedException if the suspension operation indicates
 	 *                                     the instance termination
 	 */
@@ -392,6 +437,21 @@ final class SessionRegistry {
 		} else {
 			throw new InstanceTerminatedException("catalog");
 		}
+	}
+
+	/**
+	 * Enum contains different levels of suspension operations for the SessionRegistry.
+	 */
+	public enum SuspendOperation {
+		/**
+		 * All incoming operations are temporarily suspended due to internal operations with the catalog - such
+		 * as rename or replace.
+		 */
+		POSTPONE,
+		/**
+		 * All incoming operations should be immediately rejected because the catalog is being terminated.
+		 */
+		REJECT
 	}
 
 	/**
@@ -422,12 +482,6 @@ final class SessionRegistry {
 		private final static Method IS_METHOD_RUNNING;
 		private final static Method WHEN_METHOD_IS_NOT_RUNNING;
 		private final static Method INACTIVITY_IN_SECONDS;
-		private final EvitaSession evitaSession;
-		private final TracingContext tracingContext;
-		@Getter private final ClosedEvent sessionClosedEvent;
-		private final AtomicInteger insideInvocation = new AtomicInteger(0);
-		private final AtomicLong lastCall = new AtomicLong(System.currentTimeMillis());
-		private final AtomicReference<ClosingSequence> closeLambda = new AtomicReference<>(null);
 
 		static {
 			try {
@@ -439,6 +493,13 @@ final class SessionRegistry {
 				throw new GenericEvitaInternalError("Method not found.", ex);
 			}
 		}
+
+		private final EvitaSession evitaSession;
+		private final TracingContext tracingContext;
+		@Getter private final ClosedEvent sessionClosedEvent;
+		private final AtomicInteger insideInvocation = new AtomicInteger(0);
+		private final AtomicLong lastCall = new AtomicLong(System.currentTimeMillis());
+		private final AtomicReference<ClosingSequence> closeLambda = new AtomicReference<>(null);
 
 		/**
 		 * Handles arguments printing.
@@ -561,12 +622,12 @@ final class SessionRegistry {
 		 * query and mutation tracking, and tracing execution based on annotations.
 		 *
 		 * @param method the method to be invoked on the delegate object, must not be null
-		 * @param args the arguments to pass to the method being invoked, must not be null
+		 * @param args   the arguments to pass to the method being invoked, must not be null
 		 * @return the result of the method invocation or null if the method returns void or there is an error
-		 * @throws TransactionException if a transaction-related error occurs during execution
+		 * @throws TransactionException       if a transaction-related error occurs during execution
 		 * @throws EvitaInvalidUsageException if an invalid usage of the Evita API is detected
-		 * @throws EvitaInternalError if an internal Evita-specific error occurs
-		 * @throws GenericEvitaInternalError if an unexpected system error occurs during execution
+		 * @throws EvitaInternalError         if an internal Evita-specific error occurs
+		 * @throws GenericEvitaInternalError  if an unexpected system error occurs during execution
 		 */
 		@Nullable
 		private Object executeDelegateMethod(@Nonnull Method method, @Nullable Object[] args) {
@@ -692,7 +753,7 @@ final class SessionRegistry {
 	/**
 	 * Record that provides access both to the latch and the close lambda.
 	 *
-	 * @param closeLambda the close lambda that is executed when the session is closed
+	 * @param closeLambda  the close lambda that is executed when the session is closed
 	 * @param closedFuture the future that is completed when the session is closed
 	 */
 	private record ClosingSequence(
@@ -707,7 +768,7 @@ final class SessionRegistry {
 		/**
 		 * Waits for the session to finish closing within the specified timeout period.
 		 *
-		 * @param timeout the maximum time to wait for the session to finish, in the given time unit
+		 * @param timeout  the maximum time to wait for the session to finish, in the given time unit
 		 * @param timeUnit the time unit of the timeout parameter
 		 * @return {@code true} if the session finished closing within the timeout period, {@code false} if the timeout elapsed
 		 * @throws SessionBusyException if an InterruptedException or ExecutionException occurs while waiting
@@ -794,7 +855,7 @@ final class SessionRegistry {
 		void unregisterSessionConsumingCatalogInVersion(long version, @Nonnull Supplier<Catalog> catalog) {
 			final Integer readerCount = this.versionConsumingSessions.compute(
 				version,
-				(k, v) -> v== null || v == 1 ? null : v - 1
+				(k, v) -> v == null || v == 1 ? null : v - 1
 			);
 
 			// the minimal active catalog version used by another session now
@@ -822,6 +883,11 @@ final class SessionRegistry {
 
 	}
 
+	/**
+	 * The SessionRegistryDataStore is a utility class used to manage active sessions.
+	 * It maintains an internal index of sessions and provides methods for session retrieval,
+	 * addition, and removal.
+	 */
 	public static class SessionRegistryDataStore {
 		/**
 		 * Keeps information about currently active sessions.
@@ -838,7 +904,18 @@ final class SessionRegistry {
 		}
 
 		/**
+		 * Returns a stream of all active (currently open) sessions.
+		 */
+		@Nonnull
+		public Stream<EvitaSessionContract> getActiveSessions() {
+			return this.activeSessions.values()
+				.stream()
+				.map(EvitaSessionTuple::proxySession);
+		}
+
+		/**
 		 * Method adds an active session to the internal index.
+		 *
 		 * @param activeSession the active session to be added
 		 */
 		void addSession(@Nonnull EvitaSessionTuple activeSession) {
@@ -847,22 +924,13 @@ final class SessionRegistry {
 
 		/**
 		 * Method removes an active session from the internal index and returns it.
+		 *
 		 * @param sessionId the unique id of the session
 		 * @return the session that was removed or NULL if such session is not found
 		 */
 		@Nullable
 		EvitaSessionTuple removeSession(@Nonnull UUID sessionId) {
 			return this.activeSessions.remove(sessionId);
-		}
-
-		/**
-		 * Returns set of all active (currently open) sessions.
-		 */
-		@Nonnull
-		public Stream<EvitaSessionContract> getActiveSessions() {
-			return this.activeSessions.values()
-				.stream()
-				.map(EvitaSessionTuple::proxySession);
 		}
 	}
 
@@ -907,7 +975,7 @@ final class SessionRegistry {
 		/**
 		 * Waits for the suspension period to finish or times out after the specified duration.
 		 *
-		 * @param timeout the maximum time to wait for the suspension to finish, in the given time unit
+		 * @param timeout  the maximum time to wait for the suspension to finish, in the given time unit
 		 * @param timeUnit the unit of time for the timeout parameter, must not be null
 		 * @return true if the suspension period finishes within the specified timeout, false if the timeout occurs
 		 * @throws SessionBusyException if an error occurs during the wait or the current thread is interrupted
@@ -926,18 +994,42 @@ final class SessionRegistry {
 	}
 
 	/**
-	 * Enum contains different levels of suspension operations for the SessionRegistry.
+	 * This record encapsulates information related to a suspension operation
+	 * within the SessionRegistry.
+	 *
+	 * The suspension operation holds data regarding:
+	 * - The time at which the suspension occurred.
+	 * - A set of sessions (identified by their unique IDs) that were
+	 *   forcefully terminated as part of the suspension process.
 	 */
-	public enum SuspendOperation {
+	public static class SuspensionInformation {
+		@Nonnull @Getter private final OffsetDateTime suspensionDateTime;
+		@Nonnull private final Set<UUID> forcefullyClosedSessions;
+
+		public SuspensionInformation(int expectedCount) {
+			this.suspensionDateTime = OffsetDateTime.now();
+			this.forcefullyClosedSessions = CollectionUtils.createHashSet(expectedCount);
+		}
+
 		/**
-		 * All incoming operations are temporarily suspended due to internal operations with the catalog - such
-		 * as rename or replace.
+		 * Registers a session ID as forcefully closed during the suspension operation.
+		 * @param sessionId the unique identifier of the session that was forcefully closed.
 		 */
-		POSTPONE,
+		void addForcefullyClosedSession(@Nonnull UUID sessionId) {
+			this.forcefullyClosedSessions.add(sessionId);
+		}
+
 		/**
-		 * All incoming operations should be immediately rejected because the catalog is being terminated.
+		 * Checks whether the specified session ID is present in the set of forcefully closed sessions.
+		 *
+		 * @param sessionId the unique identifier of the session to check. Must not be null.
+		 * @return {@code true} if the session ID is present in the set of forcefully closed sessions;
+		 *         {@code false} otherwise.
 		 */
-		REJECT
+		public boolean contains(@Nonnull UUID sessionId) {
+			return this.forcefullyClosedSessions.contains(sessionId);
+		}
+
 	}
 
 }

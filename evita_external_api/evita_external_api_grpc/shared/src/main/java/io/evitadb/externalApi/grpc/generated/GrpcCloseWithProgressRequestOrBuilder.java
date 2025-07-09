@@ -26,35 +26,16 @@
 
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcCloseRequestOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcCloseRequest)
+public interface GrpcCloseWithProgressRequestOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressRequest)
     com.google.protobuf.MessageOrBuilder {
-
-  /**
-   * <pre>
-   * Contains the requested commit behaviour
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 1;</code>
-   * @return The enum numeric value on the wire for commitBehaviour.
-   */
-  int getCommitBehaviourValue();
-  /**
-   * <pre>
-   * Contains the requested commit behaviour
-   * </pre>
-   *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 1;</code>
-   * @return The commitBehaviour.
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior getCommitBehaviour();
 
   /**
    * <pre>
    * Name of the catalog to which the session relates.
    * </pre>
    *
-   * <code>string catalogName = 2;</code>
+   * <code>string catalogName = 1;</code>
    * @return The catalogName.
    */
   java.lang.String getCatalogName();
@@ -63,7 +44,7 @@ public interface GrpcCloseRequestOrBuilder extends
    * Name of the catalog to which the session relates.
    * </pre>
    *
-   * <code>string catalogName = 2;</code>
+   * <code>string catalogName = 1;</code>
    * @return The bytes for catalogName.
    */
   com.google.protobuf.ByteString

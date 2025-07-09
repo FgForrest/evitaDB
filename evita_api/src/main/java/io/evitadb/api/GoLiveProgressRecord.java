@@ -101,8 +101,10 @@ public class GoLiveProgressRecord implements GoLiveProgress {
 		if (percentage < 0 || percentage > 100) {
 			throw new IllegalArgumentException("Percentage must be between 0 and 100, but was: " + percentage);
 		}
-		this.percentCompleted.set(percentage);
-		notifyClientObserver(percentage);
+		final int previousValue = this.percentCompleted.getAndSet(percentage);
+		if (previousValue != percentage) {
+			notifyClientObserver(percentage);
+		}
 	}
 
 	/**
