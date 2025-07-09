@@ -47,8 +47,6 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
 import io.evitadb.api.task.ServerTask;
-import io.evitadb.core.SessionRegistry.SuspendOperation;
-import io.evitadb.core.SessionRegistry.SuspensionInformation;
 import io.evitadb.core.async.ClientRunnableTask;
 import io.evitadb.core.async.EmptySettings;
 import io.evitadb.core.async.ObservableExecutorServiceWithHardDeadline;
@@ -771,7 +769,10 @@ public final class Evita implements EvitaContract {
 	 * @param suspendOperation the operation to be executed during the suspension of the catalog
 	 */
 	@Nonnull
-	public Optional<SuspensionInformation> closeAllSessionsAndSuspend(@Nonnull String catalogName, @Nonnull SuspendOperation suspendOperation) {
+	public Optional<SuspensionInformation> closeAllSessionsAndSuspend(
+		@Nonnull String catalogName,
+		@Nonnull SuspendOperation suspendOperation
+	) {
 		return ofNullable(this.catalogSessionRegistries.get(catalogName))
 			.flatMap(it -> it.closeAllActiveSessionsAndSuspend(suspendOperation));
 	}
