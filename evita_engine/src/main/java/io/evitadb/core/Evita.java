@@ -327,6 +327,28 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Checks if sessions were forcefully closed for the specified catalog and session ID.
+	 *
+	 * @param catalogName the name of the catalog for which to check if sessions were forcefully closed; must not be null
+	 * @param sessionId the unique identifier of the session to check; must not be null
+	 * @return true if sessions were forcefully closed for the specified catalog and session ID, false otherwise
+	 */
+	public boolean wereSessionsForcefullyClosedForCatalog(@Nonnull String catalogName, @Nonnull UUID sessionId) {
+		return ofNullable(this.catalogSessionRegistries.get(catalogName))
+			.map(it -> it.wereSessionsForcefullyClosedForCatalog(sessionId))
+			.isPresent();
+	}
+
+	/**
+	 * Clears all session registries and their temporary information.
+	 */
+	public void clearSessionRegistries() {
+		for (SessionRegistry value : this.catalogSessionRegistries.values()) {
+			value.clearTemporaryInformation();
+		}
+	}
+
+	/**
 	 * Emits statistics of the ThreadPool associated with the scheduler.
 	 */
 	private void emitScheduledForkJoinPoolStatistics() {

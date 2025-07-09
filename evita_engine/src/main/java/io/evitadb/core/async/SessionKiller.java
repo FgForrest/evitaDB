@@ -76,6 +76,8 @@ public class SessionKiller implements Runnable {
 	@Override
 	public void run() {
 		try {
+			this.evita.clearSessionRegistries();
+
 			final AtomicInteger counter = new AtomicInteger(0);
 			this.evita.getActiveSessions()
 				.map(EvitaInternalSessionContract.class::cast)
@@ -94,7 +96,7 @@ public class SessionKiller implements Runnable {
 							session.setRollbackOnly();
 						}
 
-						evita.terminateSession(session);
+						this.evita.terminateSession(session);
 						counter.incrementAndGet();
 
 						log.info("Killed session " + session.getId() + " (" + this.allowedInactivityInSeconds + "s of inactivity).");
@@ -106,7 +108,7 @@ public class SessionKiller implements Runnable {
 				});
 
 			if (counter.get() > 0) {
-				log.debug("Killed " + counter.get() + " timed out sessions (" + allowedInactivityInSeconds + "s of inactivity).");
+				log.debug("Killed " + counter.get() + " timed out sessions (" + this.allowedInactivityInSeconds + "s of inactivity).");
 			}
 		} catch (Exception ex) {
 			log.error("Session killer terminated unexpectedly: " + ex.getMessage(), ex);

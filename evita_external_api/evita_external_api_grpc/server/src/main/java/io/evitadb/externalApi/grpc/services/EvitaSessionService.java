@@ -92,6 +92,7 @@ import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.function.QuadriConsumer;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.Context;
 import io.grpc.Metadata;
@@ -122,6 +123,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.head;
 import static io.evitadb.api.query.QueryConstraints.label;
+import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADER;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcTaskStatus;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcUuid;
@@ -918,10 +920,23 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 							}
 						);
 				} else {
-					// no session to close, we couldn't return the catalog version, return error
-					responseObserver.onError(
-						new SessionNotFoundException("No session for closing found!")
-					);
+					final Metadata metadata = METADATA.get();
+					final String sessionId = metadata.get(Metadata.Key.of(SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER));
+					if (sessionId != null && this.evita.wereSessionsForcefullyClosedForCatalog(request.getCatalogName(), UUIDUtil.uuid(sessionId))) {
+						// sessions has been closed from the server side, due to system action and therefore
+						// the session was not found - this is ok, we don't report an error
+						responseObserver.onNext(
+							// we cannot provide more information in the response, session was closed forcefully
+							// but if we wouldn't return this response, the client would receive an error because of completion without response
+							GrpcCloseResponse.newBuilder().build()
+						);
+						responseObserver.onCompleted();
+					} else {
+						// no session to close, we couldn't return the catalog version, return error
+						responseObserver.onError(
+							new SessionNotFoundException("No session for closing found!")
+						);
+					}
 				}
 			},
 			this.evita.getRequestExecutor(),
@@ -938,7 +953,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void closeWithProgress(Empty request, StreamObserver<GrpcCloseWithProgressResponse> responseObserver) {
+	public void closeWithProgress(GrpcCloseWithProgressRequest request, StreamObserver<GrpcCloseWithProgressResponse> responseObserver) {
 		executeWithClientContext(
 			session -> {
 				if (session != null) {
@@ -966,10 +981,23 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 							}
 						);
 				} else {
-					// no session to close, we couldn't return the catalog version, return error
-					responseObserver.onError(
-						new SessionNotFoundException("No session for closing found!")
-					);
+					final Metadata metadata = METADATA.get();
+					final String sessionId = metadata.get(Metadata.Key.of(SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER));
+					if (sessionId != null && this.evita.wereSessionsForcefullyClosedForCatalog(request.getCatalogName(), UUIDUtil.uuid(sessionId))) {
+						// sessions has been closed from the server side, due to system action and therefore
+						// the session was not found - this is ok, we don't report an error
+						responseObserver.onNext(
+							// we cannot provide more information in the response, session was closed forcefully
+							// but if we wouldn't return this response, the client would receive an error because of completion without response
+							GrpcCloseWithProgressResponse.newBuilder().build()
+						);
+						responseObserver.onCompleted();
+					} else {
+						// no session to close, we couldn't return the catalog version, return error
+						responseObserver.onError(
+							new SessionNotFoundException("No session for closing found!")
+						);
+					}
 				}
 			},
 			this.evita.getRequestExecutor(),
