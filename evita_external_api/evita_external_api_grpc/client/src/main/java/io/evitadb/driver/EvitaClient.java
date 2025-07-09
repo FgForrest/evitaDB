@@ -122,8 +122,8 @@ import static java.util.Optional.ofNullable;
 /**
  * The EvitaClient implements {@link EvitaContract} interface and aims to behave identically as if the evitaDB is used
  * as an embedded engine. The purpose is to switch between the client & server setup and the single server setup
- * seamlessly. The client & server implementation takes advantage of gRPC API that is best suited for fast communication
- * between two endpoints if both parties are Java based.
+ * seamlessly. The client implementation takes advantage of gRPC API that is best suited for fast communication between
+ * two endpoints if both parties are Java based.
  *
  * The class is thread-safe and can be used from multiple threads to acquire {@link EvitaClientSession} that are not
  * thread-safe.

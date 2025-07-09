@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -416,27 +416,27 @@ public final class EvitaSessionServiceGrpc {
     return getCloseMethod;
   }
 
-  private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressRequest,
       io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse> getCloseWithProgressMethod;
 
   @io.grpc.stub.annotations.RpcMethod(
       fullMethodName = SERVICE_NAME + '/' + "CloseWithProgress",
-      requestType = com.google.protobuf.Empty.class,
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressRequest.class,
       responseType = io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse.class,
       methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
-  public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressRequest,
       io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse> getCloseWithProgressMethod() {
-    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse> getCloseWithProgressMethod;
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressRequest, io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse> getCloseWithProgressMethod;
     if ((getCloseWithProgressMethod = EvitaSessionServiceGrpc.getCloseWithProgressMethod) == null) {
       synchronized (EvitaSessionServiceGrpc.class) {
         if ((getCloseWithProgressMethod = EvitaSessionServiceGrpc.getCloseWithProgressMethod) == null) {
           EvitaSessionServiceGrpc.getCloseWithProgressMethod = getCloseWithProgressMethod =
-              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse>newBuilder()
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressRequest, io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse>newBuilder()
               .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
               .setFullMethodName(generateFullMethodName(SERVICE_NAME, "CloseWithProgress"))
               .setSampledToLocalTracing(true)
               .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  com.google.protobuf.Empty.getDefaultInstance()))
+                  io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressRequest.getDefaultInstance()))
               .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
                   io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse.getDefaultInstance()))
               .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("CloseWithProgress"))
@@ -1388,7 +1388,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that closes the session opening a stream that listens to transaction processing phases.
      * </pre>
      */
-    default void closeWithProgress(com.google.protobuf.Empty request,
+    default void closeWithProgress(io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getCloseWithProgressMethod(), responseObserver);
     }
@@ -1818,7 +1818,7 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that closes the session opening a stream that listens to transaction processing phases.
      * </pre>
      */
-    public void closeWithProgress(com.google.protobuf.Empty request,
+    public void closeWithProgress(io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncServerStreamingCall(
           getChannel().newCall(getCloseWithProgressMethod(), getCallOptions()), request, responseObserver);
@@ -2246,7 +2246,7 @@ public final class EvitaSessionServiceGrpc {
      */
     @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
     public io.grpc.stub.BlockingClientCall<?, io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse>
-        closeWithProgress(com.google.protobuf.Empty request) {
+        closeWithProgress(io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressRequest request) {
       return io.grpc.stub.ClientCalls.blockingV2ServerStreamingCall(
           getChannel(), getCloseWithProgressMethod(), getCallOptions(), request);
     }
@@ -2649,7 +2649,7 @@ public final class EvitaSessionServiceGrpc {
      * </pre>
      */
     public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse> closeWithProgress(
-        com.google.protobuf.Empty request) {
+        io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressRequest request) {
       return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
           getChannel(), getCloseWithProgressMethod(), getCallOptions(), request);
     }
@@ -3433,7 +3433,7 @@ public final class EvitaSessionServiceGrpc {
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseResponse>) responseObserver);
           break;
         case METHODID_CLOSE_WITH_PROGRESS:
-          serviceImpl.closeWithProgress((com.google.protobuf.Empty) request,
+          serviceImpl.closeWithProgress((io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse>) responseObserver);
           break;
         case METHODID_QUERY_ONE:
@@ -3638,7 +3638,7 @@ public final class EvitaSessionServiceGrpc {
           getCloseWithProgressMethod(),
           io.grpc.stub.ServerCalls.asyncServerStreamingCall(
             new MethodHandlers<
-              com.google.protobuf.Empty,
+              io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressRequest,
               io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse>(
                 service, METHODID_CLOSE_WITH_PROGRESS)))
         .addMethod(

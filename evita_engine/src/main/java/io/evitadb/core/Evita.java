@@ -60,6 +60,12 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchema
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.SessionRegistry.SuspendOperation;
+import io.evitadb.core.async.ClientRunnableTask;
+import io.evitadb.core.async.EmptySettings;
+import io.evitadb.core.async.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.core.async.ObservableThreadExecutor;
+import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.async.SessionKiller;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
@@ -424,6 +430,28 @@ public final class Evita implements EvitaContract {
 	public EvitaSessionContract createSession(@Nonnull SessionTraits traits) {
 		notNull(traits.catalogName(), "Catalog name is mandatory information.");
 		return createSessionInternal(traits).session();
+	}
+
+	/**
+	 * Checks if sessions were forcefully closed for the specified catalog and session ID.
+	 *
+	 * @param catalogName the name of the catalog for which to check if sessions were forcefully closed; must not be null
+	 * @param sessionId the unique identifier of the session to check; must not be null
+	 * @return true if sessions were forcefully closed for the specified catalog and session ID, false otherwise
+	 */
+	public boolean wasSessionForcefullyClosedForCatalog(@Nonnull String catalogName, @Nonnull UUID sessionId) {
+		return ofNullable(this.catalogSessionRegistries.get(catalogName))
+			.map(it -> it.wereSessionsForcefullyClosedForCatalog(sessionId))
+			.orElse(false);
+	}
+
+	/**
+	 * Clears all session registries and their temporary information.
+	 */
+	public void clearSessionRegistries() {
+		for (SessionRegistry value : this.catalogSessionRegistries.values()) {
+			value.clearTemporaryInformation();
+		}
 	}
 
 	@Override
@@ -904,6 +932,32 @@ public final class Evita implements EvitaContract {
 		}
 	}
 
+	/**
+	 * Closes all active sessions associated with the specified catalog and suspends further operations.
+	 *
+	 * @param catalogName      the name of the catalog whose sessions are to be closed and suspended
+	 * @param suspendOperation the operation to be executed during the suspension of the catalog
+	 */
+	@Nonnull
+	public Optional<SuspensionInformation> closeAllSessionsAndSuspend(
+		@Nonnull String catalogName,
+		@Nonnull SuspendOperation suspendOperation
+	) {
+		return ofNullable(this.catalogSessionRegistries.get(catalogName))
+			.flatMap(it -> it.closeAllActiveSessionsAndSuspend(suspendOperation));
+	}
+
+	/**
+	 * Discards the suspension state of the session registry associated with the given catalog name, if present.
+	 * The method resumes operations for the session registry if it exists for the provided catalog name.
+	 *
+	 * @param catalogName The name of the catalog whose suspension state should be discarded. Must not be null.
+	 */
+	public void discardSuspension(@Nonnull String catalogName) {
+		ofNullable(this.catalogSessionRegistries.get(catalogName))
+			.ifPresent(SessionRegistry::resumeOperations);
+	}
+
 	/*
 		PRIVATE METHODS
 	*/
@@ -1114,6 +1168,9 @@ public final class Evita implements EvitaContract {
 				}
 			}
 		);
+
+		// discard suspension of the session registry for the catalog, if present
+		discardSuspension(catalogName);
 
 		// notify callback that it's now a live snapshot
 		catalog.notifyCatalogPresentInLiveView();

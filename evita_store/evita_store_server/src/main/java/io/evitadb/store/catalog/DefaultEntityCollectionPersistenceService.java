@@ -882,7 +882,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				this.storagePartPersistenceService.putStoragePart(catalogVersion, storagePart);
 			}
 
-			// Increment the counter and update progress every 1,000 items
+			// Increment the counter and update progress every X items
 			if (++counter[0] % division == 0) {
 				trappedUpdatedProgress.accept(counter[0]);
 			}

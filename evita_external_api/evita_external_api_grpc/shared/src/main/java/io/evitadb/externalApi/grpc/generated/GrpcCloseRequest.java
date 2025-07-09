@@ -44,6 +44,7 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcCloseRequest() {
     commitBehaviour_ = 0;
+    catalogName_ = "";
   }
 
   @java.lang.Override
@@ -80,6 +81,12 @@ private static final long serialVersionUID = 0L;
             int rawValue = input.readEnum();
 
             commitBehaviour_ = rawValue;
+            break;
+          }
+          case 18: {
+            java.lang.String s = input.readStringRequireUtf8();
+
+            catalogName_ = s;
             break;
           }
           default: {
@@ -141,6 +148,52 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.UNRECOGNIZED : result;
   }
 
+  public static final int CATALOGNAME_FIELD_NUMBER = 2;
+  private volatile java.lang.Object catalogName_;
+  /**
+   * <pre>
+   * Name of the catalog to which the session relates.
+   * </pre>
+   *
+   * <code>string catalogName = 2;</code>
+   * @return The catalogName.
+   */
+  @java.lang.Override
+  public java.lang.String getCatalogName() {
+    java.lang.Object ref = catalogName_;
+    if (ref instanceof java.lang.String) {
+      return (java.lang.String) ref;
+    } else {
+      com.google.protobuf.ByteString bs = 
+          (com.google.protobuf.ByteString) ref;
+      java.lang.String s = bs.toStringUtf8();
+      catalogName_ = s;
+      return s;
+    }
+  }
+  /**
+   * <pre>
+   * Name of the catalog to which the session relates.
+   * </pre>
+   *
+   * <code>string catalogName = 2;</code>
+   * @return The bytes for catalogName.
+   */
+  @java.lang.Override
+  public com.google.protobuf.ByteString
+      getCatalogNameBytes() {
+    java.lang.Object ref = catalogName_;
+    if (ref instanceof java.lang.String) {
+      com.google.protobuf.ByteString b = 
+          com.google.protobuf.ByteString.copyFromUtf8(
+              (java.lang.String) ref);
+      catalogName_ = b;
+      return b;
+    } else {
+      return (com.google.protobuf.ByteString) ref;
+    }
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -158,6 +211,9 @@ private static final long serialVersionUID = 0L;
     if (commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION.getNumber()) {
       output.writeEnum(1, commitBehaviour_);
     }
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, catalogName_);
+    }
     unknownFields.writeTo(output);
   }
 
@@ -170,6 +226,9 @@ private static final long serialVersionUID = 0L;
     if (commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(1, commitBehaviour_);
+    }
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, catalogName_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -187,6 +246,8 @@ private static final long serialVersionUID = 0L;
     io.evitadb.externalApi.grpc.generated.GrpcCloseRequest other = (io.evitadb.externalApi.grpc.generated.GrpcCloseRequest) obj;
 
     if (commitBehaviour_ != other.commitBehaviour_) return false;
+    if (!getCatalogName()
+        .equals(other.getCatalogName())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -200,6 +261,8 @@ private static final long serialVersionUID = 0L;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + COMMITBEHAVIOUR_FIELD_NUMBER;
     hash = (53 * hash) + commitBehaviour_;
+    hash = (37 * hash) + CATALOGNAME_FIELD_NUMBER;
+    hash = (53 * hash) + getCatalogName().hashCode();
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -339,6 +402,8 @@ private static final long serialVersionUID = 0L;
       super.clear();
       commitBehaviour_ = 0;
 
+      catalogName_ = "";
+
       return this;
     }
 
@@ -366,6 +431,7 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcCloseRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcCloseRequest result = new io.evitadb.externalApi.grpc.generated.GrpcCloseRequest(this);
       result.commitBehaviour_ = commitBehaviour_;
+      result.catalogName_ = catalogName_;
       onBuilt();
       return result;
     }
@@ -416,6 +482,10 @@ private static final long serialVersionUID = 0L;
       if (other == io.evitadb.externalApi.grpc.generated.GrpcCloseRequest.getDefaultInstance()) return this;
       if (other.commitBehaviour_ != 0) {
         setCommitBehaviourValue(other.getCommitBehaviourValue());
+      }
+      if (!other.getCatalogName().isEmpty()) {
+        catalogName_ = other.catalogName_;
+        onChanged();
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -516,6 +586,102 @@ private static final long serialVersionUID = 0L;
     public Builder clearCommitBehaviour() {
 
       commitBehaviour_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private java.lang.Object catalogName_ = "";
+    /**
+     * <pre>
+     * Name of the catalog to which the session relates.
+     * </pre>
+     *
+     * <code>string catalogName = 2;</code>
+     * @return The catalogName.
+     */
+    public java.lang.String getCatalogName() {
+      java.lang.Object ref = catalogName_;
+      if (!(ref instanceof java.lang.String)) {
+        com.google.protobuf.ByteString bs =
+            (com.google.protobuf.ByteString) ref;
+        java.lang.String s = bs.toStringUtf8();
+        catalogName_ = s;
+        return s;
+      } else {
+        return (java.lang.String) ref;
+      }
+    }
+    /**
+     * <pre>
+     * Name of the catalog to which the session relates.
+     * </pre>
+     *
+     * <code>string catalogName = 2;</code>
+     * @return The bytes for catalogName.
+     */
+    public com.google.protobuf.ByteString
+        getCatalogNameBytes() {
+      java.lang.Object ref = catalogName_;
+      if (ref instanceof String) {
+        com.google.protobuf.ByteString b = 
+            com.google.protobuf.ByteString.copyFromUtf8(
+                (java.lang.String) ref);
+        catalogName_ = b;
+        return b;
+      } else {
+        return (com.google.protobuf.ByteString) ref;
+      }
+    }
+    /**
+     * <pre>
+     * Name of the catalog to which the session relates.
+     * </pre>
+     *
+     * <code>string catalogName = 2;</code>
+     * @param value The catalogName to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogName(
+        java.lang.String value) {
+      if (value == null) {
+    throw new NullPointerException();
+  }
+  
+      catalogName_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the catalog to which the session relates.
+     * </pre>
+     *
+     * <code>string catalogName = 2;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCatalogName() {
+      
+      catalogName_ = getDefaultInstance().getCatalogName();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the catalog to which the session relates.
+     * </pre>
+     *
+     * <code>string catalogName = 2;</code>
+     * @param value The bytes for catalogName to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogNameBytes(
+        com.google.protobuf.ByteString value) {
+      if (value == null) {
+    throw new NullPointerException();
+  }
+  checkByteStringIsUtf8(value);
+      
+      catalogName_ = value;
       onChanged();
       return this;
     }

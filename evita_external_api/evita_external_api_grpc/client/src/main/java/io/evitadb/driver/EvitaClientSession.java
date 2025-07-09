@@ -495,6 +495,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					};
 					evitaSessionService.close(
 						GrpcCloseRequest.newBuilder()
+							.setCatalogName(this.catalogName)
 							.setCommitBehaviour(EvitaEnumConverter.toGrpcCommitBehavior(commitBehaviour))
 							.build(),
 						observer
@@ -571,7 +572,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 						}
 					};
 					evitaSessionService.closeWithProgress(
-						Empty.newBuilder().build(),
+						GrpcCloseWithProgressRequest.newBuilder()
+							.setCatalogName(this.catalogName)
+							.build(),
 						observer
 					);
 					return null;

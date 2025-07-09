@@ -26,10 +26,12 @@ package io.evitadb.driver;
 import com.github.javafaker.Faker;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.GoLiveProgress;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.file.FileForFetch;
@@ -2643,6 +2645,78 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 			// check that the server discarded particular publisher
 			assertEquals(initialUniquePublishersCount, changeObserver.getUniquePublishersCount());
+
+		} finally {
+			// Clean up the test catalog
+			evitaClient.deleteCatalogIfExists(testCatalogName);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldTransitionCatalogFromWarmUpToLiveMode(EvitaClient evitaClient) {
+		final String testCatalogName = "testGoLiveCatalog";
+		try {
+			// Create a catalog with some schema
+			evitaClient.defineCatalog(testCatalogName)
+			           .withDescription("Test catalog for go-live transition.")
+			           // define a simple entity schema
+			           .withEntitySchema(
+				           "TestEntity",
+				           whichIs -> whichIs.withDescription("A test entity for go-live transition.")
+				                             .withAttribute(
+					                             "name", String.class,
+					                             thatIs -> thatIs.localized().filterable().sortable()
+				                             )
+				                             .withAttribute(
+					                             "code", String.class,
+					                             thatIs -> thatIs.unique()
+				                             )
+			           )
+			           // push the definitions to the server
+			           .updateViaNewSession(evitaClient);
+
+			// Verify catalog was created
+			assertTrue(evitaClient.getCatalogNames().contains(testCatalogName));
+
+			// Open a session and transition catalog from warm-up to live mode
+			final GoLiveProgress goLiveProgress = evitaClient.updateCatalog(
+				testCatalogName,
+				session -> {
+					// Verify session is active before calling goLiveAndCloseWithProgress
+					assertTrue(session.isActive());
+					assertEquals(CatalogState.WARMING_UP, session.getCatalogState());
+
+					// Call goLiveAndCloseWithProgress - this should close the session immediately
+					// and return a progress object to monitor the transition
+					return session.goLiveAndCloseWithProgress(
+						progress -> {
+							// Optional progress observer - log progress if needed
+							System.out.println("Go-live progress: " + progress + "%");
+						}
+					);
+				}
+			);
+
+			// Verify that the progress object is not null
+			assertNotNull(goLiveProgress);
+
+			// Wait for the go-live operation to complete
+			goLiveProgress.onCompletion().toCompletableFuture().join();
+
+			// Verify that the catalog is now in live mode by opening a new session
+			evitaClient.queryCatalog(testCatalogName, session -> {
+				// Verify we can still access the schema
+				final Set<String> allEntityTypes = session.getAllEntityTypes();
+				assertTrue(allEntityTypes.contains("TestEntity"));
+				assertEquals(CatalogState.ALIVE, session.getCatalogState());
+
+				// Verify the entity schema is accessible
+				final SealedEntitySchema entitySchema = session.getEntitySchemaOrThrowException("TestEntity");
+				assertEquals("A test entity for go-live transition.", entitySchema.getDescription());
+				assertTrue(entitySchema.getAttribute("name").isPresent());
+				assertTrue(entitySchema.getAttribute("code").isPresent());
+			});
 
 		} finally {
 			// Clean up the test catalog

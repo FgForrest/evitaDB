@@ -48,4 +48,24 @@ public interface GrpcCloseRequestOrBuilder extends
    * @return The commitBehaviour.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior getCommitBehaviour();
+
+  /**
+   * <pre>
+   * Name of the catalog to which the session relates.
+   * </pre>
+   *
+   * <code>string catalogName = 2;</code>
+   * @return The catalogName.
+   */
+  java.lang.String getCatalogName();
+  /**
+   * <pre>
+   * Name of the catalog to which the session relates.
+   * </pre>
+   *
+   * <code>string catalogName = 2;</code>
+   * @return The bytes for catalogName.
+   */
+  com.google.protobuf.ByteString
+      getCatalogNameBytes();
 }

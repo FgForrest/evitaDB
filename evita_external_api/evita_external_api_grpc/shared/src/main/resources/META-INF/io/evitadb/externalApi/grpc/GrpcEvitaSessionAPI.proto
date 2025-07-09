@@ -305,6 +305,8 @@ message GrpcEntityCollectionSizeResponse {
 message GrpcCloseRequest {
   // Contains the requested commit behaviour
   GrpcCommitBehavior commitBehaviour = 1;
+  // Name of the catalog to which the session relates.
+  string catalogName = 2;
 }
 
 // Response for Close request that commits or rollbacks the changes in the session.
@@ -317,6 +319,13 @@ message GrpcCloseResponse {
   int32 catalogSchemaVersion = 2;
 }
 
+// Request for CloseGrpcCloseWithProgress procedure that commits or rollbacks the changes in the session.
+message GrpcCloseWithProgressRequest {
+  // Name of the catalog to which the session relates.
+  string catalogName = 1;
+}
+
+// Response for CloseGrpcCloseWithProgress request that commits or rollbacks the changes in the session.
 message GrpcCloseWithProgressResponse {
   // Contains next catalog version
   int64 catalogVersion = 1;
@@ -595,7 +604,7 @@ service EvitaSessionService {
   // Procedure that closes the session.
   rpc Close(GrpcCloseRequest) returns (GrpcCloseResponse);
   // Procedure that closes the session opening a stream that listens to transaction processing phases.
-  rpc CloseWithProgress(google.protobuf.Empty) returns (stream GrpcCloseWithProgressResponse);
+  rpc CloseWithProgress(GrpcCloseWithProgressRequest) returns (stream GrpcCloseWithProgressResponse);
 
   // Procedure that executes passed parametrised query and returns zero or one entity.
   rpc QueryOne(GrpcQueryRequest) returns (GrpcQueryOneResponse);

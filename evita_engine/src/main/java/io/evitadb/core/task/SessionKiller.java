@@ -78,6 +78,8 @@ public class SessionKiller implements Runnable {
 	@Override
 	public void run() {
 		try {
+			this.evita.clearSessionRegistries();
+
 			final AtomicInteger counter = new AtomicInteger(0);
 			this.evita.getActiveSessions()
 				.map(EvitaInternalSessionContract.class::cast)

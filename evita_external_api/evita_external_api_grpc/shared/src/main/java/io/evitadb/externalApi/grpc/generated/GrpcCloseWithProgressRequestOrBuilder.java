@@ -26,39 +26,27 @@
 
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcGoLiveAndCloseResponseOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse)
+public interface GrpcCloseWithProgressRequestOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressRequest)
     com.google.protobuf.MessageOrBuilder {
 
   /**
    * <pre>
-   * True, if the catalog was switched to ALIVE state.
+   * Name of the catalog to which the session relates.
    * </pre>
    *
-   * <code>bool success = 1;</code>
-   * @return The success.
+   * <code>string catalogName = 1;</code>
+   * @return The catalogName.
    */
-  boolean getSuccess();
-
+  java.lang.String getCatalogName();
   /**
    * <pre>
-   * Contains next catalog version
+   * Name of the catalog to which the session relates.
    * </pre>
    *
-   * <code>int64 catalogVersion = 2;</code>
-   * @return The catalogVersion.
+   * <code>string catalogName = 1;</code>
+   * @return The bytes for catalogName.
    */
-  long getCatalogVersion();
-
-  /**
-   * <pre>
-   * Contains the version of the catalog schema that will be valid at the moment of closing the session.
-   * If session relates to a writable transaction, this schema version becomes valid at the moment the next catalog
-   * version (i.e. the one that is returned in the response) becomes visible.
-   * </pre>
-   *
-   * <code>int32 catalogSchemaVersion = 3;</code>
-   * @return The catalogSchemaVersion.
-   */
-  int getCatalogSchemaVersion();
+  com.google.protobuf.ByteString
+      getCatalogNameBytes();
 }

@@ -407,14 +407,17 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			!isReadOnly(),
 			ReadOnlyException::new
 		);
-		if (this.catalog.getCatalogState() == CatalogState.ALIVE) {
-			return false;
-		} else {
-			this.closedFuture = CompletableFuture.completedFuture(new CommitVersions(this.catalog.getVersion() + 1, this.catalog.getSchema().version()));
-			/* TODO JNO - tady si to nesedlo, co s tím? */
-			//this.evita.makeCatalogAlive(this.catalog.getName());
-			return theCatalog.goLive(progressObserver);
-		}
+
+		final Catalog theCatalog = this.catalog;
+		isTrue(!theCatalog.supportsTransaction(), "Catalog went live already and is currently in transactional mode!");
+		executeTerminationSteps(null, theCatalog);
+		this.closedFuture = CompletableFuture.completedFuture(new CommitVersions(this.catalog.getVersion() + 1, this.catalog.getSchema().version()));
+		this.evita.closeAllSessionsAndSuspend(this.catalog.getName(), SuspendOperation.REJECT)
+		          .ifPresent(it -> it.addForcefullyClosedSession(this.id));
+		return theCatalog.goLive(progressObserver);
+
+		/* TODO JNO - tady si to nesedlo, co s tím? */
+		//this.evita.makeCatalogAlive(this.catalog.getName());
 	}
 
 	@Nonnull
