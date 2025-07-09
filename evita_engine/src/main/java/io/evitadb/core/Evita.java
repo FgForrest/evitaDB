@@ -333,10 +333,10 @@ public final class Evita implements EvitaContract {
 	 * @param sessionId the unique identifier of the session to check; must not be null
 	 * @return true if sessions were forcefully closed for the specified catalog and session ID, false otherwise
 	 */
-	public boolean wereSessionsForcefullyClosedForCatalog(@Nonnull String catalogName, @Nonnull UUID sessionId) {
+	public boolean wasSessionForcefullyClosedForCatalog(@Nonnull String catalogName, @Nonnull UUID sessionId) {
 		return ofNullable(this.catalogSessionRegistries.get(catalogName))
 			.map(it -> it.wereSessionsForcefullyClosedForCatalog(sessionId))
-			.isPresent();
+			.orElse(false);
 	}
 
 	/**

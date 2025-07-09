@@ -922,7 +922,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				} else {
 					final Metadata metadata = METADATA.get();
 					final String sessionId = metadata.get(Metadata.Key.of(SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER));
-					if (sessionId != null && this.evita.wereSessionsForcefullyClosedForCatalog(request.getCatalogName(), UUIDUtil.uuid(sessionId))) {
+					if (sessionId != null && this.evita.wasSessionForcefullyClosedForCatalog(request.getCatalogName(), UUIDUtil.uuid(sessionId))) {
 						// sessions has been closed from the server side, due to system action and therefore
 						// the session was not found - this is ok, we don't report an error
 						responseObserver.onNext(
@@ -983,7 +983,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				} else {
 					final Metadata metadata = METADATA.get();
 					final String sessionId = metadata.get(Metadata.Key.of(SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER));
-					if (sessionId != null && this.evita.wereSessionsForcefullyClosedForCatalog(request.getCatalogName(), UUIDUtil.uuid(sessionId))) {
+					if (sessionId != null && this.evita.wasSessionForcefullyClosedForCatalog(request.getCatalogName(), UUIDUtil.uuid(sessionId))) {
 						// sessions has been closed from the server side, due to system action and therefore
 						// the session was not found - this is ok, we don't report an error
 						responseObserver.onNext(
