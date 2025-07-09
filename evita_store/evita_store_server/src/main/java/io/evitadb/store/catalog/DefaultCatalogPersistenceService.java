@@ -48,8 +48,6 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogConsumersListener;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.async.Scheduler;
-import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;

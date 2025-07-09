@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -3310,34 +3310,6 @@ public final class EvitaSessionServiceGrpc {
   private static final int METHODID_GET_ENTITY_SCHEMA = 5;
   private static final int METHODID_GET_ALL_ENTITY_TYPES = 6;
   private static final int METHODID_GO_LIVE_AND_CLOSE = 7;
-  private static final int METHODID_BACKUP_CATALOG = 8;
-  private static final int METHODID_FULL_BACKUP_CATALOG = 9;
-  private static final int METHODID_CLOSE = 10;
-  private static final int METHODID_CLOSE_WITH_PROGRESS = 11;
-  private static final int METHODID_QUERY_ONE = 12;
-  private static final int METHODID_QUERY_LIST = 13;
-  private static final int METHODID_QUERY = 14;
-  private static final int METHODID_QUERY_ONE_UNSAFE = 15;
-  private static final int METHODID_QUERY_LIST_UNSAFE = 16;
-  private static final int METHODID_QUERY_UNSAFE = 17;
-  private static final int METHODID_GET_ENTITY = 18;
-  private static final int METHODID_UPDATE_CATALOG_SCHEMA = 19;
-  private static final int METHODID_UPDATE_AND_FETCH_CATALOG_SCHEMA = 20;
-  private static final int METHODID_DEFINE_ENTITY_SCHEMA = 21;
-  private static final int METHODID_UPDATE_ENTITY_SCHEMA = 22;
-  private static final int METHODID_UPDATE_AND_FETCH_ENTITY_SCHEMA = 23;
-  private static final int METHODID_DELETE_COLLECTION = 24;
-  private static final int METHODID_RENAME_COLLECTION = 25;
-  private static final int METHODID_REPLACE_COLLECTION = 26;
-  private static final int METHODID_GET_ENTITY_COLLECTION_SIZE = 27;
-  private static final int METHODID_UPSERT_ENTITY = 28;
-  private static final int METHODID_DELETE_ENTITY = 29;
-  private static final int METHODID_DELETE_ENTITY_AND_ITS_HIERARCHY = 30;
-  private static final int METHODID_DELETE_ENTITIES = 31;
-  private static final int METHODID_ARCHIVE_ENTITY = 32;
-  private static final int METHODID_RESTORE_ENTITY = 33;
-  private static final int METHODID_GET_TRANSACTION_ID = 34;
-  private static final int METHODID_REGISTER_CHANGE_CATALOG_CAPTURE = 35;
   private static final int METHODID_GO_LIVE_AND_CLOSE_WITH_PROGRESS = 8;
   private static final int METHODID_BACKUP_CATALOG = 9;
   private static final int METHODID_FULL_BACKUP_CATALOG = 10;
@@ -3366,6 +3338,7 @@ public final class EvitaSessionServiceGrpc {
   private static final int METHODID_ARCHIVE_ENTITY = 33;
   private static final int METHODID_RESTORE_ENTITY = 34;
   private static final int METHODID_GET_TRANSACTION_ID = 35;
+  private static final int METHODID_REGISTER_CHANGE_CATALOG_CAPTURE = 36;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,

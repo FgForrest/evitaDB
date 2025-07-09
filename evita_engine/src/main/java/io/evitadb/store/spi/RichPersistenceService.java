@@ -24,9 +24,10 @@
 package io.evitadb.store.spi;
 
 
-import io.evitadb.core.buffer.DataStoreChanges;
+import io.evitadb.core.buffer.TrappedChanges;
 
 import javax.annotation.Nonnull;
+import java.util.function.IntConsumer;
 
 /**
  * Interface extends {@link PersistenceService} and provides additional methods for storing rich data structures
@@ -39,8 +40,12 @@ public sealed interface RichPersistenceService extends PersistenceService
 
 	/**
 	 * Flushes all trapped memory data to the persistent storage.
-	 * This method doesn't take transactional memory into account but only flushes changes for trapped updates.
+	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
 	 */
-	void flushTrappedUpdates(long version, @Nonnull DataStoreChanges dataStoreChanges);
+	void flushTrappedUpdates(
+		long catalogVersion,
+		@Nonnull TrappedChanges trappedChanges,
+		@Nonnull IntConsumer trappedUpdatedProgress
+	);
 
 }

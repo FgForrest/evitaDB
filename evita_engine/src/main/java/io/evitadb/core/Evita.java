@@ -59,13 +59,6 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
-import io.evitadb.core.SessionRegistry.SuspendOperation;
-import io.evitadb.core.async.ClientRunnableTask;
-import io.evitadb.core.async.EmptySettings;
-import io.evitadb.core.async.ObservableExecutorServiceWithHardDeadline;
-import io.evitadb.core.async.ObservableThreadExecutor;
-import io.evitadb.core.async.Scheduler;
-import io.evitadb.core.async.SessionKiller;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
@@ -921,7 +914,8 @@ public final class Evita implements EvitaContract {
 	private void makeCatalogAliveInternal(@Nonnull MakeCatalogAliveMutation makeCatalogAliveMutation) {
 		final CatalogContract catalog = this.catalogs.get(makeCatalogAliveMutation.getCatalogName());
 		if (catalog instanceof Catalog theCatalog) {
-			theCatalog.goLive();
+			/* TODO JNO - co s tím?? */
+			/*theCatalog.goLive();*/
 		} else if (catalog instanceof InactiveCatalog inactiveCatalog) {
 			throw new CatalogInactiveException(inactiveCatalog);
 		} else if (catalog instanceof CorruptedCatalog corruptedCatalog) {
@@ -1211,6 +1205,7 @@ public final class Evita implements EvitaContract {
 					isTrue(!sessionTraits.isReadWrite() || sessionTraits.isDryRun(), ReadOnlyException::new);
 				}
 
+				final Catalog catalog = sessionRegistry.getCatalog();
 				if (catalog.isGoingLive()) {
 					throw new CatalogGoingLiveException(catalog.getName());
 				}
@@ -1218,7 +1213,6 @@ public final class Evita implements EvitaContract {
 				final EvitaSessionTerminationCallback terminationCallback =
 					session -> sessionRegistry.removeSession((EvitaSession) session);
 
-				final Catalog catalog = sessionRegistry.getCatalog();
 				return sessionRegistry.addSession(
 					catalog.supportsTransaction(),
 					() -> new EvitaSession(

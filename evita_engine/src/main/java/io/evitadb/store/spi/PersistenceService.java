@@ -23,11 +23,7 @@
 
 package io.evitadb.store.spi;
 
-import io.evitadb.core.buffer.TrappedChanges;
-
-import javax.annotation.Nonnull;
 import java.io.Closeable;
-import java.util.function.IntConsumer;
 
 /**
  * This interface defines shared methods for permited set of persistence services.
@@ -55,16 +51,6 @@ sealed interface PersistenceService
 	 * @return true if underlying file was not yet created
 	 */
 	boolean isNew();
-
-	/**
-	 * Flushes all trapped memory data to the persistent storage.
-	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
-	 */
-	void flushTrappedUpdates(
-		long catalogVersion,
-		@Nonnull TrappedChanges trappedChanges,
-		@Nonnull IntConsumer trappedUpdatedProgress
-	);
 
 	/**
 	 * Returns true if the persistence service is closed.
