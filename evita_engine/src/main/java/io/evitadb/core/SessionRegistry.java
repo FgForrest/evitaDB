@@ -71,7 +71,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -189,12 +188,8 @@ final class SessionRegistry {
 	@Nonnull
 	public Optional<SuspensionInformation> closeAllActiveSessionsAndSuspend(@Nonnull SuspendOperation suspendOperation) {
 		if (this.activeSuspendOperation.compareAndSet(null, new InSuspension(suspendOperation))) {
-			final Set<UUID> forcefullyClosedSessionIds = new ConcurrentSkipListSet<>();
 			// init information about closed sessions
-			final SuspensionInformation suspensionInformation = new SuspensionInformation(
-				OffsetDateTime.now(),
-				forcefullyClosedSessionIds
-			);
+			final SuspensionInformation suspensionInformation = new SuspensionInformation(this.activeSessions.size());
 			this.forcefullyClosedSessions.set(suspensionInformation);
 			final long start = System.currentTimeMillis();
 			do {
@@ -213,7 +208,7 @@ final class SessionRegistry {
 										}
 										final UUID sessionId = plainSession.getId();
 										log.info("There is still active session {} - terminating.", sessionId);
-										forcefullyClosedSessionIds.add(sessionId);
+										suspensionInformation.addForcefullyClosedSession(sessionId);
 										futures.add(
 											plainSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE)
 												.toCompletableFuture()
@@ -268,7 +263,7 @@ final class SessionRegistry {
 	 */
 	public void clearTemporaryInformation() {
 		final SuspensionInformation suspensionInformation = this.forcefullyClosedSessions.get();
-		if (suspensionInformation != null && suspensionInformation.suspensionDateTime().isBefore(OffsetDateTime.now().minusMinutes(5))) {
+		if (suspensionInformation != null && suspensionInformation.getSuspensionDateTime().isBefore(OffsetDateTime.now().minusMinutes(5))) {
 			// clear the information about forcefully closed sessions after 5 minutes
 			this.forcefullyClosedSessions.set(null);
 		}
@@ -1007,10 +1002,14 @@ final class SessionRegistry {
 	 * - A set of sessions (identified by their unique IDs) that were
 	 *   forcefully terminated as part of the suspension process.
 	 */
-	public record SuspensionInformation(
-		@Nonnull OffsetDateTime suspensionDateTime,
-		@Nonnull Set<UUID> forcefullyClosedSessions
-	) {
+	public static class SuspensionInformation {
+		@Nonnull @Getter private final OffsetDateTime suspensionDateTime;
+		@Nonnull private final Set<UUID> forcefullyClosedSessions;
+
+		public SuspensionInformation(int expectedCount) {
+			this.suspensionDateTime = OffsetDateTime.now();
+			this.forcefullyClosedSessions = CollectionUtils.createHashSet(expectedCount);
+		}
 
 		/**
 		 * Registers a session ID as forcefully closed during the suspension operation.
