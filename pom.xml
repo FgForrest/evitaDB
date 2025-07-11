@@ -30,6 +30,7 @@
 	<name>evitaDB - Root &amp; modules aggregator</name>
 	<url>https://evitadb.io</url>
 	<inceptionYear>2020</inceptionYear>
+
 	<issueManagement>
 		<system>GitHub</system>
 		<url>https://github.com/FgForrest/evitaDB/issues/</url>
