@@ -34,6 +34,7 @@
 		<system>GitHub</system>
 		<url>https://github.com/FgForrest/evitaDB/issues/</url>
 	</issueManagement>
+
 	<description>
 		Evita is a specialized database with easy-to-use API for e-commerce systems. Purpose of this research is
 		creating fast and scalable engine that handles all complex tasks that e-commerce systems has to deal with on
