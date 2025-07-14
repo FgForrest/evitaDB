@@ -25,6 +25,7 @@ package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.Empty;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
@@ -33,6 +34,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCaptureSubscription;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.core.Evita;
 import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -64,6 +66,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
+import java.util.function.IntConsumer;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureContent;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
@@ -319,9 +322,33 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		                                  request, StreamObserver<GrpcDeleteCatalogIfExistsResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				boolean success = this.evita.deleteCatalogIfExists(request.getCatalogName());
-				responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(success).build());
-				responseObserver.onCompleted();
+				final String catalogName = request.getCatalogName();
+				this.evita.getCatalogInstance(catalogName)
+					.ifPresentOrElse(
+						catalog ->
+							this.evita.deleteCatalogIfExistsWithProgress(catalogName)
+					                     .ifPresentOrElse(
+							voidProgress -> voidProgress.onCompletion()
+						                            .whenComplete(
+									(__, throwable) -> {
+										if (throwable == null) {
+											responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(true).build());
+										} else {
+											responseObserver.onError(throwable);
+										}
+										responseObserver.onCompleted();
+									}
+								),
+								() -> {
+									responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(false).build());
+									responseObserver.onCompleted();
+								}
+							),
+						() -> {
+							responseObserver.onNext(GrpcDeleteCatalogIfExistsResponse.newBuilder().setSuccess(false).build());
+							responseObserver.onCompleted();
+						}
+					);
 			},
 			this.evita.getRequestExecutor(),
 			responseObserver,
@@ -333,16 +360,92 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 * Applies catalog mutation affecting entire catalog.
 	 */
 	@Override
-	public void applyMutation(GrpcApplyMutationRequest request, StreamObserver<Empty> responseObserver) {
+	public void applyMutation(
+		GrpcApplyMutationRequest request,
+		StreamObserver<GrpcApplyMutationResponse> responseObserver
+	) {
 		executeWithClientContext(
 			() -> {
-				final EngineMutation engineMutation = DelegatingEngineMutationConverter.INSTANCE.convert(request.getMutation());
+				final EngineMutation<?> engineMutation = DelegatingEngineMutationConverter.INSTANCE.convert(request.getMutation());
 				if (engineMutation == null) {
 					responseObserver.onError(new EvitaInvalidUsageException("Mutation is not set in the request!"));
-				} else {
-					this.evita.applyMutation(engineMutation);
-					responseObserver.onNext(Empty.getDefaultInstance());
 					responseObserver.onCompleted();
+				} else {
+					this.evita.applyMutation(engineMutation)
+					          .onCompletion()
+					          .whenComplete(
+								  (__, throwable) -> {
+									  if (throwable == null) {
+										  responseObserver.onNext(GrpcApplyMutationResponse.newBuilder().build());
+									  } else {
+										  responseObserver.onError(throwable);
+									  }
+									  responseObserver.onCompleted();
+								  }
+					          );
+				}
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Applies catalog mutation affecting entire catalog and send progress updates to the client.
+	 */
+	@Override
+	public void applyMutationWithProgress(
+		GrpcApplyMutationRequest request,
+		StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final EngineMutation<?> engineMutation = DelegatingEngineMutationConverter.INSTANCE.convert(request.getMutation());
+				if (engineMutation == null) {
+					responseObserver.onError(new EvitaInvalidUsageException("Mutation is not set in the request!"));
+					responseObserver.onCompleted();
+				} else {
+					final Progress<?> applyMutationProgress = this.evita.applyMutation(
+						engineMutation,
+						new IntConsumer() {
+							private int percentDone;
+							private long lastUpdate = System.currentTimeMillis();
+
+							@Override
+							public void accept(int percentDoneCurrently) {
+								if (percentDoneCurrently > this.percentDone && this.lastUpdate + 1000 < System.currentTimeMillis()) {
+									this.percentDone = percentDoneCurrently;
+									final GrpcApplyMutationWithProgressResponse response =
+										GrpcApplyMutationWithProgressResponse.newBuilder()
+										                                     .setProgressInPercent(this.percentDone)
+										                                     .build();
+									responseObserver.onNext(response);
+									this.lastUpdate = System.currentTimeMillis();
+								}
+							}
+						}
+					);
+
+					applyMutationProgress
+						.onCompletion()
+						.whenComplete(
+							(result, throwable) -> {
+								if (throwable == null) {
+									final GrpcApplyMutationWithProgressResponse.Builder responseBuilder = GrpcApplyMutationWithProgressResponse
+										.newBuilder()
+										.setProgressInPercent(100);
+									if (result instanceof CommitVersions commitVersions) {
+										responseBuilder
+											.setCatalogVersion(commitVersions.catalogVersion())
+											.setCatalogSchemaVersion(commitVersions.catalogSchemaVersion());
+									}
+									responseObserver.onNext(responseBuilder.build());
+								} else {
+									responseObserver.onError(throwable);
+								}
+								responseObserver.onCompleted();
+							});
 				}
 			},
 			this.evita.getRequestExecutor(),
@@ -361,11 +464,18 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	@Override
 	public void renameCatalog(GrpcRenameCatalogRequest request, StreamObserver<GrpcRenameCatalogResponse> responseObserver) {
 		executeWithClientContext(
-			() -> {
-				this.evita.renameCatalog(request.getCatalogName(), request.getNewCatalogName());
-				responseObserver.onNext(GrpcRenameCatalogResponse.newBuilder().setSuccess(true).build());
-				responseObserver.onCompleted();
-			},
+			() -> this.evita.renameCatalogWithProgress(request.getCatalogName(), request.getNewCatalogName())
+		                .onCompletion()
+		                .whenComplete(
+					(commitVersions, throwable) -> {
+						if (throwable == null) {
+							responseObserver.onNext(GrpcRenameCatalogResponse.newBuilder().setSuccess(true).build());
+						} else {
+							responseObserver.onError(throwable);
+						}
+						responseObserver.onCompleted();
+					}
+				),
 			this.evita.getRequestExecutor(),
 			responseObserver,
 			this.context
@@ -382,11 +492,18 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	@Override
 	public void replaceCatalog(GrpcReplaceCatalogRequest request, StreamObserver<GrpcReplaceCatalogResponse> responseObserver) {
 		executeWithClientContext(
-			() -> {
-				this.evita.replaceCatalog(request.getCatalogNameToBeReplacedWith(), request.getCatalogNameToBeReplaced());
-				responseObserver.onNext(GrpcReplaceCatalogResponse.newBuilder().setSuccess(true).build());
-				responseObserver.onCompleted();
-			},
+			() -> this.evita.replaceCatalogWithProgress(request.getCatalogNameToBeReplacedWith(), request.getCatalogNameToBeReplaced())
+		                .onCompletion()
+		                .whenComplete(
+					(commitVersions, throwable) -> {
+						if (throwable == null) {
+							responseObserver.onNext(GrpcReplaceCatalogResponse.newBuilder().setSuccess(true).build());
+						} else {
+							responseObserver.onError(throwable);
+						}
+						responseObserver.onCompleted();
+					}
+				),
 			this.evita.getRequestExecutor(),
 			responseObserver,
 			this.context

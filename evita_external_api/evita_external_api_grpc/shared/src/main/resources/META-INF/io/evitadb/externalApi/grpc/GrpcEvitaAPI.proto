@@ -129,6 +129,21 @@ message GrpcApplyMutationRequest {
   GrpcEngineMutation mutation = 1;
 }
 
+// Response to apply mutation on engine level.
+message GrpcApplyMutationResponse {
+
+}
+
+// Response to apply mutation on engine level.
+message GrpcApplyMutationWithProgressResponse {
+  // The progress of the go live operation in percents.
+  int32 progressInPercent = 1;
+  // Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+  int64 catalogVersion = 2;
+  // Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+  int32 catalogSchemaVersion = 3;
+}
+
 // Request to register a system change capture.
 message GrpcRegisterSystemChangeCaptureRequest {
   // Starting point for the search (catalog version)
@@ -175,7 +190,9 @@ service EvitaService {
   // Procedure used to delete an existing catalog.
   rpc DeleteCatalogIfExists(GrpcDeleteCatalogIfExistsRequest) returns (GrpcDeleteCatalogIfExistsResponse);
   // Procedure used to update the catalog with a set of mutations.
-  rpc ApplyMutation(GrpcApplyMutationRequest) returns (google.protobuf.Empty);
+  rpc ApplyMutation(GrpcApplyMutationRequest) returns (GrpcApplyMutationResponse);
+  // Procedure used to update the catalog with a set of mutations which tracks the progress of the operation.
+  rpc ApplyMutationWithProgress(GrpcApplyMutationRequest) returns (stream GrpcApplyMutationWithProgressResponse);
   // Procedure used to rename an existing catalog.
   rpc RenameCatalog(GrpcRenameCatalogRequest) returns (GrpcRenameCatalogResponse);
   // Procedure used to replace an existing catalog.

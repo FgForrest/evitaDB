@@ -33,8 +33,6 @@ import io.evitadb.api.CommitProgress;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.GoLiveProgress;
-import io.evitadb.api.GoLiveProgressRecord;
 import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
@@ -72,6 +70,8 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExisten
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.api.requestResponse.progress.Progress;
+import io.evitadb.api.requestResponse.progress.ProgressRecord;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
@@ -409,10 +409,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public GoLiveProgress goLiveAndCloseWithProgress(@Nullable IntConsumer progressObserver) {
+	public Progress<CommitVersions> goLiveAndCloseWithProgress(@Nullable IntConsumer progressObserver) {
 		assertActive();
 
-		final GoLiveProgressRecord goLiveProgress = new GoLiveProgressRecord(progressObserver);
+		final ProgressRecord<CommitVersions> goLiveProgress = new ProgressRecord<>(
+			"Making catalog `" + this.catalogName + "` alive",
+			progressObserver
+		);
 		executeWithAsyncEvitaSessionService(
 			evitaSessionService -> {
 				final StreamObserver<GrpcGoLiveAndCloseWithProgressResponse> observer = new StreamObserver<>() {

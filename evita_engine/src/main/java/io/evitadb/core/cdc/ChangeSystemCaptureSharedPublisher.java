@@ -221,7 +221,7 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	 *
 	 * @param mutation the mutation to process
 	 */
-	public void processMutation(@Nonnull EngineMutation mutation) {
+	public void processMutation(@Nonnull EngineMutation<?> mutation) {
 		// we don't actively check for non-closed condition here to speed up the process
 		// only process mutations that match our criteria
 		// convert the mutation to change catalog captures (if any) and add them to the ring buffer
@@ -421,7 +421,7 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 		);
 		try (
 			// Get a stream of mutations starting from the specified WAL pointer
-			final Stream<EngineMutation> committedMutationStream = this.evita.getCommittedMutationStream(walPointer.version())
+			final Stream<EngineMutation<?>> committedMutationStream = this.evita.getCommittedMutationStream(walPointer.version())
 		) {
 			// Track the last capture that was successfully added to the queue
 			final AtomicReference<Optional<ChangeSystemCapture>> lastCapture = new AtomicReference<>(Optional.empty());

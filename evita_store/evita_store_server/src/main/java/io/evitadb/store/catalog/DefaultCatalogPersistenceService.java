@@ -67,6 +67,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.ObsoleteStorageProtocolException;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.function.BiIntConsumer;
 import io.evitadb.function.Functions;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
@@ -1718,6 +1719,35 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
+	public void goLive(long catalogVersion) {
+		final CatalogStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(catalogVersion);
+		final CatalogHeader currentCatalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
+		Assert.isPremiseValid(
+			currentCatalogHeader.catalogState() == CatalogState.WARMING_UP,
+			() -> "Catalog `" + this.catalogName + "` is not in WARMING_UP state, cannot go live!"
+		);
+
+		storagePartPersistenceService.writeCatalogHeader(
+			STORAGE_PROTOCOL_VERSION,
+			catalogVersion,
+			this.catalogStoragePath,
+			currentCatalogHeader.walFileReference(),
+			currentCatalogHeader.collectionFileIndex(),
+			currentCatalogHeader.catalogId(),
+			currentCatalogHeader.catalogName(),
+			CatalogState.ALIVE,
+			currentCatalogHeader.lastEntityCollectionPrimaryKey()
+		);
+
+		this.bootstrapUsed = recordBootstrap(
+			catalogVersion,
+			this.catalogName,
+			this.bootstrapUsed.catalogFileIndex(),
+			null
+		);
+	}
+
+	@Override
 	public void updateEntityCollectionHeaders(
 		long catalogVersion,
 		@Nonnull EntityCollectionHeader[] entityCollectionHeaders
@@ -1742,7 +1772,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			storagePartPersistenceService.writeCatalogHeader(
 				STORAGE_PROTOCOL_VERSION,
 				catalogVersion,
-				catalogStoragePath,
+				this.catalogStoragePath,
 				currentCatalogHeader.walFileReference(),
 				Arrays.stream(entityCollectionHeaders)
 					.map(
@@ -1843,7 +1873,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String catalogNameToBeReplaced,
 		@Nonnull Map<NamingConvention, String> catalogNameVariationsToBeReplaced,
 		@Nonnull CatalogSchema catalogSchema,
-		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer
+		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer,
+		@Nonnull BiIntConsumer progressObserver
 	) {
 		final Path newPath = pathForCatalog(catalogNameToBeReplaced, this.storageOptions.storageDirectory());
 		final boolean targetPathExists = newPath.toFile().exists();
@@ -1896,14 +1927,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.close();
 
 		// name files in the directory that replaces the original first
-		ofNullable(
-			this.catalogStoragePath
-				.toFile()
-				.listFiles((dir, name) -> name.startsWith(this.catalogName))
-		)
-			.stream()
-			.flatMap(Arrays::stream)
-			.forEach(it -> {
+		final File[] filesToRename = this.catalogStoragePath
+			.toFile()
+			.listFiles((dir, name) -> name.startsWith(this.catalogName));
+		if (filesToRename != null) {
+			for (int i = 0; i < filesToRename.length; i++) {
+				File it = filesToRename[i];
 				final Path filePath = it.toPath();
 				final String fileNameToRename;
 				if (it.getName().equals(getCatalogBootstrapFileName(this.catalogName))) {
@@ -1911,7 +1940,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				} else if (it.getName().equals(getCatalogDataStoreFileName(this.catalogName, catalogIndex))) {
 					fileNameToRename = getCatalogDataStoreFileName(catalogNameToBeReplaced, catalogIndex);
 				} else {
-					return;
+					continue;
 				}
 				final Path filePathForRename = filePath.getParent().resolve(fileNameToRename);
 				Assert.isPremiseValid(
@@ -1921,7 +1950,15 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 						"Failed to rename one of the `" + this.catalogName + "` catalog files to target catalog name!"
 					)
 				);
-			});
+
+				progressObserver.accept(i + 1, filesToRename.length);
+			}
+		} else {
+			throw new GenericEvitaInternalError(
+				"No file found in directory `" + this.catalogStoragePath.toAbsolutePath() + "`!",
+				"Failed to rename catalog files to target catalog name!"
+			);
+		}
 
 		final Path temporaryOriginal;
 		if (targetPathExists) {

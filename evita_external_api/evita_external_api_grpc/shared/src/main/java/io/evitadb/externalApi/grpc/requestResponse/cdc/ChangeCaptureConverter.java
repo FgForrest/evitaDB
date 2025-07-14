@@ -45,7 +45,6 @@ import java.util.Arrays;
 
 /**
  * This class contains conversion methods for CDC (Change Data Capture) requests and responses.
- * TODO JNO - unify requests?!
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

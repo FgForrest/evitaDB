@@ -45,6 +45,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.function.BiIntConsumer;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
@@ -304,6 +305,13 @@ public non-sealed interface CatalogPersistenceService extends RichPersistenceSer
 	);
 
 	/**
+	 * Transitions the catalog to LIVE state.
+	 *
+	 * @param catalogVersion the version of the catalog to transition to LIVE state
+	 */
+	void goLive(long catalogVersion);
+
+	/**
 	 * Method updates {@link CatalogHeader} with the given entity collection headers. All other information in the catalog
 	 * header remains unchanged.
 	 *
@@ -359,6 +367,7 @@ public non-sealed interface CatalogPersistenceService extends RichPersistenceSer
 	 * @param catalogNameToBeReplaced           name of the catalog to be replaced by this catalog
 	 * @param catalogNameVariationsToBeReplaced variations of the catalog name to be replaced by this catalog
 	 * @param catalogSchema                     the schema of the catalog
+	 * @param progressObserver                  observer function accepting two integers - steps done and total steps
 	 */
 	@Nonnull
 	CatalogPersistenceService replaceWith(
@@ -366,7 +375,8 @@ public non-sealed interface CatalogPersistenceService extends RichPersistenceSer
 		@Nonnull String catalogNameToBeReplaced,
 		@Nonnull Map<NamingConvention, String> catalogNameVariationsToBeReplaced,
 		@Nonnull CatalogSchema catalogSchema,
-		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer
+		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer,
+		@Nonnull BiIntConsumer progressObserver
 	);
 
 	/**

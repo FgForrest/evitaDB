@@ -28,6 +28,7 @@ import javax.annotation.Nonnull;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 
 /**
@@ -96,8 +97,23 @@ public interface Functions {
 	 *
 	 * @return a LongConsumer that performs no operation
 	 */
+	@Nonnull
 	static LongConsumer noOpLongConsumer() {
 		return l -> {
+			// no operation performed
+		};
+	}
+
+	/**
+	 * Returns a no-operation IntConsumer that accepts an integer value but performs no action.
+	 * This is useful in scenarios where an IntConsumer is required by an API but no action needs to be performed,
+	 * avoiding the need to create anonymous implementations or lambda expressions for such cases.
+	 *
+	 * @return an IntConsumer that performs no operation
+	 */
+	@Nonnull
+	static IntConsumer noOpIntConsumer() {
+		return i -> {
 			// no operation performed
 		};
 	}

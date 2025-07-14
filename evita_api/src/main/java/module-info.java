@@ -53,6 +53,7 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.data.structure.predicate;
 	exports io.evitadb.api.requestResponse.extraResult;
 	exports io.evitadb.api.requestResponse.chunk;
+	exports io.evitadb.api.requestResponse.progress;
 	exports io.evitadb.api.requestResponse.schema;
 	exports io.evitadb.api.requestResponse.schema.annotation;
 	exports io.evitadb.api.requestResponse.schema.mutation;

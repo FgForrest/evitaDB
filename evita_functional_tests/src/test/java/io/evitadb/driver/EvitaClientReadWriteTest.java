@@ -28,10 +28,10 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.GoLiveProgress;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.file.FileForFetch;
@@ -60,6 +60,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -1196,8 +1197,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	void shouldRemoveCatalog(EvitaClient evitaClient) {
 		final String newCatalogName = "newCatalog";
 		evitaClient.defineCatalog(newCatalogName).updateViaNewSession(evitaClient);
-		final boolean removed = evitaClient.deleteCatalogIfExists(newCatalogName);
-		assertTrue(removed);
+		evitaClient.deleteCatalogIfExists(newCatalogName);
 
 		final Set<String> catalogNames = evitaClient.getCatalogNames();
 		assertEquals(1, catalogNames.size());
@@ -2680,7 +2680,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			assertTrue(evitaClient.getCatalogNames().contains(testCatalogName));
 
 			// Open a session and transition catalog from warm-up to live mode
-			final GoLiveProgress goLiveProgress = evitaClient.updateCatalog(
+			final Progress<CommitVersions> goLiveProgress = evitaClient.updateCatalog(
 				testCatalogName,
 				session -> {
 					// Verify session is active before calling goLiveAndCloseWithProgress

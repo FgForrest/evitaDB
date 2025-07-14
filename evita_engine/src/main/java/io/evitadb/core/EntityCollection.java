@@ -64,6 +64,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -80,7 +81,6 @@ import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
-import io.evitadb.core.async.ProgressingFuture;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.DataStoreReader;
@@ -105,6 +105,7 @@ import io.evitadb.core.transaction.stage.mutation.ServerEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.function.Functions;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -805,10 +806,11 @@ public final class EntityCollection implements
 				}
 			}
 
-			updatedSchema = refreshReflectedSchemas(originalSchema, updatedSchema, updatedReferenceSchemas);
-
 			Assert.isPremiseValid(updatedSchema != null, "Entity collection cannot be dropped by updating schema!");
 			Assert.isPremiseValid(updatedSchema instanceof EntitySchema, "Mutation is expected to produce EntitySchema instance!");
+
+			updatedSchema = refreshReflectedSchemas(originalSchema, updatedSchema, updatedReferenceSchemas);
+
 			if (updatedSchema.version() > originalSchema.version()) {
 				/* TOBEDONE JNO (#501) - apply this just before commit happens in case validations are enabled */
 				// assertAllReferencedEntitiesExist(newSchema);
@@ -1372,16 +1374,14 @@ public final class EntityCollection implements
 	 * Flush operation is ignored when there are no changes present in {@link CatalogPersistenceService}.
 	 */
 	@Nonnull
-	public ProgressingFuture<EntityCollectionHeaderWithCollection, Void> flush(
-		@Nonnull IntConsumer progressObserver,
-		@Nonnull Executor executor
-	) {
+	public ProgressingFuture<EntityCollectionHeaderWithCollection> flush(@Nonnull Executor executor) {
 		final TrappedChanges trappedChanges = this.dataStoreBuffer.popTrappedChanges();
 		return new ProgressingFuture<>(
 			trappedChanges.getTrappedChangesCount(),
-			(stepsDone, totalSteps) -> progressObserver.accept(stepsDone),
-			() -> flushInternal(progressObserver, trappedChanges),
-			executor
+			progressingFuture -> flushInternal(
+				progressingFuture::updateProgress,
+				trappedChanges
+			)
 		);
 	}
 
@@ -1395,8 +1395,7 @@ public final class EntityCollection implements
 	public EntityCollectionHeaderWithCollection flush() {
 		final TrappedChanges trappedChanges = this.dataStoreBuffer.popTrappedChanges();
 		return flushInternal(
-			/* TODO JNO replace with FunctionUtils.noOp() */
-			__ -> {},
+			Functions.noOpIntConsumer(),
 			trappedChanges
 		);
 	}
@@ -1416,6 +1415,7 @@ public final class EntityCollection implements
 		@Nonnull TrappedChanges trappedChanges
 	) {
 		this.persistenceService.flushTrappedUpdates(0L, trappedChanges, progressObserver);
+		final long previousVersion = this.persistenceService.getEntityCollectionHeader().version();
 		return this.catalogPersistenceService.flush(
 				0L,
 				this.headerInfoSupplier,
@@ -1424,18 +1424,24 @@ public final class EntityCollection implements
 			)
 			.map(
 				it -> {
-					final EntityCollectionHeader theHeader = it.getEntityCollectionHeader();
+					final EntityCollectionHeader newHeader = it.getEntityCollectionHeader();
 					return this.persistenceService == it ?
-						new EntityCollectionHeaderWithCollection(theHeader, this, false) :
 						new EntityCollectionHeaderWithCollection(
-							theHeader,
-							this.createCopyWithNewPersistenceService(theHeader.version(), CatalogState.WARMING_UP, it),
+							newHeader,
+							this,
+							newHeader.version() > previousVersion
+						) :
+						new EntityCollectionHeaderWithCollection(
+							newHeader,
+							this.createCopyWithNewPersistenceService(newHeader.version(), CatalogState.WARMING_UP, it),
 							true
 						);
 				}
 			)
 			.orElseGet(
-				() -> new EntityCollectionHeaderWithCollection(this.getEntityCollectionHeader(), this, false)
+				() -> new EntityCollectionHeaderWithCollection(
+					this.getEntityCollectionHeader(), this, false
+				)
 			);
 	}
 
@@ -1611,8 +1617,7 @@ public final class EntityCollection implements
 		this.persistenceService.flushTrappedUpdates(
 			catalogVersion,
 			this.dataStoreBuffer.popTrappedChanges(),
-			// TODO JNO - migrate to FunctionUtils.noOp()
-			stepsDone -> {}
+			Functions.noOpIntConsumer()
 		);
 		return this.catalogPersistenceService.flush(
 				catalogVersion,

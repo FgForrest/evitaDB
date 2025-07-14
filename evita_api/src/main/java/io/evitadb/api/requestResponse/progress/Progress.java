@@ -21,30 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api;
+package io.evitadb.api.requestResponse.progress;
 
-
-import io.evitadb.api.CommitProgress.CommitVersions;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.CompletionStage;
 
 /**
- * GoLiveProgress is an interface that represents the progress of a catalog go-live operation in a database.
- * The go-live operation switches a catalog from warm-up mode to transactional mode. It provides a way to track
- * the completion status and percentage of this operation.
+ * Progress is a generic interface that represents the progress of an engine mutation operation.
+ * It provides a way to track the completion status and percentage of long-running operations.
  *
  * The interface provides the following guarantees:
  *
  * 1. the operation must eventually complete (either successfully or exceptionally)
  * 2. the percentage completion is monotonically increasing from 0 to 100
- * 3. once the operation completes successfully, the catalog is available for transactional operations
- * 4. if the operation completes exceptionally, the catalog remains in its previous state
+ * 3. once the operation completes successfully, the result is available through the completion stage
+ * 4. if the operation completes exceptionally, the system remains in its previous state
  * 5. the completion stage allows asynchronous waiting for the operation to finish
  *
+ * @param <T> the type of result returned when the operation completes successfully
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public interface GoLiveProgress {
+public interface Progress<T> {
 
 	/**
 	 * Returns the percentage of completion of the process or task being tracked.
@@ -54,13 +52,13 @@ public interface GoLiveProgress {
 	int percentCompleted();
 
 	/**
-	 * Returns a {@link CompletionStage} that completes when the operation switching catalog to transactional state
+	 * Returns a {@link CompletionStage} that completes when the tracked operation
 	 * has been finished (either successfully or exceptionally).
 	 *
-	 * @return the {@link CompletionStage} for the completion of the go live operation
+	 * @return the {@link CompletionStage} for the completion of the operation
 	 */
 	@Nonnull
-	CompletionStage<CommitVersions> onCompletion();
+	CompletionStage<T> onCompletion();
 
 	/**
 	 * Indicates whether the tracked process or task has completed successfully.

@@ -21,21 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api;
+package io.evitadb.api.requestResponse.progress;
 
-import io.evitadb.api.CommitProgress.CommitVersions;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 
 /**
- * GoLiveProgressRecord is an implementation of {@link GoLiveProgress} that represents the progress of a catalog
- * go-live operation in a database. The go-live operation switches a catalog from warm-up mode to transactional
+ * ProgressRecord is an implementation of {@link Progress} that represents the progress of a catalog
+ * operation in a database. The operation switches a catalog from warm-up mode to transactional
  * mode.
  *
  * This implementation provides methods to track completion percentage and complete the operation either
@@ -44,7 +44,12 @@ import java.util.function.IntConsumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @Slf4j
-public class GoLiveProgressRecord implements GoLiveProgress {
+public class ProgressRecord<T> implements Progress<T> {
+
+	/**
+	 * Represents the name of the operation being tracked.
+	 */
+	private final String operationName;
 
 	/**
 	 * Optional observer that can be notified about progress updates.
@@ -52,9 +57,9 @@ public class GoLiveProgressRecord implements GoLiveProgress {
 	private final IntConsumer progressObserver;
 
 	/**
-	 * CompletableFuture that completes when the go-live operation has finished.
+	 * CompletableFuture that completes when the operation has finished.
 	 */
-	private final CompletableFuture<CommitVersions> onCompletion;
+	private final CompletableFuture<T> onCompletion;
 
 	/**
 	 * Atomic integer to track the percentage of completion.
@@ -62,12 +67,43 @@ public class GoLiveProgressRecord implements GoLiveProgress {
 	private final AtomicInteger percentCompleted;
 
 	/**
-	 * Creates a new instance of GoLiveProgressRecord with the specified termination sequence callback.
+	 * Timestamp of the last logged progress update.
+	 * This is used to avoid flooding the logs with too frequent updates.
 	 */
-	public GoLiveProgressRecord(@Nullable IntConsumer progressObserver) {
+	private long lastLoggedTime = System.currentTimeMillis();
+
+	/**
+	 * Creates a new instance of ProgressRecord with the specified termination sequence callback.
+	 */
+	public ProgressRecord(
+		@Nonnull String operationName,
+		@Nullable IntConsumer progressObserver
+	) {
+		this.operationName = operationName;
 		this.progressObserver = progressObserver;
 		this.onCompletion = new CompletableFuture<>();
 		this.percentCompleted = new AtomicInteger(0);
+	}
+
+	/**
+	 * Creates a new instance of ProgressRecord with the specified termination sequence callback.
+	 */
+	public ProgressRecord(
+		@Nonnull String operationName,
+		@Nullable IntConsumer progressObserver,
+		@Nonnull ProgressingFuture<T> progressingFuture,
+		@Nonnull Executor executor
+	) {
+		this.operationName = operationName;
+		this.progressObserver = progressObserver;
+		this.onCompletion = progressingFuture;
+		this.percentCompleted = new AtomicInteger(0);
+		progressingFuture.setProgressConsumer(
+			(stepsDone, totalSteps) -> this.updatePercentCompleted(
+				(int) (((double) stepsDone / totalSteps) * 100d)
+			)
+		);
+		progressingFuture.execute(executor);
 	}
 
 	@Override
@@ -77,7 +113,7 @@ public class GoLiveProgressRecord implements GoLiveProgress {
 
 	@Override
 	@Nonnull
-	public CompletionStage<CommitVersions> onCompletion() {
+	public CompletionStage<T> onCompletion() {
 		return this.onCompletion;
 	}
 
@@ -92,7 +128,7 @@ public class GoLiveProgressRecord implements GoLiveProgress {
 	}
 
 	/**
-	 * Updates the percentage of completion for the go-live operation.
+	 * Updates the percentage of completion for the operation.
 	 *
 	 * @param percentage the new percentage of completion (0-100)
 	 * @throws IllegalArgumentException if percentage is not between 0 and 100
@@ -101,6 +137,11 @@ public class GoLiveProgressRecord implements GoLiveProgress {
 		if (percentage < 0 || percentage > 100) {
 			throw new IllegalArgumentException("Percentage must be between 0 and 100, but was: " + percentage);
 		}
+		if (this.lastLoggedTime + 1000 < System.currentTimeMillis()) {
+			// Log the progress update every second to avoid flooding the logs
+			log.info("{} is at {}%", this.operationName, this.percentCompleted.get());
+			this.lastLoggedTime = System.currentTimeMillis();
+		}
 		final int previousValue = this.percentCompleted.getAndSet(percentage);
 		if (previousValue != percentage) {
 			notifyClientObserver(percentage);
@@ -108,23 +149,25 @@ public class GoLiveProgressRecord implements GoLiveProgress {
 	}
 
 	/**
-	 * Completes the go-live operation successfully.
+	 * Completes the operation successfully.
 	 */
-	public void complete(@Nonnull CommitVersions commitVersions) {
+	public void complete(@Nullable T result) {
 		if (!this.onCompletion.isDone()) {
+			log.info("{} has been successfully completed.", this.operationName);
 			this.percentCompleted.set(100);
 			notifyClientObserver(100);
-			this.onCompletion.complete(commitVersions);
+			this.onCompletion.complete(result);
 		}
 	}
 
 	/**
-	 * Completes the go-live operation exceptionally with the specified exception.
+	 * Completes the operation exceptionally with the specified exception.
 	 *
 	 * @param exception the exception to complete the operation with
 	 */
 	public void completeExceptionally(@Nonnull Throwable exception) {
 		if (!this.onCompletion.isDone()) {
+			log.error("{} has failed with error: {}", this.operationName, exception.getMessage(), exception);
 			notifyClientObserver(100);
 			this.onCompletion.completeExceptionally(exception);
 		}

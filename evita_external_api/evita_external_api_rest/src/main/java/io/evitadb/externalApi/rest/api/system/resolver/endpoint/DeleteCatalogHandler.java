@@ -25,15 +25,14 @@ package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
 import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.NotFoundEndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
-import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExecutionContext;
 import io.evitadb.externalApi.rest.metric.event.request.ExecutedEvent;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -68,19 +67,20 @@ public class DeleteCatalogHandler extends JsonRestHandler<SystemRestHandlingCont
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
 		return executionContext.executeAsyncInTransactionThreadPool(
 			() -> {
+				final Evita evita = this.restHandlingContext.getEvita();
 				final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-					this.restHandlingContext.getEvita().getCatalogInstance(catalogName));
+					evita.getCatalogInstance(catalogName));
 				if (catalog.isEmpty()) {
 					requestExecutedEvent.finishOperationExecution();
 					requestExecutedEvent.finishResultSerialization();
 					return new NotFoundEndpointResponse();
 				}
 
-				final boolean deleted = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-					this.restHandlingContext.getEvita().deleteCatalogIfExists(catalog.get().getName()));
-				Assert.isPremiseValid(
-					deleted,
-					() -> new RestInternalError("Could not delete catalog `" + catalog.get().getName() + "`, even though it should exist.")
+				requestExecutedEvent.measureInternalEvitaDBExecution(
+					() -> {
+						evita.deleteCatalogIfExists(catalog.get().getName());
+						return null;
+					}
 				);
 
 				requestExecutedEvent.finishOperationExecution();

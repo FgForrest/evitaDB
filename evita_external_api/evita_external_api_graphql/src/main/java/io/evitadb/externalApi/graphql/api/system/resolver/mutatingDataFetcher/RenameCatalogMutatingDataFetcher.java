@@ -32,6 +32,7 @@ import io.evitadb.externalApi.graphql.api.system.model.RenameCatalogMutationHead
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * Returns single catalog dto by name.
@@ -46,8 +47,8 @@ public class RenameCatalogMutatingDataFetcher implements DataFetcher<CatalogCont
     @Nonnull
     @Override
     public CatalogContract get(DataFetchingEnvironment environment) throws Exception {
-        final String catalogName = environment.getArgument(RenameCatalogMutationHeaderDescriptor.NAME.name());
-        final String newCatalogName = environment.getArgument(RenameCatalogMutationHeaderDescriptor.NEW_NAME.name());
+        final String catalogName = Objects.requireNonNull(environment.getArgument(RenameCatalogMutationHeaderDescriptor.NAME.name()));
+        final String newCatalogName = Objects.requireNonNull(environment.getArgument(RenameCatalogMutationHeaderDescriptor.NEW_NAME.name()));
 
 	    this.evita.renameCatalog(catalogName, newCatalogName);
         return this.evita.getCatalogInstanceOrThrowException(newCatalogName);

@@ -360,7 +360,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 	@Nonnull
 	@Override
-	public Stream<EngineMutation> getCommittedMutationStream(long version) {
+	public Stream<EngineMutation<?>> getCommittedMutationStream(long version) {
 		if (this.writeAheadLog == null) {
 			// If WAL is not initialized, there are no mutations
 			return Stream.empty();
@@ -372,7 +372,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 	@Nonnull
 	@Override
-	public Stream<EngineMutation> getReversedCommittedMutationStream(@Nullable Long version) {
+	public Stream<EngineMutation<?>> getReversedCommittedMutationStream(@Nullable Long version) {
 		if (this.writeAheadLog == null) {
 			// If WAL is not initialized, there are no mutations
 			return Stream.empty();

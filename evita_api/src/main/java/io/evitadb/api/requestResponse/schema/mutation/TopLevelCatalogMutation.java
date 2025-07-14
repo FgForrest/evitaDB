@@ -35,7 +35,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public interface TopLevelCatalogMutation extends EngineMutation {
+public interface TopLevelCatalogMutation<T> extends EngineMutation<T> {
 
 	/**
 	 * Returns the name of the involved catalog.

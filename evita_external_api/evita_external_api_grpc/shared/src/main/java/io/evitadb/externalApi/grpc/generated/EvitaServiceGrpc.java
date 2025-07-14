@@ -351,34 +351,65 @@ public final class EvitaServiceGrpc {
   }
 
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest,
-      com.google.protobuf.Empty> getApplyMutationMethod;
+      io.evitadb.externalApi.grpc.generated.GrpcApplyMutationResponse> getApplyMutationMethod;
 
   @io.grpc.stub.annotations.RpcMethod(
       fullMethodName = SERVICE_NAME + '/' + "ApplyMutation",
       requestType = io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest.class,
-      responseType = com.google.protobuf.Empty.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcApplyMutationResponse.class,
       methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
   public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest,
-      com.google.protobuf.Empty> getApplyMutationMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest, com.google.protobuf.Empty> getApplyMutationMethod;
+      io.evitadb.externalApi.grpc.generated.GrpcApplyMutationResponse> getApplyMutationMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest, io.evitadb.externalApi.grpc.generated.GrpcApplyMutationResponse> getApplyMutationMethod;
     if ((getApplyMutationMethod = EvitaServiceGrpc.getApplyMutationMethod) == null) {
       synchronized (EvitaServiceGrpc.class) {
         if ((getApplyMutationMethod = EvitaServiceGrpc.getApplyMutationMethod) == null) {
           EvitaServiceGrpc.getApplyMutationMethod = getApplyMutationMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest, com.google.protobuf.Empty>newBuilder()
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest, io.evitadb.externalApi.grpc.generated.GrpcApplyMutationResponse>newBuilder()
               .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
               .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ApplyMutation"))
               .setSampledToLocalTracing(true)
               .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
                   io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest.getDefaultInstance()))
               .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  com.google.protobuf.Empty.getDefaultInstance()))
+                  io.evitadb.externalApi.grpc.generated.GrpcApplyMutationResponse.getDefaultInstance()))
               .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("ApplyMutation"))
               .build();
         }
       }
     }
     return getApplyMutationMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> getApplyMutationWithProgressMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "ApplyMutationWithProgress",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> getApplyMutationWithProgressMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest, io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> getApplyMutationWithProgressMethod;
+    if ((getApplyMutationWithProgressMethod = EvitaServiceGrpc.getApplyMutationWithProgressMethod) == null) {
+      synchronized (EvitaServiceGrpc.class) {
+        if ((getApplyMutationWithProgressMethod = EvitaServiceGrpc.getApplyMutationWithProgressMethod) == null) {
+          EvitaServiceGrpc.getApplyMutationWithProgressMethod = getApplyMutationWithProgressMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest, io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ApplyMutationWithProgress"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("ApplyMutationWithProgress"))
+              .build();
+        }
+      }
+    }
+    return getApplyMutationWithProgressMethod;
   }
 
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest,
@@ -647,8 +678,18 @@ public final class EvitaServiceGrpc {
      * </pre>
      */
     default void applyMutation(io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest request,
-        io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getApplyMutationMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to update the catalog with a set of mutations.
+     * </pre>
+     */
+    default void applyMutationWithProgress(io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getApplyMutationWithProgressMethod(), responseObserver);
     }
 
     /**
@@ -833,9 +874,20 @@ public final class EvitaServiceGrpc {
      * </pre>
      */
     public void applyMutation(io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest request,
-        io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getApplyMutationMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to update the catalog with a set of mutations.
+     * </pre>
+     */
+    public void applyMutationWithProgress(io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncServerStreamingCall(
+          getChannel().newCall(getApplyMutationWithProgressMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -997,9 +1049,21 @@ public final class EvitaServiceGrpc {
      * Procedure used to update the catalog with a set of mutations.
      * </pre>
      */
-    public com.google.protobuf.Empty applyMutation(io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest request) {
+    public io.evitadb.externalApi.grpc.generated.GrpcApplyMutationResponse applyMutation(io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getApplyMutationMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to update the catalog with a set of mutations.
+     * </pre>
+     */
+    @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
+    public io.grpc.stub.BlockingClientCall<?, io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse>
+        applyMutationWithProgress(io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest request) {
+      return io.grpc.stub.ClientCalls.blockingV2ServerStreamingCall(
+          getChannel(), getApplyMutationWithProgressMethod(), getCallOptions(), request);
     }
 
     /**
@@ -1160,9 +1224,20 @@ public final class EvitaServiceGrpc {
      * Procedure used to update the catalog with a set of mutations.
      * </pre>
      */
-    public com.google.protobuf.Empty applyMutation(io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest request) {
+    public io.evitadb.externalApi.grpc.generated.GrpcApplyMutationResponse applyMutation(io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getApplyMutationMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to update the catalog with a set of mutations.
+     * </pre>
+     */
+    public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> applyMutationWithProgress(
+        io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest request) {
+      return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
+          getChannel(), getApplyMutationWithProgressMethod(), getCallOptions(), request);
     }
 
     /**
@@ -1332,7 +1407,7 @@ public final class EvitaServiceGrpc {
      * Procedure used to update the catalog with a set of mutations.
      * </pre>
      */
-    public com.google.common.util.concurrent.ListenableFuture<com.google.protobuf.Empty> applyMutation(
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationResponse> applyMutation(
         io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getApplyMutationMethod(), getCallOptions()), request);
@@ -1372,9 +1447,10 @@ public final class EvitaServiceGrpc {
   private static final int METHODID_DEFINE_CATALOG = 8;
   private static final int METHODID_DELETE_CATALOG_IF_EXISTS = 9;
   private static final int METHODID_APPLY_MUTATION = 10;
-  private static final int METHODID_RENAME_CATALOG = 11;
-  private static final int METHODID_REPLACE_CATALOG = 12;
-  private static final int METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE = 13;
+  private static final int METHODID_APPLY_MUTATION_WITH_PROGRESS = 11;
+  private static final int METHODID_RENAME_CATALOG = 12;
+  private static final int METHODID_REPLACE_CATALOG = 13;
+  private static final int METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE = 14;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -1435,7 +1511,11 @@ public final class EvitaServiceGrpc {
           break;
         case METHODID_APPLY_MUTATION:
           serviceImpl.applyMutation((io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest) request,
-              (io.grpc.stub.StreamObserver<com.google.protobuf.Empty>) responseObserver);
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationResponse>) responseObserver);
+          break;
+        case METHODID_APPLY_MUTATION_WITH_PROGRESS:
+          serviceImpl.applyMutationWithProgress((io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse>) responseObserver);
           break;
         case METHODID_RENAME_CATALOG:
           serviceImpl.renameCatalog((io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest) request,
@@ -1542,8 +1622,15 @@ public final class EvitaServiceGrpc {
           io.grpc.stub.ServerCalls.asyncUnaryCall(
             new MethodHandlers<
               io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest,
-              com.google.protobuf.Empty>(
+              io.evitadb.externalApi.grpc.generated.GrpcApplyMutationResponse>(
                 service, METHODID_APPLY_MUTATION)))
+        .addMethod(
+          getApplyMutationWithProgressMethod(),
+          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse>(
+                service, METHODID_APPLY_MUTATION_WITH_PROGRESS)))
         .addMethod(
           getRenameCatalogMethod(),
           io.grpc.stub.ServerCalls.asyncUnaryCall(
@@ -1624,6 +1711,7 @@ public final class EvitaServiceGrpc {
               .addMethod(getDefineCatalogMethod())
               .addMethod(getDeleteCatalogIfExistsMethod())
               .addMethod(getApplyMutationMethod())
+              .addMethod(getApplyMutationWithProgressMethod())
               .addMethod(getRenameCatalogMethod())
               .addMethod(getReplaceCatalogMethod())
               .addMethod(getRegisterSystemChangeCaptureMethod())

@@ -49,10 +49,15 @@ import io.evitadb.api.requestResponse.cdc.ChangeCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.progress.Progress;
+import io.evitadb.api.requestResponse.progress.ProgressRecord;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.driver.cdc.ClientChangeCapturePublisher;
 import io.evitadb.driver.cdc.ClientChangeSystemCaptureProcessor;
@@ -72,7 +77,13 @@ import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager;
 import io.evitadb.externalApi.grpc.certificate.ClientCertificateManager.Builder;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceFutureStub;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceStub;
-import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest;
+import io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse;
+import io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse;
+import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
+import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
+import io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest;
+import io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
@@ -80,6 +91,7 @@ import io.evitadb.function.Functions;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.ExceptionUtils;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.UUIDUtil;
@@ -87,6 +99,7 @@ import io.evitadb.utils.VersionUtils;
 import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -113,6 +126,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -564,7 +578,15 @@ public class EvitaClient implements EvitaContract {
 	public CatalogSchemaBuilder defineCatalog(@Nonnull String catalogName) {
 		assertActive();
 		if (!getCatalogNames().contains(catalogName)) {
-			applyMutation(new CreateCatalogSchemaMutation(catalogName));
+			ExceptionUtils.unwrapCompletionException(
+				() -> {
+					applyMutation(new CreateCatalogSchemaMutation(catalogName))
+						.onCompletion()
+						.toCompletableFuture()
+						.join();
+					return null;
+				}
+			);
 		}
 		return queryCatalog(
 			catalogName,
@@ -574,84 +596,137 @@ public class EvitaClient implements EvitaContract {
 		).openForWrite();
 	}
 
+	@Nonnull
 	@Override
-	public void makeCatalogAlive(@Nonnull String catalogName) {
+	public Progress<CommitVersions> makeCatalogAliveWithProgress(@Nonnull String catalogName) {
 		assertActive();
 		if (getCatalogState(catalogName).map(it -> it == CatalogState.WARMING_UP).orElse(false)) {
-			applyMutation(new MakeCatalogAliveMutation(catalogName));
+			return applyMutation(new MakeCatalogAliveMutation(catalogName));
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Catalog `" + catalogName + "` is not in WARMING_UP state, so it cannot be made alive!"
+			);
 		}
 	}
 
+	@Nonnull
 	@Override
-	public void renameCatalog(@Nonnull String catalogName, @Nonnull String newCatalogName) {
+	public Progress<CommitVersions> renameCatalogWithProgress(@Nonnull String catalogName, @Nonnull String newCatalogName) {
 		assertActive();
-		final GrpcRenameCatalogRequest request = GrpcRenameCatalogRequest.newBuilder()
-		                                                                 .setCatalogName(catalogName)
-		                                                                 .setNewCatalogName(newCatalogName)
-		                                                                 .build();
-		final GrpcRenameCatalogResponse grpcResponse = executeWithEvitaFutureService(
-			evitaService -> evitaService.renameCatalog(request)
+		return applyMutation(
+			new ModifyCatalogSchemaNameMutation(catalogName, newCatalogName, false),
+			progress -> {
+				if (progress == 100) {
+					this.entitySchemaCache.remove(catalogName);
+					this.entitySchemaCache.remove(newCatalogName);
+				}
+			}
 		);
-		final boolean success = grpcResponse.getSuccess();
-		if (success) {
-			this.entitySchemaCache.remove(catalogName);
-			this.entitySchemaCache.remove(newCatalogName);
-		}
 	}
 
+	@Nonnull
 	@Override
-	public void replaceCatalog(@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced) {
+	public Progress<CommitVersions> replaceCatalogWithProgress(@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced) {
 		assertActive();
-		final GrpcReplaceCatalogRequest request = GrpcReplaceCatalogRequest.newBuilder()
-		                                                                   .setCatalogNameToBeReplacedWith(
-			                                                                   catalogNameToBeReplacedWith)
-		                                                                   .setCatalogNameToBeReplaced(
-			                                                                   catalogNameToBeReplaced)
-		                                                                   .build();
-
-		final GrpcReplaceCatalogResponse grpcResponse = executeWithEvitaFutureService(
-			evitaService -> evitaService.replaceCatalog(request)
+		return applyMutation(
+			new ModifyCatalogSchemaNameMutation(catalogNameToBeReplacedWith, catalogNameToBeReplaced, true),
+			progress -> {
+				if (progress == 100) {
+					this.entitySchemaCache.remove(catalogNameToBeReplaced);
+					this.entitySchemaCache.remove(catalogNameToBeReplacedWith);
+				}
+			}
 		);
-		final boolean success = grpcResponse.getSuccess();
-		if (success) {
-			this.entitySchemaCache.remove(catalogNameToBeReplaced);
-			this.entitySchemaCache.remove(catalogNameToBeReplacedWith);
-		}
 	}
 
+	@Nonnull
 	@Override
-	public boolean deleteCatalogIfExists(@Nonnull String catalogName) {
+	public Optional<Progress<Void>> deleteCatalogIfExistsWithProgress(@Nonnull String catalogName) {
 		assertActive();
-
-		final GrpcDeleteCatalogIfExistsRequest request = GrpcDeleteCatalogIfExistsRequest.newBuilder()
-		                                                                                 .setCatalogName(catalogName)
-		                                                                                 .build();
-
-		final GrpcDeleteCatalogIfExistsResponse grpcResponse = executeWithEvitaFutureService(
-			evitaService -> evitaService.deleteCatalogIfExists(request)
+		return Optional.of(
+			applyMutation(
+				new RemoveCatalogSchemaMutation(catalogName),
+				progress -> {
+					if (progress == 100) {
+						this.entitySchemaCache.remove(catalogName);
+					}
+				}
+			)
 		);
-		final boolean success = grpcResponse.getSuccess();
-		if (success) {
-			this.entitySchemaCache.remove(catalogName);
-		}
-		return success;
 	}
 
+	@Nonnull
 	@Override
-	public void applyMutation(@Nonnull EngineMutation engineMutation) {
+	public <T> Progress<T> applyMutation(@Nonnull EngineMutation<T> engineMutation, @Nullable IntConsumer progressObserver) {
 		assertActive();
 
 		DelegatingEngineMutationConverter.INSTANCE.convert(engineMutation);
 
 		final GrpcApplyMutationRequest request = GrpcApplyMutationRequest
 			.newBuilder()
-			.setMutation(
-				DelegatingEngineMutationConverter.INSTANCE.convert(engineMutation)
-			)
+			.setMutation(DelegatingEngineMutationConverter.INSTANCE.convert(engineMutation))
 			.build();
 
-		executeWithEvitaFutureService(
-			evitaService -> evitaService.applyMutation(request)
+		//noinspection unchecked
+		return executeWithEvitaService(
+			evitaService -> {
+				@SuppressWarnings("rawtypes")
+				final ProgressRecord applyMutationProgress = new ProgressRecord(
+					"Applying mutation `" + engineMutation + "`",
+					progressObserver
+				);
+
+				final StreamObserver<GrpcApplyMutationWithProgressResponse> observer = new StreamObserver<>() {
+					private long catalogVersion = -1;
+					private int catalogSchemaVersion = -1;
+
+					@Override
+					public void onNext(GrpcApplyMutationWithProgressResponse grpcResponse) {
+						applyMutationProgress.updatePercentCompleted(
+							grpcResponse.getProgressInPercent()
+						);
+
+						this.catalogVersion = grpcResponse.getCatalogVersion();
+						this.catalogSchemaVersion = grpcResponse.getCatalogSchemaVersion();
+
+						if (progressObserver != null) {
+							progressObserver.accept(grpcResponse.getProgressInPercent());
+						}
+					}
+
+					@Override
+					public void onError(Throwable throwable) {
+						applyMutationProgress.completeExceptionally(throwable);
+					}
+
+					@SuppressWarnings("unchecked")
+					@Override
+					public void onCompleted() {
+						if (this.catalogVersion > -1 && this.catalogSchemaVersion > -1) {
+							applyMutationProgress.complete(
+								new CommitVersions(this.catalogVersion, this.catalogSchemaVersion)
+							);
+
+							if (engineMutation instanceof TopLevelCatalogMutation<T> tlcm) {
+								ofNullable(EvitaClient.this.entitySchemaCache.get(tlcm.getCatalogName()))
+									.ifPresent(
+										it -> it.updateLastKnownCatalogVersion(
+											this.catalogVersion, this.catalogSchemaVersion
+										)
+									);
+							}
+						} else {
+							applyMutationProgress.complete(null);
+						}
+					}
+				};
+
+				evitaService.applyMutationWithProgress(
+					request, observer
+				);
+
+				return applyMutationProgress;
+			}
 		);
 	}
 

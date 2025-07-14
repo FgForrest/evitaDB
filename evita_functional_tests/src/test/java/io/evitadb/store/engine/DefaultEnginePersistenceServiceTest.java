@@ -215,7 +215,7 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 	@DisplayName("should append WAL and return file reference")
 	void shouldAppendWalAndReturnFileReference() {
 		// Create a test EngineMutation
-		EngineMutation mutation = createTestEngineMutation();
+		EngineMutation<?> mutation = createTestEngineMutation();
 
 		// Call appendWal
 		WalFileReference result = this.service.appendWal(1L, mutation).walFileReference();
@@ -239,7 +239,7 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 	@DisplayName("should get first non-processed transaction in WAL after appending")
 	void shouldGetFirstNonProcessedTransactionInWalAfterAppending() {
 		// Append a mutation to the WAL
-		EngineMutation mutation = createTestEngineMutation();
+		EngineMutation<?> mutation = createTestEngineMutation();
 		this.service.appendWal(1L, mutation);
 
 		// Call getFirstNonProcessedTransactionInWal
@@ -255,7 +255,7 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 	@DisplayName("should get empty committed mutation stream when none exists")
 	void shouldGetEmptyCommittedMutationStreamWhenNoneExists() {
 		// Call getCommittedMutationStream with no mutations
-		Stream<EngineMutation> result = this.service.getCommittedMutationStream(1L);
+		Stream<EngineMutation<?>> result = this.service.getCommittedMutationStream(1L);
 
 		// Verify the result
 		assertNotNull(result);
@@ -270,7 +270,7 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 		this.service.appendWal(2L, createTestEngineMutation("b"));
 
 		// Get the committed mutation stream
-		Stream<EngineMutation> result = this.service.getCommittedMutationStream(1L);
+		Stream<EngineMutation<?>> result = this.service.getCommittedMutationStream(1L);
 
 		// Verify the result
 		assertNotNull(result);
@@ -290,7 +290,7 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 	@DisplayName("should get empty reversed committed mutation stream when none exists")
 	void shouldGetEmptyReversedCommittedMutationStreamWhenNoneExists() {
 		// Call getReversedCommittedMutationStream with no mutations
-		Stream<EngineMutation> result = this.service.getReversedCommittedMutationStream(2L);
+		Stream<EngineMutation<?>> result = this.service.getReversedCommittedMutationStream(2L);
 
 		// Verify the result
 		assertNotNull(result);
@@ -305,7 +305,7 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 		this.service.appendWal(2L, createTestEngineMutation("b"));
 
 		// Get the reversed committed mutation stream
-		Stream<EngineMutation> result = this.service.getReversedCommittedMutationStream(2L);
+		Stream<EngineMutation<?>> result = this.service.getReversedCommittedMutationStream(2L);
 
 		// Verify the result
 		assertNotNull(result);

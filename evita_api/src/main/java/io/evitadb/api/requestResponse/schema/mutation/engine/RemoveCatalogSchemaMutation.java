@@ -50,7 +50,7 @@ import java.io.Serial;
 @Immutable
 @EqualsAndHashCode
 @RequiredArgsConstructor
-public class RemoveCatalogSchemaMutation implements TopLevelCatalogSchemaMutation {
+public class RemoveCatalogSchemaMutation implements TopLevelCatalogSchemaMutation<Void> {
 	@Serial private static final long serialVersionUID = -8605223733449045709L;
 	@Getter @Nonnull private final String catalogName;
 
@@ -59,6 +59,12 @@ public class RemoveCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 		if (!evita.getCatalogNames().contains(this.catalogName)) {
 			throw new InvalidSchemaMutationException("Catalog `" + this.catalogName + "` doesn't exist!");
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Class<Void> getProgressResultType() {
+		return Void.class;
 	}
 
 	@Nullable

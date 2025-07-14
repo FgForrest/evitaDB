@@ -919,7 +919,9 @@ public class EvitaParameterResolver
 									if (catalogInitMethod.expectedState() == CatalogState.ALIVE) {
 										evita.updateCatalog(
 											dataSetInfo.catalogName(), evitaSessionBase -> {
-												evitaSessionBase.goLiveAndClose();
+												if (evitaSessionBase.getCatalogState() != CatalogState.ALIVE) {
+													evitaSessionBase.goLiveAndClose();
+												}
 											}
 										);
 									}

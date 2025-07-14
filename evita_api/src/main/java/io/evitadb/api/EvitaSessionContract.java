@@ -62,6 +62,7 @@ import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.ReflectedReference;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -94,6 +95,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.utils.ExceptionUtils.unwrapCompletionException;
 
 /**
  * Session are created by the clients to envelope a "piece of work" with evitaDB. In web environment it's a good idea
@@ -179,17 +181,17 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * That means until this operation is fully finished. The next opened session will be operating in the new
 	 * catalog state.
 	 *
-	 * Session is {@link #close() closed} immediately and method returns a {@link GoLiveProgress} object that can be
+	 * Session is {@link #close() closed} immediately and method returns a {@link Progress} object that can be
 	 * used to monitor the progress of the go-live operation or to wait for it to finish via. completion stage accessible
-	 * via {@link GoLiveProgress#onCompletion()}.
+	 * via {@link Progress#onCompletion()}.
 	 *
 	 * @param progressObserver optional progress observer that can be used to monitor the percentage progress of the go-live operation.
-	 * @return {@link GoLiveProgress} object that can be used to monitor the progress of the go-live operation or to
-	 *          wait for it to finish using completion stage accessible via {@link GoLiveProgress#onCompletion()}
+	 * @return {@link Progress} object that can be used to monitor the progress of the go-live operation or to
+	 *          wait for it to finish using completion stage accessible via {@link Progress#onCompletion()}
 	 * @see CatalogState
 	 */
 	@Nonnull
-	GoLiveProgress goLiveAndCloseWithProgress(@Nullable IntConsumer progressObserver);
+	Progress<CommitVersions> goLiveAndCloseWithProgress(@Nullable IntConsumer progressObserver);
 
 	/**
 	 * Method switches catalog to the {@link CatalogState#ALIVE} state and terminates the current Evita session. It's not
@@ -197,16 +199,16 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * That means until this operation is fully finished. The next opened session will be operating in the new
 	 * catalog state.
 	 *
-	 * Session is {@link #close() closed} immediately and method returns a {@link GoLiveProgress} object that can be
+	 * Session is {@link #close() closed} immediately and method returns a {@link Progress} object that can be
 	 * used to monitor the progress of the go-live operation or to wait for it to finish via. completion stage accessible
-	 * via {@link GoLiveProgress#onCompletion()}.
+	 * via {@link Progress#onCompletion()}.
 	 *
-	 * @return {@link GoLiveProgress} object that can be used to monitor the progress of the go-live operation or to
-	 *          wait for it to finish using completion stage accessible via {@link GoLiveProgress#onCompletion()}
+	 * @return {@link Progress} object that can be used to monitor the progress of the go-live operation or to
+	 *          wait for it to finish using completion stage accessible via {@link Progress#onCompletion()}
 	 * @see CatalogState
 	 */
 	@Nonnull
-	default GoLiveProgress goLiveAndCloseWithProgress() {
+	default Progress<CommitVersions> goLiveAndCloseWithProgress() {
 		return goLiveAndCloseWithProgress(null);
 	}
 
@@ -792,19 +794,27 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 			catalogSchemaBuilder.getName().equals(getCatalogName()),
 			"Schema builder targets `" + catalogSchemaBuilder.getName() + "` catalog, but the session targets `" + getCatalogName() + "` catalog!"
 		);
-		catalogSchemaBuilder
+		return catalogSchemaBuilder
 			.toMutation()
-			.ifPresent(
-				mutation -> this.getEvita().applyMutation(
-					new ModifyCatalogSchemaMutation(
-						mutation.getCatalogName(),
-						this.getId(),
-						mutation.getSchemaMutations()
-					)
-				)
-			);
-		// schema should be already updated in the evitaDB instance, so we can just return the version
-		return getCatalogSchema().version();
+			.map(
+				mutation ->
+					unwrapCompletionException(
+						() -> this.getEvita()
+						          .applyMutation(
+							          new ModifyCatalogSchemaMutation(
+								          mutation.getCatalogName(),
+								          this.getId(),
+								          mutation.getSchemaMutations()
+							          )
+						          )
+						          // we need to wait for the mutation to be processed before we can return the version
+						          .onCompletion()
+						          .toCompletableFuture()
+						          .join()
+					).catalogSchemaVersion()
+			)
+			// no mutation was provided, so we return the current version
+			.orElseGet(() -> getCatalogSchema().version());
 	}
 
 	/**

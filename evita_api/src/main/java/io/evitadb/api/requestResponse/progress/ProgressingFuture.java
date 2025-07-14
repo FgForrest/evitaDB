@@ -21,23 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.async;
+package io.evitadb.api.requestResponse.progress;
 
 
 import io.evitadb.function.BiIntConsumer;
+import io.evitadb.function.Functions;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -84,15 +84,14 @@ import java.util.function.Supplier;
  * exceptionally), the progress is automatically set to the total number of steps.</p>
  *
  * @param <T> the type of the result produced by this future
- * @param <S> the type of results produced by nested futures (if any)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class ProgressingFuture<T, S> extends CompletableFuture<T> {
+public class ProgressingFuture<T> extends CompletableFuture<T> {
 	/**
 	 * Empty array constant used when no nested futures are present to avoid unnecessary allocations.
 	 */
-	public static final ProgressingFuture<?,?>[] EMPTY_NESTED_FUTURES = new ProgressingFuture[0];
+	public static final ProgressingFuture<?>[] EMPTY_NESTED_FUTURES = new ProgressingFuture[0];
 
 	/**
 	 * The total number of steps required to complete this future and all its nested futures.
@@ -106,16 +105,27 @@ public class ProgressingFuture<T, S> extends CompletableFuture<T> {
 	private final int actionSteps;
 
 	/**
+	 * Lambda that executes the main operation of this future.
+	 */
+	private final Consumer<Executor> executionLambda;
+
+	/**
 	 * Optional consumer that receives progress updates. Called with (stepsDone, totalSteps) whenever
 	 * progress is updated. May be null if progress tracking is not needed.
 	 */
-	private final @Nullable BiIntConsumer progressConsumer;
+	private BiIntConsumer progressConsumer;
+
+	/**
+	 * Optional consumer that handles failure cases. This consumer is called when the future
+	 * completes exceptionally.
+	 */
+	private final Consumer<Throwable> onFailure;
 
 	/**
 	 * Array of nested futures whose progress is aggregated into this future's total progress.
 	 * Empty when using the simple constructor without nested futures.
 	 */
-	private final ProgressingFuture<S, ?>[] nestedFutures;
+	private final ProgressingFuture<?>[] nestedFutures;
 
 	/**
 	 * Number of steps completed by this future's direct operations (not including nested futures).
@@ -147,53 +157,100 @@ public class ProgressingFuture<T, S> extends CompletableFuture<T> {
 	 *
 	 * @param actionSteps the number of steps for operations performed directly by this future
 	 *                   (not including nested futures)
-	 * @param progressConsumer optional consumer to receive progress updates in the form
-	 *                        (stepsDone, totalSteps). May be null if progress tracking is not needed
 	 * @param nestedFutureFactories collection of functions that create nested ProgressingFutures.
 	 *                             Each function receives an IntConsumer for progress updates
 	 * @param resultMapper function that combines the results from all nested futures into the final result.
 	 *                    Receives this ProgressingFuture instance and a collection of nested results
-	 * @param executor the executor to use for asynchronous operations
 	 *
 	 * @throws NullPointerException if nestedFutureFactories, resultMapper, or executor is null
 	 */
-	public ProgressingFuture(
+	public <S> ProgressingFuture(
 		int actionSteps,
-		@Nullable BiIntConsumer progressConsumer,
-		@Nonnull Collection<Function<IntConsumer, ProgressingFuture<S, ?>>> nestedFutureFactories,
-		@Nonnull BiFunction<ProgressingFuture<T, S>, Collection<S>, T> resultMapper,
-		@Nonnull Executor executor
+		@Nonnull Collection<Supplier<ProgressingFuture<S>>> nestedFutureFactories,
+		@Nonnull BiFunction<ProgressingFuture<T>, Collection<S>, T> resultMapper
 	) {
-		//noinspection unchecked
+		this(
+			actionSteps,
+			nestedFutureFactories,
+			resultMapper,
+			Functions.noOpConsumer()
+		);
+	}
+
+	/**
+	 * Creates a ProgressingFuture that coordinates multiple nested futures and aggregates their progress.
+	 * This constructor is used for complex operations that consist of multiple sub-operations, each
+	 * represented by a nested ProgressingFuture.
+	 *
+	 * <p>The total steps for this future will be the sum of actionSteps and the total steps of all
+	 * nested futures. Progress updates from nested futures are automatically aggregated and reported
+	 * through the progress consumer.</p>
+	 *
+	 * <p>The execution flow:</p>
+	 * <ol>
+	 *   <li>All nested futures are created using the provided factories</li>
+	 *   <li>The futures are executed concurrently</li>
+	 *   <li>When all nested futures complete, the result mapper is called</li>
+	 *   <li>The final result is used to complete this future</li>
+	 * </ol>
+	 *
+	 * @param actionSteps the number of steps for operations performed directly by this future
+	 *                   (not including nested futures)
+	 * @param nestedFutureFactories collection of functions that create nested ProgressingFutures.
+	 *                             Each function receives an IntConsumer for progress updates
+	 * @param resultMapper function that combines the results from all nested futures into the final result.
+	 *                    Receives this ProgressingFuture instance and a collection of nested results
+	 *
+	 * @throws NullPointerException if nestedFutureFactories, resultMapper, or executor is null
+	 */
+	public <S> ProgressingFuture(
+		int actionSteps,
+		@Nonnull Collection<Supplier<ProgressingFuture<S>>> nestedFutureFactories,
+		@Nonnull BiFunction<ProgressingFuture<T>, Collection<S>, T> resultMapper,
+		@Nonnull Consumer<Throwable> onFailure
+	) {
 		this.nestedFutures = new ProgressingFuture[nestedFutureFactories.size()];
 		this.nestedStepsDone = new int[nestedFutureFactories.size()];
 		int index = 0;
-		for (Function<IntConsumer, ProgressingFuture<S, ?>> nestedFutureFactory : nestedFutureFactories) {
+		for (Supplier<ProgressingFuture<S>> nestedFutureFactory : nestedFutureFactories) {
 			final int indexToUpdate = index;
-			this.nestedFutures[index++] = nestedFutureFactory.apply(stepsDone -> this.updateProgress(indexToUpdate, stepsDone));
+			final ProgressingFuture<S> nestedFuture = nestedFutureFactory.get();
+			nestedFuture.setProgressConsumer((stepsDone, __) -> this.updateProgress(indexToUpdate, stepsDone));
+			this.nestedFutures[index++] = nestedFuture;
 		}
 		this.actionSteps = actionSteps;
-		this.totalSteps = actionSteps + 1 + Arrays.stream(this.nestedFutures).mapToInt(ProgressingFuture::getTotalSteps).sum();
-		this.progressConsumer = progressConsumer;
+		this.totalSteps = actionSteps + 1 +
+			Arrays.stream(this.nestedFutures)
+			      .mapToInt(ProgressingFuture::getTotalSteps)
+			      .sum();
+		this.onFailure = onFailure;
 
-		CompletableFuture.allOf(this.nestedFutures)
-			.thenApplyAsync(
-				unused -> resultMapper.apply(
-					this,
-					Arrays.stream(this.nestedFutures)
-						.map(it -> it.getNow(null))
-						.toList()
-				),
-				executor
-			).whenComplete(
-				(result, throwable) -> {
-					if (throwable == null) {
-						this.complete(result);
-					} else {
-						this.completeExceptionally(throwable);
+		this.executionLambda = executor -> {
+			// issue nested futures first
+			for (ProgressingFuture<?> nestedFuture : this.nestedFutures) {
+				nestedFuture.execute(executor);
+			}
+			//noinspection unchecked
+			CompletableFuture
+				.allOf(this.nestedFutures)
+				.thenApply(
+					unused -> resultMapper.apply(
+						this,
+						(Collection<S>)
+							Arrays.stream(this.nestedFutures)
+							      .map(it -> it.getNow(null))
+							      .toList()
+					)
+				).whenComplete(
+					(result, throwable) -> {
+						if (throwable == null) {
+							this.complete(result);
+						} else {
+							this.completeExceptionally(throwable);
+						}
 					}
-				}
-			);
+				);
+		};
 	}
 
 	/**
@@ -214,35 +271,107 @@ public class ProgressingFuture<T, S> extends CompletableFuture<T> {
 	 * </ol>
 	 *
 	 * @param actionSteps the total number of steps for this operation
-	 * @param progressConsumer optional consumer to receive progress updates in the form
-	 *                        (stepsDone, totalSteps). May be null if progress tracking is not needed
 	 * @param lambda the supplier that produces the result. Should call updateProgress as needed
-	 * @param executor the executor to use for asynchronous execution
 	 *
 	 * @throws NullPointerException if lambda or executor is null
 	 */
 	public ProgressingFuture(
 		int actionSteps,
-		@Nullable BiIntConsumer progressConsumer,
-		@Nonnull Supplier<T> lambda,
-		@Nonnull Executor executor
+		@Nonnull Function<ProgressingFuture<T>, T> lambda
 	) {
-		//noinspection unchecked
-		this.nestedFutures = (ProgressingFuture<S, ?>[]) EMPTY_NESTED_FUTURES;
+		this(
+			actionSteps,
+			lambda,
+			Functions.noOpConsumer()
+		);
+	}
+
+	/**
+	 * Creates a ProgressingFuture for simple execution of a single supplier with progress tracking.
+	 * This constructor is used for operations that don't require nested futures but still need
+	 * progress reporting capabilities.
+	 *
+	 * <p>The supplier is executed asynchronously using the provided executor. Progress updates
+	 * must be manually reported by calling {@link #updateProgress(int)} from within the supplier
+	 * or from external code that monitors the operation.</p>
+	 *
+	 * <p>The execution flow:</p>
+	 * <ol>
+	 *   <li>The supplier is executed asynchronously</li>
+	 *   <li>Progress can be updated manually during execution</li>
+	 *   <li>When the supplier completes, this future is completed with the result</li>
+	 *   <li>Progress is automatically set to totalSteps upon completion</li>
+	 * </ol>
+	 *
+	 * @param actionSteps the total number of steps for this operation
+	 * @param lambda the supplier that produces the result. Should call updateProgress as needed
+	 *
+	 * @throws NullPointerException if lambda or executor is null
+	 */
+	public ProgressingFuture(
+		int actionSteps,
+		@Nonnull Function<ProgressingFuture<T>, T> lambda,
+		@Nonnull Consumer<Throwable> onFailure
+	) {
+		this.nestedFutures = EMPTY_NESTED_FUTURES;
 		this.nestedStepsDone = ArrayUtils.EMPTY_INT_ARRAY;
 		this.actionSteps = actionSteps;
 		this.totalSteps = actionSteps + 1;
-		this.progressConsumer = progressConsumer;
-		CompletableFuture.supplyAsync(lambda, executor)
-			.whenComplete(
-				(result, throwable) -> {
-					if (throwable == null) {
-						this.complete(result);
-					} else {
-						this.completeExceptionally(throwable);
-					}
+		this.onFailure = onFailure;
+		this.executionLambda = executor -> CompletableFuture.runAsync(
+			() -> {
+				try {
+					this.complete(lambda.apply(this));
+				} catch (Throwable ex) {
+					this.onFailure.accept(ex);
+					this.completeExceptionally(ex);
 				}
-			);
+			},
+			executor
+		);
+	}
+
+	/**
+	 * Sets the progress consumer for this ProgressingFuture. The progress consumer
+	 * is used to report progress updates during the execution of the future.
+	 * It will receive two integer arguments: the steps completed so far and the total steps.
+	 *
+	 * @param progressConsumer a {@link BiIntConsumer} that accepts two integer arguments:
+	 *                         the number of steps completed and the total number of steps.
+	 *                         It must not be null.
+	 */
+	public void setProgressConsumer(@Nonnull BiIntConsumer progressConsumer) {
+		Assert.isPremiseValid(
+			this.progressConsumer == null,
+			"Progress consumer can only be set once for a ProgressingFuture."
+		);
+		this.progressConsumer = progressConsumer;
+	}
+
+	/**
+	 * Executes the ProgressingFuture using the provided Executor. This method requires
+	 * an execution lambda to be set for the ProgressingFuture to define the operation
+	 * to be performed.
+	 *
+	 * Preconditions:
+	 * 1. The execution lambda must not be null.
+	 * 2. The provided Executor must not be null.
+	 *
+	 * @param executor the {@link Executor} to be used for executing the operation.
+	 *                 Must not be null.
+	 * @throws IllegalArgumentException if the execution lambda is not set or
+	 *                                  the executor is null.
+	 */
+	public void execute(@Nonnull Executor executor) {
+		Assert.isPremiseValid(
+			this.executionLambda != null,
+			"Execution lambda must be set before executing the ProgressingFuture."
+		);
+		Assert.isPremiseValid(
+			executor != null,
+			"Executor must not be null."
+		);
+		this.executionLambda.accept(executor);
 	}
 
 	/**
@@ -311,12 +440,13 @@ public class ProgressingFuture<T, S> extends CompletableFuture<T> {
 	public boolean completeExceptionally(Throwable ex) {
 		updateProgress(this.actionSteps + 1);
 		for (int i = 0; i < this.nestedFutures.length; i++) {
-			final ProgressingFuture<S, ?> nestedFuture = this.nestedFutures[i];
+			final ProgressingFuture<?> nestedFuture = this.nestedFutures[i];
 			if (!nestedFuture.isDone()) {
 				nestedFuture.cancel(true);
 				this.nestedStepsDone[i] = nestedFuture.totalSteps;
 			}
 		}
+		this.onFailure.accept(ex);
 		return super.completeExceptionally(ex);
 	}
 }

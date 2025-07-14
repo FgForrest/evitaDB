@@ -33,7 +33,6 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.GoLiveProgressRecord;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CatalogNotAliveException;
@@ -59,6 +58,7 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
@@ -81,7 +81,6 @@ import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.EntityCollection.EntityCollectionHeaderWithCollection;
-import io.evitadb.core.async.ProgressingFuture;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
@@ -92,7 +91,6 @@ import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService;
-import io.evitadb.core.metric.event.transaction.CatalogGoesLiveEvent;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
@@ -108,6 +106,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.function.Functions;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
@@ -150,8 +149,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -861,47 +860,56 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Nonnull
 	@Override
-	public CatalogContract replace(@Nonnull CatalogSchemaContract updatedSchema, @Nonnull CatalogContract catalogToBeReplaced) {
-		final long catalogVersion = getVersion();
-		this.entityCollections.values().forEach(EntityCollection::terminate);
-		final CatalogSchema renamedSchema = CatalogSchema._internalBuild(updatedSchema);
-		exchangeCatalogSchema(renamedSchema, getInternalSchema());
-		final CatalogPersistenceService newIoService = this.persistenceService.replaceWith(
-			catalogVersion,
-			updatedSchema.getName(),
-			updatedSchema.getNameVariants(),
-			renamedSchema,
-			this.dataStoreBuffer
-		);
-		final long catalogVersionAfterRename = newIoService.getLastCatalogVersion();
-		final CatalogState catalogState = getCatalogState();
-		final List<EntityCollection> newCollections = this.entityCollections
-			.values()
-			.stream()
-			.map(
-				it -> new EntityCollection(
+	public ProgressingFuture<CatalogContract> replace(@Nonnull CatalogSchemaContract updatedSchema, @Nonnull CatalogContract catalogToBeReplaced) {
+		return new ProgressingFuture<>(
+			// use "virtual" percentage to indicate progress
+			100,
+			theFuture -> {
+				final long catalogVersion = getVersion();
+				final CatalogSchema renamedSchema = CatalogSchema._internalBuild(updatedSchema);
+				exchangeCatalogSchema(renamedSchema, getInternalSchema());
+				final CatalogPersistenceService newIoService = this.persistenceService.replaceWith(
+					catalogVersion,
 					updatedSchema.getName(),
-					catalogVersionAfterRename,
-					catalogState, it.getEntityTypePrimaryKey(),
-					it.getEntityType(),
-					newIoService,
-					this.cacheSupervisor,
-					this.sequenceService,
-					this.trafficRecordingEngine
-				)
-			)
-			.toList();
+					updatedSchema.getNameVariants(),
+					renamedSchema,
+					this.dataStoreBuffer,
+					// recalculate to percentages
+					(done, total) -> theFuture.updateProgress((int)(((double) done / total) * 100))
+				);
+				final long catalogVersionAfterRename = newIoService.getLastCatalogVersion();
+				final CatalogState catalogState = getCatalogState();
+				final List<EntityCollection> newCollections = this.entityCollections
+					.values()
+					.stream()
+					.map(
+						it -> new EntityCollection(
+							updatedSchema.getName(),
+							catalogVersionAfterRename,
+							catalogState, it.getEntityTypePrimaryKey(),
+							it.getEntityType(),
+							newIoService,
+							this.cacheSupervisor,
+							this.sequenceService,
+							this.trafficRecordingEngine
+						)
+					)
+					.toList();
 
-		this.transactionManager.advanceVersion(catalogVersionAfterRename);
-		return new Catalog(
-			catalogVersionAfterRename,
-			catalogState,
-			this.catalogIndex.createCopyForNewCatalogAttachment(catalogState),
-			this.archiveCatalogIndex == null ? null : this.archiveCatalogIndex.createCopyForNewCatalogAttachment(catalogState),
-			newCollections,
-			newIoService,
-			this,
-			true
+				this.transactionManager.advanceVersion(catalogVersionAfterRename);
+				return new Catalog(
+					catalogVersionAfterRename,
+					catalogState,
+					this.catalogIndex.createCopyForNewCatalogAttachment(catalogState),
+					this.archiveCatalogIndex == null ?
+						null :
+						this.archiveCatalogIndex.createCopyForNewCatalogAttachment(catalogState),
+					newCollections,
+					newIoService,
+					this,
+					true
+				);
+			}
 		);
 	}
 
@@ -925,7 +933,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Nonnull
 	@Override
-	public GoLiveProgressRecord goLive(@Nullable IntConsumer progressObserver) {
+	public CommitVersions goLive() {
 		try {
 			Assert.isTrue(
 				this.goingLive.compareAndSet(false, true),
@@ -933,67 +941,31 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			);
 
 			Assert.isTrue(this.state == CatalogState.WARMING_UP, "Catalog has already alive state!");
+			final List<EntityCollection> newCollections = this.entityCollections
+				.values()
+				.stream()
+				.map(collection -> collection.createCopyForNewCatalogAttachment(CatalogState.ALIVE))
+				.toList();
 
-			final String catalogName = getName();
-			final GoLiveProgressRecord progress = new GoLiveProgressRecord(progressObserver);
-			final CatalogGoesLiveEvent event = new CatalogGoesLiveEvent(catalogName);
+			this.persistenceService.goLive(1L);
 
-			flush(
-				// last one percent is dedicated to finalization operations (see whenComplete)
-				new IntConsumer() {
-					private long lastLoggedPercent = 0L;
-
-					@Override
-					public void accept(int percentDone) {
-						// we don't want to log every percent, but only from time to time
-						if (System.currentTimeMillis() + 1000 < this.lastLoggedPercent || percentDone == 100) {
-							log.info("Catalog `{}` is going live: {}% done.", catalogName, percentDone);
-							this.lastLoggedPercent = System.currentTimeMillis();
-						}
-						progress.updatePercentCompleted(percentDone);
-					}
-				}
-			).whenComplete(
-				(__, throwable) -> {
-					if (throwable == null) {
-						try {
-							final List<EntityCollection> newCollections = this.entityCollections
-								.values()
-								.stream()
-								.map(collection -> collection.createCopyForNewCatalogAttachment(CatalogState.ALIVE))
-								.toList();
-
-							final Catalog newCatalog = new Catalog(
-								1L,
-								CatalogState.ALIVE,
-								this.catalogIndex.createCopyForNewCatalogAttachment(CatalogState.ALIVE),
-								this.archiveCatalogIndex == null ? null : this.archiveCatalogIndex.createCopyForNewCatalogAttachment(CatalogState.ALIVE),
-								newCollections,
-								this.persistenceService,
-								this,
-								true
-							);
-
-							this.transactionManager.advanceVersion(newCatalog.getVersion());
-							this.newCatalogVersionConsumer.accept(newCatalog);
-
-							// emit the event
-							event.finish().commit();
-							progress.complete(new CommitVersions(newCatalog.getVersion(), newCatalog.getSchema().version()));
-
-							log.info("Catalog `{}` is now alive!", catalogName);
-						} catch (Throwable e) {
-							progress.completeExceptionally(e);
-							log.error("Error while going live with catalog `{}`!", catalogName, e);
-						}
-					} else {
-						progress.completeExceptionally(throwable);
-						log.error("Error while flushing catalog `{}` to disk!", catalogName, throwable);
-					}
-				}
+			final Catalog newCatalog = new Catalog(
+				1L,
+				CatalogState.ALIVE,
+				this.catalogIndex.createCopyForNewCatalogAttachment(CatalogState.ALIVE),
+				this.archiveCatalogIndex == null ? null : this.archiveCatalogIndex.createCopyForNewCatalogAttachment(CatalogState.ALIVE),
+				newCollections,
+				this.persistenceService,
+				this,
+				true
 			);
 
-			return progress;
+			this.transactionManager.advanceVersion(newCatalog.getVersion());
+			this.newCatalogVersionConsumer.accept(newCatalog);
+
+			log.info("Catalog `{}` is now alive!", newCatalog.getName());
+			return new CommitVersions(newCatalog.getVersion(), newCatalog.getSchema().version());
+
 		} finally {
 			this.goingLive.set(false);
 		}
@@ -1416,8 +1388,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			this.persistenceService.flushTrappedUpdates(
 				catalogVersion,
 				this.dataStoreBuffer.popTrappedChanges(),
-				// TODO JNO - migrate to FunctionUtils.noOp()
-				stepsDone -> {}
+				Functions.noOpIntConsumer()
 			);
 			this.persistenceService.storeHeader(
 				this.catalogId,
@@ -1498,29 +1469,24 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 * in BULK / non-transactional mode.
 	 */
 	@Nonnull
-	ProgressingFuture<Void, ?> flush(@Nullable IntConsumer progressObserver) {
+	ProgressingFuture<Void> flush() {
 		// if we're going live start with TRUE (force flush), otherwise start with false
-		final boolean changeOccurred = this.goingLive.get() || getInternalSchema().version() != this.lastPersistedSchemaVersion;
+		final boolean changeOccurred = getInternalSchema().version() != this.lastPersistedSchemaVersion;
 		Assert.isPremiseValid(
 			getCatalogState() == CatalogState.WARMING_UP,
 			"Cannot flush catalog in transactional mode. Any changes could occur only in transaction!"
 		);
 
-		final CatalogState nextCatalogState = this.goingLive.get() ? CatalogState.ALIVE : getCatalogState();
 		final TrappedChanges trappedChanges = this.dataStoreBuffer.popTrappedChanges();
 		return new ProgressingFuture<>(
 			trappedChanges.getTrappedChangesCount(),
-			// update progress observer to report progress in percents, if provided
-			progressObserver == null ?
-				null :
-				(stepsDone, totalSteps) -> progressObserver.accept((int) (((double) stepsDone / totalSteps) * 100d)),
 			// first flush all entity collections
 			this.entityCollections
 				.values()
 				.stream()
 				.map(
-					collection -> (Function<IntConsumer, ProgressingFuture<EntityCollectionHeaderWithCollection, ?>>)
-						(c -> collection.flush(c, this.transactionalExecutor))
+					collection -> (Supplier<ProgressingFuture<EntityCollectionHeaderWithCollection>>)
+						(() -> collection.flush(this.transactionalExecutor))
 				).toList(),
 			// when all entity collections are flushed, we can update the catalog header
 			(progress, collectionOfHeaders) -> {
@@ -1548,7 +1514,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 					);
 					this.persistenceService.storeHeader(
 						this.catalogId,
-						nextCatalogState,
+						getCatalogState(),
 						0L,
 						this.entityTypeSequence.get(),
 						null,
@@ -1558,8 +1524,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 					this.lastPersistedSchemaVersion = getInternalSchema().version();
 				}
 				return null;
-			},
-			this.transactionalExecutor
+			}
 		);
 	}
 
@@ -1724,7 +1689,9 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		// when the catalog is in WARM-UP state we need to execute immediate flush when collection is created
 		if (transaction == null) {
 			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
-			this.flush(null).join();
+			final ProgressingFuture<Void> flushFuture = this.flush();
+			flushFuture.execute(this.transactionalExecutor);
+			flushFuture.join();
 		}
 		return newSchema;
 	}
@@ -1772,7 +1739,9 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		// when the catalog is in WARM-UP state we need to execute immediate flush when collection is removed
 		if (transaction == null) {
 			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
-			this.flush(null).join();
+			final ProgressingFuture<Void> flushFuture = this.flush();
+			flushFuture.execute(this.transactionalExecutor);
+			flushFuture.join();
 		}
 		return result;
 	}
@@ -1895,7 +1864,9 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			}
 			// store catalog with a new file pointer
 			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
-			this.flush(null).join();
+			final ProgressingFuture<Void> flushFuture = this.flush();
+			flushFuture.execute(this.transactionalExecutor);
+			flushFuture.join();
 		} else {
 			// update managed reference entity types and groups that target renamed entity
 			for (EntityCollection otherCollection : this.entityCollections.values()) {

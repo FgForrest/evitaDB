@@ -114,7 +114,7 @@ public non-sealed interface EnginePersistenceService extends PersistenceService 
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<EngineMutation> getCommittedMutationStream(long version);
+	Stream<EngineMutation<?>> getCommittedMutationStream(long version);
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
@@ -126,7 +126,7 @@ public non-sealed interface EnginePersistenceService extends PersistenceService 
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<EngineMutation> getReversedCommittedMutationStream(@Nullable Long version);
+	Stream<EngineMutation<?>> getReversedCommittedMutationStream(@Nullable Long version);
 
 	/**
 	 * Retrieves the last engine state version written in the WAL stream.

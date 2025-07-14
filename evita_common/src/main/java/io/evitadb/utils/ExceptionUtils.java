@@ -27,6 +27,8 @@ package io.evitadb.utils;
 import javax.annotation.Nonnull;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
+import java.util.function.Supplier;
 
 /**
  * Utility class providing helper methods for working with exceptions.
@@ -53,6 +55,29 @@ public class ExceptionUtils {
 		}
 
 		return rootCause;
+	}
+
+	/**
+	 * Executes the given supplier and unwraps any {@link CompletionException} that is thrown,
+	 * rethrowing its cause if the cause is a {@link RuntimeException}. If the cause is not
+	 * a RuntimeException, the original CompletionException is rethrown.
+	 *
+	 * @param <T> the type of result supplied by the given supplier
+	 * @param supplier the supplier to execute, must not be null
+	 * @return the result of the supplier
+	 * @throws CompletionException if the supplier throws a CompletionException whose cause is not a RuntimeException
+	 * @throws RuntimeException if the cause of a thrown CompletionException is a RuntimeException
+	 */
+	public static <T> T unwrapCompletionException(@Nonnull Supplier<T> supplier) {
+		try {
+			return supplier.get();
+		} catch (CompletionException ex) {
+			if (ex.getCause() instanceof RuntimeException rex) {
+				throw rex;
+			} else {
+				throw ex;
+			}
+		}
 	}
 
 }

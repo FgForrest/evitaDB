@@ -32,6 +32,7 @@ import io.evitadb.externalApi.graphql.api.system.model.ReplaceCatalogMutationHea
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * Returns single catalog dto by name.
@@ -46,8 +47,8 @@ public class ReplaceCatalogMutatingDataFetcher implements DataFetcher<CatalogCon
     @Nonnull
     @Override
     public CatalogContract get(DataFetchingEnvironment environment) throws Exception {
-        final String catalogNameToBeReplaced = environment.getArgument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED.name());
-        final String catalogNameToBeReplacedWith = environment.getArgument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED_WITH.name());
+        final String catalogNameToBeReplaced = Objects.requireNonNull(environment.getArgument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED.name()));
+        final String catalogNameToBeReplacedWith = Objects.requireNonNull(environment.getArgument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED_WITH.name()));
 
 	    this.evita.replaceCatalog(catalogNameToBeReplacedWith, catalogNameToBeReplaced);
         return this.evita.getCatalogInstanceOrThrowException(catalogNameToBeReplaced);

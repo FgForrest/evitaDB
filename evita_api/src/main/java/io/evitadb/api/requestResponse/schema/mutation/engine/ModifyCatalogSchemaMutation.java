@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.engine;
 
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
@@ -60,7 +61,7 @@ import java.util.stream.Stream;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutation {
+public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutation<CommitVersions> {
 	@Serial private static final long serialVersionUID = -5779012919587623154L;
 	@Nonnull @Getter private final String catalogName;
 	@Nullable @Getter private final UUID sessionId;
@@ -81,6 +82,12 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 		if (!evita.getCatalogNames().contains(this.catalogName)) {
 			throw new InvalidMutationException("Catalog `" + this.catalogName + "` doesn't exist!");
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Class<CommitVersions> getProgressResultType() {
+		return CommitVersions.class;
 	}
 
 	@Nullable

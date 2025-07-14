@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.engine;
 
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
@@ -47,7 +48,7 @@ import java.io.Serial;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class MakeCatalogAliveMutation implements TopLevelCatalogMutation {
+public class MakeCatalogAliveMutation implements TopLevelCatalogMutation<CommitVersions> {
 	@Serial private static final long serialVersionUID = 1L;
 	@Nonnull @Getter private final String catalogName;
 
@@ -68,6 +69,12 @@ public class MakeCatalogAliveMutation implements TopLevelCatalogMutation {
 		if (!evita.getCatalogState(this.catalogName).map(it -> it == CatalogState.WARMING_UP).orElse(false)) {
 			throw new InvalidMutationException("Catalog `" + this.catalogName + "` is not in warming up state and cannot be transitioned to live state!");
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Class<CommitVersions> getProgressResultType() {
+		return CommitVersions.class;
 	}
 
 	@Nonnull

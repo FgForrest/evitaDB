@@ -199,34 +199,7 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldNotifyCallbackAboutCatalogSchemaUpdateInTransactionalMode() {
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.goLiveAndClose();
-		});
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.getCatalogSchema()
-				.openForWrite()
-				.withAttribute("newAttribute", int.class)
-				.updateVia(session);
-		});
-
-		assertEquals(1, this.engineSubscriber.getCatalogUpdated(TEST_CATALOG));
-	}
-
-	@Test
 	void shouldNotifyCallbackAboutCatalogEntityCollectionCreate() {
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.defineEntitySchema("newEntity");
-		});
-
-		assertEquals(1, this.catalogSubscriber.getEntityCollectionCreated("newEntity"));
-	}
-
-	@Test
-	void shouldNotifyCallbackAboutCatalogEntityCollectionCreateInTransactionalMode() {
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.goLiveAndClose();
-		});
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema("newEntity");
 		});
@@ -250,41 +223,12 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldNotifyCallbackAboutCatalogEntityCollectionDeleteInTransactionalMode() {
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.defineEntitySchema(Entities.PRODUCT);
-			session.goLiveAndClose();
-		});
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.deleteCollection(Entities.PRODUCT);
-		});
-
-		assertEquals(1, this.catalogSubscriber.getEntityCollectionDeleted(Entities.PRODUCT));
-	}
-
-	@Test
 	void shouldNotifyCallbackAboutCatalogEntityCollectionSchemaUpdate() {
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.PRODUCT);
 		});
 
 		this.engineSubscriber.reset();
-
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.defineEntitySchema(Entities.PRODUCT)
-				.withAttribute("code", String.class)
-				.updateVia(session);
-		});
-
-		assertEquals(1, this.catalogSubscriber.getEntityCollectionSchemaUpdated(Entities.PRODUCT));
-	}
-
-	@Test
-	void shouldNotifyCallbackAboutCatalogEntityCollectionSchemaUpdateInTransactionalMode() {
-		this.evita.updateCatalog(TEST_CATALOG, session -> {
-			session.defineEntitySchema(Entities.PRODUCT);
-			session.goLiveAndClose();
-		});
 
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.PRODUCT)

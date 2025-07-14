@@ -30,7 +30,6 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.GoLiveProgress;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.SessionNotFoundException;
 import io.evitadb.api.file.FileForFetch;
@@ -52,6 +51,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -851,7 +851,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					responseObserver.onError(new SessionNotFoundException("No session for going live found!"));
 					responseObserver.onCompleted();
 				} else {
-					final GoLiveProgress goLiveProgress = session.goLiveAndCloseWithProgress(
+					final Progress<CommitVersions> goLiveProgress = session.goLiveAndCloseWithProgress(
 						new IntConsumer() {
 							private int percentDone;
 							private long lastUpdate = System.currentTimeMillis();

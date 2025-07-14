@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.engine;
 
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
@@ -55,7 +56,7 @@ import java.util.EnumSet;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutation {
+public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutation<CommitVersions> {
 	@Serial private static final long serialVersionUID = 6996920692477020274L;
 	@Nonnull @Getter private final String catalogName;
 
@@ -69,6 +70,12 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 		if (evita.getCatalogNames().contains(this.catalogName)) {
 			throw new InvalidSchemaMutationException("Catalog `" + this.catalogName + "` already exists!");
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Class<CommitVersions> getProgressResultType() {
+		return CommitVersions.class;
 	}
 
 	@Nullable

@@ -23,6 +23,7 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.exception.CatalogNotAliveException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
@@ -36,6 +37,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -58,7 +60,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
-import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
@@ -246,7 +247,10 @@ public interface CatalogContract {
 	 * Replaces folder of the `catalogToBeReplaced` with contents of this catalog.
 	 */
 	@Nonnull
-	CatalogContract replace(@Nonnull CatalogSchemaContract updatedSchema, @Nonnull CatalogContract catalogToBeReplaced);
+	ProgressingFuture<CatalogContract> replace(
+		@Nonnull CatalogSchemaContract updatedSchema,
+		@Nonnull CatalogContract catalogToBeReplaced
+	);
 
 	/**
 	 * Returns map with current {@link EntitySchemaContract entity schema} instances indexed by their
@@ -275,11 +279,10 @@ public interface CatalogContract {
 	/**
 	 * Changes state of the catalog from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}.
 	 *
-	 * @param progressObserver optional observer that will be notified about the progress of the go-live operation
 	 * @see CatalogState
 	 */
 	@Nonnull
-	GoLiveProgress goLive(@Nullable IntConsumer progressObserver);
+	CommitVersions goLive();
 
 	/**
 	 * Creates new publisher that emits {@link ChangeCatalogCapture}s that match the request. Change catalog capture
