@@ -408,8 +408,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 		final Catalog theCatalog = this.catalog;
 		isTrue(!theCatalog.supportsTransaction(), "Catalog went live already and is currently in transactional mode!");
-		executeTerminationSteps(null, theCatalog);
-		this.closedFuture = CompletableFuture.completedFuture(new CommitVersions(this.catalog.getVersion() + 1, this.catalog.getSchema().version()));
+		if (isActive()) {
+			executeTerminationSteps(null, theCatalog);
+			this.closedFuture = CompletableFuture.completedFuture(new CommitVersions(this.catalog.getVersion() + 1, this.catalog.getSchema().version()));
+		}
 		this.evita.closeAllSessionsAndSuspend(this.catalog.getName(), SuspendOperation.REJECT)
 			.ifPresent(it -> it.addForcefullyClosedSession(this.id));
 		return theCatalog.goLive(progressObserver);

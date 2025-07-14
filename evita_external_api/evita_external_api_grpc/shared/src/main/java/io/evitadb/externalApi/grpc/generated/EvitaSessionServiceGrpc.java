@@ -299,7 +299,7 @@ public final class EvitaSessionServiceGrpc {
       fullMethodName = SERVICE_NAME + '/' + "GoLiveAndCloseWithProgress",
       requestType = com.google.protobuf.Empty.class,
       responseType = io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseWithProgressResponse.class,
-      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+      methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
   public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
       io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseWithProgressResponse> getGoLiveAndCloseWithProgressMethod() {
     io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseWithProgressResponse> getGoLiveAndCloseWithProgressMethod;
@@ -308,7 +308,7 @@ public final class EvitaSessionServiceGrpc {
         if ((getGoLiveAndCloseWithProgressMethod = EvitaSessionServiceGrpc.getGoLiveAndCloseWithProgressMethod) == null) {
           EvitaSessionServiceGrpc.getGoLiveAndCloseWithProgressMethod = getGoLiveAndCloseWithProgressMethod =
               io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseWithProgressResponse>newBuilder()
-              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
               .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GoLiveAndCloseWithProgress"))
               .setSampledToLocalTracing(true)
               .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
@@ -1735,7 +1735,7 @@ public final class EvitaSessionServiceGrpc {
      */
     public void goLiveAndCloseWithProgress(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseWithProgressResponse> responseObserver) {
-      io.grpc.stub.ClientCalls.asyncUnaryCall(
+      io.grpc.stub.ClientCalls.asyncServerStreamingCall(
           getChannel().newCall(getGoLiveAndCloseWithProgressMethod(), getCallOptions()), request, responseObserver);
     }
 
@@ -2152,8 +2152,10 @@ public final class EvitaSessionServiceGrpc {
      * to updates of go live procedure.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseWithProgressResponse goLiveAndCloseWithProgress(com.google.protobuf.Empty request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
+    public io.grpc.stub.BlockingClientCall<?, io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseWithProgressResponse>
+        goLiveAndCloseWithProgress(com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.blockingV2ServerStreamingCall(
           getChannel(), getGoLiveAndCloseWithProgressMethod(), getCallOptions(), request);
     }
 
@@ -2544,8 +2546,9 @@ public final class EvitaSessionServiceGrpc {
      * to updates of go live procedure.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseWithProgressResponse goLiveAndCloseWithProgress(com.google.protobuf.Empty request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseWithProgressResponse> goLiveAndCloseWithProgress(
+        com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
           getChannel(), getGoLiveAndCloseWithProgressMethod(), getCallOptions(), request);
     }
 
@@ -2923,18 +2926,6 @@ public final class EvitaSessionServiceGrpc {
         com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getGoLiveAndCloseMethod(), getCallOptions()), request);
-    }
-
-    /**
-     * <pre>
-     * Procedure that changes the state of the catalog to ALIVE and closes the session opening a stream that listens
-     * to updates of go live procedure.
-     * </pre>
-     */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseWithProgressResponse> goLiveAndCloseWithProgress(
-        com.google.protobuf.Empty request) {
-      return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getGoLiveAndCloseWithProgressMethod(), getCallOptions()), request);
     }
 
     /**
@@ -3501,7 +3492,7 @@ public final class EvitaSessionServiceGrpc {
                 service, METHODID_GO_LIVE_AND_CLOSE)))
         .addMethod(
           getGoLiveAndCloseWithProgressMethod(),
-          io.grpc.stub.ServerCalls.asyncUnaryCall(
+          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
             new MethodHandlers<
               com.google.protobuf.Empty,
               io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseWithProgressResponse>(
