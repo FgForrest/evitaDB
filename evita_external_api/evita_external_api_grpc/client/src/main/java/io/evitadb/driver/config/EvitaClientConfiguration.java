@@ -134,7 +134,7 @@ public record EvitaClientConfiguration(
 		private ReflectionCachingBehaviour reflectionCachingBehaviour = ReflectionCachingBehaviour.CACHE;
 		@Nullable
 		private Object openTelemetryInstance = null;
-		private boolean retry = true;
+		private boolean retry = false;
 		private int trackedTaskLimit = 100;
 
 		Builder() {
