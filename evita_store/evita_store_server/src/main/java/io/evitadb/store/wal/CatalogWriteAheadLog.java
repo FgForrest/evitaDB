@@ -199,7 +199,7 @@ public class CatalogWriteAheadLog extends AbstractWriteAheadLog<CatalogBoundMuta
 		@Nonnull OffsetDateTime introducedAt
 	) {
 		try (
-			final MutationSupplier supplier = createSupplier(
+			final MutationSupplier<?> supplier = createSupplier(
 				previousKnownVersion + 1, null
 			)
 		) {
@@ -216,7 +216,7 @@ public class CatalogWriteAheadLog extends AbstractWriteAheadLog<CatalogBoundMuta
 						txChanges.add(
 							createTransactionChanges(txMutation, catalogSchemaChanges, aggregations)
 						);
-						if (anotherTxMutation.getVersion() == version + 1) {
+						if (anotherTxMutation.getVersion() >= version + 1) {
 							txMutation = null;
 						} else {
 							txMutation = anotherTxMutation;

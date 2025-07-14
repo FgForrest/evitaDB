@@ -37,6 +37,7 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
@@ -44,6 +45,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -1812,9 +1814,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						.withAttribute(attributePrice, BigDecimal.class))
 					.updateViaNewSession(evita);
 				evita.updateCatalog(
-					TEST_CATALOG, session -> {
-						session.goLiveAndClose();
-					}
+					TEST_CATALOG, EvitaSessionContract::goLiveAndClose
 				);
 
 				final LocalDateTime initialStart = LocalDateTime.now();
@@ -2018,11 +2018,185 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					.map(InstanceWithMutation::instance)
 					.toList()
 			);
-		}
-		return entitiesInMutations;
-	}
+ 	}
+ 	return entitiesInMutations;
+ }
 
-	private record PkWithCatalogVersion(
+ @DisplayName("Should retrieve committed mutation stream in chronological order.")
+ @UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+ @Test
+ void shouldGetCommittedMutationStream(EvitaContract evita, SealedEntitySchema productSchema) {
+ 	// Execute 3 transactions with operations
+ 	for (int i = 0; i < 3; i++) {
+ 		final int transactionIndex = i;
+ 		final Long version = evita.updateCatalog(
+ 			TEST_CATALOG,
+ 			session -> {
+ 				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+
+ 				// Transaction 1: Create 1 entity
+ 				// Transaction 2: Create 2 entities
+ 				// Transaction 3: Create 1 entity
+ 				final int entitiesToCreate = transactionIndex == 1 ? 2 : 1;
+
+ 				for (int j = 0; j < entitiesToCreate; j++) {
+ 					final SealedEntity entity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED + transactionIndex * 10 + j)
+ 						.limit(1)
+ 						.map(session::upsertAndFetchEntity)
+ 						.findFirst()
+ 						.orElseThrow();
+ 				}
+
+ 				return session.getCatalogVersion();
+ 			}
+ 		);
+ 	}
+
+ 	// Test getCommittedMutationStream starting from version 1
+ 	try (final Stream<EngineMutation<?>> mutationStream = ((Evita) evita).getCommittedMutationStream(1L)) {
+ 		final List<EngineMutation<?>> mutations = mutationStream.toList();
+
+ 		assertFalse(mutations.isEmpty(), "Mutation stream should not be empty");
+
+ 		// Verify we have mutations from all transactions
+ 		// Each transaction should have a TransactionMutation plus entity mutations
+ 		assertTrue(mutations.size() >= 3, "Should have mutations from at least 3 transactions");
+
+ 		// Filter TransactionMutations to verify transaction order
+ 		final List<TransactionMutation> transactionMutations = mutations.stream()
+ 			.filter(TransactionMutation.class::isInstance)
+ 			.map(TransactionMutation.class::cast)
+ 			.toList();
+
+ 		assertTrue(transactionMutations.size() >= 3, "Should have at least 3 transaction mutations");
+
+ 		// Verify chronological order - versions should be increasing
+ 		for (int i = 1; i < transactionMutations.size(); i++) {
+ 			final TransactionMutation previous = transactionMutations.get(i - 1);
+ 			final TransactionMutation current = transactionMutations.get(i);
+ 			assertTrue(previous.getVersion() < current.getVersion(),
+ 				"Transaction mutations should be in chronological order (version " + previous.getVersion() + " should be < " + current.getVersion() + ")");
+ 			assertTrue(previous.getCommitTimestamp().isBefore(current.getCommitTimestamp()) || previous.getCommitTimestamp().equals(current.getCommitTimestamp()),
+ 				"Transaction mutations should be in chronological order by commit timestamp");
+ 		}
+
+ 		// Get the last 3 transactions (which should be the ones we created in this test)
+ 		final List<TransactionMutation> lastThreeTransactions = transactionMutations.subList(
+ 			Math.max(0, transactionMutations.size() - 3),
+ 			transactionMutations.size()
+ 		);
+
+ 		// Verify we have at least 3 transactions from our test
+ 		assertTrue(lastThreeTransactions.size() >= 3, "Should have at least 3 test transactions");
+
+ 		// Verify that each transaction has a positive mutation count
+ 		for (TransactionMutation transaction : lastThreeTransactions) {
+ 			assertTrue(transaction.getMutationCount() > 0, "Each transaction should have at least one mutation");
+ 		}
+
+ 		// Verify we have UPSERT operations for entity creations
+ 		final long upsertCount = mutations.stream()
+ 			.filter(mutation -> mutation.operation() == Operation.UPSERT)
+ 			.count();
+ 		assertTrue(upsertCount >= 4, "Should have at least 4 UPSERT operations (1+2+1 entities created in our test)");
+
+ 		// Verify we have TRANSACTION operations
+ 		final long transactionCount = mutations.stream()
+ 			.filter(mutation -> mutation.operation() == Operation.TRANSACTION)
+ 			.count();
+ 		assertTrue(transactionCount >= 3, "Should have at least 3 TRANSACTION operations");
+ 	}
+ }
+
+ @DisplayName("Should retrieve reversed committed mutation stream with transactions in reverse order.")
+ @UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+ @Test
+ void shouldGetReversedCommittedMutationStream(EvitaContract evita, SealedEntitySchema productSchema) {
+ 	// Execute 3 transactions with operations
+ 	for (int i = 0; i < 3; i++) {
+ 		final int transactionIndex = i;
+ 		final Long version = evita.updateCatalog(
+ 			TEST_CATALOG,
+ 			session -> {
+ 				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+
+ 				// Transaction 1: Create 1 entity
+ 				// Transaction 2: Create 2 entities
+ 				// Transaction 3: Create 1 entity
+ 				final int entitiesToCreate = transactionIndex == 1 ? 2 : 1;
+
+ 				for (int j = 0; j < entitiesToCreate; j++) {
+ 					final SealedEntity entity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED + transactionIndex * 10 + j)
+ 						.limit(1)
+ 						.map(session::upsertAndFetchEntity)
+ 						.findFirst()
+ 						.orElseThrow();
+ 				}
+
+ 				return session.getCatalogVersion();
+ 			}
+ 		);
+ 	}
+
+ 	// Test getReversedCommittedMutationStream starting from the last version
+ 	try (final Stream<EngineMutation<?>> reversedMutationStream = ((Evita) evita).getReversedCommittedMutationStream(null)) {
+ 		final List<EngineMutation<?>> reversedMutations = reversedMutationStream.toList();
+
+ 		assertFalse(reversedMutations.isEmpty(), "Reversed mutation stream should not be empty");
+
+ 		// Verify we have mutations from all transactions
+ 		assertTrue(reversedMutations.size() >= 3, "Should have mutations from at least 3 transactions");
+
+ 		// Filter TransactionMutations to verify reverse transaction order
+ 		final List<TransactionMutation> reversedTransactionMutations = reversedMutations.stream()
+ 			.filter(TransactionMutation.class::isInstance)
+ 			.map(TransactionMutation.class::cast)
+ 			.toList();
+
+ 		assertTrue(reversedTransactionMutations.size() >= 3, "Should have at least 3 transaction mutations");
+
+ 		// Verify reverse chronological order - versions should be decreasing
+ 		for (int i = 1; i < reversedTransactionMutations.size(); i++) {
+ 			final TransactionMutation previous = reversedTransactionMutations.get(i - 1);
+ 			final TransactionMutation current = reversedTransactionMutations.get(i);
+ 			assertTrue(previous.getVersion() > current.getVersion(),
+ 				"Transaction mutations should be in reverse chronological order (version " + previous.getVersion() + " should be > " + current.getVersion() + ")");
+ 			assertTrue(previous.getCommitTimestamp().isAfter(current.getCommitTimestamp()) || previous.getCommitTimestamp().equals(current.getCommitTimestamp()),
+ 				"Transaction mutations should be in reverse chronological order by commit timestamp");
+ 		}
+
+ 		// Get the first 3 transactions (which should be the last 3 transactions we created, in reverse order)
+ 		final List<TransactionMutation> firstThreeTransactions = reversedTransactionMutations.subList(0, Math.min(3, reversedTransactionMutations.size()));
+
+ 		// Verify we have at least 3 transactions from our test
+ 		assertTrue(firstThreeTransactions.size() >= 3, "Should have at least 3 test transactions");
+
+ 		// Verify that each transaction has a positive mutation count
+ 		for (TransactionMutation transaction : firstThreeTransactions) {
+ 			assertTrue(transaction.getMutationCount() > 0, "Each transaction should have at least one mutation");
+ 		}
+
+ 		// Verify we have UPSERT operations for entity creations
+ 		final long upsertCount = reversedMutations.stream()
+ 			.filter(mutation -> mutation.operation() == Operation.UPSERT)
+ 			.count();
+ 		assertTrue(upsertCount >= 4, "Should have at least 4 UPSERT operations (1+2+1 entities created in our test)");
+
+ 		// Verify we have TRANSACTION operations
+ 		final long transactionCount = reversedMutations.stream()
+ 			.filter(mutation -> mutation.operation() == Operation.TRANSACTION)
+ 			.count();
+ 		assertTrue(transactionCount >= 3, "Should have at least 3 TRANSACTION operations");
+
+ 		// Verify that the highest version transaction comes first in reversed stream
+ 		final TransactionMutation firstTransaction = reversedTransactionMutations.get(0);
+ 		final TransactionMutation lastTransaction = reversedTransactionMutations.get(reversedTransactionMutations.size() - 1);
+ 		assertTrue(firstTransaction.getVersion() > lastTransaction.getVersion(),
+ 			"First transaction in reversed stream should have higher version than last");
+ 	}
+ }
+
+ private record PkWithCatalogVersion(
 		EntityReference entityReference,
 		long catalogVersion
 	) implements Comparable<PkWithCatalogVersion> {
