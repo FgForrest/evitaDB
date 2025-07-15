@@ -291,13 +291,15 @@ public class EvitaClient implements EvitaContract {
 		@Nullable Consumer<GrpcClientBuilder> grpcConfigurator
 	) {
 		this.configuration = configuration;
-		ClientFactoryBuilder clientFactoryBuilder = ClientFactory.builder()
-		                                                         .workerGroup(
-			                                                         Runtime.getRuntime().availableProcessors())
-		                                                         .idleTimeoutMillis(TimeUnit.MILLISECONDS.convert(
-			                                                         configuration.timeout(),
-			                                                         configuration.timeoutUnit()
-		                                                         ));
+		ClientFactoryBuilder clientFactoryBuilder = ClientFactory
+			.builder()
+	         .workerGroup(
+	             Runtime.getRuntime().availableProcessors())
+	         .idleTimeoutMillis(TimeUnit.MILLISECONDS.convert(
+	             configuration.timeout(),
+	             configuration.timeoutUnit()
+	         ))
+			.pingIntervalMillis(1000);
 
 		final String uriScheme;
 		if (configuration.tlsEnabled()) {
@@ -366,13 +368,16 @@ public class EvitaClient implements EvitaContract {
 
 		if (configuration.retry()) {
 			grpcClientBuilder.decorator(
-				RetryingClient.newDecorator(
+				RetryingClient.builder(
 					RetryRule.of(
 						RetryRule.builder().onTimeoutException().thenBackoff(),
 						RetryRule.builder().onStatus(HttpStatus.SERVICE_UNAVAILABLE, HttpStatus.GATEWAY_TIMEOUT, HttpStatus.UNKNOWN).thenBackoff(),
 						RetryRule.builder().onStatus(HttpStatus.TOO_MANY_REQUESTS).thenNoRetry()
 					)
 				)
+					//.responseTimeoutMillisForEachAttempt(idleTimeout)
+					.useRetryAfter(true)
+					.newDecorator()
 			);
 		}
 
