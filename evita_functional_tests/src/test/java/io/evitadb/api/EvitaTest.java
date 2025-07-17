@@ -1111,6 +1111,88 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Tests that a catalog can be activated (loaded into memory) from inactive state.
+	 *
+	 * The test verifies that:
+	 * - A catalog can be created and made alive
+	 * - The catalog can be deactivated (unloaded from memory)
+	 * - The catalog state changes to INACTIVE after deactivation
+	 * - The catalog can be activated again (loaded back into memory)
+	 * - The catalog state changes to ALIVE after activation
+	 * - Data remains accessible after activation
+	 */
+	@Test
+	@DisplayName("Activate catalog from inactive state")
+	void shouldActivateCatalogFromInactiveState() {
+		final String testCatalogName = TEST_CATALOG + "_activation_test";
+
+		// Create and setup a catalog with some data
+		this.evita.defineCatalog(testCatalogName)
+			.updateViaNewSession(this.evita);
+
+		this.evita.updateCatalog(
+			testCatalogName,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT);
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Test Product")
+				);
+				session.goLiveAndClose();
+			}
+		);
+
+		// Verify catalog is alive
+		assertEquals(CatalogState.ALIVE, this.evita.getCatalogState(testCatalogName).orElseThrow());
+
+		// Deactivate the catalog
+		this.evita.deactivateCatalog(testCatalogName);
+
+		// Verify catalog is inactive
+		assertEquals(CatalogState.INACTIVE, this.evita.getCatalogState(testCatalogName).orElseThrow());
+
+		// Reinitialize the Evita instance to simulate a restart
+		this.evita.close();
+		this.evita = new Evita(
+			getEvitaConfiguration()
+		);
+
+		// Verify catalog is inactive
+		assertEquals(CatalogState.INACTIVE, this.evita.getCatalogState(testCatalogName).orElseThrow());
+
+		// Activate the catalog again
+		this.evita.activateCatalog(testCatalogName);
+
+		// Verify catalog is alive again
+		assertEquals(CatalogState.ALIVE, this.evita.getCatalogState(testCatalogName).orElseThrow());
+
+		// Verify data is still accessible
+		this.evita.queryCatalog(
+			testCatalogName,
+			session -> {
+				final Optional<SealedEntity> product = session.getEntity(
+					Entities.PRODUCT, 1, entityFetchAllContent()
+				);
+				assertTrue(product.isPresent());
+				assertEquals("Test Product", product.get().getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+				return null;
+			}
+		);
+
+		// Reinitialize the Evita instance to simulate a restart
+		this.evita.close();
+		this.evita = new Evita(
+			getEvitaConfiguration()
+		);
+
+		// Verify catalog is alive again
+		assertEquals(CatalogState.ALIVE, this.evita.getCatalogState(testCatalogName).orElseThrow());
+
+		// Clean up
+		this.evita.deleteCatalogIfExists(testCatalogName);
+	}
+
+	/**
 	 * Tests that an entity collection can be created and then dropped.
 	 *
 	 * The test verifies that:

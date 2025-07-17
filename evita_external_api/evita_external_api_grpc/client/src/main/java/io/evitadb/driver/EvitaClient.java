@@ -616,6 +616,20 @@ public class EvitaClient implements EvitaContract {
 
 	@Nonnull
 	@Override
+	public Progress<Void> activateCatalogWithProgress(@Nonnull String catalogName) {
+		// TODO JNO - create gRPC definitions
+		throw new UnsupportedOperationException("Not implemented yet");
+	}
+
+	@Nonnull
+	@Override
+	public Progress<Void> deactivateCatalogWithProgress(@Nonnull String catalogName) {
+		// TODO JNO - create gRPC definitions
+		throw new UnsupportedOperationException("Not implemented yet");
+	}
+
+	@Nonnull
+	@Override
 	public Progress<CommitVersions> renameCatalogWithProgress(@Nonnull String catalogName, @Nonnull String newCatalogName) {
 		assertActive();
 		return applyMutation(

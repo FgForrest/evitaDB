@@ -181,6 +181,62 @@ public interface EvitaContract extends AutoCloseable {
 	Progress<CommitVersions> makeCatalogAliveWithProgress(@Nonnull String catalogName);
 
 	/**
+	 * Activates catalog by loading it from disk into memory. Changes state of the catalog from
+	 * {@link CatalogState#INACTIVE} to {@link CatalogState#ALIVE}.
+	 * At the end of this method the catalog has transitioned to the {@link CatalogState#ALIVE} state and is ready
+	 * to be used.
+	 *
+	 * @param catalogName name of the catalog to activate
+	 * @see CatalogState
+	 */
+	default void activateCatalog(@Nonnull String catalogName) {
+		activateCatalogWithProgress(catalogName)
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
+	}
+
+	/**
+	 * Activates catalog by loading it from disk into memory. Changes state of the catalog from
+	 * {@link CatalogState#INACTIVE} to {@link CatalogState#ALIVE}. Returns {@link Progress} that can be used
+	 * to track the progress of the operation.
+	 *
+	 * @param catalogName name of the catalog to activate
+	 * @return progress that can be used to track the progress of the operation
+	 * @see CatalogState
+	 */
+	@Nonnull
+	Progress<Void> activateCatalogWithProgress(@Nonnull String catalogName);
+
+	/**
+	 * Deactivates catalog by unloading it from memory. Changes state of the catalog from
+	 * {@link CatalogState#ALIVE} to {@link CatalogState#INACTIVE}.
+	 * At the end of this method the catalog has transitioned to the {@link CatalogState#INACTIVE} state and is
+	 * no longer loaded in memory, but its data remains on disk.
+	 *
+	 * @param catalogName name of the catalog to deactivate
+	 * @see CatalogState
+	 */
+	default void deactivateCatalog(@Nonnull String catalogName) {
+		deactivateCatalogWithProgress(catalogName)
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
+	}
+
+	/**
+	 * Deactivates catalog by unloading it from memory. Changes state of the catalog from
+	 * {@link CatalogState#ALIVE} to {@link CatalogState#INACTIVE}. Returns {@link Progress} that can be used
+	 * to track the progress of the operation.
+	 *
+	 * @param catalogName name of the catalog to deactivate
+	 * @return progress that can be used to track the progress of the operation
+	 * @see CatalogState
+	 */
+	@Nonnull
+	Progress<Void> deactivateCatalogWithProgress(@Nonnull String catalogName);
+
+	/**
 	 * Renames existing catalog to a new name. The `newCatalogName` must not clash with any existing catalog name,
 	 * otherwise exception is thrown. If you need to rename catalog to a name of existing catalog use
 	 * the {@link #replaceCatalog(String, String)} method instead.

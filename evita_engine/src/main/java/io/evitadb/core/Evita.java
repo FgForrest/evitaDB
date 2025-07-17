@@ -592,6 +592,20 @@ public final class Evita implements EvitaContract {
 
 	@Nonnull
 	@Override
+	public Progress<Void> activateCatalogWithProgress(@Nonnull String catalogName) {
+		assertActive();
+		return applyMutation(new SetCatalogStateMutation(catalogName, true));
+	}
+
+	@Nonnull
+	@Override
+	public Progress<Void> deactivateCatalogWithProgress(@Nonnull String catalogName) {
+		assertActive();
+		return applyMutation(new SetCatalogStateMutation(catalogName, false));
+	}
+
+	@Nonnull
+	@Override
 	public Progress<CommitVersions> renameCatalogWithProgress(@Nonnull String catalogName, @Nonnull String newCatalogName) {
 		assertActive();
 		return applyMutation(new ModifyCatalogSchemaNameMutation(catalogName, newCatalogName, false));
@@ -642,7 +656,8 @@ public final class Evita implements EvitaContract {
 				// notify system observer about the mutation
 				this.changeObserver.processMutation(txMutationWithWalFileReference.transactionMutation());
 				this.changeObserver.processMutation(engineMutation);
-				final Runnable onCompletion = () -> updateEntineStateAfterEngineMutation(theEngineState, txMutationWithWalFileReference);
+
+				final Runnable onCompletion = () -> updateEngineStateAfterEngineMutation(theEngineState, txMutationWithWalFileReference);
 				final Runnable onFailure = () -> dropChangesAfterUnsuccessfullEngineMutation(theEngineState);
 
 				final IntConsumer nullSafeObserver = progressObserver == null ? Functions.noOpIntConsumer() : progressObserver;
@@ -698,8 +713,13 @@ public final class Evita implements EvitaContract {
 						onFailure
 					);
 				} else if (engineMutation instanceof SetCatalogStateMutation setCatalogStateMutation) {
-					/* TODO JNO - IMPLEMENT ME */
-					result = null;
+					//noinspection unchecked
+					result = (Progress<T>) setCatalogStateInternal(
+						setCatalogStateMutation,
+						nullSafeObserver,
+						onCompletion,
+						onFailure
+					);
 				} else if (engineMutation instanceof SetCatalogMutabilityMutation setCatalogMutabilityMutation) {
 					/* TODO JNO - IMPLEMENT ME */
 					result = null;
@@ -1082,7 +1102,7 @@ public final class Evita implements EvitaContract {
 		final CatalogContract catalog = this.catalogs.get(catalogName);
 		if (catalog instanceof Catalog theCatalog) {
 			final CatalogGoesLiveEvent event = new CatalogGoesLiveEvent(catalogName);
-			return new ProgressRecord<CommitVersions>(
+			return new ProgressRecord<>(
 				"Making catalog `" + catalogName + "` alive",
 				progressObserver,
 				new ProgressingFuture<>(
@@ -1107,6 +1127,72 @@ public final class Evita implements EvitaContract {
 			throw new CatalogNotFoundException(catalogName);
 		} else {
 			throw new EvitaInvalidUsageException("Unknown catalog type: `" + catalog.getClass() + "`!");
+		}
+	}
+
+	/**
+	 * Sets the internal state of the catalog to active or inactive based on the provided mutation.
+	 * This method handles the activation or deactivation of a catalog and notifies the observer about the progress
+	 * while executing the task. It also triggers completion or failure callbacks accordingly.
+	 *
+	 * @param setCatalogStateMutation the mutation containing the details about catalog state changes, such as the catalog name and the desired active state.
+	 * @param progressObserver the consumer that observes and reports progress updates.
+	 * @param onCompletion a callback to be invoked when the operation completes successfully.
+	 * @param onFailure a callback to be invoked when the operation fails.
+	 * @return a {@link Progress} object tracking the completion and progress of the operation.
+	 */
+	@Nonnull
+	private Progress<Void> setCatalogStateInternal(
+		@Nonnull SetCatalogStateMutation setCatalogStateMutation,
+		@Nonnull IntConsumer progressObserver,
+		@Nonnull Runnable onCompletion,
+		@Nonnull Runnable onFailure
+	) {
+		final String catalogName = setCatalogStateMutation.getCatalogName();
+		if (setCatalogStateMutation.isActive()) {
+			return new ProgressRecord<>(
+				"Activating catalog `" + catalogName + "`",
+				progressObserver,
+				new ProgressingFuture<>(
+					0,
+					Collections.singletonList(loadCatalogInternal(catalogName)),
+					(progressingFuture, theCatalog) -> {
+						this.inactiveCatalogs.remove(catalogName);
+						onCompletion.run();
+						log.info("Catalog `{}` is now active!", catalogName);
+						return null;
+					},
+					ex -> onFailure.run()
+				),
+				this.transactionExecutor
+			);
+		} else {
+			return new ProgressRecord<>(
+				"Deactivating catalog `" + catalogName + "`",
+				progressObserver,
+				new ProgressingFuture<>(
+					0,
+					progressingFuture -> {
+						final CatalogContract theCatalog = this.catalogs.put(
+							catalogName,
+							new UnusableCatalog(
+								catalogName, CatalogState.INACTIVE,
+								this.configuration.storage().storageDirectory().resolve(catalogName),
+								CatalogInactiveException::new
+							)
+						);
+						if (theCatalog != null) {
+							theCatalog.terminate();
+						}
+						this.inactiveCatalogs.add(catalogName);
+						onCompletion.run();
+						log.info("Catalog `{}` is now inactive!", catalogName);
+						return null;
+					},
+					ex -> onFailure.run()
+				),
+				this.transactionExecutor
+			);
 		}
 	}
 
@@ -1149,27 +1235,32 @@ public final class Evita implements EvitaContract {
 	 * @param txMutationWithWalFileReference The transaction mutation containing the WAL file reference to be
 	 *                                        associated with the update.
 	 */
-	private void updateEntineStateAfterEngineMutation(
+	private void updateEngineStateAfterEngineMutation(
 		@Nonnull EngineState theEngineState,
 		@Nonnull TransactionMutationWithWalFileReference txMutationWithWalFileReference
 	) {
-		// create new engine state with the incremented version, and store it in the persistence service
-		final EngineState newState = EngineState
-			.builder()
-			.version(theEngineState.version() + 1)
-			.activeCatalogs(
-				this.catalogs.keySet()
-				             .stream()
-				             .filter(it -> !this.inactiveCatalogs.contains(it))
-				             .toArray(String[]::new)
-			)
-			.inactiveCatalogs(this.inactiveCatalogs.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
-			.walFileReference(txMutationWithWalFileReference.walFileReference())
-			.build();
-		this.enginePersistenceService.storeEngineState(newState);
-		this.engineState.set(newState);
-		// finally, notify the change observer about the new version
-		this.changeObserver.notifyVersionPresentInLiveView(newState.version());
+		this.engineStateLock.lock();
+		try {
+			// create new engine state with the incremented version, and store it in the persistence service
+			final EngineState newState = EngineState
+				.builder()
+				.version(theEngineState.version() + 1)
+				.activeCatalogs(
+					this.catalogs.keySet()
+					             .stream()
+					             .filter(it -> !this.inactiveCatalogs.contains(it))
+					             .toArray(String[]::new)
+				)
+				.inactiveCatalogs(this.inactiveCatalogs.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
+				.walFileReference(txMutationWithWalFileReference.walFileReference())
+				.build();
+			this.enginePersistenceService.storeEngineState(newState);
+			this.engineState.set(newState);
+			// finally, notify the change observer about the new version
+			this.changeObserver.notifyVersionPresentInLiveView(newState.version());
+		} finally {
+			this.engineStateLock.unlock();
+		}
 	}
 
 	/**
@@ -1388,7 +1479,7 @@ public final class Evita implements EvitaContract {
 				"Result of modify catalog schema mutation must not be null."
 			);
 
-			return new ProgressRecord<CommitVersions>(
+			return new ProgressRecord<>(
 				catalogToBeReplaced == catalogToBeReplacedWith ?
 					"Renaming catalog `" + catalogNameToBeReplaced + "` to `" + catalogNameToBeReplacedWith + "`" :
 					"Replacing catalog `" + catalogNameToBeReplaced + "` with `" + catalogNameToBeReplacedWith + "`",

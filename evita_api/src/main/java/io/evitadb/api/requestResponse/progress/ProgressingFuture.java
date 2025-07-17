@@ -29,7 +29,7 @@ import io.evitadb.function.Functions;
 import io.evitadb.function.TriFunction;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -89,6 +89,7 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Slf4j
 public class ProgressingFuture<T> extends CompletableFuture<T> {
 	/**
 	 * Empty array constant used when no nested futures are present to avoid unnecessary allocations.
@@ -99,7 +100,7 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 * The total number of steps required to complete this future and all its nested futures.
 	 * This value is calculated as the sum of actionSteps and the total steps of all nested futures.
 	 */
-	@Getter private int totalSteps;
+	private Integer totalSteps;
 
 	/**
 	 * Total number of steps for operations performed directly by this future (excluding nested futures).
@@ -214,8 +215,6 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 		@Nonnull BiConsumer<R, Throwable> onFailure
 	) {
 		this.actionSteps = actionSteps;
-		this.totalSteps = actionSteps + 1;
-
 		this.executionLambda = executor -> {
 			final R initResult;
 			final Collection<ProgressingFuture<S>> nestedFutures;
@@ -237,10 +236,6 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 				nestedFuture.setProgressConsumer((stepsDone, __) -> this.updateProgress(indexToUpdate, stepsDone));
 				this.nestedFutures[index++] = nestedFuture;
 			}
-			this.totalSteps = actionSteps + 1 +
-				Arrays.stream(this.nestedFutures)
-				      .mapToInt(ProgressingFuture::getTotalSteps)
-				      .sum();
 
 			// issue nested futures first
 			for (ProgressingFuture<?> nestedFuture : this.nestedFutures) {
@@ -310,10 +305,6 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 			this.nestedFutures[index++] = nestedFuture;
 		}
 		this.actionSteps = actionSteps;
-		this.totalSteps = actionSteps + 1 +
-			Arrays.stream(this.nestedFutures)
-			      .mapToInt(ProgressingFuture::getTotalSteps)
-			      .sum();
 		this.onFailure = onFailure;
 
 		this.executionLambda = executor -> {
@@ -407,7 +398,6 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 		this.nestedFutures = EMPTY_ARRAY;
 		this.nestedStepsDone = ArrayUtils.EMPTY_INT_ARRAY;
 		this.actionSteps = actionSteps;
-		this.totalSteps = actionSteps + 1;
 		this.onFailure = onFailure;
 		this.executionLambda = executor -> CompletableFuture.runAsync(
 			() -> {
@@ -437,6 +427,21 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 			"Progress consumer can only be set once for a ProgressingFuture."
 		);
 		this.progressConsumer = progressConsumer;
+	}
+
+	/**
+	 * Retrieves the total steps calculated. This value must have been
+	 * previously set, and attempting to access it before calculation
+	 * will result in an IllegalStateException.
+	 *
+	 * @return the calculated total steps as an integer
+	 * @throws IllegalStateException if the total steps have not been calculated
+	 */
+	public int getTotalSteps() {
+		if (this.totalSteps == null) {
+			throw new IllegalStateException("Total steps have not been calculated yet. Ensure the future has been executed.");
+		}
+		return this.totalSteps;
 	}
 
 	/**
@@ -476,6 +481,12 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 *                 Should be between 0 and the actionSteps provided in the constructor
 	 */
 	public void updateProgress(int stepsDone) {
+		if (this.totalSteps == null) {
+			this.totalSteps = this.actionSteps + 1 +
+				Arrays.stream(this.nestedFutures)
+				      .mapToInt(ProgressingFuture::getTotalSteps)
+				      .sum();
+		}
 		this.stepsDone = stepsDone;
 		if (this.progressConsumer != null) {
 			final int nestedStepsSum = this.nestedStepsDone != null ? Arrays.stream(this.nestedStepsDone).sum() : 0;
@@ -494,6 +505,12 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 * @param stepsDone the number of steps completed by the nested future
 	 */
 	private void updateProgress(int index, int stepsDone) {
+		if (this.totalSteps == null) {
+			this.totalSteps = this.actionSteps + 1 +
+				Arrays.stream(this.nestedFutures)
+				      .mapToInt(ProgressingFuture::getTotalSteps)
+				      .sum();
+		}
 		this.nestedStepsDone[index] = stepsDone;
 		if (this.progressConsumer != null) {
 			this.progressConsumer.accept(this.stepsDone + Arrays.stream(this.nestedStepsDone).sum(), this.totalSteps);
@@ -510,12 +527,16 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 */
 	@Override
 	public boolean complete(T value) {
-		updateProgress(this.actionSteps + 1);
-		for (int i = 0; i < this.nestedFutures.length; i++) {
-			Assert.isPremiseValid(
-				this.nestedFutures[i].isDone(),
-				"Nested future at index " + i + " must be completed before this future can complete."
-			);
+		try {
+			updateProgress(this.actionSteps + 1);
+			for (int i = 0; i < this.nestedFutures.length; i++) {
+				Assert.isPremiseValid(
+					this.nestedFutures[i].isDone(),
+					"Nested future at index " + i + " must be completed before this future can complete."
+				);
+			}
+		} catch (Throwable ex) {
+			log.error("Error updating progress for future completion", ex);
 		}
 		return super.complete(value);
 	}
@@ -530,18 +551,24 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 */
 	@Override
 	public boolean completeExceptionally(Throwable ex) {
-		updateProgress(this.actionSteps + 1);
-		if (this.nestedFutures != null) {
-			for (int i = 0; i < this.nestedFutures.length; i++) {
-				final ProgressingFuture<?> nestedFuture = this.nestedFutures[i];
-				if (!nestedFuture.isDone()) {
-					nestedFuture.cancel(true);
-					this.nestedStepsDone[i] = nestedFuture.totalSteps;
+		try {
+			updateProgress(this.actionSteps + 1);
+			if (this.nestedFutures != null) {
+				for (int i = 0; i < this.nestedFutures.length; i++) {
+					final ProgressingFuture<?> nestedFuture = this.nestedFutures[i];
+					if (!nestedFuture.isDone()) {
+						nestedFuture.cancel(true);
+						this.nestedStepsDone[i] = nestedFuture.totalSteps;
+					}
 				}
 			}
-		}
-		if (this.onFailure != null) {
-			this.onFailure.accept(ex);
+			if (this.onFailure != null) {
+				this.onFailure.accept(ex);
+			}
+		} catch (Throwable e) {
+			log.error("Error updating progress for future completion exceptionally", e);
+			// If we fail to update progress, we still want to complete exceptionally
+			// with the original exception, so we don't change the exception here.
 		}
 		return super.completeExceptionally(ex);
 	}
