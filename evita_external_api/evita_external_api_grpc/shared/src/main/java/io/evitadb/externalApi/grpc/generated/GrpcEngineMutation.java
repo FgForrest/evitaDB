@@ -160,6 +160,48 @@ private static final long serialVersionUID = 0L;
             mutationCase_ = 6;
             break;
           }
+          case 58: {
+            io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.Builder subBuilder = null;
+            if (mutationCase_ == 7) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 7;
+            break;
+          }
+          case 66: {
+            io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.Builder subBuilder = null;
+            if (mutationCase_ == 8) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 8;
+            break;
+          }
+          case 74: {
+            io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.Builder subBuilder = null;
+            if (mutationCase_ == 9) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 9;
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -203,6 +245,9 @@ private static final long serialVersionUID = 0L;
     MAKECATALOGALIVEMUTATION(4),
     REMOVECATALOGSCHEMAMUTATION(5),
     TRANSACTIONMUTATION(6),
+    SETCATALOGMUTABILITYMUTATION(7),
+    DUPLICATECATALOGMUTATION(8),
+    SETCATALOGSTATEMUTATION(9),
     MUTATION_NOT_SET(0);
     private final int value;
     private MutationCase(int value) {
@@ -226,6 +271,9 @@ private static final long serialVersionUID = 0L;
         case 4: return MAKECATALOGALIVEMUTATION;
         case 5: return REMOVECATALOGSCHEMAMUTATION;
         case 6: return TRANSACTIONMUTATION;
+        case 7: return SETCATALOGMUTABILITYMUTATION;
+        case 8: return DUPLICATECATALOGMUTATION;
+        case 9: return SETCATALOGSTATEMUTATION;
         case 0: return MUTATION_NOT_SET;
         default: return null;
       }
@@ -499,6 +547,135 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation.getDefaultInstance();
   }
 
+  public static final int SETCATALOGMUTABILITYMUTATION_FIELD_NUMBER = 7;
+  /**
+   * <pre>
+   * Mutation that sets the mutability state of a catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+   * @return Whether the setCatalogMutabilityMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasSetCatalogMutabilityMutation() {
+    return mutationCase_ == 7;
+  }
+  /**
+   * <pre>
+   * Mutation that sets the mutability state of a catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+   * @return The setCatalogMutabilityMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation getSetCatalogMutabilityMutation() {
+    if (mutationCase_ == 7) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation that sets the mutability state of a catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutationOrBuilder getSetCatalogMutabilityMutationOrBuilder() {
+    if (mutationCase_ == 7) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.getDefaultInstance();
+  }
+
+  public static final int DUPLICATECATALOGMUTATION_FIELD_NUMBER = 8;
+  /**
+   * <pre>
+   * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+   * @return Whether the duplicateCatalogMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasDuplicateCatalogMutation() {
+    return mutationCase_ == 8;
+  }
+  /**
+   * <pre>
+   * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+   * @return The duplicateCatalogMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation getDuplicateCatalogMutation() {
+    if (mutationCase_ == 8) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutationOrBuilder getDuplicateCatalogMutationOrBuilder() {
+    if (mutationCase_ == 8) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.getDefaultInstance();
+  }
+
+  public static final int SETCATALOGSTATEMUTATION_FIELD_NUMBER = 9;
+  /**
+   * <pre>
+   * Mutation that sets the active state of a catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+   * @return Whether the setCatalogStateMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasSetCatalogStateMutation() {
+    return mutationCase_ == 9;
+  }
+  /**
+   * <pre>
+   * Mutation that sets the active state of a catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+   * @return The setCatalogStateMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation getSetCatalogStateMutation() {
+    if (mutationCase_ == 9) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation that sets the active state of a catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutationOrBuilder getSetCatalogStateMutationOrBuilder() {
+    if (mutationCase_ == 9) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -530,6 +707,15 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 6) {
       output.writeMessage(6, (io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation) mutation_);
+    }
+    if (mutationCase_ == 7) {
+      output.writeMessage(7, (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation) mutation_);
+    }
+    if (mutationCase_ == 8) {
+      output.writeMessage(8, (io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation) mutation_);
+    }
+    if (mutationCase_ == 9) {
+      output.writeMessage(9, (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation) mutation_);
     }
     unknownFields.writeTo(output);
   }
@@ -563,6 +749,18 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 6) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(6, (io.evitadb.externalApi.grpc.generated.GrpcTransactionMutation) mutation_);
+    }
+    if (mutationCase_ == 7) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(7, (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation) mutation_);
+    }
+    if (mutationCase_ == 8) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(8, (io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation) mutation_);
+    }
+    if (mutationCase_ == 9) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(9, (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation) mutation_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -605,6 +803,18 @@ private static final long serialVersionUID = 0L;
         if (!getTransactionMutation()
             .equals(other.getTransactionMutation())) return false;
         break;
+      case 7:
+        if (!getSetCatalogMutabilityMutation()
+            .equals(other.getSetCatalogMutabilityMutation())) return false;
+        break;
+      case 8:
+        if (!getDuplicateCatalogMutation()
+            .equals(other.getDuplicateCatalogMutation())) return false;
+        break;
+      case 9:
+        if (!getSetCatalogStateMutation()
+            .equals(other.getSetCatalogStateMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -643,6 +853,18 @@ private static final long serialVersionUID = 0L;
       case 6:
         hash = (37 * hash) + TRANSACTIONMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getTransactionMutation().hashCode();
+        break;
+      case 7:
+        hash = (37 * hash) + SETCATALOGMUTABILITYMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getSetCatalogMutabilityMutation().hashCode();
+        break;
+      case 8:
+        hash = (37 * hash) + DUPLICATECATALOGMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getDuplicateCatalogMutation().hashCode();
+        break;
+      case 9:
+        hash = (37 * hash) + SETCATALOGSTATEMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getSetCatalogStateMutation().hashCode();
         break;
       case 0:
       default:
@@ -855,6 +1077,27 @@ private static final long serialVersionUID = 0L;
           result.mutation_ = transactionMutationBuilder_.build();
         }
       }
+      if (mutationCase_ == 7) {
+        if (setCatalogMutabilityMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = setCatalogMutabilityMutationBuilder_.build();
+        }
+      }
+      if (mutationCase_ == 8) {
+        if (duplicateCatalogMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = duplicateCatalogMutationBuilder_.build();
+        }
+      }
+      if (mutationCase_ == 9) {
+        if (setCatalogStateMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = setCatalogStateMutationBuilder_.build();
+        }
+      }
       result.mutationCase_ = mutationCase_;
       onBuilt();
       return result;
@@ -927,6 +1170,18 @@ private static final long serialVersionUID = 0L;
         }
         case TRANSACTIONMUTATION: {
           mergeTransactionMutation(other.getTransactionMutation());
+          break;
+        }
+        case SETCATALOGMUTABILITYMUTATION: {
+          mergeSetCatalogMutabilityMutation(other.getSetCatalogMutabilityMutation());
+          break;
+        }
+        case DUPLICATECATALOGMUTATION: {
+          mergeDuplicateCatalogMutation(other.getDuplicateCatalogMutation());
+          break;
+        }
+        case SETCATALOGSTATEMUTATION: {
+          mergeSetCatalogStateMutation(other.getSetCatalogStateMutation());
           break;
         }
         case MUTATION_NOT_SET: {
@@ -2037,6 +2292,537 @@ private static final long serialVersionUID = 0L;
       mutationCase_ = 6;
       onChanged();;
       return transactionMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutationOrBuilder> setCatalogMutabilityMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation that sets the mutability state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+     * @return Whether the setCatalogMutabilityMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasSetCatalogMutabilityMutation() {
+      return mutationCase_ == 7;
+    }
+    /**
+     * <pre>
+     * Mutation that sets the mutability state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+     * @return The setCatalogMutabilityMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation getSetCatalogMutabilityMutation() {
+      if (setCatalogMutabilityMutationBuilder_ == null) {
+        if (mutationCase_ == 7) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 7) {
+          return setCatalogMutabilityMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation that sets the mutability state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+     */
+    public Builder setSetCatalogMutabilityMutation(io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation value) {
+      if (setCatalogMutabilityMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        setCatalogMutabilityMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 7;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that sets the mutability state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+     */
+    public Builder setSetCatalogMutabilityMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.Builder builderForValue) {
+      if (setCatalogMutabilityMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        setCatalogMutabilityMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 7;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that sets the mutability state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+     */
+    public Builder mergeSetCatalogMutabilityMutation(io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation value) {
+      if (setCatalogMutabilityMutationBuilder_ == null) {
+        if (mutationCase_ == 7 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 7) {
+          setCatalogMutabilityMutationBuilder_.mergeFrom(value);
+        }
+        setCatalogMutabilityMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 7;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that sets the mutability state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+     */
+    public Builder clearSetCatalogMutabilityMutation() {
+      if (setCatalogMutabilityMutationBuilder_ == null) {
+        if (mutationCase_ == 7) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 7) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        setCatalogMutabilityMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that sets the mutability state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.Builder getSetCatalogMutabilityMutationBuilder() {
+      return getSetCatalogMutabilityMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation that sets the mutability state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutationOrBuilder getSetCatalogMutabilityMutationOrBuilder() {
+      if ((mutationCase_ == 7) && (setCatalogMutabilityMutationBuilder_ != null)) {
+        return setCatalogMutabilityMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 7) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation that sets the mutability state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutationOrBuilder>
+        getSetCatalogMutabilityMutationFieldBuilder() {
+      if (setCatalogMutabilityMutationBuilder_ == null) {
+        if (!(mutationCase_ == 7)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.getDefaultInstance();
+        }
+        setCatalogMutabilityMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 7;
+      onChanged();;
+      return setCatalogMutabilityMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation, io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutationOrBuilder> duplicateCatalogMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+     * @return Whether the duplicateCatalogMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasDuplicateCatalogMutation() {
+      return mutationCase_ == 8;
+    }
+    /**
+     * <pre>
+     * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+     * @return The duplicateCatalogMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation getDuplicateCatalogMutation() {
+      if (duplicateCatalogMutationBuilder_ == null) {
+        if (mutationCase_ == 8) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 8) {
+          return duplicateCatalogMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+     */
+    public Builder setDuplicateCatalogMutation(io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation value) {
+      if (duplicateCatalogMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        duplicateCatalogMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 8;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+     */
+    public Builder setDuplicateCatalogMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.Builder builderForValue) {
+      if (duplicateCatalogMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        duplicateCatalogMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 8;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+     */
+    public Builder mergeDuplicateCatalogMutation(io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation value) {
+      if (duplicateCatalogMutationBuilder_ == null) {
+        if (mutationCase_ == 8 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 8) {
+          duplicateCatalogMutationBuilder_.mergeFrom(value);
+        }
+        duplicateCatalogMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 8;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+     */
+    public Builder clearDuplicateCatalogMutation() {
+      if (duplicateCatalogMutationBuilder_ == null) {
+        if (mutationCase_ == 8) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 8) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        duplicateCatalogMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.Builder getDuplicateCatalogMutationBuilder() {
+      return getDuplicateCatalogMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutationOrBuilder getDuplicateCatalogMutationOrBuilder() {
+      if ((mutationCase_ == 8) && (duplicateCatalogMutationBuilder_ != null)) {
+        return duplicateCatalogMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 8) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation, io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutationOrBuilder>
+        getDuplicateCatalogMutationFieldBuilder() {
+      if (duplicateCatalogMutationBuilder_ == null) {
+        if (!(mutationCase_ == 8)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.getDefaultInstance();
+        }
+        duplicateCatalogMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation, io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 8;
+      onChanged();;
+      return duplicateCatalogMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutationOrBuilder> setCatalogStateMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation that sets the active state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+     * @return Whether the setCatalogStateMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasSetCatalogStateMutation() {
+      return mutationCase_ == 9;
+    }
+    /**
+     * <pre>
+     * Mutation that sets the active state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+     * @return The setCatalogStateMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation getSetCatalogStateMutation() {
+      if (setCatalogStateMutationBuilder_ == null) {
+        if (mutationCase_ == 9) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 9) {
+          return setCatalogStateMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation that sets the active state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+     */
+    public Builder setSetCatalogStateMutation(io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation value) {
+      if (setCatalogStateMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        setCatalogStateMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 9;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that sets the active state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+     */
+    public Builder setSetCatalogStateMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.Builder builderForValue) {
+      if (setCatalogStateMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        setCatalogStateMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 9;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that sets the active state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+     */
+    public Builder mergeSetCatalogStateMutation(io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation value) {
+      if (setCatalogStateMutationBuilder_ == null) {
+        if (mutationCase_ == 9 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 9) {
+          setCatalogStateMutationBuilder_.mergeFrom(value);
+        }
+        setCatalogStateMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 9;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that sets the active state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+     */
+    public Builder clearSetCatalogStateMutation() {
+      if (setCatalogStateMutationBuilder_ == null) {
+        if (mutationCase_ == 9) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 9) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        setCatalogStateMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation that sets the active state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.Builder getSetCatalogStateMutationBuilder() {
+      return getSetCatalogStateMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation that sets the active state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutationOrBuilder getSetCatalogStateMutationOrBuilder() {
+      if ((mutationCase_ == 9) && (setCatalogStateMutationBuilder_ != null)) {
+        return setCatalogStateMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 9) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation that sets the active state of a catalog.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutationOrBuilder>
+        getSetCatalogStateMutationFieldBuilder() {
+      if (setCatalogStateMutationBuilder_ == null) {
+        if (!(mutationCase_ == 9)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.getDefaultInstance();
+        }
+        setCatalogStateMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 9;
+      onChanged();;
+      return setCatalogStateMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

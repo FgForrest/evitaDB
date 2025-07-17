@@ -123,6 +123,66 @@ message GrpcDeleteCatalogIfExistsResponse {
   bool success = 1;
 }
 
+// Request to make a catalog mutable.
+message GrpcMakeCatalogMutableRequest {
+  // Name of the catalog to make mutable.
+  string catalogName = 1;
+}
+
+// Response to a make catalog mutable request.
+message GrpcMakeCatalogMutableResponse {
+  // Indicator whether the catalog was made mutable successfully.
+  bool success = 1;
+}
+
+// Request to make a catalog immutable.
+message GrpcMakeCatalogImmutableRequest {
+  // Name of the catalog to make immutable.
+  string catalogName = 1;
+}
+
+// Response to a make catalog immutable request.
+message GrpcMakeCatalogImmutableResponse {
+  // Indicator whether the catalog was made immutable successfully.
+  bool success = 1;
+}
+
+// Request to make a catalog alive.
+message GrpcMakeCatalogAliveRequest {
+  // Name of the catalog to make alive.
+  string catalogName = 1;
+}
+
+// Response to a make catalog alive request.
+message GrpcMakeCatalogAliveResponse {
+  // Indicator whether the catalog was made alive successfully.
+  bool success = 1;
+}
+
+// Request to activate a catalog.
+message GrpcActivateCatalogRequest {
+  // Name of the catalog to activate.
+  string catalogName = 1;
+}
+
+// Response to an activate catalog request.
+message GrpcActivateCatalogResponse {
+  // Indicator whether the catalog was activated successfully.
+  bool success = 1;
+}
+
+// Request to deactivate a catalog.
+message GrpcDeactivateCatalogRequest {
+  // Name of the catalog to deactivate.
+  string catalogName = 1;
+}
+
+// Response to a deactivate catalog request.
+message GrpcDeactivateCatalogResponse {
+  // Indicator whether the catalog was deactivated successfully.
+  bool success = 1;
+}
+
 // Request to apply mutation on engine level.
 message GrpcApplyMutationRequest {
   // Single engine level mutation to be applied.
@@ -214,6 +274,26 @@ service EvitaService {
   rpc RenameCatalog(GrpcRenameCatalogRequest) returns (GrpcRenameCatalogResponse);
   // Procedure used to replace an existing catalog.
   rpc ReplaceCatalog(GrpcReplaceCatalogRequest) returns (GrpcReplaceCatalogResponse);
+  // Procedure used to make a catalog mutable.
+  rpc MakeCatalogMutable(GrpcMakeCatalogMutableRequest) returns (GrpcMakeCatalogMutableResponse);
+  // Procedure used to make a catalog mutable with progress tracking.
+  rpc MakeCatalogMutableWithProgress(GrpcMakeCatalogMutableRequest) returns (stream GrpcApplyMutationWithProgressResponse);
+  // Procedure used to make a catalog immutable.
+  rpc MakeCatalogImmutable(GrpcMakeCatalogImmutableRequest) returns (GrpcMakeCatalogImmutableResponse);
+  // Procedure used to make a catalog immutable with progress tracking.
+  rpc MakeCatalogImmutableWithProgress(GrpcMakeCatalogImmutableRequest) returns (stream GrpcApplyMutationWithProgressResponse);
+  // Procedure used to make a catalog alive.
+  rpc MakeCatalogAlive(GrpcMakeCatalogAliveRequest) returns (GrpcMakeCatalogAliveResponse);
+  // Procedure used to make a catalog alive with progress tracking.
+  rpc MakeCatalogAliveWithProgress(GrpcMakeCatalogAliveRequest) returns (stream GrpcApplyMutationWithProgressResponse);
+  // Procedure used to activate a catalog.
+  rpc ActivateCatalog(GrpcActivateCatalogRequest) returns (GrpcActivateCatalogResponse);
+  // Procedure used to activate a catalog with progress tracking.
+  rpc ActivateCatalogWithProgress(GrpcActivateCatalogRequest) returns (stream GrpcApplyMutationWithProgressResponse);
+  // Procedure used to deactivate a catalog.
+  rpc DeactivateCatalog(GrpcDeactivateCatalogRequest) returns (GrpcDeactivateCatalogResponse);
+  // Procedure used to deactivate a catalog with progress tracking.
+  rpc DeactivateCatalogWithProgress(GrpcDeactivateCatalogRequest) returns (stream GrpcApplyMutationWithProgressResponse);
   // Procedure used to register a system change capture.
   rpc RegisterSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest) returns (stream GrpcRegisterSystemChangeCaptureResponse);
   // Procedure used to initiate progress consumption for top-level engine mutations.

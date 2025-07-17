@@ -575,6 +575,312 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	}
 
 	/**
+	 * Makes a catalog alive.
+	 *
+	 * @param request          containing name of the catalog to be made alive
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#makeCatalogAlive(String)
+	 */
+	@Override
+	public void makeCatalogAlive(
+		GrpcMakeCatalogAliveRequest request,
+		StreamObserver<GrpcMakeCatalogAliveResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				this.evita.makeCatalogAlive(request.getCatalogName());
+				responseObserver.onNext(GrpcMakeCatalogAliveResponse.newBuilder().setSuccess(true).build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Makes a catalog alive with progress tracking.
+	 *
+	 * @param request          containing name of the catalog to be made alive
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#makeCatalogAliveWithProgress(String)
+	 */
+	@Override
+	public void makeCatalogAliveWithProgress(
+		GrpcMakeCatalogAliveRequest request,
+		StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final Progress<CommitVersions> progress = this.evita.makeCatalogAliveWithProgress(
+					request.getCatalogName()
+				);
+
+				progress
+					.onCompletion()
+					.whenComplete(
+						(result, throwable) -> {
+							if (throwable == null) {
+								final GrpcApplyMutationWithProgressResponse.Builder responseBuilder = GrpcApplyMutationWithProgressResponse
+									.newBuilder()
+									.setProgressInPercent(100);
+								if (result != null) {
+									responseBuilder
+										.setCatalogVersion(result.catalogVersion())
+										.setCatalogSchemaVersion(result.catalogSchemaVersion());
+								}
+								responseObserver.onNext(responseBuilder.build());
+							} else {
+								responseObserver.onError(throwable);
+							}
+							responseObserver.onCompleted();
+						});
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Makes a catalog mutable.
+	 *
+	 * @param request          containing name of the catalog to be made mutable
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#makeCatalogMutable(String)
+	 */
+	@Override
+	public void makeCatalogMutable(GrpcMakeCatalogMutableRequest request, StreamObserver<GrpcMakeCatalogMutableResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				this.evita.makeCatalogMutable(request.getCatalogName());
+				responseObserver.onNext(GrpcMakeCatalogMutableResponse.newBuilder().setSuccess(true).build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Makes a catalog mutable with progress tracking.
+	 *
+	 * @param request          containing name of the catalog to be made mutable
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#makeCatalogMutableWithProgress(String)
+	 */
+	@Override
+	public void makeCatalogMutableWithProgress(GrpcMakeCatalogMutableRequest request, StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				final Progress<Void> progress = this.evita.makeCatalogMutableWithProgress(
+					request.getCatalogName()
+				);
+
+				progress
+					.onCompletion()
+					.whenComplete(
+						(result, throwable) -> {
+							if (throwable == null) {
+								final GrpcApplyMutationWithProgressResponse response = GrpcApplyMutationWithProgressResponse
+									.newBuilder()
+									.setProgressInPercent(100)
+									.build();
+								responseObserver.onNext(response);
+							} else {
+								responseObserver.onError(throwable);
+							}
+							responseObserver.onCompleted();
+						});
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Makes a catalog immutable.
+	 *
+	 * @param request          containing name of the catalog to be made immutable
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#makeCatalogImmutable(String)
+	 */
+	@Override
+	public void makeCatalogImmutable(GrpcMakeCatalogImmutableRequest request, StreamObserver<GrpcMakeCatalogImmutableResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				this.evita.makeCatalogImmutable(request.getCatalogName());
+				responseObserver.onNext(GrpcMakeCatalogImmutableResponse.newBuilder().setSuccess(true).build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Makes a catalog immutable with progress tracking.
+	 *
+	 * @param request          containing name of the catalog to be made immutable
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#makeCatalogImmutableWithProgress(String)
+	 */
+	@Override
+	public void makeCatalogImmutableWithProgress(GrpcMakeCatalogImmutableRequest request, StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				final Progress<Void> progress = this.evita.makeCatalogImmutableWithProgress(
+					request.getCatalogName()
+				);
+
+				progress
+					.onCompletion()
+					.whenComplete(
+						(result, throwable) -> {
+							if (throwable == null) {
+								final GrpcApplyMutationWithProgressResponse response = GrpcApplyMutationWithProgressResponse
+									.newBuilder()
+									.setProgressInPercent(100)
+									.build();
+								responseObserver.onNext(response);
+							} else {
+								responseObserver.onError(throwable);
+							}
+							responseObserver.onCompleted();
+						});
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Activates a catalog.
+	 *
+	 * @param request          containing name of the catalog to be activated
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#activateCatalog(String)
+	 */
+	@Override
+	public void activateCatalog(GrpcActivateCatalogRequest request, StreamObserver<GrpcActivateCatalogResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				this.evita.activateCatalog(request.getCatalogName());
+				responseObserver.onNext(GrpcActivateCatalogResponse.newBuilder().setSuccess(true).build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Activates a catalog with progress tracking.
+	 *
+	 * @param request          containing name of the catalog to be activated
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#activateCatalogWithProgress(String)
+	 */
+	@Override
+	public void activateCatalogWithProgress(GrpcActivateCatalogRequest request, StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				final Progress<Void> progress = this.evita.activateCatalogWithProgress(
+					request.getCatalogName()
+				);
+
+				progress
+					.onCompletion()
+					.whenComplete(
+						(result, throwable) -> {
+							if (throwable == null) {
+								final GrpcApplyMutationWithProgressResponse response = GrpcApplyMutationWithProgressResponse
+									.newBuilder()
+									.setProgressInPercent(100)
+									.build();
+								responseObserver.onNext(response);
+							} else {
+								responseObserver.onError(throwable);
+							}
+							responseObserver.onCompleted();
+						});
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Deactivates a catalog.
+	 *
+	 * @param request          containing name of the catalog to be deactivated
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#deactivateCatalog(String)
+	 */
+	@Override
+	public void deactivateCatalog(GrpcDeactivateCatalogRequest request, StreamObserver<GrpcDeactivateCatalogResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				this.evita.deactivateCatalog(request.getCatalogName());
+				responseObserver.onNext(GrpcDeactivateCatalogResponse.newBuilder().setSuccess(true).build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Deactivates a catalog with progress tracking.
+	 *
+	 * @param request          containing name of the catalog to be deactivated
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#deactivateCatalogWithProgress(String)
+	 */
+	@Override
+	public void deactivateCatalogWithProgress(GrpcDeactivateCatalogRequest request, StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {
+		executeWithClientContext(
+			() -> {
+				final Progress<Void> progress = this.evita.deactivateCatalogWithProgress(
+					request.getCatalogName()
+				);
+
+				progress
+					.onCompletion()
+					.whenComplete(
+						(result, throwable) -> {
+							if (throwable == null) {
+								final GrpcApplyMutationWithProgressResponse response = GrpcApplyMutationWithProgressResponse
+									.newBuilder()
+									.setProgressInPercent(100)
+									.build();
+								responseObserver.onNext(response);
+							} else {
+								responseObserver.onError(throwable);
+							}
+							responseObserver.onCompleted();
+						});
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	@Override
+	public void getProgress(GrpcGetProgressRequest request, StreamObserver<GrpcGetProgressResponse> responseObserver) {
+		/* TODO JNO - Implement me */
+		super.getProgress(request, responseObserver);
+	}
+
+	/**
 	 * A private static class implementing the {@link Subscriber} interface to handle
 	 * system change capture subscriptions. This class coordinates the receipt of change events,
 	 * processes them, and forwards the results to a response observer.

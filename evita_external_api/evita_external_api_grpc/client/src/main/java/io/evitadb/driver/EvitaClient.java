@@ -43,6 +43,7 @@ import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureRequest;
@@ -58,6 +59,8 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.driver.cdc.ClientChangeCapturePublisher;
 import io.evitadb.driver.cdc.ClientChangeSystemCaptureProcessor;
@@ -608,7 +611,7 @@ public class EvitaClient implements EvitaContract {
 		if (getCatalogState(catalogName).map(it -> it == CatalogState.WARMING_UP).orElse(false)) {
 			return applyMutation(new MakeCatalogAliveMutation(catalogName));
 		} else {
-			throw new EvitaInvalidUsageException(
+			throw new InvalidMutationException(
 				"Catalog `" + catalogName + "` is not in WARMING_UP state, so it cannot be made alive!"
 			);
 		}
@@ -617,29 +620,41 @@ public class EvitaClient implements EvitaContract {
 	@Nonnull
 	@Override
 	public Progress<Void> activateCatalogWithProgress(@Nonnull String catalogName) {
-		// TODO JNO - create gRPC definitions
-		throw new UnsupportedOperationException("Not implemented yet");
+		assertActive();
+		if (getCatalogState(catalogName).map(it -> it == CatalogState.INACTIVE).orElse(false)) {
+			return applyMutation(new SetCatalogStateMutation(catalogName, true));
+		} else {
+			throw new InvalidMutationException(
+				"Catalog `" + catalogName + "` is not in INACTIVE state, so it cannot be activated!"
+			);
+		}
 	}
 
 	@Nonnull
 	@Override
 	public Progress<Void> deactivateCatalogWithProgress(@Nonnull String catalogName) {
-		// TODO JNO - create gRPC definitions
-		throw new UnsupportedOperationException("Not implemented yet");
+		assertActive();
+		if (getCatalogState(catalogName).map(it -> it == CatalogState.WARMING_UP || it == CatalogState.ALIVE).orElse(false)) {
+			return applyMutation(new SetCatalogStateMutation(catalogName, false));
+		} else {
+			throw new InvalidMutationException(
+				"Catalog `" + catalogName + "` is not in WARMING_UP or ALIVE state, so it cannot be deactivated!"
+			);
+		}
 	}
 
 	@Nonnull
 	@Override
 	public Progress<Void> makeCatalogMutableWithProgress(@Nonnull String catalogName) {
-		// TODO JNO - create gRPC definitions
-		throw new UnsupportedOperationException("Not implemented yet");
+		assertActive();
+		return applyMutation(new SetCatalogMutabilityMutation(catalogName, true));
 	}
 
 	@Nonnull
 	@Override
 	public Progress<Void> makeCatalogImmutableWithProgress(@Nonnull String catalogName) {
-		// TODO JNO - create gRPC definitions
-		throw new UnsupportedOperationException("Not implemented yet");
+		assertActive();
+		return applyMutation(new SetCatalogMutabilityMutation(catalogName, false));
 	}
 
 	@Nonnull

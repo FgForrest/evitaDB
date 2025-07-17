@@ -43,6 +43,30 @@ message GrpcRemoveCatalogSchemaMutation {
   string catalogName = 1;
 }
 
+// Mutation that sets the mutability state of a catalog.
+message GrpcSetCatalogMutabilityMutation {
+  // Name of the catalog to modify.
+  string catalogName = 1;
+  // Whether the catalog should be mutable (read-write) or immutable (read-only).
+  bool mutable = 2;
+}
+
+// Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+message GrpcDuplicateCatalogMutation {
+  // Name of the source catalog to duplicate.
+  string catalogName = 1;
+  // Name of the new catalog to create with duplicated contents.
+  string newCatalogName = 2;
+}
+
+// Mutation that sets the active state of a catalog.
+message GrpcSetCatalogStateMutation {
+  // Name of the catalog to modify.
+  string catalogName = 1;
+  // Whether the catalog should be active or inactive.
+  bool active = 2;
+}
+
 // This transaction mutation delimits mutations of one transaction from another. It contains data that allow to recognize
 // the scope of the transaction and verify its integrity.
 message GrpcTransactionMutation {
@@ -75,5 +99,11 @@ message GrpcEngineMutation {
     GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 5;
     // Mutation delimits one transaction from another.
     GrpcTransactionMutation transactionMutation = 6;
+    // Mutation that sets the mutability state of a catalog.
+    GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;
+    // Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+    GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;
+    // Mutation that sets the active state of a catalog.
+    GrpcSetCatalogStateMutation setCatalogStateMutation = 9;
   }
 }

@@ -192,5 +192,86 @@ public interface GrpcEngineMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcTransactionMutationOrBuilder getTransactionMutationOrBuilder();
 
+  /**
+   * <pre>
+   * Mutation that sets the mutability state of a catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+   * @return Whether the setCatalogMutabilityMutation field is set.
+   */
+  boolean hasSetCatalogMutabilityMutation();
+  /**
+   * <pre>
+   * Mutation that sets the mutability state of a catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+   * @return The setCatalogMutabilityMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation getSetCatalogMutabilityMutation();
+  /**
+   * <pre>
+   * Mutation that sets the mutability state of a catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetCatalogMutabilityMutationOrBuilder getSetCatalogMutabilityMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+   * @return Whether the duplicateCatalogMutation field is set.
+   */
+  boolean hasDuplicateCatalogMutation();
+  /**
+   * <pre>
+   * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+   * @return The duplicateCatalogMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation getDuplicateCatalogMutation();
+  /**
+   * <pre>
+   * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcDuplicateCatalogMutationOrBuilder getDuplicateCatalogMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation that sets the active state of a catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+   * @return Whether the setCatalogStateMutation field is set.
+   */
+  boolean hasSetCatalogStateMutation();
+  /**
+   * <pre>
+   * Mutation that sets the active state of a catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+   * @return The setCatalogStateMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation getSetCatalogStateMutation();
+  /**
+   * <pre>
+   * Mutation that sets the active state of a catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation setCatalogStateMutation = 9;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutationOrBuilder getSetCatalogStateMutationOrBuilder();
+
   public io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.MutationCase getMutationCase();
 }

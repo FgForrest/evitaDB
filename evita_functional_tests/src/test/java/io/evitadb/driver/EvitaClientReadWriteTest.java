@@ -82,6 +82,7 @@ import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.driver.config.EvitaClientConfiguration;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.grpc.GrpcProvider;
@@ -2717,6 +2718,320 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				assertTrue(entitySchema.getAttribute("name").isPresent());
 				assertTrue(entitySchema.getAttribute("code").isPresent());
 			});
+
+		} finally {
+			// Clean up the test catalog
+			evitaClient.deleteCatalogIfExists(testCatalogName);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldActivateCatalogFromInactiveState(EvitaClient evitaClient) {
+		final String testCatalogName = "testActivationCatalog";
+		try {
+			// Create and setup a catalog with some data
+			evitaClient.defineCatalog(testCatalogName)
+				.updateViaNewSession(evitaClient);
+
+			evitaClient.updateCatalog(
+				testCatalogName,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT);
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Test Product")
+					);
+					session.goLiveAndClose();
+				}
+			);
+
+			// Verify catalog is alive
+			assertEquals(CatalogState.ALIVE, evitaClient.getCatalogState(testCatalogName).orElseThrow());
+
+			// Deactivate the catalog
+			evitaClient.deactivateCatalog(testCatalogName);
+
+			// Verify catalog is inactive
+			assertEquals(CatalogState.INACTIVE, evitaClient.getCatalogState(testCatalogName).orElseThrow());
+
+			// Activate the catalog again
+			evitaClient.activateCatalog(testCatalogName);
+
+			// Verify catalog is alive again
+			assertEquals(CatalogState.ALIVE, evitaClient.getCatalogState(testCatalogName).orElseThrow());
+
+			// Verify data is still accessible
+			evitaClient.queryCatalog(
+				testCatalogName,
+				session -> {
+					final Optional<SealedEntity> product = session.getEntity(
+						Entities.PRODUCT, 1, entityFetchAllContent()
+					);
+					assertTrue(product.isPresent());
+					assertEquals("Test Product", product.get().getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+					return null;
+				}
+			);
+
+		} finally {
+			// Clean up the test catalog
+			evitaClient.deleteCatalogIfExists(testCatalogName);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldActivateCatalogWithProgress(EvitaClient evitaClient) {
+		final String testCatalogName = "testActivationProgressCatalog";
+		try {
+			// Create and setup a catalog with some data
+			evitaClient.defineCatalog(testCatalogName)
+				.updateViaNewSession(evitaClient);
+
+			evitaClient.updateCatalog(
+				testCatalogName,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT);
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Test Product")
+					);
+					session.goLiveAndClose();
+				}
+			);
+
+			// Deactivate the catalog first
+			evitaClient.deactivateCatalog(testCatalogName);
+			assertEquals(CatalogState.INACTIVE, evitaClient.getCatalogState(testCatalogName).orElseThrow());
+
+			// Activate the catalog with progress tracking
+			final Progress<Void> activateProgress = evitaClient.activateCatalogWithProgress(testCatalogName);
+			assertNotNull(activateProgress);
+
+			// Wait for completion
+			activateProgress.onCompletion().toCompletableFuture().join();
+
+			// Verify catalog is alive again
+			assertEquals(CatalogState.ALIVE, evitaClient.getCatalogState(testCatalogName).orElseThrow());
+
+		} finally {
+			// Clean up the test catalog
+			evitaClient.deleteCatalogIfExists(testCatalogName);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldDeactivateCatalogWithProgress(EvitaClient evitaClient) {
+		final String testCatalogName = "testDeactivationProgressCatalog";
+		try {
+			// Create and setup a catalog with some data
+			evitaClient.defineCatalog(testCatalogName)
+				.updateViaNewSession(evitaClient);
+
+			evitaClient.updateCatalog(
+				testCatalogName,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT);
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Test Product")
+					);
+					session.goLiveAndClose();
+				}
+			);
+
+			// Verify catalog is alive
+			assertEquals(CatalogState.ALIVE, evitaClient.getCatalogState(testCatalogName).orElseThrow());
+
+			// Deactivate the catalog with progress tracking
+			final Progress<Void> deactivateProgress = evitaClient.deactivateCatalogWithProgress(testCatalogName);
+			assertNotNull(deactivateProgress);
+
+			// Wait for completion
+			deactivateProgress.onCompletion().toCompletableFuture().join();
+
+			// Verify catalog is inactive
+			assertEquals(CatalogState.INACTIVE, evitaClient.getCatalogState(testCatalogName).orElseThrow());
+
+		} finally {
+			// Clean up the test catalog
+			evitaClient.deleteCatalogIfExists(testCatalogName);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldMakeCatalogMutableFromImmutableState(EvitaClient evitaClient) {
+		final String testCatalogName = "testMutabilityCatalog";
+		try {
+			// Create and setup a catalog with some data
+			evitaClient.defineCatalog(testCatalogName)
+				.updateViaNewSession(evitaClient);
+
+			evitaClient.updateCatalog(
+				testCatalogName,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT);
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Test Product")
+					);
+					session.goLiveAndClose();
+				}
+			);
+
+			// Verify catalog is alive and mutable (write operations work)
+			assertEquals(CatalogState.ALIVE, evitaClient.getCatalogState(testCatalogName).orElseThrow());
+
+			// Make catalog immutable
+			evitaClient.makeCatalogImmutable(testCatalogName);
+
+			// Verify write operations throw ReadOnlyException when catalog is immutable
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> evitaClient.updateCatalog(
+					testCatalogName,
+					session -> {
+						session.upsertEntity(
+							session.createNewEntity(Entities.PRODUCT, 2)
+								.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Another Product")
+						);
+					}
+				)
+			);
+
+			// Make catalog mutable again
+			evitaClient.makeCatalogMutable(testCatalogName);
+
+			// Verify write operations work when catalog is mutable
+			evitaClient.updateCatalog(
+				testCatalogName,
+				session -> {
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 2)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Another Product")
+					);
+				}
+			);
+
+			// Verify both entities are accessible
+			evitaClient.queryCatalog(
+				testCatalogName,
+				session -> {
+					final Optional<SealedEntity> product1 = session.getEntity(
+						Entities.PRODUCT, 1, entityFetchAllContent()
+					);
+					final Optional<SealedEntity> product2 = session.getEntity(
+						Entities.PRODUCT, 2, entityFetchAllContent()
+					);
+					assertTrue(product1.isPresent());
+					assertTrue(product2.isPresent());
+					assertEquals("Test Product", product1.get().getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+					assertEquals("Another Product", product2.get().getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+					return null;
+				}
+			);
+
+		} finally {
+			// Clean up the test catalog
+			evitaClient.deleteCatalogIfExists(testCatalogName);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldMakeCatalogMutableWithProgress(EvitaClient evitaClient) {
+		final String testCatalogName = "testMutableProgressCatalog";
+		try {
+			// Create and setup a catalog with some data
+			evitaClient.defineCatalog(testCatalogName)
+				.updateViaNewSession(evitaClient);
+
+			evitaClient.updateCatalog(
+				testCatalogName,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT);
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Test Product")
+					);
+					session.goLiveAndClose();
+				}
+			);
+
+			// Make catalog immutable first
+			evitaClient.makeCatalogImmutable(testCatalogName);
+
+			// Make catalog mutable with progress tracking
+			final Progress<Void> makeMutableProgress = evitaClient.makeCatalogMutableWithProgress(testCatalogName);
+			assertNotNull(makeMutableProgress);
+
+			// Wait for completion
+			makeMutableProgress.onCompletion().toCompletableFuture().join();
+
+			// Verify write operations work when catalog is mutable
+			evitaClient.updateCatalog(
+				testCatalogName,
+				session -> {
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 2)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Another Product")
+					);
+				}
+			);
+
+		} finally {
+			// Clean up the test catalog
+			evitaClient.deleteCatalogIfExists(testCatalogName);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldMakeCatalogImmutableWithProgress(EvitaClient evitaClient) {
+		final String testCatalogName = "testImmutableProgressCatalog";
+		try {
+			// Create and setup a catalog with some data
+			evitaClient.defineCatalog(testCatalogName)
+				.updateViaNewSession(evitaClient);
+
+			evitaClient.updateCatalog(
+				testCatalogName,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT);
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Test Product")
+					);
+					session.goLiveAndClose();
+				}
+			);
+
+			// Verify catalog is alive and mutable
+			assertEquals(CatalogState.ALIVE, evitaClient.getCatalogState(testCatalogName).orElseThrow());
+
+			// Make catalog immutable with progress tracking
+			final Progress<Void> makeImmutableProgress = evitaClient.makeCatalogImmutableWithProgress(testCatalogName);
+			assertNotNull(makeImmutableProgress);
+
+			// Wait for completion
+			makeImmutableProgress.onCompletion().toCompletableFuture().join();
+
+			// Verify write operations throw ReadOnlyException when catalog is immutable
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> evitaClient.updateCatalog(
+					testCatalogName,
+					session -> {
+						session.upsertEntity(
+							session.createNewEntity(Entities.PRODUCT, 2)
+								.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Another Product")
+						);
+					}
+				)
+			);
 
 		} finally {
 			// Clean up the test catalog
