@@ -324,7 +324,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"compoundB",
 					"Compound B description",
 					"Not used anymore",
-					new Scope[] {},
+					Scope.NO_SCOPE,
 					new AttributeElement[] {
 						new AttributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 						new AttributeElement(ATTRIBUTE_QUANTITY, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
@@ -470,7 +470,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"compoundB",
 					"Compound B description",
 					"Not used anymore",
-					new Scope[] {},
+					Scope.NO_SCOPE,
 					new AttributeElement[] {
 						new AttributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 						new AttributeElement(ATTRIBUTE_QUANTITY, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
@@ -612,7 +612,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"compoundB",
 					"Compound B description",
 					"Not used anymore",
-					new Scope[] {},
+					Scope.NO_SCOPE,
 					new AttributeElement[] {
 						new AttributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 						new AttributeElement(ATTRIBUTE_QUANTITY, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)

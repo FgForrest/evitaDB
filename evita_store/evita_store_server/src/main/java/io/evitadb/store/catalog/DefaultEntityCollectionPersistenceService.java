@@ -1114,6 +1114,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		);
 	}
 
+	@Nonnull
 	@Override
 	public EntityIndex readEntityIndex(long catalogVersion, int entityIndexId, @Nonnull EntitySchema entitySchema) {
 		final EntityIndexStoragePart entityIndexCnt = this.storagePartPersistenceService.getStoragePart(catalogVersion, entityIndexId, EntityIndexStoragePart.class);
@@ -1122,11 +1123,27 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			"Entity index with PK `" + entityIndexId + "` was unexpectedly not found in the mem table!"
 		);
 
-		final Map<AttributeKey, UniqueIndex> uniqueIndexes = new HashMap<>();
-		final Map<AttributeKey, FilterIndex> filterIndexes = new HashMap<>();
-		final Map<AttributeKey, SortIndex> sortIndexes = new HashMap<>();
-		final Map<AttributeKey, ChainIndex> chainIndexes = new HashMap<>();
-		final Map<AttributeKey, CardinalityIndex> cardinalityIndexes = new HashMap<>();
+		int uniqueIndexCount = 0;
+		int filterIndexCount = 0;
+		int sortIndexCount = 0;
+		int chainIndexCount = 0;
+		int cardinalityIndexCount = 0;
+		for (AttributeIndexStorageKey attributeIndex : entityIndexCnt.getAttributeIndexes()) {
+			switch (attributeIndex.indexType()) {
+				case UNIQUE -> uniqueIndexCount++;
+				case FILTER -> filterIndexCount++;
+				case SORT -> sortIndexCount++;
+				case CHAIN -> chainIndexCount++;
+				case CARDINALITY -> cardinalityIndexCount++;
+				default -> throw new GenericEvitaInternalError("Unknown attribute index type: " + attributeIndex.indexType());
+			}
+		}
+
+		final Map<AttributeKey, UniqueIndex> uniqueIndexes = CollectionUtils.createHashMap(uniqueIndexCount);
+		final Map<AttributeKey, FilterIndex> filterIndexes = CollectionUtils.createHashMap(filterIndexCount);
+		final Map<AttributeKey, SortIndex> sortIndexes = CollectionUtils.createHashMap(sortIndexCount);
+		final Map<AttributeKey, ChainIndex> chainIndexes = CollectionUtils.createHashMap(chainIndexCount);
+		final Map<AttributeKey, CardinalityIndex> cardinalityIndexes = CollectionUtils.createHashMap(cardinalityIndexCount);
 
 		/* TOBEDONE #538 - REMOVE IN FUTURE VERSIONS */
 		//noinspection rawtypes

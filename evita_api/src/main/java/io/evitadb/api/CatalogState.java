@@ -63,6 +63,37 @@ public enum CatalogState {
     /**
      * State signalizing that evitaDB engine was not able to consistently open and load this catalog from the file system.
      */
-    CORRUPTED
+    CORRUPTED,
+
+    /**
+     * State signalizing that evitaDB engine is transitioning catalog from {@link #WARMING_UP} to {@link #ALIVE} state.
+     * Until the transition is fully completed, the catalog is not able to serve any requests.
+     */
+    GOING_ALIVE,
+
+    /**
+     * State signalizing that evitaDB engine is loading catalog from the file system to the memory and performing
+     * initialization of the catalog. The catalog is not able to serve any requests until the initialization is fully
+     * completed.
+     */
+    BEING_ACTIVATED,
+
+    /**
+     * State signalizing that evitaDB engine is deactivating the catalog. When the operation is completed, the catalog
+     * is moved to {@link #INACTIVE} state.
+     */
+    BEING_DEACTIVATED,
+
+    /**
+     * State signalizing that evitaDB engine is creating a new catalog. The catalog is not able to serve any requests
+     * until the creation is fully completed.
+     */
+    BEING_CREATED,
+
+    /**
+     * State signalizing that evitaDB engine is deleting the catalog. When the operation is completed, the catalog
+     * is removed from the file system and is no longer available.
+     */
+    BEING_DELETED
 
 }

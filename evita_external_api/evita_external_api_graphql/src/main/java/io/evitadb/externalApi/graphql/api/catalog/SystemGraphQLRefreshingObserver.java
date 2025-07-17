@@ -26,9 +26,12 @@ package io.evitadb.externalApi.graphql.api.catalog;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.externalApi.graphql.GraphQLManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,16 +62,36 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 		try {
 			final Mutation body = item.body();
 			if (body instanceof CreateCatalogSchemaMutation create) {
+				// if the catalog schema is created, we need to register it
 				this.graphQLManager.registerCatalog(create.getCatalogName());
 				this.graphQLManager.emitObservabilityEvents(create.getCatalogName());
+			} else if (body instanceof DuplicateCatalogMutation duplicate) {
+				// if the catalog schema is duplicated, we need to register the new one
+				this.graphQLManager.registerCatalog(duplicate.getNewCatalogName());
+				this.graphQLManager.emitObservabilityEvents(duplicate.getNewCatalogName());
 			} else if (body instanceof ModifyCatalogSchemaNameMutation nameChange) {
+				// if the catalog schema name is changed, we need to unregister the old one and register the new one
 				this.graphQLManager.unregisterCatalog(nameChange.getCatalogName());
 				this.graphQLManager.registerCatalog(nameChange.getNewCatalogName());
 				this.graphQLManager.emitObservabilityEvents(nameChange.getCatalogName());
 			} else if (body instanceof ModifyCatalogSchemaMutation modify) {
+				// if the catalog schema is modified, we need to refresh the catalog
 				this.graphQLManager.refreshCatalog(modify.getCatalogName());
 				this.graphQLManager.emitObservabilityEvents(modify.getCatalogName());
+			} else if (body instanceof SetCatalogMutabilityMutation setCatalogMutability) {
+				// if the catalog mutability is set, we need to refresh the catalog
+				this.graphQLManager.refreshCatalog(setCatalogMutability.getCatalogName());
+				this.graphQLManager.emitObservabilityEvents(setCatalogMutability.getCatalogName());
+			} else if (body instanceof SetCatalogStateMutation setState) {
+				// if the catalog is set to active, we need to register it, otherwise we unregister it
+				if (setState.isActive()) {
+					this.graphQLManager.registerCatalog(setState.getCatalogName());
+					this.graphQLManager.emitObservabilityEvents(setState.getCatalogName());
+				} else {
+					this.graphQLManager.unregisterCatalog(setState.getCatalogName());
+				}
 			} else if (body instanceof RemoveCatalogSchemaMutation remove) {
+				// if the catalog schema is removed, we need to unregister it
 				this.graphQLManager.unregisterCatalog(remove.getCatalogName());
 			}
 		} catch (Throwable throwable) {

@@ -31,12 +31,12 @@ import graphql.schema.PropertyDataFetcher;
 import graphql.schema.TypeResolver;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
+import io.evitadb.core.UnusableCatalog;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
-import io.evitadb.externalApi.api.system.model.CorruptedCatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.UnusableCatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
@@ -84,11 +84,11 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 	private static final PropertyDataFetcher<Map<NamingConvention, String>> CATALOG_NAME_VARIANTS_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((Catalog) it).getSchema().getNameVariants());
 	private static final PropertyDataFetcher<Boolean> CATALOG_SUPPORTS_TRANSACTION_DATA_FETCHER = PropertyDataFetcher.fetching(CatalogContract::supportsTransaction);
-	private static final PropertyDataFetcher<Boolean> CATALOG_CORRUPTED_DATA_FETCHER = PropertyDataFetcher.fetching(it -> false);
+	private static final PropertyDataFetcher<Boolean> CATALOG_UNUSABLE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> false);
 
-	private static final PropertyDataFetcher<String> CORRUPTED_CATALOG_STORAGE_PATH_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((CorruptedCatalog) it).getCatalogStoragePath().toString());
-	private static final PropertyDataFetcher<String> CORRUPTED_CATALOG_CAUSE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((CorruptedCatalog) it).getCause().toString());
-	private static final PropertyDataFetcher<Boolean> CORRUPTED_CATALOG_CORRUPTED_DATA_FETCHER = PropertyDataFetcher.fetching(it -> true);
+	private static final PropertyDataFetcher<String> UNUSABLE_CATALOG_STORAGE_PATH_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((UnusableCatalog) it).getCatalogStoragePath().toString());
+	private static final PropertyDataFetcher<String> UNUSABLE_CATALOG_CAUSE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((UnusableCatalog) it).getRepresentativeException().toString());
+	private static final PropertyDataFetcher<Boolean> UNUSABLE_CATALOG_UNUSABLE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> true);
 
 	@Nonnull
 	private final Evita evita;
@@ -105,9 +105,9 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		final GraphQLObjectType catalogObject = buildCatalogObject();
 		this.buildingContext.registerType(catalogObject);
-		final GraphQLObjectType corruptedCatalogObject = buildCorruptedCatalogObject();
-		this.buildingContext.registerType(corruptedCatalogObject);
-		this.buildingContext.registerType(buildCatalogUnion(catalogObject, corruptedCatalogObject));
+		final GraphQLObjectType unusableCatalogObject = buildUnusableCatalogObject();
+		this.buildingContext.registerType(unusableCatalogObject);
+		this.buildingContext.registerType(buildCatalogUnion(catalogObject, unusableCatalogObject));
 
 		this.buildingContext.registerType(buildChangeSystemCaptureObject());
 
@@ -174,46 +174,46 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		);
 		this.buildingContext.registerDataFetcher(
 			CatalogDescriptor.THIS,
-			CatalogDescriptor.CORRUPTED,
-			CATALOG_CORRUPTED_DATA_FETCHER
+			CatalogDescriptor.UNUSABLE,
+			CATALOG_UNUSABLE_DATA_FETCHER
 		);
 
 		return CatalogDescriptor.THIS.to(this.objectBuilderTransformer).build();
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildCorruptedCatalogObject() {
+	private GraphQLObjectType buildUnusableCatalogObject() {
 		this.buildingContext.registerDataFetcher(
-			CorruptedCatalogDescriptor.THIS,
-			CorruptedCatalogDescriptor.CATALOG_STORAGE_PATH,
-			CORRUPTED_CATALOG_STORAGE_PATH_DATA_FETCHER
+			UnusableCatalogDescriptor.THIS,
+			UnusableCatalogDescriptor.CATALOG_STORAGE_PATH,
+			UNUSABLE_CATALOG_STORAGE_PATH_DATA_FETCHER
 		);
 		this.buildingContext.registerDataFetcher(
-			CorruptedCatalogDescriptor.THIS,
-			CorruptedCatalogDescriptor.CAUSE,
-			CORRUPTED_CATALOG_CAUSE_DATA_FETCHER
+			UnusableCatalogDescriptor.THIS,
+			UnusableCatalogDescriptor.CAUSE,
+			UNUSABLE_CATALOG_CAUSE_DATA_FETCHER
 		);
 		this.buildingContext.registerDataFetcher(
-			CorruptedCatalogDescriptor.THIS,
-			CorruptedCatalogDescriptor.CORRUPTED,
-			CORRUPTED_CATALOG_CORRUPTED_DATA_FETCHER
+			UnusableCatalogDescriptor.THIS,
+			UnusableCatalogDescriptor.UNUSABLE,
+			UNUSABLE_CATALOG_UNUSABLE_DATA_FETCHER
 		);
 
-		return CorruptedCatalogDescriptor.THIS.to(this.objectBuilderTransformer).build();
+		return UnusableCatalogDescriptor.THIS.to(this.objectBuilderTransformer).build();
 	}
 
 	@Nonnull
 	private GraphQLUnionType buildCatalogUnion(@Nonnull GraphQLObjectType catalogObject,
-	                                           @Nonnull GraphQLObjectType corruptedCatalogObject) {
+	                                           @Nonnull GraphQLObjectType unusableCatalogObject) {
 		final GraphQLUnionType catalogUnion = CatalogUnionDescriptor.THIS
 			.to(this.unionBuilderTransformer)
 			.possibleTypes(catalogObject)
-			.possibleType(corruptedCatalogObject)
+			.possibleType(unusableCatalogObject)
 			.build();
 
 		final TypeResolver catalogUnionResolver = env -> {
-			if (env.getObject() instanceof CorruptedCatalog) {
-				return corruptedCatalogObject;
+			if (env.getObject() instanceof UnusableCatalog) {
+				return unusableCatalogObject;
 			} else {
 				return catalogObject;
 			}

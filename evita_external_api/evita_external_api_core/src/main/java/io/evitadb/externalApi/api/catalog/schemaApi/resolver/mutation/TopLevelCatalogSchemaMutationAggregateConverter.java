@@ -29,9 +29,13 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.TopLevelCatalogSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.CreateCatalogSchemaMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.DuplicateCatalogMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.MakeCatalogAliveMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.ModifyCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.ModifyCatalogSchemaNameMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.RemoveCatalogSchemaMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.SetCatalogMutabilityMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.SetCatalogStateMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.TopLevelCatalogSchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -39,10 +43,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.util.Map;
 
-import static io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.TopLevelCatalogSchemaMutationAggregateDescriptor.CREATE_CATALOG_SCHEMA_MUTATION;
-import static io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.TopLevelCatalogSchemaMutationAggregateDescriptor.MODIFY_CATALOG_SCHEMA_MUTATION;
-import static io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.TopLevelCatalogSchemaMutationAggregateDescriptor.MODIFY_CATALOG_SCHEMA_NAME_MUTATION;
-import static io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.TopLevelCatalogSchemaMutationAggregateDescriptor.REMOVE_CATALOG_SCHEMA_MUTATION;
+import static io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.TopLevelCatalogSchemaMutationAggregateDescriptor.*;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -64,6 +65,10 @@ public class TopLevelCatalogSchemaMutationAggregateConverter extends MutationAgg
 		super(objectParser, exceptionFactory);
 
 		registerConverter(CREATE_CATALOG_SCHEMA_MUTATION.name(), new CreateCatalogSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MAKE_CATALOG_ALIVE_MUTATION.name(), new MakeCatalogAliveMutationConverter(objectParser, exceptionFactory));
+		registerConverter(DUPLICATE_CATALOG_MUTATION.name(), new DuplicateCatalogMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_CATALOG_MUTABILITY_MUTATION.name(), new SetCatalogMutabilityMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_CATALOG_STATE_MUTATION.name(), new SetCatalogStateMutationConverter(objectParser, exceptionFactory));
 		registerConverter(MODIFY_CATALOG_SCHEMA_MUTATION.name(), new ModifyCatalogSchemaMutationConverter(objectParser, exceptionFactory));
 		registerConverter(MODIFY_CATALOG_SCHEMA_NAME_MUTATION.name(), new ModifyCatalogSchemaNameMutationConverter(objectParser, exceptionFactory));
 		registerConverter(REMOVE_CATALOG_SCHEMA_MUTATION.name(), new RemoveCatalogSchemaMutationConverter(objectParser, exceptionFactory));

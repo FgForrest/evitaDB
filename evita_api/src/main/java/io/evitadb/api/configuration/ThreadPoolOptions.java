@@ -57,8 +57,8 @@ public record ThreadPoolOptions(
 	public static final int DEFAULT_TRANSACTION_MAX_THREAD_COUNT = Runtime.getRuntime().availableProcessors() << 1;
 	public static final int DEFAULT_TRANSACTION_THREAD_PRIORITY = 5;
 	public static final int DEFAULT_TRANSACTION_QUEUE_SIZE = 100;
-	public static final int DEFAULT_MIN_SERVICE_THREAD_COUNT = Math.min((int) (0.1 * DEFAULT_REQUEST_MAX_THREAD_COUNT), 1);
-	public static final int DEFAULT_MAX_SERVICE_THREAD_COUNT = Math.min((int) (0.2 * DEFAULT_REQUEST_MAX_THREAD_COUNT), 1);
+	public static final int DEFAULT_MIN_SERVICE_THREAD_COUNT = Math.min(Runtime.getRuntime().availableProcessors(), 1);
+	public static final int DEFAULT_MAX_SERVICE_THREAD_COUNT = Math.min(Runtime.getRuntime().availableProcessors() << 1, 1);
 	public static final int DEFAULT_SERVICE_THREAD_PRIORITY = 1;
 	public static final int DEFAULT_SERVICE_QUEUE_SIZE = 20;
 

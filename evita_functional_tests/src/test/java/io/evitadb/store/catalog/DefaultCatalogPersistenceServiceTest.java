@@ -74,6 +74,7 @@ import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.CatalogPersistenceService;
+import io.evitadb.store.spi.EntityCollectionPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
@@ -104,6 +105,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -768,12 +770,19 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private EntityCollection constructEntityCollectionWithSomeEntities(@Nonnull CatalogPersistenceService ioService, @Nonnull SealedCatalogSchema catalogSchema, @Nonnull SealedEntitySchema entitySchema, int entityTypePrimaryKey) {
 		final Catalog mockCatalog = getMockCatalog(catalogSchema, entitySchema);
 		final CatalogSchemaContract catalogSchemaContract = Mockito.mock(CatalogSchemaContract.class);
+		final String entityType = entitySchema.getName();
+		final EntityCollectionPersistenceService entityCollectionPersistenceService = ioService.getOrCreateEntityCollectionPersistenceService(
+			0L, entityType, entityTypePrimaryKey
+		);
 		final EntityCollection entityCollection = new EntityCollection(
 			catalogSchema.getName(),
 			0L,
-			CatalogState.WARMING_UP, entityTypePrimaryKey,
-			entitySchema.getName(),
+			CatalogState.WARMING_UP,
+			entityTypePrimaryKey,
+			entityType,
+			new HashMap<>(64),
 			ioService,
+			entityCollectionPersistenceService,
 			NoCacheSupervisor.INSTANCE,
 			this.sequenceService,
 			createTrafficRecordingEngine(catalogSchema)
@@ -816,12 +825,21 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		);
 
 		final SealedEntitySchema schema = entityCollection.getSchema();
+		final String entityType = schema.getName();
+		final int entityTypePrimaryKey = entityCollection.getEntityTypePrimaryKey();
+		final EntityCollectionPersistenceService entityCollectionPersistenceService = ioService.getOrCreateEntityCollectionPersistenceService(
+			0L, entityType, entityTypePrimaryKey
+		);
+
 		final EntityCollection collection = new EntityCollection(
 			catalogSchema.getName(),
 			0L,
-			CatalogState.WARMING_UP, entityCollection.getEntityTypePrimaryKey(),
-			schema.getName(),
+			CatalogState.WARMING_UP,
+			entityTypePrimaryKey,
+			entityType,
+			new HashMap<>(64),
 			ioService,
+			entityCollectionPersistenceService,
 			NoCacheSupervisor.INSTANCE,
 			this.sequenceService,
 			createTrafficRecordingEngine(catalogSchema)

@@ -58,10 +58,13 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.cache.CacheSupervisor;
@@ -71,6 +74,7 @@ import io.evitadb.core.cdc.EngineStatisticsPublisher;
 import io.evitadb.core.cdc.SystemChangeObserver;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.CatalogInactiveException;
+import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.executor.ClientRunnableTask;
 import io.evitadb.core.executor.EmptySettings;
@@ -232,6 +236,15 @@ public final class Evita implements EvitaContract {
 	 */
 	@Getter private boolean active;
 	/**
+	 * List of futures that are used to load all catalogs in parallel during startup and when all are completed
+	 * the list is cleared.
+	 */
+	private final AtomicReference<ProgressingFuture<Catalog>[]> initialLoadCatalogFutures;
+	/**
+	 * Flag that is set to TRUE when Evita fully loads all catalogs, that should be active after startup.
+	 */
+	@Getter private final CompletableFuture<Void> fullyInitialized;
+	/**
 	 * Flag that is initially set to {@link ServerOptions#readOnly()} from {@link EvitaConfiguration}.
 	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
 	 */
@@ -259,6 +272,10 @@ public final class Evita implements EvitaContract {
 	}
 
 	public Evita(@Nonnull EvitaConfiguration configuration) {
+		this(configuration, true);
+	}
+
+	public Evita(@Nonnull EvitaConfiguration configuration, boolean scheduleCatalogLoading) {
 		this.configuration = configuration;
 
 		this.serviceExecutor = configuration.server().directExecutor() ?
@@ -315,23 +332,42 @@ public final class Evita implements EvitaContract {
 
 		// register stubs for all inactive catalogs
 		Arrays.stream(engineState.inactiveCatalogs())
-		      .map(it -> new InactiveCatalog(it, this.configuration.storage().storageDirectory().resolve(it)))
+		      .map(
+				  it -> new UnusableCatalog(
+				    it, CatalogState.INACTIVE,
+				    this.configuration.storage().storageDirectory().resolve(it),
+				    CatalogInactiveException::new
+				  )
+		      )
 		      .forEach(it -> this.catalogs.put(it.getName(), it));
-		// spawn parallel tasks to load all active catalogs
-		try {
-			CompletableFuture.allOf(
-				Arrays.stream(engineState.activeCatalogs())
-				      .map(this::createLoadCatalogTask)
-				      .map(this.serviceExecutor::submit)
-				      .toArray(CompletableFuture[]::new)
-			).get();
-			this.active = true;
-		} catch (Exception ex) {
-			log.error("EvitaDB failed to start!", ex);
-			// terminate evitaDB - it has not properly started
-			this.closeInternal();
-		}
 
+		// spawn parallel tasks to load all active catalogs, but don't wait for them to finish
+		//noinspection unchecked
+		this.initialLoadCatalogFutures = new AtomicReference<>(
+			Arrays.stream(engineState.activeCatalogs())
+			      .map(this::loadCatalogInternal)
+			      .toArray(ProgressingFuture[]::new)
+		);
+		this.fullyInitialized = CompletableFuture.allOf(
+			this.initialLoadCatalogFutures.get()
+		).whenComplete(
+			(__, throwable) -> {
+				if (throwable != null) {
+					log.error(
+						"Errors encountered during start - {} catalog(s) could not be loaded!",
+						this.getCatalogs()
+						    .stream()
+						    .map(CatalogContract::getCatalogState)
+						    .filter(CatalogState.CORRUPTED::equals)
+						    .count()
+					);
+				}
+				// clear the initial load catalog futures, we don't need them anymore
+				this.initialLoadCatalogFutures.set(null);
+			}
+		);
+
+		this.active = true;
 		this.readOnly = this.configuration.server().readOnly();
 
 		// register the system observer that will capture changes in the system and emit observability events
@@ -343,6 +379,42 @@ public final class Evita implements EvitaContract {
 				this::emitCatalogStatistics
 			)
 		);
+
+		if (scheduleCatalogLoading) {
+			scheduleInitialCatalogLoading();
+		}
+	}
+
+	/**
+	 * Schedules the initial loading of catalogs by executing all future tasks
+	 * in the `initialLoadCatalogFutures` collection using the provided service executor.
+	 * This method ensures that the catalog loading tasks are executed concurrently
+	 * or sequentially based on the configuration of the service executor.
+	 *
+	 * The tasks in `initialLoadCatalogFutures` are instances of `ProgressingFuture`
+	 * which encapsulate asynchronous operations for loading catalogs.
+	 */
+	public void scheduleInitialCatalogLoading() {
+		final ProgressingFuture<Catalog>[] progressingFutures = this.initialLoadCatalogFutures.get();
+		if (progressingFutures != null) {
+			for (ProgressingFuture<Catalog> loadCatalogFuture : progressingFutures) {
+				loadCatalogFuture.execute(this.serviceExecutor);
+			}
+		}
+	}
+
+	/**
+	 * Retrieves an array of ProgressingFuture objects representing the initial catalog load futures.
+	 * If no initial catalog load futures exist, returns an empty array.
+	 *
+	 * @return an array of ProgressingFuture objects for the initial catalog load,
+	 *         or an empty array if none are present.
+	 */
+	@Nonnull
+	public ProgressingFuture<Catalog>[] getInitialLoadCatalogFutures() {
+		//noinspection unchecked
+		return ofNullable(this.initialLoadCatalogFutures.get())
+			.orElse((ProgressingFuture<Catalog>[]) ProgressingFuture.EMPTY_ARRAY);
 	}
 
 	/**
@@ -456,6 +528,15 @@ public final class Evita implements EvitaContract {
 		}
 	}
 
+	/**
+	 * Checks whether the current object has been fully initialized.
+	 *
+	 * @return true if the initialization process is complete, false otherwise
+	 */
+	public boolean isFullyInitialized() {
+		return this.fullyInitialized.isDone();
+	}
+
 	@Override
 	@Nonnull
 	public Optional<EvitaSessionContract> getSessionById(@Nonnull UUID sessionId) {
@@ -478,15 +559,7 @@ public final class Evita implements EvitaContract {
 	@Override
 	public Optional<CatalogState> getCatalogState(@Nonnull String catalogName) {
 		return ofNullable(this.catalogs.get(catalogName))
-			.map(it -> {
-				if (it instanceof InactiveCatalog) {
-					return CatalogState.INACTIVE;
-				} else if (it instanceof CorruptedCatalog) {
-					return CatalogState.CORRUPTED;
-				} else {
-					return it.getCatalogState();
-				}
-			});
+			.map(CatalogContract::getCatalogState);
 	}
 
 	@Override
@@ -624,6 +697,15 @@ public final class Evita implements EvitaContract {
 						onCompletion,
 						onFailure
 					);
+				} else if (engineMutation instanceof SetCatalogStateMutation setCatalogStateMutation) {
+					/* TODO JNO - IMPLEMENT ME */
+					result = null;
+				} else if (engineMutation instanceof SetCatalogMutabilityMutation setCatalogMutabilityMutation) {
+					/* TODO JNO - IMPLEMENT ME */
+					result = null;
+				} else if (engineMutation instanceof DuplicateCatalogMutation duplicateCatalogMutation) {
+					/* TODO JNO - IMPLEMENT ME */
+					result = null;
 				} else {
 					throw new EvitaInvalidUsageException(
 						"Unknown engine mutation: `" + engineMutation.getClass() + "`!");
@@ -874,33 +956,69 @@ public final class Evita implements EvitaContract {
 	 * still be added to the list of catalogs.
 	 *
 	 * @param catalogName name of the catalog
+	 * @return progress wrapped into a server task that can be used to monitor the loading process
 	 */
 	@Nonnull
 	ServerTask<EmptySettings, Void> createLoadCatalogTask(@Nonnull String catalogName) {
+		final ProgressingFuture<Catalog> progressingFuture = loadCatalogInternal(catalogName);
 		return new ClientRunnableTask<>(
 			catalogName,
 			"LoadCatalogTask",
 			"Loading catalog " + catalogName + " from disk...",
 			EmptySettings.INSTANCE,
 			() -> {
-				final long start = System.nanoTime();
-				final Catalog theCatalog = new Catalog(
+				progressingFuture.execute(this.transactionExecutor);
+				// wait for the catalog to be loaded
+				progressingFuture.join();
+			},
+			exception -> {
+				log.error("Catalog {} is corrupted!", catalogName, exception);
+				this.catalogs.put(
 					catalogName,
-					this.cacheSupervisor,
-					this.configuration,
-					this.reflectionLookup,
-					this.serviceExecutor,
-					this.management.exportFileService(),
-					this.requestExecutor,
-					this.transactionExecutor,
-					this::replaceCatalogReference,
-					this.tracingContext
+					new UnusableCatalog(
+						catalogName,
+						CatalogState.CORRUPTED,
+						this.configuration.storage().storageDirectory().resolve(catalogName),
+						(cn, path) -> new CatalogCorruptedException(cn, path, exception)
+					)
 				);
-				log.info(
-					"Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
-				// this will be one day used in more clever way, when entire catalog loading will be split into
-				// multiple smaller tasks and done asynchronously after the startup (along with catalog loading / unloading feature)
-				theCatalog.processWriteAheadLog(
+				this.emitEvitaStatistics();
+			}
+		);
+	}
+
+	/**
+	 * Loads catalog from the designated directory. If the catalog is corrupted, it will be marked as such, but it'll
+	 * still be added to the list of catalogs.
+	 *
+	 * @param catalogName name of the catalog
+	 */
+	@Nonnull
+	ProgressingFuture<Catalog> loadCatalogInternal(@Nonnull String catalogName) {
+		this.catalogs.put(
+			catalogName,
+			new UnusableCatalog(
+				catalogName,
+				CatalogState.BEING_ACTIVATED,
+				this.configuration.storage().storageDirectory().resolve(catalogName),
+				(cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_ACTIVATED)
+			)
+		);
+
+		final long start = System.nanoTime();
+		return Catalog.loadCatalog(
+			catalogName,
+			this.cacheSupervisor,
+			this.configuration,
+			this.reflectionLookup,
+			this.serviceExecutor,
+			this.management.exportFileService(),
+			this.requestExecutor,
+			this.transactionExecutor,
+			this::replaceCatalogReference,
+			(cn, catalog) -> {
+				log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
+				catalog.processWriteAheadLog(
 					updatedCatalog -> {
 						this.catalogs.put(catalogName, updatedCatalog);
 						if (updatedCatalog instanceof Catalog theUpdatedCatalog) {
@@ -910,18 +1028,20 @@ public final class Evita implements EvitaContract {
 				);
 				this.emitCatalogStatistics(catalogName);
 			},
-			exception -> {
-				log.error("Catalog {} is corrupted!", catalogName, exception);
+			(cn, exception) -> {
+				log.error("Catalog {} is corrupted!", cn, exception);
 				this.catalogs.put(
-					catalogName,
-					new CorruptedCatalog(
-						catalogName,
-						this.configuration.storage().storageDirectory().resolve(catalogName),
-						exception
+					cn,
+					new UnusableCatalog(
+						cn,
+						CatalogState.CORRUPTED,
+						this.configuration.storage().storageDirectory().resolve(cn),
+						(tcn, path) -> new CatalogCorruptedException(tcn, path, exception)
 					)
 				);
 				this.emitEvitaStatistics();
-			}
+			},
+			this.tracingContext
 		);
 	}
 
@@ -967,9 +1087,7 @@ public final class Evita implements EvitaContract {
 				progressObserver,
 				new ProgressingFuture<>(
 					1,
-					Collections.singletonList(
-						(Supplier<ProgressingFuture<Void>>) theCatalog::flush
-					),
+					Collections.singletonList(theCatalog.flush()),
 					(theFuture, __) -> {
 						CommitVersions commitVersions = theCatalog.goLive();
 						theFuture.updateProgress(1);
@@ -983,10 +1101,8 @@ public final class Evita implements EvitaContract {
 				),
 				this.transactionExecutor
 			);
-		} else if (catalog instanceof InactiveCatalog inactiveCatalog) {
-			throw new CatalogInactiveException(inactiveCatalog);
-		} else if (catalog instanceof CorruptedCatalog corruptedCatalog) {
-			throw new CatalogCorruptedException(corruptedCatalog);
+		} else if (catalog instanceof UnusableCatalog unusableCatalog) {
+			throw unusableCatalog.getRepresentativeException();
 		} else if (catalog == null) {
 			throw new CatalogNotFoundException(catalogName);
 		} else {
@@ -1097,7 +1213,7 @@ public final class Evita implements EvitaContract {
 							.stream()
 							.flatMap(it -> {
 								final Stream<Entry<NamingConvention, String>> nameStream;
-								if (it instanceof CorruptedCatalog) {
+								if (it instanceof UnusableCatalog) {
 									nameStream = NamingConvention.generate(it.getName())
 									                             .entrySet()
 									                             .stream();
@@ -1247,7 +1363,9 @@ public final class Evita implements EvitaContract {
 			}
 			// in case of exception return the original catalog to be replaced back
 			if (catalogToBeReplaced.isTerminated()) {
-				this.serviceExecutor.submit(createLoadCatalogTask(catalogNameToBeReplaced)).join();
+				final ProgressingFuture<Catalog> future = loadCatalogInternal(catalogNameToBeReplaced);
+				future.execute(this.transactionExecutor);
+				future.join();
 			} else {
 				this.catalogs.put(catalogNameToBeReplaced, catalogToBeReplaced);
 			}
@@ -1270,16 +1388,15 @@ public final class Evita implements EvitaContract {
 				"Result of modify catalog schema mutation must not be null."
 			);
 
-			return new ProgressRecord<>(
+			return new ProgressRecord<CommitVersions>(
 				catalogToBeReplaced == catalogToBeReplacedWith ?
 					"Renaming catalog `" + catalogNameToBeReplaced + "` to `" + catalogNameToBeReplacedWith + "`" :
 					"Replacing catalog `" + catalogNameToBeReplaced + "` with `" + catalogNameToBeReplacedWith + "`",
 				progressObserver,
-				new ProgressingFuture<CommitVersions>(
+				new ProgressingFuture<>(
 					1,
 					Collections.singleton(
-						(Supplier<ProgressingFuture<CatalogContract>>)
-							() -> catalogToBeReplacedWith
+						catalogToBeReplacedWith
 							.replace(
 								updatedSchemaWrapper.updatedCatalogSchema(),
 								catalogToBeReplaced
@@ -1308,7 +1425,13 @@ public final class Evita implements EvitaContract {
 							replacedCatalog.getSchema().version()
 						);
 					},
-					ex -> undoOperations.run()
+					ex -> {
+						log.error(
+							"Error while replacing catalog `{}` with `{}`!",
+							catalogNameToBeReplaced, catalogNameToBeReplacedWith, ex
+						);
+						undoOperations.run();
+					}
 				),
 				this.transactionExecutor
 			);
@@ -1462,8 +1585,8 @@ public final class Evita implements EvitaContract {
 			__ -> {
 				// we need first to verify whether the catalog exists and is not corrupted
 				final CatalogContract catalogContract = getCatalogInstanceOrThrowException(sessionTraits.catalogName());
-				if (catalogContract instanceof CorruptedCatalog corruptedCatalog) {
-					throw new CatalogCorruptedException(corruptedCatalog);
+				if (catalogContract instanceof UnusableCatalog unusableCatalog) {
+					throw unusableCatalog.getRepresentativeException();
 				}
 				return createSessionNewRegistry(sessionTraits);
 			}

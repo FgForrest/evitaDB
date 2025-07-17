@@ -55,6 +55,7 @@ import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendi
 import io.evitadb.core.transaction.stage.mutation.ServerEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.function.Functions;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.utils.Assert;
@@ -78,6 +79,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
@@ -308,17 +310,16 @@ public class TransactionManager {
 	 * @return the catalog instance after processing the write-ahead log
 	 */
 	@Nonnull
-	public Catalog processWriteAheadLog(
+	public Catalog processEntireWriteAheadLog(
 		long nextCatalogVersion,
-		long timeoutMs,
-		boolean alive
+		@Nonnull LongConsumer progressCallback
 	) {
-		/* TODO JNO - write how many transactions are not processed, and log processed progress regularly */
 		return processTransactions(
 			nextCatalogVersion,
-			timeoutMs,
-			alive,
-			true // we should obtain lock here easily, since this is called only on catalog instantiation
+			Long.MAX_VALUE,
+			false,
+			true, // we should obtain lock here easily, since this is called only on catalog instantiation
+			progressCallback
 		)
 			.map(ProcessResult::catalog)
 			.orElseGet(this.lastFinalizedCatalog::get);
@@ -622,10 +623,17 @@ public class TransactionManager {
 	 * @param timeoutMs          The maximum time in milliseconds to process transactions.
 	 * @param alive              Indicates whether to process live transactions or not.
 	 * @param waitForLock        Indicates whether to wait for the trunk incorporation lock.
+	 * @param progressCallback   A callback to report progress during transaction processing.
 	 * @return The processed transaction.
 	 */
 	@Nonnull
-	public Optional<ProcessResult> processTransactions(long nextCatalogVersion, long timeoutMs, boolean alive, boolean waitForLock) {
+	public Optional<ProcessResult> processTransactions(
+		long nextCatalogVersion,
+		long timeoutMs,
+		boolean alive,
+		boolean waitForLock,
+		@Nonnull LongConsumer progressCallback
+	) {
 		try {
 			final boolean locked;
 			if (waitForLock) {
@@ -704,6 +712,7 @@ public class TransactionManager {
 							processed.add(transactionMutation.getCommitTimestamp());
 							nextExpectedCatalogVersion++;
 
+							progressCallback.accept(lastTransactionMutation.getVersion());
 							log.debug("Processed transaction: {}", lastTransactionMutation);
 						} while (
 							// there is something to process
@@ -861,7 +870,8 @@ public class TransactionManager {
 				this.lastWrittenCatalogVersion.get(),
 				this.configuration.transaction().flushFrequencyInMillis(),
 				true,
-				false // we should not wait for the lock here - if its already running it will process the transactions
+				false, // we should not wait for the lock here - if its already running it will process the transactions
+				Functions.noOpLongConsumer()
 			);
 		} catch (TransactionTimedOutException ex) {
 			// reschedule again
@@ -971,7 +981,7 @@ public class TransactionManager {
 	}
 
 	/**
-	 * Result of the {@link #processTransactions(long, long, boolean, boolean)} method.
+	 * Result of the {@link #processTransactions(long, long, boolean, boolean, LongConsumer)} method.
 	 *
 	 * @param lastTransactionId                  the ID of the last processed transaction
 	 * @param processedAtomicMutations           the number of processed atomic mutations

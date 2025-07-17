@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -98,11 +98,12 @@ public interface CatalogDescriptor {
             """)
         .type(nonNull(String[].class))
         .build();
-	PropertyDescriptor CORRUPTED = PropertyDescriptor.builder()
-		.name("corrupted")
+	PropertyDescriptor UNUSABLE = PropertyDescriptor
+		.builder()
+		.name("unusable")
 		.description("""
-			Whether this catalog is corrupted or can be freely used.
-			""")
+             Whether this catalog is unusable or can be freely used.
+             """)
 		.type(nonNull(Boolean.class))
 		.build();
 
@@ -117,6 +118,8 @@ public interface CatalogDescriptor {
             connected with single client. In the e-commerce world catalog means "single e-shop" although it may not be the truth
             in every case. Catalog manages set of entity collection uniquely identified by their name.
             """)
-        .staticFields(List.of(CATALOG_ID, NAME, NAME_VARIANTS, VERSION, CATALOG_STATE, SUPPORTS_TRANSACTION, ENTITY_TYPES, CORRUPTED))
+        .staticFields(List.of(CATALOG_ID, NAME, NAME_VARIANTS, VERSION, CATALOG_STATE, SUPPORTS_TRANSACTION, ENTITY_TYPES,
+                              UNUSABLE
+        ))
         .build();
 }

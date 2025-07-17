@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface CorruptedCatalogDescriptor {
+public interface UnusableCatalogDescriptor {
 
 	PropertyDescriptor CATALOG_ID = PropertyDescriptor.builder()
 		.name("catalogId")
@@ -69,20 +69,22 @@ public interface CorruptedCatalogDescriptor {
             """)
         .type(nonNull(String.class))
         .build();
-    PropertyDescriptor CORRUPTED = PropertyDescriptor.builder()
-        .name("corrupted")
+
+	/* TODO LHO - zrevidovat */
+    PropertyDescriptor UNUSABLE = PropertyDescriptor.builder()
+        .name("unusable")
         .description("""
-			Whether this catalog is corrupted or can be freely used.
+			Whether this catalog is in unusable state or can be freely used.
 			""")
         .type(nonNull(Boolean.class))
         .build();
 
     ObjectDescriptor THIS = ObjectDescriptor.builder()
-        .name("CorruptedCatalog")
+        .name("UnusableCatalog")
         .description("""
             Catalog instance that cannot be loaded into a memory due an error.
             The original exception and catalog path are accessible via. `catalogStoragePath` and `cause` properties.
             """)
-        .staticFields(List.of(CATALOG_ID, NAME, CATALOG_STORAGE_PATH, CAUSE, CORRUPTED))
+        .staticFields(List.of(CATALOG_ID, NAME, CATALOG_STORAGE_PATH, CAUSE, UNUSABLE))
         .build();
 }

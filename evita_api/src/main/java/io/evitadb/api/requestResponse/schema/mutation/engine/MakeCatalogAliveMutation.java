@@ -28,11 +28,13 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogMutation;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
@@ -48,8 +50,8 @@ import java.io.Serial;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class MakeCatalogAliveMutation implements TopLevelCatalogMutation<CommitVersions> {
-	@Serial private static final long serialVersionUID = 1L;
+public class MakeCatalogAliveMutation implements TopLevelCatalogSchemaMutation<CommitVersions> {
+	@Serial private static final long serialVersionUID = 5328029673529014010L;
 	@Nonnull @Getter private final String catalogName;
 
 	/**
@@ -59,6 +61,14 @@ public class MakeCatalogAliveMutation implements TopLevelCatalogMutation<CommitV
 	 */
 	public MakeCatalogAliveMutation(@Nonnull String catalogName) {
 		this.catalogName = catalogName;
+	}
+
+	@Nullable
+	@Override
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
+		// This is an engine-level operation that doesn't modify the schema directly
+		// The actual catalog state transition is handled at the engine level
+		return catalogSchema == null ? null : new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 	}
 
 	@Override

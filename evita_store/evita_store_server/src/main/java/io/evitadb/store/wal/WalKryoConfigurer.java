@@ -69,10 +69,13 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.*;
 import io.evitadb.api.requestResponse.schema.mutation.reference.*;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
@@ -313,8 +316,11 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(Scope.class, new EnumNameSerializer<>(), index++);
 
 		kryo.register(MakeCatalogAliveMutation.class, new SerialVersionBasedSerializer<>(new MakeCatalogAliveMutationSerializer(), MakeCatalogAliveMutation.class), index++);
+		kryo.register(SetCatalogStateMutation.class, new SerialVersionBasedSerializer<>(new SetCatalogStateMutationSerializer(), SetCatalogStateMutation.class), index++);
+		kryo.register(SetCatalogMutabilityMutation.class, new SerialVersionBasedSerializer<>(new SetCatalogMutabilityMutationSerializer(), SetCatalogMutabilityMutation.class), index++);
+		kryo.register(DuplicateCatalogMutation.class, new SerialVersionBasedSerializer<>(new DuplicateCatalogMutationSerializer(), DuplicateCatalogMutation.class), index++);
 
-		Assert.isPremiseValid(index < 500, "Index count overflow.");
+		Assert.isPremiseValid(index < 501, "Index count overflow.");
 	}
 
 }

@@ -27,10 +27,10 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.CorruptedCatalog;
+import io.evitadb.core.UnusableCatalog;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
-import io.evitadb.externalApi.api.system.model.CorruptedCatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.UnusableCatalogDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
@@ -57,8 +57,8 @@ public class CatalogJsonSerializer {
 
 	@Nonnull
 	public ObjectNode serialize(@Nonnull CatalogContract c) {
-		if (c instanceof CorruptedCatalog corruptedCatalog) {
-			return serialize(corruptedCatalog);
+		if (c instanceof UnusableCatalog unusableCatalog) {
+			return serialize(unusableCatalog);
 		} else if (c instanceof Catalog catalog) {
 			return serialize(catalog);
 		} else {
@@ -83,7 +83,7 @@ public class CatalogJsonSerializer {
 		rootNode.put(CatalogDescriptor.VERSION.name(), String.valueOf(catalog.getVersion()));
 		rootNode.put(CatalogDescriptor.CATALOG_STATE.name(), catalog.getCatalogState().name());
 		rootNode.put(CatalogDescriptor.SUPPORTS_TRANSACTION.name(), catalog.supportsTransaction());
-		rootNode.put(CatalogDescriptor.CORRUPTED.name(), false);
+		rootNode.put(CatalogDescriptor.UNUSABLE.name(), false);
 
 		final ArrayNode entityTypes = this.objectJsonSerializer.arrayNode();
 		catalog.getEntityTypes().forEach(entityTypes::add);
@@ -93,13 +93,14 @@ public class CatalogJsonSerializer {
 	}
 
 	@Nonnull
-	private ObjectNode serialize(@Nonnull CorruptedCatalog corruptedCatalog) {
+	private ObjectNode serialize(@Nonnull UnusableCatalog unusableCatalog) {
 		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
-		rootNode.put(CorruptedCatalogDescriptor.CATALOG_ID.name(), corruptedCatalog.getCatalogId().toString());
-		rootNode.put(CorruptedCatalogDescriptor.NAME.name(), corruptedCatalog.getName());
-		rootNode.put(CorruptedCatalogDescriptor.CATALOG_STORAGE_PATH.name(), corruptedCatalog.getCatalogStoragePath().toString());
-		rootNode.put(CorruptedCatalogDescriptor.CAUSE.name(), corruptedCatalog.getCause().toString());
-		rootNode.put(CorruptedCatalogDescriptor.CORRUPTED.name(), true);
+		rootNode.put(UnusableCatalogDescriptor.CATALOG_ID.name(), unusableCatalog.getCatalogId().toString());
+		rootNode.put(UnusableCatalogDescriptor.NAME.name(), unusableCatalog.getName());
+		rootNode.put(UnusableCatalogDescriptor.CATALOG_STORAGE_PATH.name(), unusableCatalog.getCatalogStoragePath().toString());
+		rootNode.put(UnusableCatalogDescriptor.CAUSE.name(), unusableCatalog.getRepresentativeException().toString());
+		rootNode.put(CatalogDescriptor.CATALOG_STATE.name(), unusableCatalog.getCatalogState().toString());
+		rootNode.put(UnusableCatalogDescriptor.UNUSABLE.name(), true);
 
 		return rootNode;
 	}

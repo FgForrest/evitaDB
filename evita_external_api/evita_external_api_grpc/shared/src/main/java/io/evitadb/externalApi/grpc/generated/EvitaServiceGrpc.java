@@ -505,6 +505,37 @@ public final class EvitaServiceGrpc {
     return getRegisterSystemChangeCaptureMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcGetProgressRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse> getGetProgressMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "GetProgress",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcGetProgressRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcGetProgressRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse> getGetProgressMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcGetProgressRequest, io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse> getGetProgressMethod;
+    if ((getGetProgressMethod = EvitaServiceGrpc.getGetProgressMethod) == null) {
+      synchronized (EvitaServiceGrpc.class) {
+        if ((getGetProgressMethod = EvitaServiceGrpc.getGetProgressMethod) == null) {
+          EvitaServiceGrpc.getGetProgressMethod = getGetProgressMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcGetProgressRequest, io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetProgress"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcGetProgressRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("GetProgress"))
+              .build();
+        }
+      }
+    }
+    return getGetProgressMethod;
+  }
+
   /**
    * Creates a new async stub that supports all call types for the service
    */
@@ -684,7 +715,7 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to update the catalog with a set of mutations.
+     * Procedure used to update the catalog with a set of mutations which tracks the progress of the operation.
      * </pre>
      */
     default void applyMutationWithProgress(io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest request,
@@ -720,6 +751,16 @@ public final class EvitaServiceGrpc {
     default void registerSystemChangeCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getRegisterSystemChangeCaptureMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to initiate progress consumption for top-level engine mutations.
+     * </pre>
+     */
+    default void getProgress(io.evitadb.externalApi.grpc.generated.GrpcGetProgressRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetProgressMethod(), responseObserver);
     }
   }
 
@@ -881,7 +922,7 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to update the catalog with a set of mutations.
+     * Procedure used to update the catalog with a set of mutations which tracks the progress of the operation.
      * </pre>
      */
     public void applyMutationWithProgress(io.evitadb.externalApi.grpc.generated.GrpcApplyMutationRequest request,
@@ -921,6 +962,17 @@ public final class EvitaServiceGrpc {
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncServerStreamingCall(
           getChannel().newCall(getRegisterSystemChangeCaptureMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to initiate progress consumption for top-level engine mutations.
+     * </pre>
+     */
+    public void getProgress(io.evitadb.externalApi.grpc.generated.GrpcGetProgressRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncServerStreamingCall(
+          getChannel().newCall(getGetProgressMethod(), getCallOptions()), request, responseObserver);
     }
   }
 
@@ -1056,7 +1108,7 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to update the catalog with a set of mutations.
+     * Procedure used to update the catalog with a set of mutations which tracks the progress of the operation.
      * </pre>
      */
     @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
@@ -1096,6 +1148,18 @@ public final class EvitaServiceGrpc {
         registerSystemChangeCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest request) {
       return io.grpc.stub.ClientCalls.blockingV2ServerStreamingCall(
           getChannel(), getRegisterSystemChangeCaptureMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to initiate progress consumption for top-level engine mutations.
+     * </pre>
+     */
+    @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
+    public io.grpc.stub.BlockingClientCall<?, io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse>
+        getProgress(io.evitadb.externalApi.grpc.generated.GrpcGetProgressRequest request) {
+      return io.grpc.stub.ClientCalls.blockingV2ServerStreamingCall(
+          getChannel(), getGetProgressMethod(), getCallOptions(), request);
     }
   }
 
@@ -1231,7 +1295,7 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to update the catalog with a set of mutations.
+     * Procedure used to update the catalog with a set of mutations which tracks the progress of the operation.
      * </pre>
      */
     public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> applyMutationWithProgress(
@@ -1269,6 +1333,17 @@ public final class EvitaServiceGrpc {
         io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest request) {
       return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
           getChannel(), getRegisterSystemChangeCaptureMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to initiate progress consumption for top-level engine mutations.
+     * </pre>
+     */
+    public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse> getProgress(
+        io.evitadb.externalApi.grpc.generated.GrpcGetProgressRequest request) {
+      return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
+          getChannel(), getGetProgressMethod(), getCallOptions(), request);
     }
   }
 
@@ -1451,6 +1526,7 @@ public final class EvitaServiceGrpc {
   private static final int METHODID_RENAME_CATALOG = 12;
   private static final int METHODID_REPLACE_CATALOG = 13;
   private static final int METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE = 14;
+  private static final int METHODID_GET_PROGRESS = 15;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -1528,6 +1604,10 @@ public final class EvitaServiceGrpc {
         case METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE:
           serviceImpl.registerSystemChangeCapture((io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse>) responseObserver);
+          break;
+        case METHODID_GET_PROGRESS:
+          serviceImpl.getProgress((io.evitadb.externalApi.grpc.generated.GrpcGetProgressRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse>) responseObserver);
           break;
         default:
           throw new AssertionError();
@@ -1652,6 +1732,13 @@ public final class EvitaServiceGrpc {
               io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest,
               io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse>(
                 service, METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE)))
+        .addMethod(
+          getGetProgressMethod(),
+          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcGetProgressRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse>(
+                service, METHODID_GET_PROGRESS)))
         .build();
   }
 
@@ -1715,6 +1802,7 @@ public final class EvitaServiceGrpc {
               .addMethod(getRenameCatalogMethod())
               .addMethod(getReplaceCatalogMethod())
               .addMethod(getRegisterSystemChangeCaptureMethod())
+              .addMethod(getGetProgressMethod())
               .build();
         }
       }

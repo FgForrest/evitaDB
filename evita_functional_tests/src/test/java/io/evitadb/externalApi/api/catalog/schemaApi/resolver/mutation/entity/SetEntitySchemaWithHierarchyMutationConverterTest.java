@@ -128,7 +128,7 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithEmptyScopes() {
 		final SetEntitySchemaWithHierarchyMutation expectedMutation = new SetEntitySchemaWithHierarchyMutation(
 			true,
-			new Scope[0]
+			Scope.NO_SCOPE
 		);
 
 		final SetEntitySchemaWithHierarchyMutation convertedMutation = this.converter.convertFromInput(

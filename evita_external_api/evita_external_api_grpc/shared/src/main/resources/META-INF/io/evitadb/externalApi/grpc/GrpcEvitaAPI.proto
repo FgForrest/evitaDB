@@ -166,6 +166,23 @@ message GrpcRegisterSystemChangeCaptureResponse {
   GrpcCaptureResponseType responseType = 3;
 }
 
+// Request to get progress of the top-level engine mutations.
+message GrpcGetProgressRequest {
+  // The name of the catalog for which the progress is requested.
+  // Might be empty if the progress is not related to any catalog and is related to the whole evitaDB instance.
+  string catalogName = 1;
+}
+
+// Response to GrpcGetProgressRequest.
+message GrpcGetProgressResponse {
+  // The progress of the top-level engine mutation in percents.
+  int32 progressInPercent = 1;
+  // Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+  int64 catalogVersion = 2;
+  // Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+  int32 catalogSchemaVersion = 3;
+}
+
 // This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
 // a way to create sessions and catalogs, and to update the catalog.
 service EvitaService {
@@ -199,5 +216,7 @@ service EvitaService {
   rpc ReplaceCatalog(GrpcReplaceCatalogRequest) returns (GrpcReplaceCatalogResponse);
   // Procedure used to register a system change capture.
   rpc RegisterSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest) returns (stream GrpcRegisterSystemChangeCaptureResponse);
+  // Procedure used to initiate progress consumption for top-level engine mutations.
+  rpc GetProgress(GrpcGetProgressRequest) returns (stream GrpcGetProgressResponse);
 
 }

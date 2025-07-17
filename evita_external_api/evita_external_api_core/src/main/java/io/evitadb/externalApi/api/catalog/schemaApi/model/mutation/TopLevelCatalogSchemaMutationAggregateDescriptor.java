@@ -24,9 +24,13 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation;
 
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DuplicateCatalogMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.MakeCatalogAliveMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.SetCatalogMutabilityMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.SetCatalogStateMutationDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -43,6 +47,10 @@ import java.util.List;
 public interface TopLevelCatalogSchemaMutationAggregateDescriptor {
 
 	PropertyDescriptor CREATE_CATALOG_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(CreateCatalogSchemaMutationDescriptor.THIS);
+	PropertyDescriptor DUPLICATE_CATALOG_MUTATION = PropertyDescriptor.nullableFromObject(DuplicateCatalogMutationDescriptor.THIS);
+	PropertyDescriptor MAKE_CATALOG_ALIVE_MUTATION = PropertyDescriptor.nullableFromObject(MakeCatalogAliveMutationDescriptor.THIS);
+	PropertyDescriptor SET_CATALOG_MUTABILITY_MUTATION = PropertyDescriptor.nullableFromObject(SetCatalogMutabilityMutationDescriptor.THIS);
+	PropertyDescriptor SET_CATALOG_STATE_MUTATION = PropertyDescriptor.nullableFromObject(SetCatalogStateMutationDescriptor.THIS);
 	PropertyDescriptor MODIFY_CATALOG_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(ModifyCatalogSchemaMutationDescriptor.THIS);
 	PropertyDescriptor MODIFY_CATALOG_SCHEMA_NAME_MUTATION = PropertyDescriptor.nullableFromObject(ModifyCatalogSchemaNameMutationDescriptor.THIS);
 	PropertyDescriptor REMOVE_CATALOG_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(RemoveCatalogSchemaMutationDescriptor.THIS);
@@ -54,6 +62,10 @@ public interface TopLevelCatalogSchemaMutationAggregateDescriptor {
             """)
 		.staticFields(List.of(
 			CREATE_CATALOG_SCHEMA_MUTATION,
+			DUPLICATE_CATALOG_MUTATION,
+			MAKE_CATALOG_ALIVE_MUTATION,
+			SET_CATALOG_MUTABILITY_MUTATION,
+			SET_CATALOG_STATE_MUTATION,
 			MODIFY_CATALOG_SCHEMA_MUTATION,
 			MODIFY_CATALOG_SCHEMA_NAME_MUTATION,
 			REMOVE_CATALOG_SCHEMA_MUTATION

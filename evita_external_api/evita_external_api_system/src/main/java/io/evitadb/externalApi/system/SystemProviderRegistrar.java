@@ -203,7 +203,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 						.map(it -> it.getReadiness(evita, externalApiServer, enabledEndPoints))
 						.findFirst();
 
-					if (readiness.map(it -> it.state() == ReadinessState.READY).orElse(false)) {
+					if (evita.isFullyInitialized() && readiness.map(it -> it.state() == ReadinessState.READY).orElse(false)) {
 						builder.status(HttpStatus.OK);
 						return printApiStatus(builder, readiness.get());
 					} else if (readiness.isPresent()) {

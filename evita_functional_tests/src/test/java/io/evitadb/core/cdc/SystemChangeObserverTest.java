@@ -30,10 +30,13 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
@@ -112,6 +115,12 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 				expectedOperations.remove("remove_" + rccsm.getCatalogName());
 			} else if (mutation instanceof MakeCatalogAliveMutation glcm) {
 				expectedOperations.remove("goLive_" + glcm.getCatalogName());
+			} else if (mutation instanceof SetCatalogStateMutation scsm) {
+				expectedOperations.remove("setState_" + scsm.getCatalogName() + "_" + scsm.isActive());
+			} else if (mutation instanceof SetCatalogMutabilityMutation scmm) {
+				expectedOperations.remove("setMutability_" + scmm.getCatalogName() + "_" + scmm.isMutable());
+			} else if (mutation instanceof DuplicateCatalogMutation dcmm) {
+				expectedOperations.remove("duplicate_" + dcmm.getCatalogName() + "_" + dcmm.getNewCatalogName());
 			}
 		}
 	}

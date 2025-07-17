@@ -325,10 +325,9 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		int corruptedCatalogs = 0;
 		int inactiveCatalogs = 0;
 		for (CatalogContract catalog : catalogs) {
-			if (catalog instanceof CorruptedCatalog) {
-				corruptedCatalogs++;
-			} else if (catalog instanceof InactiveCatalog) {
-				inactiveCatalogs++;
+			switch (catalog.getCatalogState()) {
+				case CORRUPTED -> corruptedCatalogs++;
+				case INACTIVE -> inactiveCatalogs++;
 			}
 		}
 

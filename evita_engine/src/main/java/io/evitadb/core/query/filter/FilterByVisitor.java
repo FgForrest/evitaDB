@@ -126,7 +126,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResolver {
-	private static final Formula[] EMPTY_INTEGER_FORMULA = new Formula[0];
+	private static final Formula[] EMPTY_INTEGER_FORMULA = Formula.EMPTY_FORMULA_ARRAY;
 	/**
 	 * Contains index of all {@link FilterConstraint} to {@link Formula} translators.
 	 */

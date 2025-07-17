@@ -359,7 +359,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 					break;
 				}
 			}
-			return FormulaFactory.or(formulas.toArray(new Formula[0]));
+			return FormulaFactory.or(formulas.toArray(Formula.EMPTY_FORMULA_ARRAY));
 		}
 	}
 

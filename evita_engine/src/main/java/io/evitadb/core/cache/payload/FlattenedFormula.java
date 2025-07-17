@@ -41,7 +41,7 @@ import java.io.Serial;
  */
 public class FlattenedFormula extends CachePayloadHeader implements Formula {
 	@Serial private static final long serialVersionUID = -1183017816058041094L;
-	private static final Formula[] EMPTY_FORMULAS = new Formula[0];
+	private static final Formula[] EMPTY_FORMULAS = Formula.EMPTY_FORMULA_ARRAY;
 	/**
 	 * Memoized result of the original formula.
 	 */

@@ -27,7 +27,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
-import io.evitadb.externalApi.api.system.model.CorruptedCatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.UnusableCatalogDescriptor;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.builder.FinalRestBuilder;
@@ -87,7 +87,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		this.buildingContext.registerType(NameVariantsDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(CatalogDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(buildCatalogUnion());
-		this.buildingContext.registerType(CorruptedCatalogDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(UnusableCatalogDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(CreateCatalogRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(UpdateCatalogRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
 	}
@@ -108,7 +108,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			.to(this.unionBuilderTransformer)
 			.type(OpenApiObjectUnionType.ONE_OF)
 			.object(typeRefTo(CatalogDescriptor.THIS.name()))
-			.object(typeRefTo(CorruptedCatalogDescriptor.THIS.name()))
+			.object(typeRefTo(UnusableCatalogDescriptor.THIS.name()))
 			.build();
 	}
 }

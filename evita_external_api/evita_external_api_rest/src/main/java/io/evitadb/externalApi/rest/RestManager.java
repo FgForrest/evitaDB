@@ -28,8 +28,8 @@ import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
-import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
+import io.evitadb.core.UnusableCatalog;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
@@ -45,7 +45,6 @@ import io.evitadb.externalApi.rest.io.RestRouter;
 import io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent;
 import io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent.BuildType;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.StringUtils;
 import io.swagger.v3.oas.models.OpenAPI;
 import lombok.extern.slf4j.Slf4j;
 
@@ -53,8 +52,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -71,12 +72,20 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 public class RestManager {
 
 	/**
-	 * Common object mapper for endpoints
+	 * Instance of the Evita object used by the RestManager to manage and interact with the EvitaDB system.
+	 * It plays a central role in facilitating operations such as registering, unregistering,
+	 * and refreshing catalog-specific REST endpoints.
 	 */
-	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
-
 	@Nonnull private final Evita evita;
+
+	/**
+	 * Header options for REST API.
+	 */
 	@Nonnull private final HeaderOptions headerOptions;
+
+	/**
+	 * REST specific options.
+	 */
 	@Nonnull private final RestOptions restOptions;
 
 	/**
@@ -88,6 +97,11 @@ public class RestManager {
 	 */
 	@Nonnull private final Set<String> registeredCatalogs = createHashSet(20);
 
+	/**
+	 * Completable future that is completed when all initial catalogs are registered.
+	 */
+	private final CompletableFuture<Void> fullyInitialized;
+
 	@Nullable private SystemBuildStatistics systemBuildStatistics;
 	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
 
@@ -95,9 +109,9 @@ public class RestManager {
 		this.evita = evita;
 		this.headerOptions = headerOptions;
 		this.restOptions = restOptions;
-		this.restRouter = new RestRouter(this.objectMapper, headerOptions, restOptions);
 
-		final long buildingStartTime = System.currentTimeMillis();
+		final ObjectMapper objectMapper = new ObjectMapper();
+		this.restRouter = new RestRouter(objectMapper, headerOptions, restOptions);
 
 		// listen to any evita catalog changes
 		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY))
@@ -105,9 +119,30 @@ public class RestManager {
 
 		// register initial endpoints
 		registerSystemApi();
-		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
 
-		log.info("Built REST API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
+		// register initial catalogs when they are loaded
+		this.fullyInitialized = CompletableFuture.allOf(
+			Arrays.stream(this.evita.getInitialLoadCatalogFutures())
+			      .map(theFuture -> theFuture.thenAccept(catalog -> registerCatalog(catalog.getName())))
+			      .toArray(CompletableFuture[]::new)
+		).whenComplete(
+			(__, throwable) -> {
+				if (throwable != null) {
+					log.error("Failed to register initial catalogs for GraphQL API.", throwable);
+				} else {
+					log.info("REST API initialized with {} registered catalogs.", this.registeredCatalogs.size());
+				}
+			}
+		);
+	}
+
+	/**
+	 * Determines whether the current {@code io.evitadb.externalApi.rest.RestManager} instance has been fully initialized.
+	 *
+	 * @return {@code true} if the initialization process is complete, otherwise {@code false}.
+	 */
+	public boolean isFullyInitialized() {
+		return this.fullyInitialized.isDone();
 	}
 
 	@Nonnull
@@ -147,8 +182,8 @@ public class RestManager {
 	 */
 	public void registerCatalog(@Nonnull String catalogName) {
 		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
-		if (catalog instanceof CorruptedCatalog) {
-			log.warn("Catalog `" + catalogName + "` is corrupted. Skipping...");
+		if (catalog instanceof UnusableCatalog) {
+			log.warn("Catalog `" + catalogName + "` is unusable (" + catalog.getCatalogState() + "). Skipping...");
 			return;
 		}
 		Assert.isPremiseValid(

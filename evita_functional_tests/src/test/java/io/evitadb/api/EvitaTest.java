@@ -1012,6 +1012,45 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Validates the ability to create a catalog, add and read data from it,
+	 * and subsequently verify data integrity after restarting the Evita instance.
+	 *
+	 * This test ensures that:
+	 * 1. A catalog can be defined and updated with a specified entity schema.
+	 * 2. Entities can be added to the catalog and the entity count is as expected.
+	 * 3. Upon restarting the Evita instance, the catalog data is preserved and can be queried.
+	 */
+	@DisplayName("Create catalog and read data after Evita restart")
+	@Test
+	void shouldCreateCatalogAndReadDataAfterEvitaRestart() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.BRAND);
+
+				session.upsertEntity(session.createNewEntity(Entities.BRAND, 1));
+				session.upsertEntity(session.createNewEntity(Entities.BRAND, 2));
+				assertEquals(2, session.getEntityCollectionSize(Entities.BRAND));
+			}
+		);
+
+		this.evita.close();
+
+		this.evita = new Evita(
+			getEvitaConfiguration()
+		);
+
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertEquals(TEST_CATALOG, session.getCatalogSchema().getName());
+				assertEquals(2, session.getEntityCollectionSize(Entities.BRAND));
+				return null;
+			}
+		);
+	}
+
+	/**
 	 * Tests that a catalog can be renamed while in warm-up mode.
 	 *
 	 * The test verifies that:

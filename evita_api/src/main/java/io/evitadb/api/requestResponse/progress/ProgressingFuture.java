@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.progress;
 
 import io.evitadb.function.BiIntConsumer;
 import io.evitadb.function.Functions;
+import io.evitadb.function.TriFunction;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -35,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -91,13 +93,13 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	/**
 	 * Empty array constant used when no nested futures are present to avoid unnecessary allocations.
 	 */
-	public static final ProgressingFuture<?>[] EMPTY_NESTED_FUTURES = new ProgressingFuture[0];
+	public static final ProgressingFuture<?>[] EMPTY_ARRAY = new ProgressingFuture[0];
 
 	/**
 	 * The total number of steps required to complete this future and all its nested futures.
 	 * This value is calculated as the sum of actionSteps and the total steps of all nested futures.
 	 */
-	@Getter private final int totalSteps;
+	@Getter private int totalSteps;
 
 	/**
 	 * Total number of steps for operations performed directly by this future (excluding nested futures).
@@ -119,13 +121,13 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 * Optional consumer that handles failure cases. This consumer is called when the future
 	 * completes exceptionally.
 	 */
-	private final Consumer<Throwable> onFailure;
+	private Consumer<Throwable> onFailure;
 
 	/**
 	 * Array of nested futures whose progress is aggregated into this future's total progress.
 	 * Empty when using the simple constructor without nested futures.
 	 */
-	private final ProgressingFuture<?>[] nestedFutures;
+	private ProgressingFuture<?>[] nestedFutures;
 
 	/**
 	 * Number of steps completed by this future's direct operations (not including nested futures).
@@ -136,7 +138,7 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 * Array tracking the number of steps completed by each nested future.
 	 * Parallel to the nestedFutures array.
 	 */
-	private final int[] nestedStepsDone;
+	private int[] nestedStepsDone;
 
 	/**
 	 * Creates a ProgressingFuture that coordinates multiple nested futures and aggregates their progress.
@@ -157,21 +159,21 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 *
 	 * @param actionSteps the number of steps for operations performed directly by this future
 	 *                   (not including nested futures)
-	 * @param nestedFutureFactories collection of functions that create nested ProgressingFutures.
+	 * @param nestedFutures collection of functions that create nested ProgressingFutures.
 	 *                             Each function receives an IntConsumer for progress updates
 	 * @param resultMapper function that combines the results from all nested futures into the final result.
 	 *                    Receives this ProgressingFuture instance and a collection of nested results
 	 *
-	 * @throws NullPointerException if nestedFutureFactories, resultMapper, or executor is null
+	 * @throws NullPointerException if nestedFutures, resultMapper, or executor is null
 	 */
 	public <S> ProgressingFuture(
 		int actionSteps,
-		@Nonnull Collection<Supplier<ProgressingFuture<S>>> nestedFutureFactories,
+		@Nonnull Collection<ProgressingFuture<S>> nestedFutures,
 		@Nonnull BiFunction<ProgressingFuture<T>, Collection<S>, T> resultMapper
 	) {
 		this(
 			actionSteps,
-			nestedFutureFactories,
+			nestedFutures,
 			resultMapper,
 			Functions.noOpConsumer()
 		);
@@ -182,9 +184,9 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 * This constructor is used for complex operations that consist of multiple sub-operations, each
 	 * represented by a nested ProgressingFuture.
 	 *
-	 * <p>The total steps for this future will be the sum of actionSteps and the total steps of all
+	 * The total steps for this future will be the sum of actionSteps and the total steps of all
 	 * nested futures. Progress updates from nested futures are automatically aggregated and reported
-	 * through the progress consumer.</p>
+	 * through the progress consumer.
 	 *
 	 * <p>The execution flow:</p>
 	 * <ol>
@@ -196,25 +198,114 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 *
 	 * @param actionSteps the number of steps for operations performed directly by this future
 	 *                   (not including nested futures)
-	 * @param nestedFutureFactories collection of functions that create nested ProgressingFutures.
-	 *                             Each function receives an IntConsumer for progress updates
+	 * @param initializer supplier that initializes the operation and provides initial data for nested futures
+	 * @param nestedFutureFactory function that creates nested ProgressingFutures based on the initializer result
+	 * @param resultMapper function that combines the results from all nested futures into the final result.
+	 *                    Receives this ProgressingFuture instance, initializer result, and a collection of nested results
+	 * @param onFailure consumer that handles failure cases, called when the future completes exceptionally
+	 *
+	 * @throws NullPointerException if initializer, nestedFutureFactory, resultMapper, or executor is null
+	 */
+	public <R, S> ProgressingFuture(
+		int actionSteps,
+		@Nonnull Supplier<R> initializer,
+		@Nonnull Function<R, Collection<ProgressingFuture<S>>> nestedFutureFactory,
+		@Nonnull TriFunction<ProgressingFuture<T>, R, Collection<S>, T> resultMapper,
+		@Nonnull BiConsumer<R, Throwable> onFailure
+	) {
+		this.actionSteps = actionSteps;
+		this.totalSteps = actionSteps + 1;
+
+		this.executionLambda = executor -> {
+			final R initResult;
+			final Collection<ProgressingFuture<S>> nestedFutures;
+			try {
+				initResult = initializer.get();
+				nestedFutures = nestedFutureFactory.apply(initResult);
+				this.onFailure = throwable -> onFailure.accept(initResult, throwable);
+			} catch (Throwable ex) {
+				onFailure.accept(null, ex);
+				this.completeExceptionally(ex);
+				return;
+			}
+
+			this.nestedFutures = new ProgressingFuture[nestedFutures.size()];
+			this.nestedStepsDone = new int[nestedFutures.size()];
+			int index = 0;
+			for (ProgressingFuture<S> nestedFuture : nestedFutures) {
+				final int indexToUpdate = index;
+				nestedFuture.setProgressConsumer((stepsDone, __) -> this.updateProgress(indexToUpdate, stepsDone));
+				this.nestedFutures[index++] = nestedFuture;
+			}
+			this.totalSteps = actionSteps + 1 +
+				Arrays.stream(this.nestedFutures)
+				      .mapToInt(ProgressingFuture::getTotalSteps)
+				      .sum();
+
+			// issue nested futures first
+			for (ProgressingFuture<?> nestedFuture : this.nestedFutures) {
+				nestedFuture.execute(executor);
+			}
+			//noinspection unchecked
+			CompletableFuture
+				.allOf(this.nestedFutures)
+				.thenApply(
+					unused -> resultMapper.apply(
+						this,
+						initResult,
+						(Collection<S>)
+							Arrays.stream(this.nestedFutures)
+							      .map(it -> it.getNow(null))
+							      .toList()
+					)
+				).whenComplete(
+					(result, throwable) -> {
+						if (throwable == null) {
+							this.complete(result);
+						} else {
+							this.completeExceptionally(throwable);
+						}
+					}
+				);
+		};
+	}
+
+	/**
+	 * Creates a ProgressingFuture that coordinates multiple nested futures and aggregates their progress.
+	 * This constructor is used for complex operations that consist of multiple sub-operations, each
+	 * represented by a nested ProgressingFuture.
+	 *
+	 * The total steps for this future will be the sum of actionSteps and the total steps of all
+	 * nested futures. Progress updates from nested futures are automatically aggregated and reported
+	 * through the progress consumer.
+	 *
+	 * <p>The execution flow:</p>
+	 * <ol>
+	 *   <li>All nested futures are created using the provided factories</li>
+	 *   <li>The futures are executed concurrently</li>
+	 *   <li>When all nested futures complete, the result mapper is called</li>
+	 *   <li>The final result is used to complete this future</li>
+	 * </ol>
+	 *
+	 * @param actionSteps the number of steps for operations performed directly by this future
+	 *                   (not including nested futures)
+	 * @param nestedFutures collection of nested ProgressingFutures.
 	 * @param resultMapper function that combines the results from all nested futures into the final result.
 	 *                    Receives this ProgressingFuture instance and a collection of nested results
 	 *
-	 * @throws NullPointerException if nestedFutureFactories, resultMapper, or executor is null
+	 * @throws NullPointerException if nestedFutures, resultMapper, or executor is null
 	 */
 	public <S> ProgressingFuture(
 		int actionSteps,
-		@Nonnull Collection<Supplier<ProgressingFuture<S>>> nestedFutureFactories,
+		@Nonnull Collection<ProgressingFuture<S>> nestedFutures,
 		@Nonnull BiFunction<ProgressingFuture<T>, Collection<S>, T> resultMapper,
 		@Nonnull Consumer<Throwable> onFailure
 	) {
-		this.nestedFutures = new ProgressingFuture[nestedFutureFactories.size()];
-		this.nestedStepsDone = new int[nestedFutureFactories.size()];
+		this.nestedFutures = new ProgressingFuture[nestedFutures.size()];
+		this.nestedStepsDone = new int[nestedFutures.size()];
 		int index = 0;
-		for (Supplier<ProgressingFuture<S>> nestedFutureFactory : nestedFutureFactories) {
+		for (ProgressingFuture<S> nestedFuture : nestedFutures) {
 			final int indexToUpdate = index;
-			final ProgressingFuture<S> nestedFuture = nestedFutureFactory.get();
 			nestedFuture.setProgressConsumer((stepsDone, __) -> this.updateProgress(indexToUpdate, stepsDone));
 			this.nestedFutures[index++] = nestedFuture;
 		}
@@ -313,7 +404,7 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 		@Nonnull Function<ProgressingFuture<T>, T> lambda,
 		@Nonnull Consumer<Throwable> onFailure
 	) {
-		this.nestedFutures = EMPTY_NESTED_FUTURES;
+		this.nestedFutures = EMPTY_ARRAY;
 		this.nestedStepsDone = ArrayUtils.EMPTY_INT_ARRAY;
 		this.actionSteps = actionSteps;
 		this.totalSteps = actionSteps + 1;
@@ -387,7 +478,8 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	public void updateProgress(int stepsDone) {
 		this.stepsDone = stepsDone;
 		if (this.progressConsumer != null) {
-			this.progressConsumer.accept(this.stepsDone + Arrays.stream(this.nestedStepsDone).sum(), this.totalSteps);
+			final int nestedStepsSum = this.nestedStepsDone != null ? Arrays.stream(this.nestedStepsDone).sum() : 0;
+			this.progressConsumer.accept(this.stepsDone + nestedStepsSum, this.totalSteps);
 		}
 	}
 
@@ -439,14 +531,18 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	@Override
 	public boolean completeExceptionally(Throwable ex) {
 		updateProgress(this.actionSteps + 1);
-		for (int i = 0; i < this.nestedFutures.length; i++) {
-			final ProgressingFuture<?> nestedFuture = this.nestedFutures[i];
-			if (!nestedFuture.isDone()) {
-				nestedFuture.cancel(true);
-				this.nestedStepsDone[i] = nestedFuture.totalSteps;
+		if (this.nestedFutures != null) {
+			for (int i = 0; i < this.nestedFutures.length; i++) {
+				final ProgressingFuture<?> nestedFuture = this.nestedFutures[i];
+				if (!nestedFuture.isDone()) {
+					nestedFuture.cancel(true);
+					this.nestedStepsDone[i] = nestedFuture.totalSteps;
+				}
 			}
 		}
-		this.onFailure.accept(ex);
+		if (this.onFailure != null) {
+			this.onFailure.accept(ex);
+		}
 		return super.completeExceptionally(ex);
 	}
 }

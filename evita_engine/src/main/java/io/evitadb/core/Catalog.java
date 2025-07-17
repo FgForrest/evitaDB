@@ -111,6 +111,7 @@ import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
@@ -126,7 +127,6 @@ import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
-import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -147,11 +147,10 @@ import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.core.Transaction.isTransactionAvailable;
@@ -237,6 +236,11 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 */
 	private final CatalogIndex catalogIndex;
 	/**
+	 * Contains reference to the archived catalog index that allows fast lookups for entities across all types.
+	 */
+	@Nullable
+	private CatalogIndex archiveCatalogIndex;
+	/**
 	 * Isolated sequence service for this catalog.
 	 */
 	private final SequenceService sequenceService = new SequenceService();
@@ -273,11 +277,6 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 * Traffic recorder used for recording the traffic in the catalog.
 	 */
 	@Getter private final TrafficRecordingEngine trafficRecordingEngine;
-	/**
-	 * Contains reference to the archived catalog index that allows fast lookups for entities across all types.
-	 */
-	@Nullable
-	private CatalogIndex archiveCatalogIndex;
 	/**
 	 * Last persisted schema version of the catalog.
 	 */
@@ -387,7 +386,26 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		);
 	}
 
-	public Catalog(
+	/**
+	 * Loads a catalog asynchronously using provided configurations and services.
+	 *
+	 * @param catalogName the name of the catalog to be loaded
+	 * @param cacheSupervisor the supervisor responsible for cache management within the catalog
+	 * @param evitaConfiguration a configuration object for Evita settings
+	 * @param reflectionLookup utility for reflection-based operations
+	 * @param scheduler the scheduler service used for orchestrating tasks
+	 * @param exportFileService service used for handling file export operations
+	 * @param requestExecutor executor service used for request execution
+	 * @param transactionalExecutor executor service used for transactional execution
+	 * @param newCatalogVersionConsumer consumer to handle actions when a new catalog version is created
+	 * @param onSuccess callback function to be invoked upon successful catalog load, receiving the catalog name and loaded catalog
+	 * @param onFailure callback function to be invoked upon failure, receiving the catalog name and the encountered exception
+	 * @param tracingContext tracing context used for distributed tracing and monitoring
+	 * @return a {@link ProgressingFuture} object that tracks the progress of the catalog loading process and eventually
+	 * resolves to a {@link Catalog} instance
+	 */
+	@Nonnull
+	public static ProgressingFuture<Catalog> loadCatalog(
 		@Nonnull String catalogName,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull EvitaConfiguration evitaConfiguration,
@@ -397,9 +415,170 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		@Nonnull ObservableExecutorService requestExecutor,
 		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
+		@Nonnull BiConsumer<String, Catalog> onSuccess,
+		@Nonnull BiConsumer<String, Throwable> onFailure,
 		@Nonnull TracingContext tracingContext
 	) {
-		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
+		return new ProgressingFuture<>(
+			1,
+			() -> {
+				final Map<String, EntityCollection> collections = createHashMap(128);
+				final Map<Integer, EntityCollection> collectionByPk = createHashMap(128);
+				final Map<String, EntitySchemaContract> entitySchemaIndex = createHashMap(128);
+
+				final Catalog catalog = new Catalog(
+					catalogName,
+					cacheSupervisor,
+					evitaConfiguration,
+					reflectionLookup,
+					scheduler,
+					exportFileService,
+					requestExecutor,
+					transactionalExecutor,
+					newCatalogVersionConsumer,
+					tracingContext,
+					collections,
+					collectionByPk,
+					entitySchemaIndex
+				);
+
+				final CatalogHeader catalogHeader = catalog.persistenceService.getCatalogHeader(
+					catalog.persistenceService.getLastCatalogVersion()
+				);
+				return new CatalogInitializationBulk(
+					collections,
+					collectionByPk,
+					entitySchemaIndex,
+					catalog,
+					catalogHeader
+				);
+			},
+			initBulk -> {
+				final CatalogHeader catalogHeader = initBulk.catalogHeader();
+				final long catalogVersion = catalogHeader.version();
+				return catalogHeader
+					.getEntityTypeFileIndexes()
+					.stream()
+					.map(
+						entityTypeFileIndex -> {
+							final CatalogPersistenceService catalogPersistenceService = initBulk.catalog().persistenceService;
+							final EntityCollectionPersistenceService entityCollectionPersistenceService = catalogPersistenceService.getOrCreateEntityCollectionPersistenceService(
+								catalogVersion, entityTypeFileIndex.entityType(), entityTypeFileIndex.entityTypePrimaryKey()
+							);
+							final EntityCollectionHeader entityHeader = entityCollectionPersistenceService.getEntityCollectionHeader();
+							final Map<EntityIndexKey, EntityIndex> entityIndexes = createHashMap(
+								entityHeader.usedEntityIndexIds().size()
+							);
+
+							return new ProgressingFuture<EntityCollection>(
+								entityHeader.usedEntityIndexIds().size(),
+								() -> {
+									final Catalog catalog = initBulk.catalog();
+									final String entityType = entityTypeFileIndex.entityType();
+									final int entityTypePrimaryKey = entityHeader.entityTypePrimaryKey();
+									final EntityCollection collection = new EntityCollection(
+										catalogName,
+										catalogVersion,
+										catalogHeader.catalogState(),
+										entityTypePrimaryKey,
+										entityType,
+										entityIndexes,
+										catalog.persistenceService,
+										entityCollectionPersistenceService,
+										catalog.cacheSupervisor,
+										catalog.sequenceService,
+										catalog.trafficRecordingEngine
+									);
+									initBulk.collections().put(entityType, collection);
+									initBulk.collectionByPk().put(entityTypePrimaryKey, collection);
+									collection.attachToCatalog(null, catalog);
+									initBulk.entitySchemaIndex().put(entityType, collection.getSchema());
+
+									// we need to load the global index first, this is the only one index containing all data
+									final Integer globalEntityIndex = entityHeader.globalEntityIndexId();
+									if (globalEntityIndex != null) {
+										final GlobalEntityIndex globalIndex = (GlobalEntityIndex) entityCollectionPersistenceService.readEntityIndex(
+											catalogVersion,
+											globalEntityIndex,
+											collection.getInternalSchema()
+										);
+										Assert.isPremiseValid(
+											globalIndex != null,
+											() -> "Global index must never be null for the entity type `" + entityHeader.entityType() + "`!"
+										);
+										entityIndexes.put(globalIndex.getIndexKey(), globalIndex);
+									}
+
+									return collection;
+								},
+								(entityCollection) -> entityHeader
+									.usedEntityIndexIds()
+									.stream()
+									.map(eid -> new ProgressingFuture<EntityIndex>(
+										0,
+										theFuture -> entityCollectionPersistenceService.readEntityIndex(
+											catalogVersion, eid, entityCollection.getInternalSchema()
+										)
+									))
+									.toList(),
+								( theFuture, entityCollection, loadedIndexes) -> {
+									for (EntityIndex entityIndex : loadedIndexes) {
+										entityIndexes.put(entityIndex.getIndexKey(), entityIndex);
+									}
+									return entityCollection;
+								},
+								(entityCollection, exception) -> log.error(
+									"Error while loading entity collection `{}` for catalog `{}`: {}",
+									entityTypeFileIndex.entityType(),
+									catalogName,
+									exception.getMessage(),
+									exception
+								)
+
+							);
+						}
+					)
+					.toList();
+			},
+			(theFuture, initBulk, entityCollections) -> {
+				final Catalog catalog = initBulk.catalog();
+				// perform initialization of reflected schemas
+				for (EntityCollection collection : initBulk.collections().values()) {
+					collection.initSchema();
+				}
+				onSuccess.accept(catalogName, catalog);
+				theFuture.updateProgress(1);
+				return catalog;
+			},
+			(initBulk, exception) -> {
+				if (initBulk != null) {
+					for (EntityCollection collection : initBulk.collections().values()) {
+						collection.terminate();
+					}
+					initBulk.catalog().terminate();
+				}
+				onFailure.accept(catalogName, exception);
+			}
+		);
+	}
+
+	private Catalog(
+		@Nonnull String catalogName,
+		@Nonnull CacheSupervisor cacheSupervisor,
+		@Nonnull EvitaConfiguration evitaConfiguration,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportFileService exportFileService,
+		@Nonnull ObservableExecutorService requestExecutor,
+		@Nonnull ObservableExecutorService transactionalExecutor,
+		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
+		@Nonnull TracingContext tracingContext,
+		@Nonnull Map<String, EntityCollection> collections,
+		@Nonnull Map<Integer, EntityCollection> collectionByPk,
+		@Nonnull Map<String, EntitySchemaContract> entitySchemaIndex
+	) {
+		this.persistenceService = ServiceLoader
+			.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
 			.map(
 				it -> it.load(
@@ -412,127 +591,62 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			)
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
 
-		try {
-			final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader(
-				this.persistenceService.getLastCatalogVersion()
-			);
-			final long catalogVersion = catalogHeader.version();
-			this.catalogId = catalogHeader.catalogId();
-			this.versionId = new TransactionalReference<>(catalogVersion);
-			this.state = catalogHeader.catalogState();
-			// initialize container buffer
-			final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService(catalogVersion);
-			// initialize schema - still in constructor
-			final CatalogSchema catalogSchema = CatalogSchemaStoragePart.deserializeWithCatalog(
-				this,
-				() -> ofNullable(storagePartPersistenceService.getStoragePart(catalogVersion, 1, CatalogSchemaStoragePart.class))
-					.map(CatalogSchemaStoragePart::catalogSchema)
-					.orElseThrow(() -> new SchemaNotFoundException(catalogHeader.catalogName()))
-			);
-			this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
-			this.catalogIndex = this.persistenceService.readCatalogIndex(this, Scope.LIVE)
-				.orElseGet(() -> new CatalogIndex(Scope.LIVE));
-			this.catalogIndex.attachToCatalog(null, this);
-			this.archiveCatalogIndex = this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
-				.filter(it -> !it.isEmpty())
-				.orElse(null);
-			if (this.archiveCatalogIndex != null) {
-				this.archiveCatalogIndex.attachToCatalog(null, this);
-			}
-			this.cacheSupervisor = cacheSupervisor;
-			this.trafficRecordingEngine = new TrafficRecordingEngine(
-				catalogSchema.getName(),
-				this.state,
-				tracingContext,
-				evitaConfiguration,
-				exportFileService,
-				scheduler
-			);
-			this.dataStoreBuffer = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
-				new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
-				new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
-
-			final Collection<CollectionFileReference> entityCollectionHeaders = catalogHeader.getEntityTypeFileIndexes();
-			final Map<String, EntityCollection> collections = createHashMap(entityCollectionHeaders.size());
-			try {
-				for (CollectionFileReference entityTypeFileIndex : entityCollectionHeaders) {
-					final String entityType = entityTypeFileIndex.entityType();
-					final EntityCollectionHeader entityCollectionHeader = this.persistenceService.getEntityCollectionHeader(
-						catalogVersion, entityTypeFileIndex.entityTypePrimaryKey()
-					);
-					final int entityTypePrimaryKey = entityCollectionHeader.entityTypePrimaryKey();
-					final EntityCollection collection = new EntityCollection(
-						catalogName,
-						catalogVersion,
-						catalogHeader.catalogState(), entityTypePrimaryKey,
-						entityType,
-						this.persistenceService,
-						this.cacheSupervisor,
-						this.sequenceService,
-						this.trafficRecordingEngine
-					);
-					collections.put(entityType, collection);
-				}
-			} catch (RuntimeException ex) {
-				for (EntityCollection collection : collections.values()) {
-					collection.terminate();
-				}
-				// try to clean resources before propagating exeption
-				throw ex;
-			}
-			this.entityCollections = new TransactionalMap<>(collections, EntityCollection.class, Function.identity());
-			this.entityTypeSequence = this.sequenceService.getOrCreateSequence(
-				catalogName, SequenceType.ENTITY_COLLECTION, catalogHeader.lastEntityCollectionPrimaryKey()
-			);
-			this.entityCollectionsByPrimaryKey = new TransactionalMap<>(
-				this.entityCollections.values()
-					.stream()
-					.collect(
-						Collectors.toMap(
-							EntityCollection::getEntityTypePrimaryKey,
-							Function.identity()
-						)
-					),
-				EntityCollection.class, Function.identity()
-			);
-
-			for (EntityCollection entityCollection : collections.values()) {
-				entityCollection.attachToCatalog(null, this);
-			}
-
-			this.entitySchemaIndex = new TransactionalMap<>(
-				this.entityCollections.values()
-					.stream()
-					.collect(
-						Collectors.toMap(
-							EntityCollection::getEntityType,
-							EntityCollection::getSchema
-						)
-					)
-			);
-			// perform initialization of reflected schemas
-			for (EntityCollection collection : collections.values()) {
-				collection.initSchema();
-			}
-
-			this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
-			this.evitaConfiguration = evitaConfiguration;
-			this.scheduler = scheduler;
-			this.transactionalExecutor = transactionalExecutor;
-			this.newCatalogVersionConsumer = newCatalogVersionConsumer;
-			this.lastPersistedSchemaVersion = catalogSchema.version();
-			this.transactionManager = new TransactionManager(
-				this, evitaConfiguration,
-				scheduler, requestExecutor, transactionalExecutor,
-				newCatalogVersionConsumer
-			);
-		} catch (RuntimeException ex) {
-			// clean opened resources before propagating exception
-			if (this.persistenceService != null) {
-				this.persistenceService.close();
-			}
-			throw ex;
+		final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader(
+			this.persistenceService.getLastCatalogVersion()
+		);
+		final long catalogVersion = catalogHeader.version();
+		this.catalogId = catalogHeader.catalogId();
+		this.versionId = new TransactionalReference<>(catalogVersion);
+		this.state = catalogHeader.catalogState();
+		// initialize container buffer
+		final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService(catalogVersion);
+		// initialize schema - still in constructor
+		final CatalogSchema catalogSchema = CatalogSchemaStoragePart.deserializeWithCatalog(
+			this,
+			() -> ofNullable(storagePartPersistenceService.getStoragePart(catalogVersion, 1, CatalogSchemaStoragePart.class))
+				.map(CatalogSchemaStoragePart::catalogSchema)
+				.orElseThrow(() -> new SchemaNotFoundException(catalogHeader.catalogName()))
+		);
+		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
+		this.catalogIndex = this.persistenceService.readCatalogIndex(this, Scope.LIVE)
+			.orElseGet(() -> new CatalogIndex(Scope.LIVE));
+		this.catalogIndex.attachToCatalog(null, this);
+		this.archiveCatalogIndex = this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
+			.filter(it -> !it.isEmpty())
+			.orElse(null);
+		if (this.archiveCatalogIndex != null) {
+			this.archiveCatalogIndex.attachToCatalog(null, this);
 		}
+		this.cacheSupervisor = cacheSupervisor;
+		this.trafficRecordingEngine = new TrafficRecordingEngine(
+			catalogSchema.getName(),
+			this.state,
+			tracingContext,
+			evitaConfiguration,
+			exportFileService,
+			scheduler
+		);
+		this.dataStoreBuffer = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
+			new WarmUpDataStoreMemoryBuffer(storagePartPersistenceService) :
+			new TransactionalDataStoreMemoryBuffer(this, storagePartPersistenceService);
+
+		this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
+		this.evitaConfiguration = evitaConfiguration;
+		this.scheduler = scheduler;
+		this.transactionalExecutor = transactionalExecutor;
+		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
+		this.lastPersistedSchemaVersion = catalogSchema.version();
+		this.transactionManager = new TransactionManager(
+			this, evitaConfiguration,
+			scheduler, requestExecutor, transactionalExecutor,
+			newCatalogVersionConsumer
+		);
+		this.entityTypeSequence = this.sequenceService.getOrCreateSequence(
+			catalogName, SequenceType.ENTITY_COLLECTION, catalogHeader.lastEntityCollectionPrimaryKey()
+		);
+		this.entityCollections = new TransactionalMap<>(collections, EntityCollection.class, Function.identity());
+		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(collectionByPk, EntityCollection.class, Function.identity());
+		this.entitySchemaIndex = new TransactionalMap<>(entitySchemaIndex);
 	}
 
 	Catalog(
@@ -886,12 +1000,10 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 						it -> new EntityCollection(
 							updatedSchema.getName(),
 							catalogVersionAfterRename,
-							catalogState, it.getEntityTypePrimaryKey(),
-							it.getEntityType(),
+							catalogState,
+							it,
 							newIoService,
-							this.cacheSupervisor,
-							this.sequenceService,
-							this.trafficRecordingEngine
+							this.sequenceService
 						)
 					)
 					.toList();
@@ -973,13 +1085,40 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Override
 	public void processWriteAheadLog(@Nonnull Consumer<CatalogContract> updatedCatalogConsumer) {
+		final long lastTxVersionRecorded = this.persistenceService.getLastCatalogVersionInMutationStream();
 		this.persistenceService.getFirstNonProcessedTransactionInWal(getVersion())
 			.ifPresentOrElse(
 				transactionMutation -> {
 					final long start = System.nanoTime();
-					final Catalog catalog = this.transactionManager.processWriteAheadLog(
-						transactionMutation.getVersion(), Long.MAX_VALUE, false
+					final long firstNonProcessedTxVersion = transactionMutation.getVersion();
+					final long nonProcessedTxCount = lastTxVersionRecorded - firstNonProcessedTxVersion;
+					log.info(
+						"Non-processed WAL transaction(s) found for catalog `{}`: {}. Processing it now ...",
+						this.getName(), nonProcessedTxCount
 					);
+					final Catalog catalog = this.transactionManager.processEntireWriteAheadLog(
+						firstNonProcessedTxVersion,
+						new LongConsumer() {
+							private long lastPercent;
+							private long lastLoggedTime = System.currentTimeMillis();
+
+							@Override
+							public void accept(long txId) {
+								int percentDone = (int) ((txId - firstNonProcessedTxVersion) * 100 / nonProcessedTxCount);
+								if (percentDone > this.lastPercent) {
+									this.lastPercent = percentDone;
+									if (System.currentTimeMillis() - this.lastLoggedTime >= 5000) {
+										this.lastLoggedTime = System.currentTimeMillis();
+										log.info(
+											"Processing catalog `{}` WAL transactions: {}% done.",
+											Catalog.this.getName(), percentDone
+										);
+									}
+								}
+							}
+						}
+					);
+
 					this.persistenceService.purgeAllObsoleteFiles();
 					log.info("WAL of `{}` catalog was processed in {}.", this.getName(), StringUtils.formatNano(System.nanoTime() - start));
 					updatedCatalogConsumer.accept(catalog);
@@ -1484,10 +1623,8 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			this.entityCollections
 				.values()
 				.stream()
-				.map(
-					collection -> (Supplier<ProgressingFuture<EntityCollectionHeaderWithCollection>>)
-						(() -> collection.flush(this.transactionalExecutor))
-				).toList(),
+				.map(EntityCollection::createFlushFuture)
+				.toList(),
 			// when all entity collections are flushed, we can update the catalog header
 			(progress, collectionOfHeaders) -> {
 				final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(collectionOfHeaders.size());
@@ -1664,16 +1801,26 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		@Nullable Transaction transaction,
 		@Nonnull CatalogSchemaContract catalogSchema
 	) {
+		final String entityType = createEntitySchemaMutation.getEntityType();
 		this.persistenceService.verifyEntityType(
 			this.entityCollections.values(),
-			createEntitySchemaMutation.getEntityType()
+			entityType
+		);
+		final long catalogVersion = this.getVersion();
+		final int entityTypePrimaryKey = this.entityTypeSequence.incrementAndGet();
+		final EntityCollectionPersistenceService entityCollectionPersistenceService = this.persistenceService
+			.getOrCreateEntityCollectionPersistenceService(
+				catalogVersion, entityType, entityTypePrimaryKey
 		);
 		final EntityCollection newCollection = new EntityCollection(
 			this.getName(),
-			this.getVersion(),
-			this.getCatalogState(), this.entityTypeSequence.incrementAndGet(),
-			createEntitySchemaMutation.getEntityType(),
+			catalogVersion,
+			this.getCatalogState(),
+			entityTypePrimaryKey,
+			entityType,
+			new HashMap<>(64),
 			this.persistenceService,
+			entityCollectionPersistenceService,
 			this.cacheSupervisor,
 			this.sequenceService,
 			this.trafficRecordingEngine
@@ -1906,7 +2053,9 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 					changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
 				}
 				// in all states terminate collection operations
-				entityCollection.terminate();
+				if (!entityCollection.isTerminated()) {
+					entityCollection.terminate();
+				}
 			}
 
 			// if any change occurred (this may happen only in warm up state)
@@ -1986,6 +2135,26 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
 			return Catalog.this.getEntitySchema(entityType).map(EntitySchemaContract.class::cast);
 		}
+	}
+
+	/**
+	 * This class represents a bulk structure for initializing a catalog. It encapsulates
+	 * the necessary data required for initializing entity collections, schemas, and the catalog itself.
+	 *
+	 * The {@code CatalogInitializationBulk} record holds references to mappings of entity collections
+	 * by name and primary key, an index of entity schemas, and metadata about the catalog.
+	 *
+	 * This structure is intended to be used during operations that require batch initialization
+	 * or setup of catalog-related data.
+	 */
+	private record CatalogInitializationBulk(
+		@Nonnull Map<String, EntityCollection> collections,
+		@Nonnull Map<Integer, EntityCollection> collectionByPk,
+		@Nonnull Map<String, EntitySchemaContract> entitySchemaIndex,
+		@Nonnull Catalog catalog,
+		@Nonnull CatalogHeader catalogHeader
+	) {
+
 	}
 
 }

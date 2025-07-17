@@ -30,8 +30,8 @@ import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
-import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
+import io.evitadb.core.UnusableCatalog;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.graphql.api.catalog.CatalogGraphQLBuilder;
@@ -49,13 +49,14 @@ import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent.BuildType
 import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -81,18 +82,38 @@ public class GraphQLManager {
 	 */
 	@Nonnull private final Evita evita;
 
+	/**
+	 * Configuration settings for GraphQL queries and operations.
+	 * This variable holds an instance of {@link GraphQLOptions} to set up and control
+	 * various aspects of the GraphQL API.
+	 */
 	@Nonnull private final GraphQLOptions graphQLConfig;
 
 	/**
 	 * GraphQL specific endpoint router.
 	 */
 	@Nonnull private final GraphQLRouter graphQLRouter;
+
 	/**
 	 * Already registered catalogs (corresponds to existing endpoints as well)
 	 */
 	@Nonnull private final Set<String> registeredCatalogs = createHashSet(20);
 
+	/**
+	 * Completable future that is completed when all initial catalogs are registered.
+	 */
+	private final CompletableFuture<Void> fullyInitialized;
+
+	/**
+	 * Statistics for system GraphQL build.
+	 * This is used to emit observability events only once.
+	 */
 	@Nullable private SystemBuildStatistics systemBuildStatistics;
+
+	/**
+	 * Statistics for each catalog build.
+	 * The key is the catalog name.
+	 */
 	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
 
 	public GraphQLManager(@Nonnull Evita evita, @Nonnull HeaderOptions headers, @Nonnull GraphQLOptions graphQLConfig) {
@@ -101,17 +122,36 @@ public class GraphQLManager {
 
 		this.graphQLRouter = new GraphQLRouter(this.objectMapper, evita, headers);
 
-		final long buildingStartTime = System.currentTimeMillis();
-
 		// listen to any evita catalog changes
 		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY))
 			.subscribe(new SystemGraphQLRefreshingObserver(this));
 
 		// register initial endpoints
 		registerSystemApi();
-		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
 
-		log.info("Built GraphQL API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
+		// register initial catalogs when they are loaded
+		this.fullyInitialized = CompletableFuture.allOf(
+			Arrays.stream(this.evita.getInitialLoadCatalogFutures())
+			      .map(theFuture -> theFuture.thenAccept(catalog -> registerCatalog(catalog.getName())))
+			      .toArray(CompletableFuture[]::new)
+		).whenComplete(
+			(__, throwable) -> {
+				if (throwable != null) {
+					log.error("Failed to register initial catalogs for GraphQL API.", throwable);
+				} else {
+					log.info("GraphQL API initialized with {} registered catalogs.", this.registeredCatalogs.size());
+				}
+			}
+		);
+	}
+
+	/**
+	 * Determines whether the current {@code GraphQLManager} instance has been fully initialized.
+	 *
+	 * @return {@code true} if the initialization process is complete, otherwise {@code false}.
+	 */
+	public boolean isFullyInitialized() {
+		return this.fullyInitialized.isDone();
 	}
 
 	@Nonnull
@@ -145,8 +185,8 @@ public class GraphQLManager {
 	 */
 	public void registerCatalog(@Nonnull String catalogName) {
 		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
-		if (catalog instanceof CorruptedCatalog) {
-			log.warn("Catalog `" + catalogName + "` is corrupted. Skipping...");
+		if (catalog instanceof UnusableCatalog) {
+			log.warn("Catalog `" + catalogName + "` is unusable (" + catalog.getCatalogState() + "). Skipping...");
 			return;
 		}
 		Assert.isPremiseValid(

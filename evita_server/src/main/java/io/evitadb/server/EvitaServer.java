@@ -515,7 +515,12 @@ public class EvitaServer {
 	 * Constructor that initializes the EvitaServer.
 	 */
 	@SuppressWarnings({"UnnecessaryStringEscape", "EscapedSpace"})
-	public EvitaServer(@Nonnull Path configDirLocation, boolean strictConfigFileCheck, @Nullable String logInitializationStatus, @Nonnull Map<String, String> arguments) {
+	public EvitaServer(
+		@Nonnull Path configDirLocation,
+		boolean strictConfigFileCheck,
+		@Nullable String logInitializationStatus,
+		@Nonnull Map<String, String> arguments
+	) {
 		this.externalApiProviders = ExternalApiServer.gatherExternalApiProviders();
 		final EvitaServerConfigurationWithLogFilesListing evitaServerConfigurationWithLogFilesListing = parseConfiguration(configDirLocation, strictConfigFileCheck, arguments);
 		final EvitaServerConfiguration evitaServerConfig = evitaServerConfigurationWithLogFilesListing.configuration();
@@ -577,13 +582,16 @@ public class EvitaServer {
 	 */
 	public void run() {
 		if (this.evita == null) {
-			this.evita = new Evita(this.evitaConfiguration);
+			this.evita = new Evita(this.evitaConfiguration, false);
 		}
 		this.externalApiServer = new ExternalApiServer(
 			this.evita, this.evitaServerConfiguration.api(), this.externalApiProviders
 		);
 		this.evita.management().setConfigurationSupplier(this::serializeConfiguration);
 		this.externalApiServer.start();
+
+		// now schedule catalog loading
+		this.evita.scheduleInitialCatalogLoading();
 	}
 
 	/**

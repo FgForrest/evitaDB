@@ -90,6 +90,12 @@ public class EvitaEnumConverter {
 			case 0 -> CatalogState.WARMING_UP;
 			case 1 -> CatalogState.ALIVE;
 			case 3 -> CatalogState.CORRUPTED;
+			case 4 -> CatalogState.INACTIVE;
+			case 5 -> CatalogState.GOING_ALIVE;
+			case 6 -> CatalogState.BEING_ACTIVATED;
+			case 7 -> CatalogState.BEING_DEACTIVATED;
+			case 8 -> CatalogState.BEING_CREATED;
+			case 9 -> CatalogState.BEING_DELETED;
 			default -> throw new GenericEvitaInternalError("Unrecognized remote catalog state: " + grpcCatalogState);
 		};
 	}
@@ -107,6 +113,11 @@ public class EvitaEnumConverter {
 			case ALIVE -> GrpcCatalogState.ALIVE;
 			case INACTIVE -> GrpcCatalogState.INACTIVE;
 			case CORRUPTED -> GrpcCatalogState.CORRUPTED;
+			case GOING_ALIVE -> GrpcCatalogState.GOING_ALIVE;
+			case BEING_ACTIVATED -> GrpcCatalogState.BEING_ACTIVATED;
+			case BEING_DEACTIVATED -> GrpcCatalogState.BEING_DEACTIVATED;
+			case BEING_DELETED -> GrpcCatalogState.BEING_DELETED;
+			case BEING_CREATED -> GrpcCatalogState.BEING_CREATED;
 		};
 	}
 

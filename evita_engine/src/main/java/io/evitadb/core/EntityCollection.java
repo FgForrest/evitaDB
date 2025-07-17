@@ -146,7 +146,6 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -280,13 +279,45 @@ public final class EntityCollection implements
 	 */
 	private TransactionalReference<EntitySchemaDecorator> schema;
 
+	/**
+	 * Retrieves the last assigned internal primary key for pricing within the entity collection.
+	 * The method determines the starting sequence value based on the entity header's current
+	 * state and optionally fetches it from a global index if necessary.
+	 *
+	 * @param entityHeader The header of the entity collection containing information about pricing keys.
+	 * @param entityCollectionPersistenceService A service that allows fetching data from persistent storage.
+	 * @param catalogVersion The version of the catalog used for fetching the data related to pricing.
+	 * @return The last assigned internal primary key for pricing. If no key is assigned, returns 0.
+	 */
+	private static int getLastAssignedPriceInternalPrimaryKey(
+		@Nonnull EntityCollectionHeader entityHeader,
+		@Nonnull EntityCollectionPersistenceService entityCollectionPersistenceService,
+		long catalogVersion
+	) {
+		// if entity header has no last internal price id, initialized and there is global index available
+		return entityHeader.lastInternalPriceId() == -1 && entityHeader.globalEntityIndexId() != null ?
+			// try to initialize sequence from deprecated storage key format
+			entityCollectionPersistenceService.fetchLastAssignedInternalPriceIdFromGlobalIndex(
+				catalogVersion,
+				entityHeader.globalEntityIndexId()
+			).orElse(0) :
+			// otherwise initialize from the last internal price id - when it's initialized, othewise start from 0
+			entityHeader.lastInternalPriceId() == -1 ? 0 : entityHeader.lastInternalPriceId();
+	}
+
+	/**
+	 * Standard constructor that loads all necessary data from the persistence service and initializes
+	 * the collection.
+	 */
 	public EntityCollection(
 		@Nonnull String catalogName,
 		long catalogVersion,
 		@Nonnull CatalogState catalogState,
 		int entityTypePrimaryKey,
 		@Nonnull String entityType,
+		@Nonnull Map<EntityIndexKey, EntityIndex> entityIndexes,
 		@Nonnull CatalogPersistenceService catalogPersistenceService,
+		@Nonnull EntityCollectionPersistenceService entityCollectionPersistenceService,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull SequenceService sequenceService,
 		@Nonnull TrafficRecordingEngine trafficRecorder
@@ -295,9 +326,6 @@ public final class EntityCollection implements
 		this.entityType = entityType;
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
 		this.catalogPersistenceService = catalogPersistenceService;
-		final EntityCollectionPersistenceService entityCollectionPersistenceService = catalogPersistenceService.getOrCreateEntityCollectionPersistenceService(
-			catalogVersion, entityType, entityTypePrimaryKey
-		);
 		this.persistenceService = entityCollectionPersistenceService;
 		this.cacheSupervisor = cacheSupervisor;
 
@@ -313,15 +341,7 @@ public final class EntityCollection implements
 			// from older storage format when it was stored as a part of the global index
 			this.pricePkSequence = sequenceService.getOrCreateSequence(
 				catalogName, SequenceType.PRICE, entityType,
-				// if entity header has no last internal price id, initialized and there is global index available
-				entityHeader.lastInternalPriceId() == -1 && entityHeader.globalEntityIndexId() != null ?
-					// try to initialize sequence from deprecated storage key format
-					entityCollectionPersistenceService.fetchLastAssignedInternalPriceIdFromGlobalIndex(
-						catalogVersion,
-						entityHeader.globalEntityIndexId()
-					).orElse(0) :
-					// otherwise initialize from the last internal price id - when it's initialized, othewise start from 0
-					entityHeader.lastInternalPriceId() == -1 ? 0 : entityHeader.lastInternalPriceId()
+				getLastAssignedPriceInternalPrimaryKey(entityHeader, entityCollectionPersistenceService, catalogVersion)
 			);
 
 			// initialize container buffer
@@ -358,7 +378,7 @@ public final class EntityCollection implements
 					EntityIndex.class::cast
 				);
 			} else {
-				this.indexes = loadIndexes(catalogVersion, entityHeader);
+				this.indexes = new TransactionalMap<>(entityIndexes, EntityIndex.class::cast);
 			}
 
 			// sanity check whether we deserialized the file offset index we expect to
@@ -380,6 +400,66 @@ public final class EntityCollection implements
 		}
 	}
 
+	/**
+	 * Optimized constructor that takes previous instance of the collection and reuses its data.
+	 */
+	public EntityCollection(
+		@Nonnull String catalogName,
+		long catalogVersion,
+		@Nonnull CatalogState catalogState,
+		@Nonnull EntityCollection previousCollection,
+		@Nonnull CatalogPersistenceService catalogPersistenceService,
+		@Nonnull SequenceService sequenceService
+	) {
+		this.trafficRecorder = previousCollection.trafficRecorder;
+		this.entityType = previousCollection.getSchema().getName();
+		this.entityTypePrimaryKey = previousCollection.entityTypePrimaryKey;
+		this.initialSchema = previousCollection.getInternalSchema();
+		this.catalogPersistenceService = catalogPersistenceService;
+
+		this.persistenceService = catalogPersistenceService.getOrCreateEntityCollectionPersistenceService(
+			catalogVersion, this.entityType, this.entityTypePrimaryKey
+		);
+
+		final EntityCollectionHeader entityHeader = this.persistenceService.getEntityCollectionHeader();
+		this.pkSequence = sequenceService.getOrCreateSequence(
+			catalogName, SequenceType.ENTITY, this.entityType, entityHeader.lastPrimaryKey()
+		);
+		this.indexPkSequence = sequenceService.getOrCreateSequence(
+			catalogName, SequenceType.INDEX, this.entityType, entityHeader.lastEntityIndexPrimaryKey()
+		);
+		// we need to initialize the price sequence here, in order to initialize correctly the last internal price id
+		// from older storage format when it was stored as a part of the global index
+		this.pricePkSequence = sequenceService.getOrCreateSequence(
+			catalogName, SequenceType.PRICE, this.entityType,
+			getLastAssignedPriceInternalPrimaryKey(entityHeader, this.persistenceService, catalogVersion)
+		);
+
+		this.dataStoreBuffer = catalogState == CatalogState.WARMING_UP ?
+			new WarmUpDataStoreMemoryBuffer(this.persistenceService.getStoragePartPersistenceService()) :
+			new TransactionalDataStoreMemoryBuffer(this, this.persistenceService.getStoragePartPersistenceService());
+		this.dataStoreReader = new DataStoreReaderBridge(
+			this.dataStoreBuffer,
+			this::getIndexByKeyIfExists,
+			this::getInternalSchema
+		);
+		this.indexes = new TransactionalMap<>(
+			previousCollection.createIndexCopiesForNewCatalogAttachment(catalogState),
+			EntityIndex.class::cast
+		);
+		this.cacheSupervisor = previousCollection.cacheSupervisor;
+		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
+		this.defaultMinimalQuery = new EvitaRequest(
+			Query.query(collection(this.entityType)),
+			OffsetDateTime.MIN, // we don't care about the time
+			EntityReference.class,
+			null
+		);
+	}
+
+	/**
+	 * Private constructor used for creating new entity collection instance on transaction commit.
+	 */
 	private EntityCollection(
 		long catalogVersion,
 		@Nonnull CatalogState catalogState,
@@ -847,6 +927,15 @@ public final class EntityCollection implements
 		);
 	}
 
+	/**
+	 * Checks whether the process, task, or operation has been terminated.
+	 *
+	 * @return true if the process is terminated, false otherwise.
+	 */
+	public boolean isTerminated() {
+		return this.terminated.get();
+	}
+
 	@Override
 	public void terminate() {
 		Assert.isTrue(
@@ -1252,6 +1341,7 @@ public final class EntityCollection implements
 	/**
 	 * Returns internally held {@link EntitySchema}.
 	 */
+	@Nonnull
 	public EntitySchema getInternalSchema() {
 		return this.schema == null ? this.initialSchema : Objects.requireNonNull(this.schema.get()).getDelegate();
 	}
@@ -1374,7 +1464,7 @@ public final class EntityCollection implements
 	 * Flush operation is ignored when there are no changes present in {@link CatalogPersistenceService}.
 	 */
 	@Nonnull
-	public ProgressingFuture<EntityCollectionHeaderWithCollection> flush(@Nonnull Executor executor) {
+	public ProgressingFuture<EntityCollectionHeaderWithCollection> createFlushFuture() {
 		final TrappedChanges trappedChanges = this.dataStoreBuffer.popTrappedChanges();
 		return new ProgressingFuture<>(
 			trappedChanges.getTrappedChangesCount(),
@@ -1988,9 +2078,12 @@ public final class EntityCollection implements
 	 * {@link EntityCollectionHeader#usedEntityIndexIds()} into a transactional map indexed by their
 	 * {@link EntityIndex#getIndexKey()}.
 	 */
-	@Nonnull
-	private TransactionalMap<EntityIndexKey, EntityIndex> loadIndexes(long catalogVersion, @Nonnull EntityCollectionHeader entityHeader) {
-		// we need to load global index first, this is the only one index containing all data
+	private void loadIndexes(
+		long catalogVersion,
+		@Nonnull EntityCollectionHeader entityHeader,
+		@Nonnull Map<EntityIndexKey, EntityIndex> fetchedIndexes
+	) {
+		// we need to load the global index first, this is the only one index containing all data
 		final GlobalEntityIndex globalIndex = (GlobalEntityIndex) this.persistenceService.readEntityIndex(
 			catalogVersion,
 			Objects.requireNonNull(entityHeader.globalEntityIndexId()),
@@ -1998,24 +2091,19 @@ public final class EntityCollection implements
 		);
 		Assert.isPremiseValid(
 			globalIndex != null,
-			() -> "Global index must never be null for entity type `" + this.initialSchema.getName() + "`!"
+			() -> "Global index must never be null for the entity type `" + this.initialSchema.getName() + "`!"
 		);
-		final Map<EntityIndexKey, EntityIndex> fetchedIndexes = entityHeader.usedEntityIndexIds()
-			.stream()
-			.map(eid -> this.persistenceService.readEntityIndex(catalogVersion, eid, this.initialSchema))
-			.filter(Objects::nonNull)
-			.collect(
-				Collectors.toMap(
-					EntityIndex::getIndexKey,
-					Function.identity()
-				)
+		for (Integer eid : entityHeader.usedEntityIndexIds()) {
+			final EntityIndex entityIndex = this.persistenceService.readEntityIndex(
+				catalogVersion, eid, this.initialSchema
 			);
+			fetchedIndexes.put(entityIndex.getIndexKey(), entityIndex);
+		}
 		// in older versions the global index was not included in the used indexes
 		final EntityIndexKey globalIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL);
 		if (!fetchedIndexes.containsKey(globalIndexKey)) {
 			fetchedIndexes.put(globalIndexKey, globalIndex);
 		}
-		return new TransactionalMap<>(fetchedIndexes, EntityIndex.class::cast);
 	}
 
 	/**

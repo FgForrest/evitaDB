@@ -445,7 +445,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	@NoArgsConstructor
 	static class StartsEndsDTO {
-		private static final Formula[] EMPTY_ARRAY = new Formula[0];
+		private static final Formula[] EMPTY_ARRAY = Formula.EMPTY_FORMULA_ARRAY;
 		private final List<Formula> rangeStarts = new LinkedList<>();
 		private final List<Formula> rangeEnds = new LinkedList<>();
 

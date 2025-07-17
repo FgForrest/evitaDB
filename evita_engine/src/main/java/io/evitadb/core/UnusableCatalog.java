@@ -51,7 +51,6 @@ import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.task.ServerTask;
-import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.utils.FileUtils;
 import lombok.Getter;
@@ -66,28 +65,31 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 /**
- * This implementation of {@link CatalogContract} represents a catalog instance that cannot be loaded into a memory due
- * an error. Most methods of this implementation throw {@link CatalogCorruptedException} when invoked. The original
- * exception and catalog path are accessible via. {@link #getCatalogStoragePath()} and {@link #getCause()} methods.
+ * This implementation of {@link CatalogContract} represents a unusable catalog instance that is not loaded into
+ * a memory and cannot process requests. Most methods of this implementation throw exception when invoked.
+ * The appropriate exception and catalog path are accessible via. {@link #getCatalogStoragePath()} and
+ * {@link #getCause()} methods. The catalog can provide only its name, state and storage path.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public final class CorruptedCatalog implements CatalogContract {
+public final class UnusableCatalog implements CatalogContract {
 	private final String catalogName;
+	private final CatalogState catalogState;
 	@Getter private final Path catalogStoragePath;
-	@Getter private final Throwable cause;
+	@Getter private final BiFunction<String, Path, RuntimeException> cause;
 	private boolean terminated;
 
 	@Nonnull
 	@Override
 	public SealedCatalogSchema getSchema() {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Override
@@ -95,19 +97,19 @@ public final class CorruptedCatalog implements CatalogContract {
 		@Nullable UUID sessionId,
 		@Nonnull LocalCatalogSchemaMutation... schemaMutation
 	) throws SchemaAlteringException {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public UUID getCatalogId() {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public CatalogState getCatalogState() {
-		throw new CatalogCorruptedException(this);
+		return this.catalogState;
 	}
 
 	@Nonnull
@@ -118,63 +120,63 @@ public final class CorruptedCatalog implements CatalogContract {
 
 	@Override
 	public long getVersion() {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Override
 	public boolean supportsTransaction() {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public Set<String> getEntityTypes() {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public <S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<EntityCollectionContract> getCollectionForEntity(@Nonnull String entityType) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public EntityCollectionContract getCollectionForEntityOrThrowException(@Nonnull String entityType) throws CollectionNotFoundException {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public EntityCollection getCollectionForEntityPrimaryKeyOrThrowException(int entityTypePrimaryKey) throws CollectionNotFoundException {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public EntityCollection getOrCreateCollectionForEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Override
 	public boolean replaceCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Override
 	public boolean deleteCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Override
 	public boolean renameCollectionOfEntity(@Nonnull String entityType, @Nonnull String newName, @Nonnull EvitaSessionContract session) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Override
@@ -185,59 +187,59 @@ public final class CorruptedCatalog implements CatalogContract {
 	@Nonnull
 	@Override
 	public ProgressingFuture<CatalogContract> replace(@Nonnull CatalogSchemaContract updatedSchema, @Nonnull CatalogContract catalogToBeReplaced) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public Map<String, EntitySchemaContract> getEntitySchemaIndex() {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<SealedEntitySchema> getEntitySchema(@Nonnull String entityType) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Override
 	public void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull CatalogBoundMutation mutation) throws InvalidMutationException {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Override
 	public void processWriteAheadLog(@Nonnull Consumer<CatalogContract> updatedCatalog) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public PaginatedList<StoredVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public Stream<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public Stream<CatalogBoundMutation> getCommittedMutationStream(long catalogVersion) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
 	@Override
 	public Stream<CatalogBoundMutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Override
@@ -248,7 +250,7 @@ public final class CorruptedCatalog implements CatalogContract {
 	@Nonnull
 	@Override
 	public CommitVersions goLive() {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
@@ -260,7 +262,7 @@ public final class CorruptedCatalog implements CatalogContract {
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
 	) throws TemporalDataNotAvailableException {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
@@ -269,7 +271,7 @@ public final class CorruptedCatalog implements CatalogContract {
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
 	) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Nonnull
@@ -279,7 +281,7 @@ public final class CorruptedCatalog implements CatalogContract {
 			null,
 			this.catalogName,
 			true,
-			CatalogState.CORRUPTED,
+			this.catalogState,
 			-1L,
 			-1,
 			-1,
@@ -301,6 +303,19 @@ public final class CorruptedCatalog implements CatalogContract {
 	@Nonnull
 	@Override
 	public ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request) {
-		throw new CatalogCorruptedException(this);
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
+
+	/**
+	 * Returns the exception detailing the cause of the corrupted catalog.
+	 * The exception is generated by applying the cause function to the catalog name
+	 * and the catalog storage path.
+	 *
+	 * @return a RuntimeException indicating the cause of the catalog corruption
+	 */
+	@Nonnull
+	public RuntimeException getRepresentativeException() {
+		return this.cause.apply(this.catalogName, this.catalogStoragePath);
+	}
+
 }
