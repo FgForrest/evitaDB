@@ -439,7 +439,10 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 */
 	public int getTotalSteps() {
 		if (this.totalSteps == null) {
-			throw new IllegalStateException("Total steps have not been calculated yet. Ensure the future has been executed.");
+			this.totalSteps = this.actionSteps + 1 +
+				Arrays.stream(this.nestedFutures)
+				      .mapToInt(ProgressingFuture::getTotalSteps)
+				      .sum();
 		}
 		return this.totalSteps;
 	}
@@ -481,16 +484,10 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 *                 Should be between 0 and the actionSteps provided in the constructor
 	 */
 	public void updateProgress(int stepsDone) {
-		if (this.totalSteps == null) {
-			this.totalSteps = this.actionSteps + 1 +
-				Arrays.stream(this.nestedFutures)
-				      .mapToInt(ProgressingFuture::getTotalSteps)
-				      .sum();
-		}
 		this.stepsDone = stepsDone;
 		if (this.progressConsumer != null) {
 			final int nestedStepsSum = this.nestedStepsDone != null ? Arrays.stream(this.nestedStepsDone).sum() : 0;
-			this.progressConsumer.accept(this.stepsDone + nestedStepsSum, this.totalSteps);
+			this.progressConsumer.accept(this.stepsDone + nestedStepsSum, getTotalSteps());
 		}
 	}
 
@@ -505,15 +502,9 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 * @param stepsDone the number of steps completed by the nested future
 	 */
 	private void updateProgress(int index, int stepsDone) {
-		if (this.totalSteps == null) {
-			this.totalSteps = this.actionSteps + 1 +
-				Arrays.stream(this.nestedFutures)
-				      .mapToInt(ProgressingFuture::getTotalSteps)
-				      .sum();
-		}
 		this.nestedStepsDone[index] = stepsDone;
 		if (this.progressConsumer != null) {
-			this.progressConsumer.accept(this.stepsDone + Arrays.stream(this.nestedStepsDone).sum(), this.totalSteps);
+			this.progressConsumer.accept(this.stepsDone + Arrays.stream(this.nestedStepsDone).sum(), getTotalSteps());
 		}
 	}
 
@@ -558,7 +549,7 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 					final ProgressingFuture<?> nestedFuture = this.nestedFutures[i];
 					if (!nestedFuture.isDone()) {
 						nestedFuture.cancel(true);
-						this.nestedStepsDone[i] = nestedFuture.totalSteps;
+						this.nestedStepsDone[i] = nestedFuture.getTotalSteps();
 					}
 				}
 			}

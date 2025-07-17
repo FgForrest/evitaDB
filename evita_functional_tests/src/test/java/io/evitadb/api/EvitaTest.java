@@ -30,15 +30,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
-import io.evitadb.api.exception.CatalogAlreadyPresentException;
-import io.evitadb.api.exception.CollectionNotFoundException;
-import io.evitadb.api.exception.ConcurrentInitializationException;
-import io.evitadb.api.exception.EntityIsNotHierarchicalException;
-import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
-import io.evitadb.api.exception.InvalidSchemaMutationException;
-import io.evitadb.api.exception.UnexpectedResultCountException;
-import io.evitadb.api.exception.UnexpectedResultException;
-import io.evitadb.api.exception.UniqueValueViolationException;
+import io.evitadb.api.exception.*;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.mock.MockCatalogChangeCaptureSubscriber;
 import io.evitadb.api.mock.MockEngineChangeCaptureSubscriber;
@@ -1187,6 +1179,172 @@ class EvitaTest implements EvitaTestSupport {
 
 		// Verify catalog is alive again
 		assertEquals(CatalogState.ALIVE, this.evita.getCatalogState(testCatalogName).orElseThrow());
+
+		// Clean up
+		this.evita.deleteCatalogIfExists(testCatalogName);
+	}
+
+	/**
+	 * Tests that a catalog can be made mutable (read-write) from immutable (read-only) state.
+	 *
+	 * The test verifies that:
+	 * - A catalog can be created and made alive
+	 * - The catalog can be made immutable (read-only)
+	 * - Write operations throw ReadOnlyException when catalog is immutable
+	 * - The catalog can be made mutable again (read-write)
+	 * - Write operations work normally when catalog is mutable
+	 */
+	@Test
+	@DisplayName("Make catalog mutable from immutable state")
+	void shouldMakeCatalogMutableFromImmutableState() {
+		final String testCatalogName = TEST_CATALOG + "_mutability_test";
+
+		// Create and setup a catalog with some data
+		this.evita.defineCatalog(testCatalogName)
+			.updateViaNewSession(this.evita);
+
+		this.evita.updateCatalog(
+			testCatalogName,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT);
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Test Product")
+				);
+				session.goLiveAndClose();
+			}
+		);
+
+		// Verify catalog is alive and mutable (write operations work)
+		assertEquals(CatalogState.ALIVE, this.evita.getCatalogState(testCatalogName).orElseThrow());
+
+		// Make catalog immutable
+		this.evita.makeCatalogImmutable(testCatalogName);
+
+		// Verify write operations throw ReadOnlyException when catalog is immutable
+		assertThrows(
+			ReadOnlyException.class,
+			() -> this.evita.updateCatalog(
+				testCatalogName,
+				session -> {
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 2)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Another Product")
+					);
+				}
+			)
+		);
+
+		// Make catalog mutable again
+		this.evita.makeCatalogMutable(testCatalogName);
+
+		// Verify write operations work when catalog is mutable
+		this.evita.updateCatalog(
+			testCatalogName,
+			session -> {
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 2)
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Another Product")
+				);
+			}
+		);
+
+		// Verify both entities are accessible
+		this.evita.queryCatalog(
+			testCatalogName,
+			session -> {
+				final Optional<SealedEntity> product1 = session.getEntity(
+					Entities.PRODUCT, 1, entityFetchAllContent()
+				);
+				final Optional<SealedEntity> product2 = session.getEntity(
+					Entities.PRODUCT, 2, entityFetchAllContent()
+				);
+				assertTrue(product1.isPresent());
+				assertTrue(product2.isPresent());
+				assertEquals("Test Product", product1.get().getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+				assertEquals("Another Product", product2.get().getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+				return null;
+			}
+		);
+
+		// Clean up
+		this.evita.deleteCatalogIfExists(testCatalogName);
+	}
+
+	/**
+	 * Tests that a catalog can be made immutable (read-only) from mutable (read-write) state.
+	 *
+	 * The test verifies that:
+	 * - A catalog can be created and made alive (mutable by default)
+	 * - Write operations work normally when catalog is mutable
+	 * - The catalog can be made immutable (read-only)
+	 * - Write operations throw ReadOnlyException when catalog is immutable
+	 * - Read operations also throw ReadOnlyException when catalog is immutable (no sessions allowed)
+	 */
+	@Test
+	@DisplayName("Make catalog immutable from mutable state")
+	void shouldMakeCatalogImmutableFromMutableState() {
+		final String testCatalogName = TEST_CATALOG + "_immutable_test";
+
+		// Create and setup a catalog with some data
+		this.evita.defineCatalog(testCatalogName)
+			.updateViaNewSession(this.evita);
+
+		this.evita.updateCatalog(
+			testCatalogName,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT);
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Test Product")
+				);
+				session.goLiveAndClose();
+			}
+		);
+
+		// Verify catalog is alive and mutable (write operations work)
+		assertEquals(CatalogState.ALIVE, this.evita.getCatalogState(testCatalogName).orElseThrow());
+
+		// Verify write operations work when catalog is mutable
+		this.evita.updateCatalog(
+			testCatalogName,
+			session -> {
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 2)
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Another Product")
+				);
+			}
+		);
+
+		// Make catalog immutable
+		this.evita.makeCatalogImmutable(testCatalogName);
+
+		// Verify write operations throw ReadOnlyException when catalog is immutable
+		assertThrows(
+			ReadOnlyException.class,
+			() -> this.evita.updateCatalog(
+				testCatalogName,
+				session -> {
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 3)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Third Product")
+					);
+				}
+			)
+		);
+
+		// Verify read operations also throw ReadOnlyException when catalog is immutable
+		// (immutable catalogs don't allow any session creation)
+		assertThrows(
+			ReadOnlyException.class,
+			() -> this.evita.queryCatalog(
+				testCatalogName,
+				session -> {
+					session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent());
+					return null;
+				}
+			)
+		);
 
 		// Clean up
 		this.evita.deleteCatalogIfExists(testCatalogName);

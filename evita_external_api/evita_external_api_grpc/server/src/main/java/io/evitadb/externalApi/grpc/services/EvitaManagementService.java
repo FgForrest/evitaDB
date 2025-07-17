@@ -247,7 +247,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				/* TOBEDONE JNO #25 - handle differently */
 				if (this.evita.getConfiguration().server().readOnly()) {
 					responseObserver.onError(
-						new ReadOnlyException()
+						ReadOnlyException.engineReadOnly()
 					);
 				} else {
 					responseObserver.onNext(

@@ -410,7 +410,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		// added read only check
 		isTrue(
 			!isReadOnly(),
-			ReadOnlyException::new
+			() -> ReadOnlyException.catalogReadOnly(this.catalog.getName())
 		);
 
 		if (this.catalog.getCatalogState() == CatalogState.ALIVE) {
@@ -1346,7 +1346,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		// added read only check
 		isTrue(
 			!isReadOnly(),
-			ReadOnlyException::new
+			() -> ReadOnlyException.catalogReadOnly(this.catalog.getName())
 		);
 		final CatalogContract theCatalog = this.catalog;
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
@@ -1365,7 +1365,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		// added read only check
 		isTrue(
 			!isReadOnly(),
-			ReadOnlyException::new
+			() -> ReadOnlyException.catalogReadOnly(this.catalog.getName())
 		);
 		final CatalogContract theCatalog = this.catalog;
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
@@ -1582,8 +1582,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		long chunkFileSizeInBytes
 	) throws SingletonTaskAlreadyRunningException {
 		Assert.isTrue(
-			!this.evita.getConfiguration().server().readOnly(),
-			ReadOnlyException::new
+			!isReadOnly(),
+			ReadOnlyException::engineReadOnly
 		);
 
 		final Collection<TrafficRecorderTask> existingTaskStatus = this.evita.management().getTaskStatuses(TrafficRecorderTask.class);
@@ -1608,8 +1608,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public TaskStatus<TrafficRecordingSettings, FileForFetch> stopRecording(@Nonnull UUID taskId) {
 		Assert.isTrue(
-			!this.evita.getConfiguration().server().readOnly(),
-			ReadOnlyException::new
+			!isReadOnly(),
+			() -> ReadOnlyException.catalogReadOnly(this.catalog.getName())
 		);
 
 		final Collection<TrafficRecorderTask> existingTaskStatus = this.evita.management().getTaskStatuses(TrafficRecorderTask.class);
@@ -2095,7 +2095,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	private Transaction createTransaction() {
 		isTrue(
 			!isReadOnly(),
-			ReadOnlyException::new
+			() -> ReadOnlyException.catalogReadOnly(this.catalog.getName())
 		);
 		final Transaction transaction = new Transaction(
 			UUID.randomUUID(),

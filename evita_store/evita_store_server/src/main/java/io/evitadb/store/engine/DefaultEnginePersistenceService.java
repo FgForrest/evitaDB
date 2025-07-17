@@ -462,7 +462,8 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			Arrays.stream(directories)
 			      .map(it -> it.getName(it.getNameCount() - 1).toString())
 			      .toArray(String[]::new),
-			ArrayUtils.EMPTY_STRING_ARRAY  // No inactive catalogs initially
+			ArrayUtils.EMPTY_STRING_ARRAY,  // No inactive catalogs initially
+			ArrayUtils.EMPTY_STRING_ARRAY   // No read-only catalogs initially
 		);
 
 		// Store the newly created engine state

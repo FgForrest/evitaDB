@@ -237,6 +237,58 @@ public interface EvitaContract extends AutoCloseable {
 	Progress<Void> deactivateCatalogWithProgress(@Nonnull String catalogName);
 
 	/**
+	 * Makes catalog mutable by enabling write operations on it. This allows the catalog to accept
+	 * data modifications and schema changes.
+	 * At the end of this method the catalog has transitioned to mutable state and is ready
+	 * to accept write operations.
+	 *
+	 * @param catalogName name of the catalog to make mutable
+	 */
+	default void makeCatalogMutable(@Nonnull String catalogName) {
+		makeCatalogMutableWithProgress(catalogName)
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
+	}
+
+	/**
+	 * Makes catalog mutable by enabling write operations on it. This allows the catalog to accept
+	 * data modifications and schema changes. Returns {@link Progress} that can be used
+	 * to track the progress of the operation.
+	 *
+	 * @param catalogName name of the catalog to make mutable
+	 * @return progress that can be used to track the progress of the operation
+	 */
+	@Nonnull
+	Progress<Void> makeCatalogMutableWithProgress(@Nonnull String catalogName);
+
+	/**
+	 * Makes catalog immutable by disabling write operations on it. This puts the catalog into
+	 * read-only mode where no data modifications or schema changes are allowed.
+	 * At the end of this method the catalog has transitioned to immutable state and will
+	 * reject any write operations.
+	 *
+	 * @param catalogName name of the catalog to make immutable
+	 */
+	default void makeCatalogImmutable(@Nonnull String catalogName) {
+		makeCatalogImmutableWithProgress(catalogName)
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
+	}
+
+	/**
+	 * Makes catalog immutable by disabling write operations on it. This puts the catalog into
+	 * read-only mode where no data modifications or schema changes are allowed. Returns {@link Progress}
+	 * that can be used to track the progress of the operation.
+	 *
+	 * @param catalogName name of the catalog to make immutable
+	 * @return progress that can be used to track the progress of the operation
+	 */
+	@Nonnull
+	Progress<Void> makeCatalogImmutableWithProgress(@Nonnull String catalogName);
+
+	/**
 	 * Renames existing catalog to a new name. The `newCatalogName` must not clash with any existing catalog name,
 	 * otherwise exception is thrown. If you need to rename catalog to a name of existing catalog use
 	 * the {@link #replaceCatalog(String, String)} method instead.

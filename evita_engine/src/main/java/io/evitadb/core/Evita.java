@@ -40,6 +40,7 @@ import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.exception.TransactionTimedOutException;
@@ -159,6 +160,10 @@ public final class Evita implements EvitaContract {
 	 * These catalogs cannot be queried until they are loaded into memory.
 	 */
 	private final Set<String> inactiveCatalogs;
+	/**
+	 * Index of {@link Catalog} that are switched to read-only mode.
+	 */
+	private final Set<String> readOnlyCatalogs;
 	/**
 	 * Data store shared among all instances of {@link SessionRegistry} that holds information about active sessions.
 	 */
@@ -328,6 +333,8 @@ public final class Evita implements EvitaContract {
 		this.catalogs = CollectionUtils.createConcurrentHashMap(engineState.activeCatalogs().length);
 		this.inactiveCatalogs = CollectionUtils.createHashSet(engineState.inactiveCatalogs().length);
 		Collections.addAll(this.inactiveCatalogs, engineState.inactiveCatalogs());
+		this.readOnlyCatalogs = CollectionUtils.createHashSet(engineState.readOnlyCatalogs().length);
+		Collections.addAll(this.readOnlyCatalogs, engineState.readOnlyCatalogs());
 		this.management = new EvitaManagement(this);
 
 		// register stubs for all inactive catalogs
@@ -606,6 +613,20 @@ public final class Evita implements EvitaContract {
 
 	@Nonnull
 	@Override
+	public Progress<Void> makeCatalogMutableWithProgress(@Nonnull String catalogName) {
+		assertActive();
+		return applyMutation(new SetCatalogMutabilityMutation(catalogName, true));
+	}
+
+	@Nonnull
+	@Override
+	public Progress<Void> makeCatalogImmutableWithProgress(@Nonnull String catalogName) {
+		assertActive();
+		return applyMutation(new SetCatalogMutabilityMutation(catalogName, false));
+	}
+
+	@Nonnull
+	@Override
 	public Progress<CommitVersions> renameCatalogWithProgress(@Nonnull String catalogName, @Nonnull String newCatalogName) {
 		assertActive();
 		return applyMutation(new ModifyCatalogSchemaNameMutation(catalogName, newCatalogName, false));
@@ -658,7 +679,7 @@ public final class Evita implements EvitaContract {
 				this.changeObserver.processMutation(engineMutation);
 
 				final Runnable onCompletion = () -> updateEngineStateAfterEngineMutation(theEngineState, txMutationWithWalFileReference);
-				final Runnable onFailure = () -> dropChangesAfterUnsuccessfullEngineMutation(theEngineState);
+				final Runnable onFailure = () -> dropChangesAfterUnsuccessfulEngineMutation(theEngineState);
 
 				final IntConsumer nullSafeObserver = progressObserver == null ? Functions.noOpIntConsumer() : progressObserver;
 				if (engineMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
@@ -721,8 +742,13 @@ public final class Evita implements EvitaContract {
 						onFailure
 					);
 				} else if (engineMutation instanceof SetCatalogMutabilityMutation setCatalogMutabilityMutation) {
-					/* TODO JNO - IMPLEMENT ME */
-					result = null;
+					//noinspection unchecked
+					result = (Progress<T>) setCatalogMutabilityInternal(
+						setCatalogMutabilityMutation,
+						nullSafeObserver,
+						onCompletion,
+						onFailure
+					);
 				} else if (engineMutation instanceof DuplicateCatalogMutation duplicateCatalogMutation) {
 					/* TODO JNO - IMPLEMENT ME */
 					result = null;
@@ -798,7 +824,10 @@ public final class Evita implements EvitaContract {
 	) {
 		assertActive();
 		if (this.readOnly && flags != null && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
-			throw new ReadOnlyException();
+			throw ReadOnlyException.engineReadOnly();
+		}
+		if (this.readOnlyCatalogs.contains(catalogName)) {
+			throw ReadOnlyException.catalogReadOnly(catalogName);
 		}
 		final SessionTraits traits = new SessionTraits(
 			catalogName,
@@ -837,7 +866,10 @@ public final class Evita implements EvitaContract {
 	) {
 		assertActive();
 		if (this.readOnly && flags != null && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
-			throw new ReadOnlyException();
+			throw ReadOnlyException.engineReadOnly();
+		}
+		if (this.readOnlyCatalogs.contains(catalogName)) {
+			throw ReadOnlyException.catalogReadOnly(catalogName);
 		}
 		final SessionTraits traits = new SessionTraits(
 			catalogName,
@@ -1080,7 +1112,7 @@ public final class Evita implements EvitaContract {
 	void assertActiveAndWritable() {
 		assertActive();
 		if (this.readOnly) {
-			throw new ReadOnlyException();
+			throw ReadOnlyException.engineReadOnly();
 		}
 	}
 
@@ -1197,6 +1229,73 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Modifies the mutability state of a specified catalog. This method processes the
+	 * input mutation to either make the catalog mutable (read-write) or immutable (read-only).
+	 *
+	 * @param setCatalogMutabilityMutation The mutation containing the catalog name
+	 *                                     and desired mutability state.
+	 * @param progressObserver A callback that accepts the progress in the form of an integer.
+	 * @param onCompletion A callback that runs when the operation is completed successfully.
+	 * @param onFailure A callback that runs when the operation encounters a failure.
+	 * @return A {@code Progress<Void>} object representing the progress and result of
+	 *         the mutability modification operation.
+	 */
+	@Nonnull
+	private Progress<Void> setCatalogMutabilityInternal(
+		@Nonnull SetCatalogMutabilityMutation setCatalogMutabilityMutation,
+		@Nonnull IntConsumer progressObserver,
+		@Nonnull Runnable onCompletion,
+		@Nonnull Runnable onFailure
+	) {
+		final String catalogName = setCatalogMutabilityMutation.getCatalogName();
+		if (setCatalogMutabilityMutation.isMutable()) {
+			if (this.readOnlyCatalogs.contains(catalogName)) {
+				return new ProgressRecord<>(
+					"Setting catalog `" + catalogName + "` to read-write",
+					progressObserver,
+					new ProgressingFuture<>(
+						0,
+						(progressingFuture) -> {
+							this.readOnlyCatalogs.remove(catalogName);
+							onCompletion.run();
+							log.info("Catalog `{}` is now read-write!", catalogName);
+							return null;
+						},
+						ex -> onFailure.run()
+					),
+					this.transactionExecutor
+				);
+			} else {
+				throw new InvalidMutationException(
+					"Catalog `" + catalogName + "` is already mutable!"
+				);
+			}
+		} else {
+			if (!this.readOnlyCatalogs.contains(catalogName)) {
+				return new ProgressRecord<>(
+					"Setting catalog `" + catalogName + "` to read-only",
+					progressObserver,
+					new ProgressingFuture<>(
+						0,
+						(progressingFuture) -> {
+							this.readOnlyCatalogs.add(catalogName);
+							onCompletion.run();
+							log.info("Catalog `{}` is now read-only!", catalogName);
+							return null;
+						},
+						ex -> onFailure.run()
+					),
+					this.transactionExecutor
+				);
+			} else {
+				throw new InvalidMutationException(
+					"Catalog `" + catalogName + "` is already read-only!"
+				);
+			}
+		}
+	}
+
+	/**
 	 * Closes all active sessions associated with the specified catalog and suspends further operations.
 	 *
 	 * @param catalogName      the name of the catalog whose sessions are to be closed and suspended
@@ -1252,6 +1351,7 @@ public final class Evita implements EvitaContract {
 					             .toArray(String[]::new)
 				)
 				.inactiveCatalogs(this.inactiveCatalogs.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
+				.readOnlyCatalogs(this.readOnlyCatalogs.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
 				.walFileReference(txMutationWithWalFileReference.walFileReference())
 				.build();
 			this.enginePersistenceService.storeEngineState(newState);
@@ -1270,7 +1370,7 @@ public final class Evita implements EvitaContract {
 	 * @param theEngineState the current state of the engine, including version information, used to
 	 *                       identify and forget mutations made after this version.
 	 */
-	private void dropChangesAfterUnsuccessfullEngineMutation(@Nonnull EngineState theEngineState) {
+	private void dropChangesAfterUnsuccessfulEngineMutation(@Nonnull EngineState theEngineState) {
 		// forget about the mutation in case of error
 		this.changeObserver.forgetMutationsAfter(theEngineState.version());
 	}
@@ -1686,10 +1786,13 @@ public final class Evita implements EvitaContract {
 		final EvitaInternalSessionContract newSession = catalogSessionRegistry.createSession(
 			sessionRegistry -> {
 				if (this.readOnly) {
-					isTrue(!sessionTraits.isReadWrite() || sessionTraits.isDryRun(), ReadOnlyException::new);
+					isTrue(!sessionTraits.isReadWrite() || sessionTraits.isDryRun(), ReadOnlyException::engineReadOnly);
 				}
 
 				final Catalog catalog = sessionRegistry.getCatalog();
+				if (this.readOnlyCatalogs.contains(catalog.getName())) {
+					throw ReadOnlyException.catalogReadOnly(catalog.getName());
+				}
 				if (catalog.isGoingLive()) {
 					throw new CatalogGoingLiveException(catalog.getName());
 				}

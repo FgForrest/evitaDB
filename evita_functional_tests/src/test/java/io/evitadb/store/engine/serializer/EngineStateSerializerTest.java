@@ -85,6 +85,7 @@ class EngineStateSerializerTest {
             ))
             .activeCatalogs(new String[]{"catalog1", "catalog2"})
             .inactiveCatalogs(new String[]{"catalog3"})
+            .readOnlyCatalogs(new String[]{"catalog4", "catalog5"})
             .build();
 
         // Test serialization and deserialization
@@ -101,6 +102,7 @@ class EngineStateSerializerTest {
             .walFileReference(null)
             .activeCatalogs(new String[]{"catalog1", "catalog2"})
             .inactiveCatalogs(new String[]{"catalog3"})
+            .readOnlyCatalogs(new String[]{"catalog6"})
             .build();
 
         // Test serialization and deserialization
@@ -121,6 +123,7 @@ class EngineStateSerializerTest {
             ))
             .activeCatalogs(new String[0])
             .inactiveCatalogs(new String[0])
+            .readOnlyCatalogs(new String[0])
             .build();
 
         // Test serialization and deserialization

@@ -43,7 +43,7 @@ import java.time.OffsetDateTime;
  * - Engine version
  * - Introduction timestamp
  * - WAL file reference
- * - Active and inactive catalogs
+ * - Active, inactive, and read-only catalogs
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -83,6 +83,12 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 		// Write inactive catalogs
 		output.writeVarInt(engineState.inactiveCatalogs().length, true);
 		for (String catalogName : engineState.inactiveCatalogs()) {
+			output.writeString(catalogName);
+		}
+
+		// Write read-only catalogs
+		output.writeVarInt(engineState.readOnlyCatalogs().length, true);
+		for (String catalogName : engineState.readOnlyCatalogs()) {
 			output.writeString(catalogName);
 		}
 	}
@@ -125,6 +131,13 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 			inactiveCatalogs[i] = input.readString();
 		}
 
+		// Read read-only catalogs
+		final int readOnlyCatalogsCount = input.readVarInt(true);
+		final String[] readOnlyCatalogs = new String[readOnlyCatalogsCount];
+		for (int i = 0; i < readOnlyCatalogsCount; i++) {
+			readOnlyCatalogs[i] = input.readString();
+		}
+
 		// Create and return a new EngineState with the read values
 		return new EngineState(
 			storageProtocolVersion,
@@ -132,7 +145,8 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 			introducedAt,
 			walFileReference,
 			activeCatalogs,
-			inactiveCatalogs
+			inactiveCatalogs,
+			readOnlyCatalogs
 		);
 	}
 }

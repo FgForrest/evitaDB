@@ -292,7 +292,7 @@ public class ObservabilityManager {
 	) throws JfRException, SingletonTaskAlreadyRunningException {
 		Assert.isTrue(
 			!this.evita.getConfiguration().server().readOnly(),
-			ReadOnlyException::new
+			ReadOnlyException::engineReadOnly
 		);
 
 		final Collection<JfrRecorderTask> existingTaskStatus = this.evita.management().getTaskStatuses(JfrRecorderTask.class);
@@ -316,7 +316,7 @@ public class ObservabilityManager {
 	public TaskStatus<?, ?> stop() throws JfRException {
 		Assert.isTrue(
 			!this.evita.getConfiguration().server().readOnly(),
-			ReadOnlyException::new
+			ReadOnlyException::engineReadOnly
 		);
 
 		final Collection<JfrRecorderTask> existingTaskStatus = this.evita.management().getTaskStatuses(JfrRecorderTask.class);

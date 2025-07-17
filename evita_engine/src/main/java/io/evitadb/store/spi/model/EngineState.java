@@ -44,6 +44,7 @@ import java.util.Optional;
  * - reference to the WAL (Write-Ahead Log) file
  * - list of active catalogs
  * - list of inactive catalogs
+ * - list of read-only catalogs
  *
  * This record is immutable, but provides a builder for creating modified instances.
  *
@@ -55,7 +56,8 @@ public record EngineState(
 	@Nonnull OffsetDateTime introducedAt,
 	@Nullable WalFileReference walFileReference,
 	@Nonnull String[] activeCatalogs,
-	@Nonnull String[] inactiveCatalogs
+	@Nonnull String[] inactiveCatalogs,
+	@Nonnull String[] readOnlyCatalogs
 ) implements Serializable {
 	@Serial private static final long serialVersionUID = 3167647107268939398L;
 
@@ -93,7 +95,8 @@ public record EngineState(
 			OffsetDateTime.now(),
 			this.walFileReference,
 			this.activeCatalogs,
-			this.inactiveCatalogs
+			this.inactiveCatalogs,
+			this.readOnlyCatalogs
 		);
 	}
 
@@ -111,7 +114,8 @@ public record EngineState(
 			OffsetDateTime.now(),
 			this.walFileReference,
 			this.activeCatalogs,
-			this.inactiveCatalogs
+			this.inactiveCatalogs,
+			this.readOnlyCatalogs
 		);
 	}
 
@@ -129,7 +133,8 @@ public record EngineState(
 			OffsetDateTime.now(),
 			walFileReference,
 			this.activeCatalogs,
-			this.inactiveCatalogs
+			this.inactiveCatalogs,
+			this.readOnlyCatalogs
 		);
 	}
 
@@ -147,7 +152,8 @@ public record EngineState(
 			OffsetDateTime.now(),
 			this.walFileReference,
 			activeCatalogs,
-			this.inactiveCatalogs
+			this.inactiveCatalogs,
+			this.readOnlyCatalogs
 		);
 	}
 
@@ -165,7 +171,27 @@ public record EngineState(
 			OffsetDateTime.now(),
 			this.walFileReference,
 			this.activeCatalogs,
-			inactiveCatalogs
+			inactiveCatalogs,
+			this.readOnlyCatalogs
+		);
+	}
+
+	/**
+	 * Returns a new instance with updated read-only catalogs.
+	 *
+	 * @param readOnlyCatalogs new read-only catalogs
+	 * @return new instance with updated read-only catalogs
+	 */
+	@Nonnull
+	public EngineState withReadOnlyCatalogs(@Nonnull String[] readOnlyCatalogs) {
+		return new EngineState(
+			this.storageProtocolVersion,
+			this.version,
+			OffsetDateTime.now(),
+			this.walFileReference,
+			this.activeCatalogs,
+			this.inactiveCatalogs,
+			readOnlyCatalogs
 		);
 	}
 
@@ -179,6 +205,7 @@ public record EngineState(
 			", walFileReference=" + this.walFileReference +
 			", activeCatalogs=" + Arrays.toString(this.activeCatalogs) +
 			", inactiveCatalogs=" + Arrays.toString(this.inactiveCatalogs) +
+			", readOnlyCatalogs=" + Arrays.toString(this.readOnlyCatalogs) +
 			'}';
 	}
 
@@ -188,7 +215,8 @@ public record EngineState(
 
 		return this.version == that.version && this.storageProtocolVersion == that.storageProtocolVersion && Arrays.equals(
 			this.activeCatalogs, that.activeCatalogs) && Arrays.equals(
-			this.inactiveCatalogs, that.inactiveCatalogs) && this.introducedAt.equals(that.introducedAt) && Objects.equals(
+			this.inactiveCatalogs, that.inactiveCatalogs) && Arrays.equals(
+			this.readOnlyCatalogs, that.readOnlyCatalogs) && this.introducedAt.equals(that.introducedAt) && Objects.equals(
 			this.walFileReference, that.walFileReference);
 	}
 
@@ -200,6 +228,7 @@ public record EngineState(
 		result = 31 * result + Objects.hashCode(this.walFileReference);
 		result = 31 * result + Arrays.hashCode(this.activeCatalogs);
 		result = 31 * result + Arrays.hashCode(this.inactiveCatalogs);
+		result = 31 * result + Arrays.hashCode(this.readOnlyCatalogs);
 		return result;
 	}
 
@@ -215,6 +244,8 @@ public record EngineState(
 		private String[] activeCatalogs = new String[0];
 		@Nonnull
 		private String[] inactiveCatalogs = new String[0];
+		@Nonnull
+		private String[] readOnlyCatalogs = new String[0];
 
 		Builder() {
 		}
@@ -225,6 +256,7 @@ public record EngineState(
 			this.walFileReference = engineState.walFileReference;
 			this.activeCatalogs = Arrays.copyOf(engineState.activeCatalogs, engineState.activeCatalogs.length);
 			this.inactiveCatalogs = Arrays.copyOf(engineState.inactiveCatalogs, engineState.inactiveCatalogs.length);
+			this.readOnlyCatalogs = Arrays.copyOf(engineState.readOnlyCatalogs, engineState.readOnlyCatalogs.length);
 		}
 
 		/**
@@ -292,6 +324,20 @@ public record EngineState(
 		}
 
 		/**
+		 * Sets the read-only catalogs.
+		 *
+		 * @param readOnlyCatalogs read-only catalogs
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder readOnlyCatalogs(@Nonnull String[] readOnlyCatalogs) {
+			this.readOnlyCatalogs = Optional.ofNullable(readOnlyCatalogs)
+			                                .map(catalogs -> Arrays.copyOf(catalogs, catalogs.length))
+			                                .orElse(new String[0]);
+			return this;
+		}
+
+		/**
 		 * Builds a new EngineState instance with the current builder values.
 		 *
 		 * @return new EngineState instance
@@ -304,7 +350,8 @@ public record EngineState(
 				OffsetDateTime.now(),
 				this.walFileReference,
 				this.activeCatalogs,
-				this.inactiveCatalogs
+				this.inactiveCatalogs,
+				this.readOnlyCatalogs
 			);
 		}
 	}

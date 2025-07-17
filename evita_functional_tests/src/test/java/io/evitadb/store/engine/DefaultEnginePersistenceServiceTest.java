@@ -163,7 +163,8 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 			OffsetDateTime.now(),
 			null,
 			new String[]{"catalog1", "catalog2", "catalog3"},
-			new String[]{"inactiveCatalog"}
+			new String[]{"inactiveCatalog"},
+			new String[]{"readOnlyCatalog"}
 		);
 
 		// Store the new engine state
@@ -201,7 +202,8 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 			OffsetDateTime.now(),
 			null,
 			new String[]{"catalog1", "catalog2"},
-			new String[]{"inactiveCatalog"}
+			new String[]{"inactiveCatalog"},
+			new String[]{"readOnlyCatalog"}
 		);
 
 		// Attempt to store the invalid engine state
