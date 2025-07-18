@@ -35,6 +35,7 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.core.executor.ClientRunnableTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.executor.SequentialTask;
 import io.evitadb.core.file.ExportFileService;
@@ -244,7 +245,13 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 				catalogName, this.evita.getConfiguration().storage(),
 				fileId, pathToFile, totalBytesExpected, deleteAfterRestore
 			),
-			this.evita.createLoadCatalogTask(catalogName)
+			new ClientRunnableTask<>(
+				catalogName,
+				"registerInactiveCatalog",
+				"Registering restored catalog " + catalogName + ".",
+				Void.class,
+				session -> this.evita.addInactiveCatalog(catalogName)
+			)
 		);
 	}
 

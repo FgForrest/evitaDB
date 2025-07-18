@@ -4138,6 +4138,9 @@ class EvitaTest implements EvitaTestSupport {
 			future.get();
 		}
 
+		// we need to activate the restored catalog first
+		this.evita.activateCatalog(TEST_CATALOG + "_restored");
+
 		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4221,6 +4224,9 @@ class EvitaTest implements EvitaTestSupport {
 			// wait for the restore to finish
 			future.get();
 		}
+
+		// we need to activate the restored catalog first
+		this.evita.activateCatalog(TEST_CATALOG + "_restored");
 
 		this.evita.queryCatalog(
 			TEST_CATALOG,

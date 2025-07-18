@@ -1307,6 +1307,9 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNamesAgain.contains(TEST_CATALOG));
 		assertTrue(catalogNamesAgain.contains(restoredCatalogName));
 
+		// we need to activate the restored catalog first
+		evitaClient.activateCatalog(restoredCatalogName);
+
 		assertEquals(
 			Integer.valueOf(PRODUCT_COUNT),
 			evitaClient.queryCatalog(
@@ -1385,6 +1388,9 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNamesAgain.contains(TEST_CATALOG));
 		assertTrue(catalogNamesAgain.contains(restoredCatalogName));
 
+		// we need to activate the restored catalog first
+		evitaClient.activateCatalog(restoredCatalogName);
+
 		assertEquals(
 			Integer.valueOf(PRODUCT_COUNT),
 			evitaClient.queryCatalog(
@@ -1423,6 +1429,9 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		assertEquals(2, catalogNamesAgain.size());
 		assertTrue(catalogNamesAgain.contains(TEST_CATALOG));
 		assertTrue(catalogNamesAgain.contains(restoredCatalogName));
+
+		// we need to activate the restored catalog first
+		evitaClient.activateCatalog(restoredCatalogName);
 
 		assertEquals(
 			Integer.valueOf(PRODUCT_COUNT),

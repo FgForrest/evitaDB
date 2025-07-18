@@ -28,15 +28,7 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationAggregateCon
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.TopLevelCatalogSchemaMutationAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.CreateCatalogSchemaMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.DuplicateCatalogMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.MakeCatalogAliveMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.ModifyCatalogSchemaMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.ModifyCatalogSchemaNameMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.RemoveCatalogSchemaMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.SetCatalogMutabilityMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.SetCatalogStateMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.TopLevelCatalogSchemaMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 
@@ -65,6 +57,7 @@ public class TopLevelCatalogSchemaMutationAggregateConverter extends MutationAgg
 		super(objectParser, exceptionFactory);
 
 		registerConverter(CREATE_CATALOG_SCHEMA_MUTATION.name(), new CreateCatalogSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(RESTORE_CATALOG_SCHEMA_MUTATION.name(), new RestoreCatalogSchemaMutationConverter(objectParser, exceptionFactory));
 		registerConverter(MAKE_CATALOG_ALIVE_MUTATION.name(), new MakeCatalogAliveMutationConverter(objectParser, exceptionFactory));
 		registerConverter(DUPLICATE_CATALOG_MUTATION.name(), new DuplicateCatalogMutationConverter(objectParser, exceptionFactory));
 		registerConverter(SET_CATALOG_MUTABILITY_MUTATION.name(), new SetCatalogMutabilityMutationConverter(objectParser, exceptionFactory));

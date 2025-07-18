@@ -29,6 +29,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.MakeC
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RestoreCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.SetCatalogMutabilityMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.SetCatalogStateMutationDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
@@ -47,6 +48,7 @@ import java.util.List;
 public interface TopLevelCatalogSchemaMutationAggregateDescriptor {
 
 	PropertyDescriptor CREATE_CATALOG_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(CreateCatalogSchemaMutationDescriptor.THIS);
+	PropertyDescriptor RESTORE_CATALOG_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(RestoreCatalogSchemaMutationDescriptor.THIS);
 	PropertyDescriptor DUPLICATE_CATALOG_MUTATION = PropertyDescriptor.nullableFromObject(DuplicateCatalogMutationDescriptor.THIS);
 	PropertyDescriptor MAKE_CATALOG_ALIVE_MUTATION = PropertyDescriptor.nullableFromObject(MakeCatalogAliveMutationDescriptor.THIS);
 	PropertyDescriptor SET_CATALOG_MUTABILITY_MUTATION = PropertyDescriptor.nullableFromObject(SetCatalogMutabilityMutationDescriptor.THIS);
@@ -62,6 +64,7 @@ public interface TopLevelCatalogSchemaMutationAggregateDescriptor {
             """)
 		.staticFields(List.of(
 			CREATE_CATALOG_SCHEMA_MUTATION,
+			RESTORE_CATALOG_SCHEMA_MUTATION,
 			DUPLICATE_CATALOG_MUTATION,
 			MAKE_CATALOG_ALIVE_MUTATION,
 			SET_CATALOG_MUTABILITY_MUTATION,

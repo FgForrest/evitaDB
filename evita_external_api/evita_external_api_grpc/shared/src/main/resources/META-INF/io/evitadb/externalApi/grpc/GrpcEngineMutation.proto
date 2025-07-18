@@ -13,6 +13,12 @@ message GrpcCreateCatalogSchemaMutation {
   string catalogName = 1;
 }
 
+// Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+message GrpcRestoreCatalogSchemaMutation {
+  // Name of catalog schema to restore.
+  string catalogName = 1;
+}
+
 // Mutation is responsible for renaming an existing CatalogSchema.
 message GrpcModifyCatalogSchemaNameMutation {
   // Name of the catalog schema the mutation is targeting (will rename).
@@ -105,5 +111,7 @@ message GrpcEngineMutation {
     GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;
     // Mutation that sets the active state of a catalog.
     GrpcSetCatalogStateMutation setCatalogStateMutation = 9;
+    // Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+    GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;
   }
 }

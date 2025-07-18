@@ -505,7 +505,7 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	 * @param stepsDone the number of steps completed by the nested future
 	 */
 	private void updateProgress(int index, int stepsDone) {
-		this.nestedStepsDone[index] = stepsDone;
+		this.nestedStepsDone[index] = Math.min(stepsDone, this.nestedFutures[index].getTotalSteps());
 		if (this.progressConsumer != null) {
 			this.progressConsumer.accept(this.stepsDone + Arrays.stream(this.nestedStepsDone).sum(), getTotalSteps());
 		}

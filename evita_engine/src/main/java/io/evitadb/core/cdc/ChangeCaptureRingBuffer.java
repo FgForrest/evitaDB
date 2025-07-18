@@ -345,6 +345,9 @@ class ChangeCaptureRingBuffer<T extends ChangeCapture> {
 			}
 		}
 		this.startIndex = toIndex % this.workspace.length;
+		if (toIndex >= this.endIndex) {
+			this.endIndex = this.startIndex;
+		}
 		return false;
 	}
 

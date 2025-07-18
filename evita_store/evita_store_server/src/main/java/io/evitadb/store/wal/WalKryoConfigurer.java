@@ -74,6 +74,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMut
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.*;
@@ -319,8 +320,9 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(SetCatalogStateMutation.class, new SerialVersionBasedSerializer<>(new SetCatalogStateMutationSerializer(), SetCatalogStateMutation.class), index++);
 		kryo.register(SetCatalogMutabilityMutation.class, new SerialVersionBasedSerializer<>(new SetCatalogMutabilityMutationSerializer(), SetCatalogMutabilityMutation.class), index++);
 		kryo.register(DuplicateCatalogMutation.class, new SerialVersionBasedSerializer<>(new DuplicateCatalogMutationSerializer(), DuplicateCatalogMutation.class), index++);
+		kryo.register(RestoreCatalogSchemaMutation.class, new SerialVersionBasedSerializer<>(new RestoreCatalogSchemaMutationSerializer(), RestoreCatalogSchemaMutation.class), index++);
 
-		Assert.isPremiseValid(index < 501, "Index count overflow.");
+		Assert.isPremiseValid(index < 801, "Index count overflow.");
 	}
 
 }

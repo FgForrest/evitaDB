@@ -273,5 +273,32 @@ public interface GrpcEngineMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutationOrBuilder getSetCatalogStateMutationOrBuilder();
 
+  /**
+   * <pre>
+   * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+   * @return Whether the restoreCatalogSchemaMutation field is set.
+   */
+  boolean hasRestoreCatalogSchemaMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+   * @return The restoreCatalogSchemaMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation getRestoreCatalogSchemaMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutationOrBuilder getRestoreCatalogSchemaMutationOrBuilder();
+
   public io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.MutationCase getMutationCase();
 }

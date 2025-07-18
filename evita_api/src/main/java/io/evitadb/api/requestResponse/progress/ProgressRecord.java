@@ -84,7 +84,9 @@ public class ProgressRecord<T> implements Progress<T> {
 		@Nullable IntConsumer progressObserver
 	) {
 		this.operationName = operationName;
-		this.progressObservers.add(progressObserver);
+		if (progressObserver != null) {
+			this.progressObservers.add(progressObserver);
+		}
 		this.onCompletion = new CompletableFuture<>();
 		this.percentCompleted = new AtomicInteger(0);
 	}
@@ -118,7 +120,9 @@ public class ProgressRecord<T> implements Progress<T> {
 		@Nonnull Executor executor
 	) {
 		this.operationName = operationName;
-		this.progressObservers.add(progressObserver);
+		if (progressObserver != null) {
+			this.progressObservers.add(progressObserver);
+		}
 		this.onCompletion = progressingFuture;
 		this.percentCompleted = new AtomicInteger(0);
 		progressingFuture.setProgressConsumer(

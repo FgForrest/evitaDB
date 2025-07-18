@@ -67,7 +67,6 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
@@ -77,8 +76,6 @@ import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
-import io.evitadb.core.executor.ClientRunnableTask;
-import io.evitadb.core.executor.EmptySettings;
 import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.core.executor.ObservableThreadExecutor;
@@ -754,8 +751,13 @@ public final class Evita implements EvitaContract {
 						onFailure
 					);
 				} else if (engineMutation instanceof DuplicateCatalogMutation duplicateCatalogMutation) {
-					/* TODO JNO - IMPLEMENT ME */
-					result = null;
+					//noinspection unchecked
+					result = (Progress<T>) duplicateCatalogInternal(
+						duplicateCatalogMutation,
+						nullSafeObserver,
+						onCompletion,
+						onFailure
+					);
 				} else {
 					throw new EvitaInvalidUsageException(
 						"Unknown engine mutation: `" + engineMutation.getClass() + "`!");
@@ -777,6 +779,38 @@ public final class Evita implements EvitaContract {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Adds a catalog to the list of inactive catalogs and updates the engine state accordingly.
+	 * This method locks the engine state to ensure thread-safe modification of the catalogs
+	 * and writes the change to the persistence service.
+	 *
+	 * @param catalogName The name of the catalog to be marked as inactive. Must not be null.
+	 */
+	public void addInactiveCatalog(@Nonnull String catalogName) {
+		this.engineStateLock.lock();
+		try {
+			// first store the mutation into the persistence service
+			final EngineState theEngineState = this.engineState.get();
+			final TransactionMutationWithWalFileReference txMutationWithWalFileReference = this.enginePersistenceService.appendWal(
+				theEngineState.version() + 1,
+				new RemoveCatalogSchemaMutation(catalogName)
+			);
+
+			this.inactiveCatalogs.add(catalogName);
+			this.catalogs.put(
+				catalogName,
+				new UnusableCatalog(
+					catalogName, CatalogState.INACTIVE,
+					this.configuration.storage().storageDirectory().resolve(catalogName),
+					CatalogInactiveException::new
+				)
+			);
+			updateEngineStateAfterEngineMutation(theEngineState, txMutationWithWalFileReference);
+		} finally {
+			this.engineStateLock.unlock();
+		}
 	}
 
 	@Override
@@ -1016,42 +1050,6 @@ public final class Evita implements EvitaContract {
 	@Nonnull
 	public Optional<Progress<?>> getEngineMutationProgress(@Nonnull String catalogName) {
 		return ofNullable(this.currentCatalogMutations.get(catalogName));
-	}
-
-	/**
-	 * Loads catalog from the designated directory. If the catalog is corrupted, it will be marked as such, but it'll
-	 * still be added to the list of catalogs.
-	 *
-	 * @param catalogName name of the catalog
-	 * @return progress wrapped into a server task that can be used to monitor the loading process
-	 */
-	@Nonnull
-	ServerTask<EmptySettings, Void> createLoadCatalogTask(@Nonnull String catalogName) {
-		final ProgressingFuture<Catalog> progressingFuture = loadCatalogInternal(catalogName);
-		return new ClientRunnableTask<>(
-			catalogName,
-			"LoadCatalogTask",
-			"Loading catalog " + catalogName + " from disk...",
-			EmptySettings.INSTANCE,
-			() -> {
-				progressingFuture.execute(this.transactionExecutor);
-				// wait for the catalog to be loaded
-				progressingFuture.join();
-			},
-			exception -> {
-				log.error("Catalog {} is corrupted!", catalogName, exception);
-				this.catalogs.put(
-					catalogName,
-					new UnusableCatalog(
-						catalogName,
-						CatalogState.CORRUPTED,
-						this.configuration.storage().storageDirectory().resolve(catalogName),
-						(cn, path) -> new CatalogCorruptedException(cn, path, exception)
-					)
-				);
-				this.emitEvitaStatistics();
-			}
-		);
 	}
 
 	/**
@@ -1336,6 +1334,56 @@ public final class Evita implements EvitaContract {
 				);
 			}
 		}
+	}
+
+	/**
+	 * Duplicates an existing catalog to create a new catalog with a specified name.
+	 * Tracks the progress of the duplication process and handles completion or failure.
+	 *
+	 * @param duplicateCatalogMutation the mutation object containing details of the source and target catalog names
+	 * @param progressObserver a callback which accepts progress updates during the duplication process
+	 * @param onCompletion a callback to be executed upon successful completion of the duplication
+	 * @param onFailure a callback to be executed if the duplication fails
+	 * @return a Progress instance representing the ongoing duplication task
+	 */
+	@Nonnull
+	private Progress<Void> duplicateCatalogInternal(
+		@Nonnull DuplicateCatalogMutation duplicateCatalogMutation,
+		@Nonnull IntConsumer progressObserver,
+		@Nonnull Runnable onCompletion,
+		@Nonnull Runnable onFailure
+	) {
+		final String catalogName = duplicateCatalogMutation.getCatalogName();
+		final String targetCatalogName = duplicateCatalogMutation.getNewCatalogName();
+		assertNoCatalogEngineMutationInProgress(catalogName);
+		return new ProgressRecord<>(
+			"Duplicating catalog `" + catalogName + "` to `" + targetCatalogName + "`",
+			progressObserver,
+			new ProgressingFuture<>(
+				0,
+				(progressingFuture) -> {
+					this.inactiveCatalogs.add(targetCatalogName);
+					this.catalogs.put(
+						targetCatalogName,
+						new UnusableCatalog(
+							catalogName, CatalogState.INACTIVE,
+							this.configuration.storage().storageDirectory().resolve(catalogName),
+							CatalogInactiveException::new
+						)
+					);
+					onCompletion.run();
+					this.currentCatalogMutations.remove(catalogName);
+					log.info("Catalog `{}` has been duplicated as catalog `{}`!", catalogName, targetCatalogName);
+					return null;
+				},
+				ex -> {
+					onFailure.run();
+					this.currentCatalogMutations.remove(catalogName);
+				}
+			),
+			progress -> this.currentCatalogMutations.put(catalogName, progress),
+			this.transactionExecutor
+		);
 	}
 
 	/**

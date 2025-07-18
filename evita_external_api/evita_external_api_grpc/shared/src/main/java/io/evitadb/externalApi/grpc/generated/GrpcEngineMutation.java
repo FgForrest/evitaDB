@@ -202,6 +202,20 @@ private static final long serialVersionUID = 0L;
             mutationCase_ = 9;
             break;
           }
+          case 82: {
+            io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.Builder subBuilder = null;
+            if (mutationCase_ == 10) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 10;
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -248,6 +262,7 @@ private static final long serialVersionUID = 0L;
     SETCATALOGMUTABILITYMUTATION(7),
     DUPLICATECATALOGMUTATION(8),
     SETCATALOGSTATEMUTATION(9),
+    RESTORECATALOGSCHEMAMUTATION(10),
     MUTATION_NOT_SET(0);
     private final int value;
     private MutationCase(int value) {
@@ -274,6 +289,7 @@ private static final long serialVersionUID = 0L;
         case 7: return SETCATALOGMUTABILITYMUTATION;
         case 8: return DUPLICATECATALOGMUTATION;
         case 9: return SETCATALOGSTATEMUTATION;
+        case 10: return RESTORECATALOGSCHEMAMUTATION;
         case 0: return MUTATION_NOT_SET;
         default: return null;
       }
@@ -676,6 +692,49 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation.getDefaultInstance();
   }
 
+  public static final int RESTORECATALOGSCHEMAMUTATION_FIELD_NUMBER = 10;
+  /**
+   * <pre>
+   * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+   * @return Whether the restoreCatalogSchemaMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasRestoreCatalogSchemaMutation() {
+    return mutationCase_ == 10;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+   * @return The restoreCatalogSchemaMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation getRestoreCatalogSchemaMutation() {
+    if (mutationCase_ == 10) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutationOrBuilder getRestoreCatalogSchemaMutationOrBuilder() {
+    if (mutationCase_ == 10) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -716,6 +775,9 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 9) {
       output.writeMessage(9, (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation) mutation_);
+    }
+    if (mutationCase_ == 10) {
+      output.writeMessage(10, (io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation) mutation_);
     }
     unknownFields.writeTo(output);
   }
@@ -761,6 +823,10 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 9) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(9, (io.evitadb.externalApi.grpc.generated.GrpcSetCatalogStateMutation) mutation_);
+    }
+    if (mutationCase_ == 10) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(10, (io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation) mutation_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -815,6 +881,10 @@ private static final long serialVersionUID = 0L;
         if (!getSetCatalogStateMutation()
             .equals(other.getSetCatalogStateMutation())) return false;
         break;
+      case 10:
+        if (!getRestoreCatalogSchemaMutation()
+            .equals(other.getRestoreCatalogSchemaMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -865,6 +935,10 @@ private static final long serialVersionUID = 0L;
       case 9:
         hash = (37 * hash) + SETCATALOGSTATEMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getSetCatalogStateMutation().hashCode();
+        break;
+      case 10:
+        hash = (37 * hash) + RESTORECATALOGSCHEMAMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getRestoreCatalogSchemaMutation().hashCode();
         break;
       case 0:
       default:
@@ -1098,6 +1172,13 @@ private static final long serialVersionUID = 0L;
           result.mutation_ = setCatalogStateMutationBuilder_.build();
         }
       }
+      if (mutationCase_ == 10) {
+        if (restoreCatalogSchemaMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = restoreCatalogSchemaMutationBuilder_.build();
+        }
+      }
       result.mutationCase_ = mutationCase_;
       onBuilt();
       return result;
@@ -1182,6 +1263,10 @@ private static final long serialVersionUID = 0L;
         }
         case SETCATALOGSTATEMUTATION: {
           mergeSetCatalogStateMutation(other.getSetCatalogStateMutation());
+          break;
+        }
+        case RESTORECATALOGSCHEMAMUTATION: {
+          mergeRestoreCatalogSchemaMutation(other.getRestoreCatalogSchemaMutation());
           break;
         }
         case MUTATION_NOT_SET: {
@@ -2823,6 +2908,183 @@ private static final long serialVersionUID = 0L;
       mutationCase_ = 9;
       onChanged();;
       return setCatalogStateMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutationOrBuilder> restoreCatalogSchemaMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+     * @return Whether the restoreCatalogSchemaMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasRestoreCatalogSchemaMutation() {
+      return mutationCase_ == 10;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+     * @return The restoreCatalogSchemaMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation getRestoreCatalogSchemaMutation() {
+      if (restoreCatalogSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 10) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 10) {
+          return restoreCatalogSchemaMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+     */
+    public Builder setRestoreCatalogSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation value) {
+      if (restoreCatalogSchemaMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        restoreCatalogSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 10;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+     */
+    public Builder setRestoreCatalogSchemaMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.Builder builderForValue) {
+      if (restoreCatalogSchemaMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        restoreCatalogSchemaMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 10;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+     */
+    public Builder mergeRestoreCatalogSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation value) {
+      if (restoreCatalogSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 10 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 10) {
+          restoreCatalogSchemaMutationBuilder_.mergeFrom(value);
+        }
+        restoreCatalogSchemaMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 10;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+     */
+    public Builder clearRestoreCatalogSchemaMutation() {
+      if (restoreCatalogSchemaMutationBuilder_ == null) {
+        if (mutationCase_ == 10) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 10) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        restoreCatalogSchemaMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.Builder getRestoreCatalogSchemaMutationBuilder() {
+      return getRestoreCatalogSchemaMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutationOrBuilder getRestoreCatalogSchemaMutationOrBuilder() {
+      if ((mutationCase_ == 10) && (restoreCatalogSchemaMutationBuilder_ != null)) {
+        return restoreCatalogSchemaMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 10) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutationOrBuilder>
+        getRestoreCatalogSchemaMutationFieldBuilder() {
+      if (restoreCatalogSchemaMutationBuilder_ == null) {
+        if (!(mutationCase_ == 10)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.getDefaultInstance();
+        }
+        restoreCatalogSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 10;
+      onChanged();;
+      return restoreCatalogSchemaMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(
