@@ -331,7 +331,6 @@ public class EvitaClient implements EvitaContract {
 						RetryRule.builder().onStatus(HttpStatus.TOO_MANY_REQUESTS).thenNoRetry()
 					)
 				)
-					//.responseTimeoutMillisForEachAttempt(idleTimeout)
 					.useRetryAfter(true)
 					.newDecorator()
 			);
