@@ -215,6 +215,9 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 		@Nonnull BiConsumer<R, Throwable> onFailure
 	) {
 		this.actionSteps = actionSteps;
+		this.nestedFutures = EMPTY_ARRAY;
+		this.nestedStepsDone = ArrayUtils.EMPTY_INT_ARRAY;
+
 		this.executionLambda = executor -> {
 			final R initResult;
 			final Collection<ProgressingFuture<S>> nestedFutures;

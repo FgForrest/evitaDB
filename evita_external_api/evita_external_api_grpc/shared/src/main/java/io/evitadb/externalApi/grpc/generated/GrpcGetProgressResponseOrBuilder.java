@@ -32,20 +32,50 @@ public interface GrpcGetProgressResponseOrBuilder extends
 
   /**
    * <pre>
+   * contains information whether the progress was found or not
+   * </pre>
+   *
+   * <code>bool found = 1;</code>
+   * @return The found.
+   */
+  boolean getFound();
+
+  /**
+   * <pre>
    * The progress of the top-level engine mutation in percents.
    * </pre>
    *
-   * <code>int32 progressInPercent = 1;</code>
+   * <code>int32 progressInPercent = 2;</code>
    * @return The progressInPercent.
    */
   int getProgressInPercent();
 
   /**
    * <pre>
+   * Contains catalog name copied from the request (if the progress is related to a catalog)
+   * </pre>
+   *
+   * <code>string catalogName = 3;</code>
+   * @return The catalogName.
+   */
+  java.lang.String getCatalogName();
+  /**
+   * <pre>
+   * Contains catalog name copied from the request (if the progress is related to a catalog)
+   * </pre>
+   *
+   * <code>string catalogName = 3;</code>
+   * @return The bytes for catalogName.
+   */
+  com.google.protobuf.ByteString
+      getCatalogNameBytes();
+
+  /**
+   * <pre>
    * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
    * </pre>
    *
-   * <code>int64 catalogVersion = 2;</code>
+   * <code>int64 catalogVersion = 4;</code>
    * @return The catalogVersion.
    */
   long getCatalogVersion();
@@ -55,7 +85,7 @@ public interface GrpcGetProgressResponseOrBuilder extends
    * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
    * </pre>
    *
-   * <code>int32 catalogSchemaVersion = 3;</code>
+   * <code>int32 catalogSchemaVersion = 5;</code>
    * @return The catalogSchemaVersion.
    */
   int getCatalogSchemaVersion();

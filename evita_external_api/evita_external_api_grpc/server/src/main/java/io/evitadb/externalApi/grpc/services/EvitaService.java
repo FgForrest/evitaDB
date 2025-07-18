@@ -35,6 +35,9 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.progress.Progress;
+import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -64,6 +67,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 import java.util.function.IntConsumer;
@@ -71,6 +75,7 @@ import java.util.function.IntConsumer;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureContent;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCommitBehavior;
+import static java.util.Optional.ofNullable;
 
 /**
  * This service contains methods that could be called by gRPC clients on {@link EvitaContract}.
@@ -406,46 +411,15 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					responseObserver.onError(new EvitaInvalidUsageException("Mutation is not set in the request!"));
 					responseObserver.onCompleted();
 				} else {
+					final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
 					final Progress<?> applyMutationProgress = this.evita.applyMutation(
 						engineMutation,
-						new IntConsumer() {
-							private int percentDone;
-							private long lastUpdate = System.currentTimeMillis();
-
-							@Override
-							public void accept(int percentDoneCurrently) {
-								if (percentDoneCurrently > this.percentDone && this.lastUpdate + 1000 < System.currentTimeMillis()) {
-									this.percentDone = percentDoneCurrently;
-									final GrpcApplyMutationWithProgressResponse response =
-										GrpcApplyMutationWithProgressResponse.newBuilder()
-										                                     .setProgressInPercent(this.percentDone)
-										                                     .build();
-									responseObserver.onNext(response);
-									this.lastUpdate = System.currentTimeMillis();
-								}
-							}
-						}
+						progressObserver
 					);
+					((ServerCallStreamObserver<?>)responseObserver)
+						.setOnCancelHandler(() -> applyMutationProgress.removeProgressListener(progressObserver));
 
-					applyMutationProgress
-						.onCompletion()
-						.whenComplete(
-							(result, throwable) -> {
-								if (throwable == null) {
-									final GrpcApplyMutationWithProgressResponse.Builder responseBuilder = GrpcApplyMutationWithProgressResponse
-										.newBuilder()
-										.setProgressInPercent(100);
-									if (result instanceof CommitVersions commitVersions) {
-										responseBuilder
-											.setCatalogVersion(commitVersions.catalogVersion())
-											.setCatalogSchemaVersion(commitVersions.catalogSchemaVersion());
-									}
-									responseObserver.onNext(responseBuilder.build());
-								} else {
-									responseObserver.onError(throwable);
-								}
-								responseObserver.onCompleted();
-							});
+					waitForFinish(responseObserver, applyMutationProgress);
 				}
 			},
 			this.evita.getRequestExecutor(),
@@ -456,6 +430,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 
 	/**
 	 * Renames existing catalog to a name specified in a request.
+	 * TODO JNO - add progress variant of this method
 	 *
 	 * @param request          containing names of the catalogs involved
 	 * @param responseObserver observer on which errors might be thrown and result returned
@@ -484,6 +459,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 
 	/**
 	 * Replaces existing catalog with a different existing catalog and its contents.
+	 * TODO JNO - add progress variant of this method
 	 *
 	 * @param request          containing names of the catalogs involved
 	 * @param responseObserver observer on which errors might be thrown and result returned
@@ -612,29 +588,16 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	) {
 		executeWithClientContext(
 			() -> {
-				final Progress<CommitVersions> progress = this.evita.makeCatalogAliveWithProgress(
-					request.getCatalogName()
+				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(
+					responseObserver);
+				final Progress<?> applyMutationProgress = this.evita.applyMutation(
+					new MakeCatalogAliveMutation(request.getCatalogName()),
+					progressObserver
 				);
+				((ServerCallStreamObserver<?>)responseObserver)
+					.setOnCancelHandler(() -> applyMutationProgress.removeProgressListener(progressObserver));
 
-				progress
-					.onCompletion()
-					.whenComplete(
-						(result, throwable) -> {
-							if (throwable == null) {
-								final GrpcApplyMutationWithProgressResponse.Builder responseBuilder = GrpcApplyMutationWithProgressResponse
-									.newBuilder()
-									.setProgressInPercent(100);
-								if (result != null) {
-									responseBuilder
-										.setCatalogVersion(result.catalogVersion())
-										.setCatalogSchemaVersion(result.catalogSchemaVersion());
-								}
-								responseObserver.onNext(responseBuilder.build());
-							} else {
-								responseObserver.onError(throwable);
-							}
-							responseObserver.onCompleted();
-						});
+				waitForFinish(responseObserver, applyMutationProgress);
 			},
 			this.evita.getRequestExecutor(),
 			responseObserver,
@@ -674,25 +637,16 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	public void makeCatalogMutableWithProgress(GrpcMakeCatalogMutableRequest request, StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				final Progress<Void> progress = this.evita.makeCatalogMutableWithProgress(
-					request.getCatalogName()
+				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(
+					responseObserver);
+				final Progress<?> applyMutationProgress = this.evita.applyMutation(
+					new SetCatalogMutabilityMutation(request.getCatalogName(), true),
+					progressObserver
 				);
+				((ServerCallStreamObserver<?>)responseObserver)
+					.setOnCancelHandler(() -> applyMutationProgress.removeProgressListener(progressObserver));
 
-				progress
-					.onCompletion()
-					.whenComplete(
-						(result, throwable) -> {
-							if (throwable == null) {
-								final GrpcApplyMutationWithProgressResponse response = GrpcApplyMutationWithProgressResponse
-									.newBuilder()
-									.setProgressInPercent(100)
-									.build();
-								responseObserver.onNext(response);
-							} else {
-								responseObserver.onError(throwable);
-							}
-							responseObserver.onCompleted();
-						});
+				waitForFinish(responseObserver, applyMutationProgress);
 			},
 			this.evita.getRequestExecutor(),
 			responseObserver,
@@ -732,25 +686,16 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	public void makeCatalogImmutableWithProgress(GrpcMakeCatalogImmutableRequest request, StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				final Progress<Void> progress = this.evita.makeCatalogImmutableWithProgress(
-					request.getCatalogName()
+				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(
+					responseObserver);
+				final Progress<?> applyMutationProgress = this.evita.applyMutation(
+					new SetCatalogMutabilityMutation(request.getCatalogName(), false),
+					progressObserver
 				);
+				((ServerCallStreamObserver<?>)responseObserver)
+					.setOnCancelHandler(() -> applyMutationProgress.removeProgressListener(progressObserver));
 
-				progress
-					.onCompletion()
-					.whenComplete(
-						(result, throwable) -> {
-							if (throwable == null) {
-								final GrpcApplyMutationWithProgressResponse response = GrpcApplyMutationWithProgressResponse
-									.newBuilder()
-									.setProgressInPercent(100)
-									.build();
-								responseObserver.onNext(response);
-							} else {
-								responseObserver.onError(throwable);
-							}
-							responseObserver.onCompleted();
-						});
+				waitForFinish(responseObserver, applyMutationProgress);
 			},
 			this.evita.getRequestExecutor(),
 			responseObserver,
@@ -790,25 +735,15 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	public void activateCatalogWithProgress(GrpcActivateCatalogRequest request, StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				final Progress<Void> progress = this.evita.activateCatalogWithProgress(
-					request.getCatalogName()
+				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
+				final Progress<?> applyMutationProgress = this.evita.applyMutation(
+					new SetCatalogStateMutation(request.getCatalogName(), true),
+					progressObserver
 				);
+				((ServerCallStreamObserver<?>)responseObserver)
+					.setOnCancelHandler(() -> applyMutationProgress.removeProgressListener(progressObserver));
 
-				progress
-					.onCompletion()
-					.whenComplete(
-						(result, throwable) -> {
-							if (throwable == null) {
-								final GrpcApplyMutationWithProgressResponse response = GrpcApplyMutationWithProgressResponse
-									.newBuilder()
-									.setProgressInPercent(100)
-									.build();
-								responseObserver.onNext(response);
-							} else {
-								responseObserver.onError(throwable);
-							}
-							responseObserver.onCompleted();
-						});
+				waitForFinish(responseObserver, applyMutationProgress);
 			},
 			this.evita.getRequestExecutor(),
 			responseObserver,
@@ -848,25 +783,16 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	public void deactivateCatalogWithProgress(GrpcDeactivateCatalogRequest request, StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				final Progress<Void> progress = this.evita.deactivateCatalogWithProgress(
-					request.getCatalogName()
+				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(
+					responseObserver);
+				final Progress<?> applyMutationProgress = this.evita.applyMutation(
+					new SetCatalogStateMutation(request.getCatalogName(), false),
+					progressObserver
 				);
+				((ServerCallStreamObserver<?>)responseObserver)
+					.setOnCancelHandler(() -> applyMutationProgress.removeProgressListener(progressObserver));
 
-				progress
-					.onCompletion()
-					.whenComplete(
-						(result, throwable) -> {
-							if (throwable == null) {
-								final GrpcApplyMutationWithProgressResponse response = GrpcApplyMutationWithProgressResponse
-									.newBuilder()
-									.setProgressInPercent(100)
-									.build();
-								responseObserver.onNext(response);
-							} else {
-								responseObserver.onError(throwable);
-							}
-							responseObserver.onCompleted();
-						});
+				waitForFinish(responseObserver, applyMutationProgress);
 			},
 			this.evita.getRequestExecutor(),
 			responseObserver,
@@ -874,10 +800,96 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		);
 	}
 
+	/**
+	 * Returns the progress of the execution of a long-running engine mutation operation.
+	 */
 	@Override
 	public void getProgress(GrpcGetProgressRequest request, StreamObserver<GrpcGetProgressResponse> responseObserver) {
-		/* TODO JNO - Implement me */
-		super.getProgress(request, responseObserver);
+		executeWithClientContext(
+			() -> {
+				final String catalogName = request.getCatalogName();
+				final Optional<Progress<?>> progress = ofNullable(catalogName)
+					.flatMap(this.evita::getEngineMutationProgress);
+
+				if (progress.isEmpty()) {
+					responseObserver.onNext(
+						GrpcGetProgressResponse
+							.newBuilder()
+							.setFound(false)
+							.build()
+					);
+					responseObserver.onCompleted();
+				} else {
+					final Progress<?> theProgress = progress.get();
+					final GetProgressConsumer progressObserver = new GetProgressConsumer(catalogName, responseObserver);
+					theProgress.addProgressListener(progressObserver);
+					((ServerCallStreamObserver<?>)responseObserver)
+						.setOnCancelHandler(() -> theProgress.removeProgressListener(progressObserver));
+					theProgress
+						.onCompletion()
+						.whenComplete(
+							(result, throwable) -> {
+								if (throwable == null) {
+									final GrpcGetProgressResponse.Builder builder = GrpcGetProgressResponse
+										.newBuilder()
+										.setFound(true)
+										.setCatalogName(catalogName)
+										.setProgressInPercent(100);
+									if (result instanceof CommitVersions commitVersions) {
+										builder
+											.setCatalogVersion(commitVersions.catalogVersion())
+											.setCatalogSchemaVersion(commitVersions.catalogSchemaVersion());
+									}
+									responseObserver.onNext(builder.build());
+								} else {
+									responseObserver.onError(throwable);
+								}
+								responseObserver.onCompleted();
+							})
+						.toCompletableFuture()
+						.join();
+				}
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Waits for the completion of the given mutation progress and sends the appropriate response
+	 * to the provided gRPC response observer. If the mutation completes successfully, it sends
+	 * a success response with progress and, if applicable, version details. If an error occurs,
+	 * it sends the error to the response observer.
+	 *
+	 * @param responseObserver the gRPC response observer used to send the progress or error responses
+	 * @param applyMutationProgress the progress tracker for the mutation operation to monitor
+	 */
+	private static void waitForFinish(
+		@Nonnull StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver,
+		@Nonnull Progress<?> applyMutationProgress
+	) {
+		applyMutationProgress
+			.onCompletion()
+			.whenComplete(
+				(result, throwable) -> {
+					if (throwable == null) {
+						final GrpcApplyMutationWithProgressResponse.Builder responseBuilder = GrpcApplyMutationWithProgressResponse
+							.newBuilder()
+							.setProgressInPercent(100);
+						if (result instanceof CommitVersions commitVersions) {
+							responseBuilder
+								.setCatalogVersion(commitVersions.catalogVersion())
+								.setCatalogSchemaVersion(commitVersions.catalogSchemaVersion());
+						}
+						responseObserver.onNext(responseBuilder.build());
+					} else {
+						responseObserver.onError(throwable);
+					}
+					responseObserver.onCompleted();
+				})
+			.toCompletableFuture()
+			.join();
 	}
 
 	/**
@@ -930,6 +942,81 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		@Override
 		public void onComplete() {
 			this.responseObserver.onCompleted();
+		}
+	}
+
+	/**
+	 * A consumer to track and report the progress of applying mutations.
+	 * This class implements the {@link IntConsumer} interface and is used to send progress updates
+	 * to a {@link StreamObserver} in a controlled manner.
+	 *
+	 * Progress is measured as a percentage, and updates are throttled to occur only if:
+	 * - The new progress (percentage) is greater than the last reported progress.
+	 * - At least 1 second has passed since the last update.
+	 */
+	private static class ApplyMutationProgressConsumer implements IntConsumer {
+		private final StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver;
+		private int percentDone;
+		private long lastUpdate;
+
+		public ApplyMutationProgressConsumer(StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {
+			this.responseObserver = responseObserver;
+			this.lastUpdate = System.currentTimeMillis();
+		}
+
+		@Override
+		public void accept(int percentDoneCurrently) {
+			if (percentDoneCurrently > this.percentDone && this.lastUpdate + 1000 < System.currentTimeMillis()) {
+				this.percentDone = percentDoneCurrently;
+				final GrpcApplyMutationWithProgressResponse response =
+					GrpcApplyMutationWithProgressResponse.newBuilder()
+					                                     .setProgressInPercent(this.percentDone)
+					                                     .build();
+				this.responseObserver.onNext(response);
+				this.lastUpdate = System.currentTimeMillis();
+			}
+		}
+	}
+
+	/**
+	 * A consumer implementation that processes progress updates and communicates
+	 * them back to a client through a provided stream observer.
+	 *
+	 * <ul>
+	 *   <li>This class tracks the progress percentage and sends updates to the client
+	 *       only when the progress increases and at least one second has elapsed
+	 *       since the last update.</li>
+	 *   <li>Each progress update is encapsulated in a {@link GrpcGetProgressResponse}
+	 *       object and sent to the client via the {@link StreamObserver}.</li>
+	 * </ul>
+	 */
+	private static class GetProgressConsumer implements IntConsumer {
+		private final String catalogName;
+		private final StreamObserver<GrpcGetProgressResponse> responseObserver;
+		private int percentDone;
+		private long lastUpdate;
+
+		public GetProgressConsumer(@Nonnull String catalogName, @Nonnull StreamObserver<GrpcGetProgressResponse> responseObserver) {
+			this.catalogName = catalogName;
+			this.responseObserver = responseObserver;
+			this.percentDone = 0;
+			this.lastUpdate = System.currentTimeMillis();
+		}
+
+		@Override
+		public void accept(int percentDoneCurrently) {
+			if (percentDoneCurrently > this.percentDone && this.lastUpdate + 1000 < System.currentTimeMillis()) {
+				this.percentDone = percentDoneCurrently;
+				final GrpcGetProgressResponse response =
+					GrpcGetProgressResponse
+						.newBuilder()
+						.setFound(true)
+						.setCatalogName(this.catalogName)
+						.setProgressInPercent(this.percentDone)
+						.build();
+				this.responseObserver.onNext(response);
+				this.lastUpdate = System.currentTimeMillis();
+			}
 		}
 	}
 }

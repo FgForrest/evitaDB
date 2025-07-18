@@ -38,14 +38,38 @@ import java.io.Serial;
 public class ReadOnlyException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 8880217332792347590L;
 
+	/**
+	 * Creates a new {@link ReadOnlyException} with a message indicating that the evitaDB engine is in read-only mode
+	 * and updates are not allowed.
+	 *
+	 * @return a new {@link ReadOnlyException} with a preconfigured message about the engine's read-only state.
+	 */
 	@Nonnull
 	public static ReadOnlyException engineReadOnly() {
 		return new ReadOnlyException("The evitaDB engine is started in read-only mode. No updates are allowed!");
 	}
 
+	/**
+	 * Creates a new {@link ReadOnlyException} indicating that the specified evitaDB catalog is in read-only mode
+	 * and does not allow updates.
+	 *
+	 * @param catalogName the name of the catalog that is read-only
+	 * @return a new {@link ReadOnlyException} instance with a message indicating the catalog is read-only
+	 */
 	@Nonnull
 	public static ReadOnlyException catalogReadOnly(@Nonnull String catalogName) {
 		return new ReadOnlyException("The evitaDB catalog `" + catalogName + "` is read-only. No updates are allowed!");
+	}
+
+	/**
+	 * Creates a new {@link ReadOnlyException} with a message indicating that the session is read-only
+	 * and no updates are allowed.
+	 *
+	 * @return a new {@link ReadOnlyException} instance indicating the session is in read-only mode.
+	 */
+	@Nonnull
+	public static ReadOnlyException sessionReadOnly() {
+		return new ReadOnlyException("The session is read-only. No updates are allowed!");
 	}
 
 	public ReadOnlyException(@Nonnull String publicMessage) {

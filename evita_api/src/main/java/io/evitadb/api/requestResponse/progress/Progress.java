@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.progress;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.CompletionStage;
+import java.util.function.IntConsumer;
 
 /**
  * Progress is a generic interface that represents the progress of an engine mutation operation.
@@ -73,5 +74,24 @@ public interface Progress<T> {
 	 * @return true if the process or task has completed with an exception, false otherwise
 	 */
 	boolean isCompletedExceptionally();
+
+	/**
+	 * Adds a progress listener to track updates on the progress of the operation.
+	 * The provided {@link IntConsumer} will be invoked with the current progress percentage
+	 * (an integer between 0 and 100) whenever the progress status changes.
+	 *
+	 * @param intConsumer the progress listener that consumes the current progress percentage
+	 *                    updates; must not be null
+	 */
+	void addProgressListener(@Nonnull IntConsumer intConsumer);
+
+	/**
+	 * Removes a previously added progress listener that was tracking updates
+	 * on the progress of the operation. The specified {@link IntConsumer} will
+	 * no longer be invoked with progress updates.
+	 *
+	 * @param intConsumer the progress listener to be removed; must not be null
+	 */
+	void removeProgressListener(@Nonnull IntConsumer intConsumer);
 
 }

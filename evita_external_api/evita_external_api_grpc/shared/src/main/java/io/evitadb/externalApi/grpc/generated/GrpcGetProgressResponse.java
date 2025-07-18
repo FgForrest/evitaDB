@@ -43,6 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcGetProgressResponse() {
+    catalogName_ = "";
   }
 
   @java.lang.Override
@@ -77,15 +78,26 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            progressInPercent_ = input.readInt32();
+            found_ = input.readBool();
             break;
           }
           case 16: {
 
+            progressInPercent_ = input.readInt32();
+            break;
+          }
+          case 26: {
+            java.lang.String s = input.readStringRequireUtf8();
+
+            catalogName_ = s;
+            break;
+          }
+          case 32: {
+
             catalogVersion_ = input.readInt64();
             break;
           }
-          case 24: {
+          case 40: {
 
             catalogSchemaVersion_ = input.readInt32();
             break;
@@ -122,14 +134,29 @@ private static final long serialVersionUID = 0L;
             io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse.class, io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse.Builder.class);
   }
 
-  public static final int PROGRESSINPERCENT_FIELD_NUMBER = 1;
+  public static final int FOUND_FIELD_NUMBER = 1;
+  private boolean found_;
+  /**
+   * <pre>
+   * contains information whether the progress was found or not
+   * </pre>
+   *
+   * <code>bool found = 1;</code>
+   * @return The found.
+   */
+  @java.lang.Override
+  public boolean getFound() {
+    return found_;
+  }
+
+  public static final int PROGRESSINPERCENT_FIELD_NUMBER = 2;
   private int progressInPercent_;
   /**
    * <pre>
    * The progress of the top-level engine mutation in percents.
    * </pre>
    *
-   * <code>int32 progressInPercent = 1;</code>
+   * <code>int32 progressInPercent = 2;</code>
    * @return The progressInPercent.
    */
   @java.lang.Override
@@ -137,14 +164,60 @@ private static final long serialVersionUID = 0L;
     return progressInPercent_;
   }
 
-  public static final int CATALOGVERSION_FIELD_NUMBER = 2;
+  public static final int CATALOGNAME_FIELD_NUMBER = 3;
+  private volatile java.lang.Object catalogName_;
+  /**
+   * <pre>
+   * Contains catalog name copied from the request (if the progress is related to a catalog)
+   * </pre>
+   *
+   * <code>string catalogName = 3;</code>
+   * @return The catalogName.
+   */
+  @java.lang.Override
+  public java.lang.String getCatalogName() {
+    java.lang.Object ref = catalogName_;
+    if (ref instanceof java.lang.String) {
+      return (java.lang.String) ref;
+    } else {
+      com.google.protobuf.ByteString bs =
+          (com.google.protobuf.ByteString) ref;
+      java.lang.String s = bs.toStringUtf8();
+      catalogName_ = s;
+      return s;
+    }
+  }
+  /**
+   * <pre>
+   * Contains catalog name copied from the request (if the progress is related to a catalog)
+   * </pre>
+   *
+   * <code>string catalogName = 3;</code>
+   * @return The bytes for catalogName.
+   */
+  @java.lang.Override
+  public com.google.protobuf.ByteString
+      getCatalogNameBytes() {
+    java.lang.Object ref = catalogName_;
+    if (ref instanceof java.lang.String) {
+      com.google.protobuf.ByteString b =
+          com.google.protobuf.ByteString.copyFromUtf8(
+              (java.lang.String) ref);
+      catalogName_ = b;
+      return b;
+    } else {
+      return (com.google.protobuf.ByteString) ref;
+    }
+  }
+
+  public static final int CATALOGVERSION_FIELD_NUMBER = 4;
   private long catalogVersion_;
   /**
    * <pre>
    * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
    * </pre>
    *
-   * <code>int64 catalogVersion = 2;</code>
+   * <code>int64 catalogVersion = 4;</code>
    * @return The catalogVersion.
    */
   @java.lang.Override
@@ -152,14 +225,14 @@ private static final long serialVersionUID = 0L;
     return catalogVersion_;
   }
 
-  public static final int CATALOGSCHEMAVERSION_FIELD_NUMBER = 3;
+  public static final int CATALOGSCHEMAVERSION_FIELD_NUMBER = 5;
   private int catalogSchemaVersion_;
   /**
    * <pre>
    * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
    * </pre>
    *
-   * <code>int32 catalogSchemaVersion = 3;</code>
+   * <code>int32 catalogSchemaVersion = 5;</code>
    * @return The catalogSchemaVersion.
    */
   @java.lang.Override
@@ -181,14 +254,20 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
+    if (found_ != false) {
+      output.writeBool(1, found_);
+    }
     if (progressInPercent_ != 0) {
-      output.writeInt32(1, progressInPercent_);
+      output.writeInt32(2, progressInPercent_);
+    }
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 3, catalogName_);
     }
     if (catalogVersion_ != 0L) {
-      output.writeInt64(2, catalogVersion_);
+      output.writeInt64(4, catalogVersion_);
     }
     if (catalogSchemaVersion_ != 0) {
-      output.writeInt32(3, catalogSchemaVersion_);
+      output.writeInt32(5, catalogSchemaVersion_);
     }
     unknownFields.writeTo(output);
   }
@@ -199,17 +278,24 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
+    if (found_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(1, found_);
+    }
     if (progressInPercent_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, progressInPercent_);
+        .computeInt32Size(2, progressInPercent_);
+    }
+    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(3, catalogName_);
     }
     if (catalogVersion_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(2, catalogVersion_);
+        .computeInt64Size(4, catalogVersion_);
     }
     if (catalogSchemaVersion_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(3, catalogSchemaVersion_);
+        .computeInt32Size(5, catalogSchemaVersion_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -226,8 +312,12 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse other = (io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse) obj;
 
+    if (getFound()
+        != other.getFound()) return false;
     if (getProgressInPercent()
         != other.getProgressInPercent()) return false;
+    if (!getCatalogName()
+        .equals(other.getCatalogName())) return false;
     if (getCatalogVersion()
         != other.getCatalogVersion()) return false;
     if (getCatalogSchemaVersion()
@@ -243,8 +333,13 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
+    hash = (37 * hash) + FOUND_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getFound());
     hash = (37 * hash) + PROGRESSINPERCENT_FIELD_NUMBER;
     hash = (53 * hash) + getProgressInPercent();
+    hash = (37 * hash) + CATALOGNAME_FIELD_NUMBER;
+    hash = (53 * hash) + getCatalogName().hashCode();
     hash = (37 * hash) + CATALOGVERSION_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getCatalogVersion());
@@ -387,7 +482,11 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
+      found_ = false;
+
       progressInPercent_ = 0;
+
+      catalogName_ = "";
 
       catalogVersion_ = 0L;
 
@@ -419,7 +518,9 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse result = new io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse(this);
+      result.found_ = found_;
       result.progressInPercent_ = progressInPercent_;
+      result.catalogName_ = catalogName_;
       result.catalogVersion_ = catalogVersion_;
       result.catalogSchemaVersion_ = catalogSchemaVersion_;
       onBuilt();
@@ -470,8 +571,15 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse.getDefaultInstance()) return this;
+      if (other.getFound() != false) {
+        setFound(other.getFound());
+      }
       if (other.getProgressInPercent() != 0) {
         setProgressInPercent(other.getProgressInPercent());
+      }
+      if (!other.getCatalogName().isEmpty()) {
+        catalogName_ = other.catalogName_;
+        onChanged();
       }
       if (other.getCatalogVersion() != 0L) {
         setCatalogVersion(other.getCatalogVersion());
@@ -508,13 +616,56 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
+    private boolean found_ ;
+    /**
+     * <pre>
+     * contains information whether the progress was found or not
+     * </pre>
+     *
+     * <code>bool found = 1;</code>
+     * @return The found.
+     */
+    @java.lang.Override
+    public boolean getFound() {
+      return found_;
+    }
+    /**
+     * <pre>
+     * contains information whether the progress was found or not
+     * </pre>
+     *
+     * <code>bool found = 1;</code>
+     * @param value The found to set.
+     * @return This builder for chaining.
+     */
+    public Builder setFound(boolean value) {
+
+      found_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * contains information whether the progress was found or not
+     * </pre>
+     *
+     * <code>bool found = 1;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearFound() {
+
+      found_ = false;
+      onChanged();
+      return this;
+    }
+
     private int progressInPercent_ ;
     /**
      * <pre>
      * The progress of the top-level engine mutation in percents.
      * </pre>
      *
-     * <code>int32 progressInPercent = 1;</code>
+     * <code>int32 progressInPercent = 2;</code>
      * @return The progressInPercent.
      */
     @java.lang.Override
@@ -526,7 +677,7 @@ private static final long serialVersionUID = 0L;
      * The progress of the top-level engine mutation in percents.
      * </pre>
      *
-     * <code>int32 progressInPercent = 1;</code>
+     * <code>int32 progressInPercent = 2;</code>
      * @param value The progressInPercent to set.
      * @return This builder for chaining.
      */
@@ -541,12 +692,108 @@ private static final long serialVersionUID = 0L;
      * The progress of the top-level engine mutation in percents.
      * </pre>
      *
-     * <code>int32 progressInPercent = 1;</code>
+     * <code>int32 progressInPercent = 2;</code>
      * @return This builder for chaining.
      */
     public Builder clearProgressInPercent() {
 
       progressInPercent_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private java.lang.Object catalogName_ = "";
+    /**
+     * <pre>
+     * Contains catalog name copied from the request (if the progress is related to a catalog)
+     * </pre>
+     *
+     * <code>string catalogName = 3;</code>
+     * @return The catalogName.
+     */
+    public java.lang.String getCatalogName() {
+      java.lang.Object ref = catalogName_;
+      if (!(ref instanceof java.lang.String)) {
+        com.google.protobuf.ByteString bs =
+            (com.google.protobuf.ByteString) ref;
+        java.lang.String s = bs.toStringUtf8();
+        catalogName_ = s;
+        return s;
+      } else {
+        return (java.lang.String) ref;
+      }
+    }
+    /**
+     * <pre>
+     * Contains catalog name copied from the request (if the progress is related to a catalog)
+     * </pre>
+     *
+     * <code>string catalogName = 3;</code>
+     * @return The bytes for catalogName.
+     */
+    public com.google.protobuf.ByteString
+        getCatalogNameBytes() {
+      java.lang.Object ref = catalogName_;
+      if (ref instanceof String) {
+        com.google.protobuf.ByteString b =
+            com.google.protobuf.ByteString.copyFromUtf8(
+                (java.lang.String) ref);
+        catalogName_ = b;
+        return b;
+      } else {
+        return (com.google.protobuf.ByteString) ref;
+      }
+    }
+    /**
+     * <pre>
+     * Contains catalog name copied from the request (if the progress is related to a catalog)
+     * </pre>
+     *
+     * <code>string catalogName = 3;</code>
+     * @param value The catalogName to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogName(
+        java.lang.String value) {
+      if (value == null) {
+    throw new NullPointerException();
+  }
+
+      catalogName_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains catalog name copied from the request (if the progress is related to a catalog)
+     * </pre>
+     *
+     * <code>string catalogName = 3;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCatalogName() {
+
+      catalogName_ = getDefaultInstance().getCatalogName();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains catalog name copied from the request (if the progress is related to a catalog)
+     * </pre>
+     *
+     * <code>string catalogName = 3;</code>
+     * @param value The bytes for catalogName to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogNameBytes(
+        com.google.protobuf.ByteString value) {
+      if (value == null) {
+    throw new NullPointerException();
+  }
+  checkByteStringIsUtf8(value);
+
+      catalogName_ = value;
       onChanged();
       return this;
     }
@@ -557,7 +804,7 @@ private static final long serialVersionUID = 0L;
      * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
      * </pre>
      *
-     * <code>int64 catalogVersion = 2;</code>
+     * <code>int64 catalogVersion = 4;</code>
      * @return The catalogVersion.
      */
     @java.lang.Override
@@ -569,7 +816,7 @@ private static final long serialVersionUID = 0L;
      * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
      * </pre>
      *
-     * <code>int64 catalogVersion = 2;</code>
+     * <code>int64 catalogVersion = 4;</code>
      * @param value The catalogVersion to set.
      * @return This builder for chaining.
      */
@@ -584,7 +831,7 @@ private static final long serialVersionUID = 0L;
      * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
      * </pre>
      *
-     * <code>int64 catalogVersion = 2;</code>
+     * <code>int64 catalogVersion = 4;</code>
      * @return This builder for chaining.
      */
     public Builder clearCatalogVersion() {
@@ -600,7 +847,7 @@ private static final long serialVersionUID = 0L;
      * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
      * </pre>
      *
-     * <code>int32 catalogSchemaVersion = 3;</code>
+     * <code>int32 catalogSchemaVersion = 5;</code>
      * @return The catalogSchemaVersion.
      */
     @java.lang.Override
@@ -612,7 +859,7 @@ private static final long serialVersionUID = 0L;
      * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
      * </pre>
      *
-     * <code>int32 catalogSchemaVersion = 3;</code>
+     * <code>int32 catalogSchemaVersion = 5;</code>
      * @param value The catalogSchemaVersion to set.
      * @return This builder for chaining.
      */
@@ -627,7 +874,7 @@ private static final long serialVersionUID = 0L;
      * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
      * </pre>
      *
-     * <code>int32 catalogSchemaVersion = 3;</code>
+     * <code>int32 catalogSchemaVersion = 5;</code>
      * @return This builder for chaining.
      */
     public Builder clearCatalogSchemaVersion() {

@@ -23,14 +23,18 @@
 
 package io.evitadb.api.requestResponse.progress;
 
+import io.evitadb.function.Functions;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 /**
@@ -54,7 +58,7 @@ public class ProgressRecord<T> implements Progress<T> {
 	/**
 	 * Optional observer that can be notified about progress updates.
 	 */
-	private final IntConsumer progressObserver;
+	private final List<IntConsumer> progressObservers = new CopyOnWriteArrayList<>();
 
 	/**
 	 * CompletableFuture that completes when the operation has finished.
@@ -80,7 +84,7 @@ public class ProgressRecord<T> implements Progress<T> {
 		@Nullable IntConsumer progressObserver
 	) {
 		this.operationName = operationName;
-		this.progressObserver = progressObserver;
+		this.progressObservers.add(progressObserver);
 		this.onCompletion = new CompletableFuture<>();
 		this.percentCompleted = new AtomicInteger(0);
 	}
@@ -94,8 +98,27 @@ public class ProgressRecord<T> implements Progress<T> {
 		@Nonnull ProgressingFuture<T> progressingFuture,
 		@Nonnull Executor executor
 	) {
+		this(
+			operationName,
+			progressObserver,
+			progressingFuture,
+			Functions.noOpConsumer(),
+			executor
+		);
+	}
+
+	/**
+	 * Creates a new instance of ProgressRecord with the specified termination sequence callback.
+	 */
+	public ProgressRecord(
+		@Nonnull String operationName,
+		@Nullable IntConsumer progressObserver,
+		@Nonnull ProgressingFuture<T> progressingFuture,
+		@Nonnull Consumer<ProgressRecord<T>> progressConsumer,
+		@Nonnull Executor executor
+	) {
 		this.operationName = operationName;
-		this.progressObserver = progressObserver;
+		this.progressObservers.add(progressObserver);
 		this.onCompletion = progressingFuture;
 		this.percentCompleted = new AtomicInteger(0);
 		progressingFuture.setProgressConsumer(
@@ -103,6 +126,7 @@ public class ProgressRecord<T> implements Progress<T> {
 				(int) (((double) stepsDone / totalSteps) * 100d)
 			)
 		);
+		progressConsumer.accept(this);
 		progressingFuture.execute(executor);
 	}
 
@@ -173,6 +197,16 @@ public class ProgressRecord<T> implements Progress<T> {
 		}
 	}
 
+	@Override
+	public void addProgressListener(@Nonnull IntConsumer intConsumer) {
+		this.progressObservers.add(intConsumer);
+	}
+
+	@Override
+	public void removeProgressListener(@Nonnull IntConsumer intConsumer) {
+		this.progressObservers.remove(intConsumer);
+	}
+
 	/**
 	 * Notifies the client observer about the current progress by providing the specified percentage.
 	 * If the observer is null or if an exception occurs during the notification process,
@@ -181,9 +215,9 @@ public class ProgressRecord<T> implements Progress<T> {
 	 * @param percentage the current progress percentage to be sent to the client observer
 	 */
 	private void notifyClientObserver(int percentage) {
-		if (this.progressObserver != null) {
+		for (IntConsumer progressObserver : this.progressObservers) {
 			try {
-				this.progressObserver.accept(percentage);
+				progressObserver.accept(percentage);
 			} catch (Throwable t) {
 				log.error("Error notifying progress observer with percentage: " + percentage, t);
 			}

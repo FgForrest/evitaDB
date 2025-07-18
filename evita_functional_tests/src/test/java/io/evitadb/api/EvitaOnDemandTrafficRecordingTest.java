@@ -261,7 +261,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 	@Test
 	void manualTrafficRecordingStartAndStop() throws IOException {
-		final ServerTask<TrafficRecordingSettings, FileForFetch> recordingTask = this.evita.queryCatalog(
+		final ServerTask<TrafficRecordingSettings, FileForFetch> recordingTask = this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaInternalSessionContract internalSession = (EvitaInternalSessionContract) session;
@@ -274,7 +274,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 		generateSomeTraffic();
 
-		this.evita.queryCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaInternalSessionContract internalSession = (EvitaInternalSessionContract) session;
@@ -296,7 +296,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 	@Test
 	void manualTrafficRecordingStartAndStopWithoutExportingFile() {
-		final ServerTask<TrafficRecordingSettings, FileForFetch> recordingTask = this.evita.queryCatalog(
+		final ServerTask<TrafficRecordingSettings, FileForFetch> recordingTask = this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaInternalSessionContract internalSession = (EvitaInternalSessionContract) session;
@@ -309,7 +309,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 		generateSomeTraffic();
 
-		this.evita.queryCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaInternalSessionContract internalSession = (EvitaInternalSessionContract) session;
@@ -323,7 +323,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 	@Test
 	void manualTrafficRecordingStartAndAutomaticStopWhenFileSizeIsReached() throws IOException {
-		final ServerTask<TrafficRecordingSettings, FileForFetch> recordingTask = this.evita.queryCatalog(
+		final ServerTask<TrafficRecordingSettings, FileForFetch> recordingTask = this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaInternalSessionContract internalSession = (EvitaInternalSessionContract) session;
@@ -336,7 +336,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 		generateSomeTraffic();
 
-		this.evita.queryCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaInternalSessionContract internalSession = (EvitaInternalSessionContract) session;

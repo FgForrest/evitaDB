@@ -410,7 +410,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		// added read only check
 		isTrue(
 			!isReadOnly(),
-			() -> ReadOnlyException.catalogReadOnly(this.catalog.getName())
+			ReadOnlyException::sessionReadOnly
 		);
 
 		if (this.catalog.getCatalogState() == CatalogState.ALIVE) {
@@ -1346,7 +1346,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		// added read only check
 		isTrue(
 			!isReadOnly(),
-			() -> ReadOnlyException.catalogReadOnly(this.catalog.getName())
+			ReadOnlyException::sessionReadOnly
 		);
 		final CatalogContract theCatalog = this.catalog;
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
@@ -1365,7 +1365,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		// added read only check
 		isTrue(
 			!isReadOnly(),
-			() -> ReadOnlyException.catalogReadOnly(this.catalog.getName())
+			ReadOnlyException::sessionReadOnly
 		);
 		final CatalogContract theCatalog = this.catalog;
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
@@ -1583,7 +1583,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	) throws SingletonTaskAlreadyRunningException {
 		Assert.isTrue(
 			!isReadOnly(),
-			ReadOnlyException::engineReadOnly
+			ReadOnlyException::sessionReadOnly
 		);
 
 		final Collection<TrafficRecorderTask> existingTaskStatus = this.evita.management().getTaskStatuses(TrafficRecorderTask.class);
@@ -1609,7 +1609,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public TaskStatus<TrafficRecordingSettings, FileForFetch> stopRecording(@Nonnull UUID taskId) {
 		Assert.isTrue(
 			!isReadOnly(),
-			() -> ReadOnlyException.catalogReadOnly(this.catalog.getName())
+			ReadOnlyException::sessionReadOnly
 		);
 
 		final Collection<TrafficRecorderTask> existingTaskStatus = this.evita.management().getTaskStatuses(TrafficRecorderTask.class);
@@ -2095,7 +2095,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	private Transaction createTransaction() {
 		isTrue(
 			!isReadOnly(),
-			() -> ReadOnlyException.catalogReadOnly(this.catalog.getName())
+			ReadOnlyException::sessionReadOnly
 		);
 		final Transaction transaction = new Transaction(
 			UUID.randomUUID(),
