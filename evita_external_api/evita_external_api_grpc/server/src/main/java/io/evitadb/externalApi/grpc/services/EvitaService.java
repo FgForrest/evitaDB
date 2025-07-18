@@ -430,7 +430,6 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 
 	/**
 	 * Renames existing catalog to a name specified in a request.
-	 * TODO JNO - add progress variant of this method
 	 *
 	 * @param request          containing names of the catalogs involved
 	 * @param responseObserver observer on which errors might be thrown and result returned
@@ -458,8 +457,40 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	}
 
 	/**
+	 * Renames existing catalog to a name specified in a request with progress tracking.
+	 *
+	 * @param request          containing names of the catalogs involved
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#renameCatalogWithProgress(String, String)
+	 */
+	@Override
+	public void renameCatalogWithProgress(
+		GrpcRenameCatalogRequest request,
+		StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(
+					responseObserver);
+				final Progress<CommitVersions> renameCatalogProgress = this.evita.renameCatalogWithProgress(
+					request.getCatalogName(),
+					request.getNewCatalogName()
+				);
+				// Add progress listener to track progress updates
+				renameCatalogProgress.addProgressListener(progressObserver);
+				((ServerCallStreamObserver<?>)responseObserver)
+					.setOnCancelHandler(() -> renameCatalogProgress.removeProgressListener(progressObserver));
+
+				waitForFinish(responseObserver, renameCatalogProgress);
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
 	 * Replaces existing catalog with a different existing catalog and its contents.
-	 * TODO JNO - add progress variant of this method
 	 *
 	 * @param request          containing names of the catalogs involved
 	 * @param responseObserver observer on which errors might be thrown and result returned
@@ -480,6 +511,39 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 						responseObserver.onCompleted();
 					}
 				),
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Replaces existing catalog with a different existing catalog and its contents with progress tracking.
+	 *
+	 * @param request          containing names of the catalogs involved
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#replaceCatalogWithProgress(String, String)
+	 */
+	@Override
+	public void replaceCatalogWithProgress(
+		GrpcReplaceCatalogRequest request,
+		StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(
+					responseObserver);
+				final Progress<CommitVersions> replaceCatalogProgress = this.evita.replaceCatalogWithProgress(
+					request.getCatalogNameToBeReplacedWith(),
+					request.getCatalogNameToBeReplaced()
+				);
+				// Add progress listener to track progress updates
+				replaceCatalogProgress.addProgressListener(progressObserver);
+				((ServerCallStreamObserver<?>)responseObserver)
+					.setOnCancelHandler(() -> replaceCatalogProgress.removeProgressListener(progressObserver));
+
+				waitForFinish(responseObserver, replaceCatalogProgress);
+			},
 			this.evita.getRequestExecutor(),
 			responseObserver,
 			this.context

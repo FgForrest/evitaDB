@@ -443,6 +443,37 @@ public final class EvitaServiceGrpc {
     return getRenameCatalogMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> getRenameCatalogWithProgressMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "RenameCatalogWithProgress",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> getRenameCatalogWithProgressMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> getRenameCatalogWithProgressMethod;
+    if ((getRenameCatalogWithProgressMethod = EvitaServiceGrpc.getRenameCatalogWithProgressMethod) == null) {
+      synchronized (EvitaServiceGrpc.class) {
+        if ((getRenameCatalogWithProgressMethod = EvitaServiceGrpc.getRenameCatalogWithProgressMethod) == null) {
+          EvitaServiceGrpc.getRenameCatalogWithProgressMethod = getRenameCatalogWithProgressMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "RenameCatalogWithProgress"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("RenameCatalogWithProgress"))
+              .build();
+        }
+      }
+    }
+    return getRenameCatalogWithProgressMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest,
       io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> getReplaceCatalogMethod;
 
@@ -472,6 +503,37 @@ public final class EvitaServiceGrpc {
       }
     }
     return getReplaceCatalogMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> getReplaceCatalogWithProgressMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "ReplaceCatalogWithProgress",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> getReplaceCatalogWithProgressMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> getReplaceCatalogWithProgressMethod;
+    if ((getReplaceCatalogWithProgressMethod = EvitaServiceGrpc.getReplaceCatalogWithProgressMethod) == null) {
+      synchronized (EvitaServiceGrpc.class) {
+        if ((getReplaceCatalogWithProgressMethod = EvitaServiceGrpc.getReplaceCatalogWithProgressMethod) == null) {
+          EvitaServiceGrpc.getReplaceCatalogWithProgressMethod = getReplaceCatalogWithProgressMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest, io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ReplaceCatalogWithProgress"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("ReplaceCatalogWithProgress"))
+              .build();
+        }
+      }
+    }
+    return getReplaceCatalogWithProgressMethod;
   }
 
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcMakeCatalogMutableRequest,
@@ -1045,12 +1107,32 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to rename an existing catalog with progress tracking.
+     * </pre>
+     */
+    default void renameCatalogWithProgress(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getRenameCatalogWithProgressMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to replace an existing catalog.
      * </pre>
      */
     default void replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getReplaceCatalogMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to replace an existing catalog with progress tracking.
+     * </pre>
+     */
+    default void replaceCatalogWithProgress(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getReplaceCatalogWithProgressMethod(), responseObserver);
     }
 
     /**
@@ -1354,6 +1436,17 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to rename an existing catalog with progress tracking.
+     * </pre>
+     */
+    public void renameCatalogWithProgress(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncServerStreamingCall(
+          getChannel().newCall(getRenameCatalogWithProgressMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to replace an existing catalog.
      * </pre>
      */
@@ -1361,6 +1454,17 @@ public final class EvitaServiceGrpc {
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getReplaceCatalogMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to replace an existing catalog with progress tracking.
+     * </pre>
+     */
+    public void replaceCatalogWithProgress(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncServerStreamingCall(
+          getChannel().newCall(getReplaceCatalogWithProgressMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -1650,12 +1754,36 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to rename an existing catalog with progress tracking.
+     * </pre>
+     */
+    @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
+    public io.grpc.stub.BlockingClientCall<?, io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse>
+        renameCatalogWithProgress(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request) {
+      return io.grpc.stub.ClientCalls.blockingV2ServerStreamingCall(
+          getChannel(), getRenameCatalogWithProgressMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to replace an existing catalog.
      * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getReplaceCatalogMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to replace an existing catalog with progress tracking.
+     * </pre>
+     */
+    @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
+    public io.grpc.stub.BlockingClientCall<?, io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse>
+        replaceCatalogWithProgress(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request) {
+      return io.grpc.stub.ClientCalls.blockingV2ServerStreamingCall(
+          getChannel(), getReplaceCatalogWithProgressMethod(), getCallOptions(), request);
     }
 
     /**
@@ -1946,12 +2074,34 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to rename an existing catalog with progress tracking.
+     * </pre>
+     */
+    public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> renameCatalogWithProgress(
+        io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request) {
+      return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
+          getChannel(), getRenameCatalogWithProgressMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to replace an existing catalog.
      * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getReplaceCatalogMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to replace an existing catalog with progress tracking.
+     * </pre>
+     */
+    public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse> replaceCatalogWithProgress(
+        io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request) {
+      return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
+          getChannel(), getReplaceCatalogWithProgressMethod(), getCallOptions(), request);
     }
 
     /**
@@ -2314,19 +2464,21 @@ public final class EvitaServiceGrpc {
   private static final int METHODID_APPLY_MUTATION = 10;
   private static final int METHODID_APPLY_MUTATION_WITH_PROGRESS = 11;
   private static final int METHODID_RENAME_CATALOG = 12;
-  private static final int METHODID_REPLACE_CATALOG = 13;
-  private static final int METHODID_MAKE_CATALOG_MUTABLE = 14;
-  private static final int METHODID_MAKE_CATALOG_MUTABLE_WITH_PROGRESS = 15;
-  private static final int METHODID_MAKE_CATALOG_IMMUTABLE = 16;
-  private static final int METHODID_MAKE_CATALOG_IMMUTABLE_WITH_PROGRESS = 17;
-  private static final int METHODID_MAKE_CATALOG_ALIVE = 18;
-  private static final int METHODID_MAKE_CATALOG_ALIVE_WITH_PROGRESS = 19;
-  private static final int METHODID_ACTIVATE_CATALOG = 20;
-  private static final int METHODID_ACTIVATE_CATALOG_WITH_PROGRESS = 21;
-  private static final int METHODID_DEACTIVATE_CATALOG = 22;
-  private static final int METHODID_DEACTIVATE_CATALOG_WITH_PROGRESS = 23;
-  private static final int METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE = 24;
-  private static final int METHODID_GET_PROGRESS = 25;
+  private static final int METHODID_RENAME_CATALOG_WITH_PROGRESS = 13;
+  private static final int METHODID_REPLACE_CATALOG = 14;
+  private static final int METHODID_REPLACE_CATALOG_WITH_PROGRESS = 15;
+  private static final int METHODID_MAKE_CATALOG_MUTABLE = 16;
+  private static final int METHODID_MAKE_CATALOG_MUTABLE_WITH_PROGRESS = 17;
+  private static final int METHODID_MAKE_CATALOG_IMMUTABLE = 18;
+  private static final int METHODID_MAKE_CATALOG_IMMUTABLE_WITH_PROGRESS = 19;
+  private static final int METHODID_MAKE_CATALOG_ALIVE = 20;
+  private static final int METHODID_MAKE_CATALOG_ALIVE_WITH_PROGRESS = 21;
+  private static final int METHODID_ACTIVATE_CATALOG = 22;
+  private static final int METHODID_ACTIVATE_CATALOG_WITH_PROGRESS = 23;
+  private static final int METHODID_DEACTIVATE_CATALOG = 24;
+  private static final int METHODID_DEACTIVATE_CATALOG_WITH_PROGRESS = 25;
+  private static final int METHODID_REGISTER_SYSTEM_CHANGE_CAPTURE = 26;
+  private static final int METHODID_GET_PROGRESS = 27;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -2397,9 +2549,17 @@ public final class EvitaServiceGrpc {
           serviceImpl.renameCatalog((io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse>) responseObserver);
           break;
+        case METHODID_RENAME_CATALOG_WITH_PROGRESS:
+          serviceImpl.renameCatalogWithProgress((io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse>) responseObserver);
+          break;
         case METHODID_REPLACE_CATALOG:
           serviceImpl.replaceCatalog((io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse>) responseObserver);
+          break;
+        case METHODID_REPLACE_CATALOG_WITH_PROGRESS:
+          serviceImpl.replaceCatalogWithProgress((io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse>) responseObserver);
           break;
         case METHODID_MAKE_CATALOG_MUTABLE:
           serviceImpl.makeCatalogMutable((io.evitadb.externalApi.grpc.generated.GrpcMakeCatalogMutableRequest) request,
@@ -2559,12 +2719,26 @@ public final class EvitaServiceGrpc {
               io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse>(
                 service, METHODID_RENAME_CATALOG)))
         .addMethod(
+          getRenameCatalogWithProgressMethod(),
+          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse>(
+                service, METHODID_RENAME_CATALOG_WITH_PROGRESS)))
+        .addMethod(
           getReplaceCatalogMethod(),
           io.grpc.stub.ServerCalls.asyncUnaryCall(
             new MethodHandlers<
               io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest,
               io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse>(
                 service, METHODID_REPLACE_CATALOG)))
+        .addMethod(
+          getReplaceCatalogWithProgressMethod(),
+          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcApplyMutationWithProgressResponse>(
+                service, METHODID_REPLACE_CATALOG_WITH_PROGRESS)))
         .addMethod(
           getMakeCatalogMutableMethod(),
           io.grpc.stub.ServerCalls.asyncUnaryCall(
@@ -2710,7 +2884,9 @@ public final class EvitaServiceGrpc {
               .addMethod(getApplyMutationMethod())
               .addMethod(getApplyMutationWithProgressMethod())
               .addMethod(getRenameCatalogMethod())
+              .addMethod(getRenameCatalogWithProgressMethod())
               .addMethod(getReplaceCatalogMethod())
+              .addMethod(getReplaceCatalogWithProgressMethod())
               .addMethod(getMakeCatalogMutableMethod())
               .addMethod(getMakeCatalogMutableWithProgressMethod())
               .addMethod(getMakeCatalogImmutableMethod())

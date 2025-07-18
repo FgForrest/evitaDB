@@ -276,8 +276,12 @@ service EvitaService {
   rpc ApplyMutationWithProgress(GrpcApplyMutationRequest) returns (stream GrpcApplyMutationWithProgressResponse);
   // Procedure used to rename an existing catalog.
   rpc RenameCatalog(GrpcRenameCatalogRequest) returns (GrpcRenameCatalogResponse);
+  // Procedure used to rename an existing catalog with progress tracking.
+  rpc RenameCatalogWithProgress(GrpcRenameCatalogRequest) returns (stream GrpcApplyMutationWithProgressResponse);
   // Procedure used to replace an existing catalog.
   rpc ReplaceCatalog(GrpcReplaceCatalogRequest) returns (GrpcReplaceCatalogResponse);
+  // Procedure used to replace an existing catalog with progress tracking.
+  rpc ReplaceCatalogWithProgress(GrpcReplaceCatalogRequest) returns (stream GrpcApplyMutationWithProgressResponse);
   // Procedure used to make a catalog mutable.
   rpc MakeCatalogMutable(GrpcMakeCatalogMutableRequest) returns (GrpcMakeCatalogMutableResponse);
   // Procedure used to make a catalog mutable with progress tracking.
