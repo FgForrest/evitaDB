@@ -26,10 +26,12 @@ package io.evitadb.store.spi;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
+import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.system.TimeFlow;
@@ -118,21 +120,25 @@ public non-sealed interface CatalogPersistenceService extends RichPersistenceSer
 
 	/**
 	 * Returns the index extracted from the given catalog data store file name.
+	 * This method uses character-by-character parsing similar to the WAL file name index extraction.
 	 *
 	 * @param fileName the name of the catalog data store file
 	 * @return the index extracted from the catalog data store file name
 	 */
 	static int getIndexFromCatalogFileName(@Nonnull String fileName) {
-		final Pattern genericCatalogPattern = Pattern.compile(".*_(\\d+)" + CATALOG_FILE_SUFFIX);
-		final Matcher matcher = genericCatalogPattern.matcher(fileName);
-		if (matcher.matches()) {
-			return Integer.parseInt(matcher.group(1));
-		} else {
+		int endIndex = fileName.length() - CATALOG_FILE_SUFFIX.length();
+		int startIndex = endIndex;
+		while (startIndex > 0 && Character.isDigit(fileName.charAt(startIndex - 1))) {
+			startIndex--;
+		}
+
+		if (startIndex >= endIndex) {
 			throw new GenericEvitaInternalError(
-				"Catalog file name does not match the expected pattern.",
-				"Catalog file name does not match the expected pattern: " + fileName
+				"Invalid catalog file name `" + fileName + "`! Cannot extract index from it!"
 			);
 		}
+
+		return Integer.parseInt(fileName, startIndex, endIndex, 10);
 	}
 
 	/**
@@ -533,6 +539,22 @@ public non-sealed interface CatalogPersistenceService extends RichPersistenceSer
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
 	);
+
+	/**
+	 * Duplicates an existing catalog to create a new catalog with a different name.
+	 *
+	 * @param targetCatalogName name of the target catalog to be created
+	 * @param storageOptions storage configuration options
+	 * @return progressing future that tracks the duplication process
+	 *
+	 * @throws DirectoryNotEmptyException if the target directory is not empty
+	 * @throws InvalidStoragePathException if the storage path is invalid
+	 */
+	@Nonnull
+	ProgressingFuture<Void> duplicateCatalog(
+		@Nonnull String targetCatalogName,
+		@Nonnull StorageOptions storageOptions
+	) throws DirectoryNotEmptyException, InvalidStoragePathException;
 
 	/**
 	 * Verifies the integrity of a system, component, or data structure.

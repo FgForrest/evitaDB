@@ -1355,13 +1355,15 @@ public final class Evita implements EvitaContract {
 	) {
 		final String catalogName = duplicateCatalogMutation.getCatalogName();
 		final String targetCatalogName = duplicateCatalogMutation.getNewCatalogName();
+		final CatalogContract sourceCatalog = this.catalogs.get(catalogName);
 		assertNoCatalogEngineMutationInProgress(catalogName);
 		return new ProgressRecord<>(
 			"Duplicating catalog `" + catalogName + "` to `" + targetCatalogName + "`",
 			progressObserver,
 			new ProgressingFuture<>(
 				0,
-				(progressingFuture) -> {
+				Collections.singletonList(sourceCatalog.duplicateTo(targetCatalogName)),
+				(progressingFuture, __) -> {
 					this.inactiveCatalogs.add(targetCatalogName);
 					this.catalogs.put(
 						targetCatalogName,

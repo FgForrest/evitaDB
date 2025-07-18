@@ -1190,6 +1190,12 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Nonnull
 	@Override
+	public ProgressingFuture<Void> duplicateTo(@Nonnull String targetCatalogName) {
+		return this.persistenceService.duplicateCatalog(targetCatalogName, this.evitaConfiguration.storage());
+	}
+
+	@Nonnull
+	@Override
 	public CatalogStatistics getStatistics() {
 		final EntityCollectionStatistics[] collectionStatistics = this.entityCollections.values()
 			.stream()

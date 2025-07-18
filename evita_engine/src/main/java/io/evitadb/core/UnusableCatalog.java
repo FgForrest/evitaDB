@@ -276,6 +276,12 @@ public final class UnusableCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
+	public ProgressingFuture<Void> duplicateTo(@Nonnull String targetCatalogName) {
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+	}
+
+	@Nonnull
+	@Override
 	public CatalogStatistics getStatistics() {
 		return new CatalogStatistics(
 			null,

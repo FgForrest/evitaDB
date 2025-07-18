@@ -54,6 +54,7 @@ import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.Evita;
@@ -4733,6 +4734,93 @@ class EvitaTest implements EvitaTestSupport {
 
 		schemaBuilder.updateVia(session);
 		return session;
+	}
+
+	/**
+	 * Tests the functionality of duplicating an active catalog.
+	 *
+	 * This test verifies that:
+	 * - An active catalog can be successfully duplicated
+	 * - The duplicated catalog is initially in INACTIVE state
+	 * - The duplicated catalog can be activated
+	 * - Data can be queried from the duplicated catalog after activation
+	 */
+	@Test
+	@DisplayName("Should duplicate active catalog and verify its functionality")
+	void shouldDuplicateActiveCatalogAndVerifyFunctionality() {
+		// Set up the original catalog with schema and data
+		setupCatalogWithProductAndCategory();
+
+		// Make the catalog alive (active) before duplication
+		this.evita.makeCatalogAlive(TEST_CATALOG);
+
+		// Wait a moment to ensure catalog is fully initialized
+		try {
+			Thread.sleep(100);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		}
+
+		final String duplicatedCatalogName = TEST_CATALOG + "_duplicated";
+
+		// Duplicate the catalog using the public API
+		final DuplicateCatalogMutation duplicateMutation = new DuplicateCatalogMutation(TEST_CATALOG, duplicatedCatalogName);
+		this.evita.applyMutation(duplicateMutation, progress -> {
+			// Progress observer - can be used for monitoring duplication progress
+		}).onCompletion().toCompletableFuture().join();
+
+		// Verify that the duplicated catalog exists and is in INACTIVE state
+		assertTrue(this.evita.getCatalogNames().contains(duplicatedCatalogName));
+		assertEquals(CatalogState.INACTIVE, this.evita.getCatalogState(duplicatedCatalogName).orElse(null));
+
+		// Activate the duplicated catalog
+		this.evita.activateCatalog(duplicatedCatalogName);
+
+		// Verify that the duplicated catalog is now active
+		assertEquals(CatalogState.ALIVE, this.evita.getCatalogState(duplicatedCatalogName).orElse(null));
+
+		// Query data in the duplicated catalog to verify it contains the same data as the original
+		this.evita.queryCatalog(
+			duplicatedCatalogName,
+			session -> {
+				// Verify that the product entity exists with the expected data
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow(() -> new AssertionError("Product entity should exist in duplicated catalog"));
+
+				assertEquals("The product", product.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+
+				// Verify that category entities exist
+				final SealedEntity category1 = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+					.orElseThrow(() -> new AssertionError("Category 1 should exist in duplicated catalog"));
+				final SealedEntity category2 = session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
+					.orElseThrow(() -> new AssertionError("Category 2 should exist in duplicated catalog"));
+
+				assertNotNull(category1);
+				assertNotNull(category2);
+
+				// Verify that we can query entities
+				final List<SealedEntity> products = session.queryList(
+					query(
+						collection(Entities.PRODUCT),
+						require(entityFetchAll())
+					),
+					SealedEntity.class
+				);
+				assertEquals(1, products.size());
+
+				final List<SealedEntity> categories = session.queryList(
+					query(
+						collection(Entities.CATEGORY),
+						require(entityFetchAll())
+					),
+					SealedEntity.class
+				);
+				assertEquals(2, categories.size());
+			}
+		);
+
+		// Clean up - delete the duplicated catalog
+		this.evita.deleteCatalogIfExists(duplicatedCatalogName);
 	}
 
 	private Path getEvitaTestDirectory() {

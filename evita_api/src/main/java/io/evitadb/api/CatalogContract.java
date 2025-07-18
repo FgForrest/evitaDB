@@ -406,6 +406,15 @@ public interface CatalogContract {
 	);
 
 	/**
+	 * Duplicates the current catalog to another catalog with the specified name.
+	 *
+	 * @param targetCatalogName the name of the target catalog to which the current catalog will be duplicated
+	 * @return a future that will be completed when the duplication is finished
+	 */
+	@Nonnull
+	ProgressingFuture<Void> duplicateTo(@Nonnull String targetCatalogName);
+
+	/**
 	 * Returns catalog statistics aggregating basic information about the catalog and the data stored in it.
 	 *
 	 * @return catalog statistics
@@ -427,5 +436,4 @@ public interface CatalogContract {
 	 * @return true if the process or operation is terminated, false otherwise.
 	 */
 	boolean isTerminated();
-
 }
