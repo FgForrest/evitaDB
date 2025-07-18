@@ -56,6 +56,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
@@ -615,6 +616,15 @@ public class EvitaClient implements EvitaContract {
 				"Catalog `" + catalogName + "` is not in WARMING_UP state, so it cannot be made alive!"
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Progress<Void> duplicateCatalogWithProgress(@Nonnull String catalogName, @Nonnull String newCatalogName) {
+		assertActive();
+		return applyMutation(
+			new DuplicateCatalogMutation(catalogName, newCatalogName)
+		);
 	}
 
 	@Nonnull

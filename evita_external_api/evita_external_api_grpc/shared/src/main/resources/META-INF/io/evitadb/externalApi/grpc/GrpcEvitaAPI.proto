@@ -159,6 +159,20 @@ message GrpcMakeCatalogAliveResponse {
   bool success = 1;
 }
 
+// Request to duplicate a catalog.
+message GrpcDuplicateCatalogRequest {
+  // Name of the source catalog to duplicate.
+  string catalogName = 1;
+  // Name of the new catalog to create with duplicated contents.
+  string newCatalogName = 2;
+}
+
+// Response to a duplicate catalog request.
+message GrpcDuplicateCatalogResponse {
+  // Indicator whether the catalog was duplicated successfully.
+  bool success = 1;
+}
+
 // Request to activate a catalog.
 message GrpcActivateCatalogRequest {
   // Name of the catalog to activate.
@@ -294,6 +308,10 @@ service EvitaService {
   rpc MakeCatalogAlive(GrpcMakeCatalogAliveRequest) returns (GrpcMakeCatalogAliveResponse);
   // Procedure used to make a catalog alive with progress tracking.
   rpc MakeCatalogAliveWithProgress(GrpcMakeCatalogAliveRequest) returns (stream GrpcApplyMutationWithProgressResponse);
+  // Procedure used to duplicate a catalog.
+  rpc DuplicateCatalog(GrpcDuplicateCatalogRequest) returns (GrpcDuplicateCatalogResponse);
+  // Procedure used to duplicate a catalog with progress tracking.
+  rpc DuplicateCatalogWithProgress(GrpcDuplicateCatalogRequest) returns (stream GrpcApplyMutationWithProgressResponse);
   // Procedure used to activate a catalog.
   rpc ActivateCatalog(GrpcActivateCatalogRequest) returns (GrpcActivateCatalogResponse);
   // Procedure used to activate a catalog with progress tracking.

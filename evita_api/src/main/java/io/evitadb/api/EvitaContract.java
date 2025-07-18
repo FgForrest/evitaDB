@@ -181,6 +181,36 @@ public interface EvitaContract extends AutoCloseable {
 	Progress<CommitVersions> makeCatalogAliveWithProgress(@Nonnull String catalogName);
 
 	/**
+	 * Duplicates an existing catalog to create a new catalog with the specified name.
+	 * The source catalog must exist and be in a valid state (ALIVE or WARMING_UP).
+	 * The target catalog name must not already exist.
+	 * At the end of this method the new catalog has been created with all data and schema
+	 * copied from the source catalog.
+	 *
+	 * @param catalogName name of the source catalog to duplicate
+	 * @param newCatalogName name of the new catalog to create with duplicated contents
+	 */
+	default void duplicateCatalog(@Nonnull String catalogName, @Nonnull String newCatalogName) {
+		duplicateCatalogWithProgress(catalogName, newCatalogName)
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
+	}
+
+	/**
+	 * Duplicates an existing catalog to create a new catalog with the specified name.
+	 * The source catalog must exist and be in a valid state (ALIVE or WARMING_UP).
+	 * The target catalog name must not already exist.
+	 * Returns {@link Progress} that can be used to track the progress of the operation.
+	 *
+	 * @param catalogName name of the source catalog to duplicate
+	 * @param newCatalogName name of the new catalog to create with duplicated contents
+	 * @return progress that can be used to track the progress of the operation
+	 */
+	@Nonnull
+	Progress<Void> duplicateCatalogWithProgress(@Nonnull String catalogName, @Nonnull String newCatalogName);
+
+	/**
 	 * Activates catalog by loading it from disk into memory. Changes state of the catalog from
 	 * {@link CatalogState#INACTIVE} to {@link CatalogState#ALIVE}.
 	 * At the end of this method the catalog has transitioned to the {@link CatalogState#ALIVE} state and is ready

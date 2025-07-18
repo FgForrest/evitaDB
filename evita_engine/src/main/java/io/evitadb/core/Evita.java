@@ -600,6 +600,13 @@ public final class Evita implements EvitaContract {
 
 	@Nonnull
 	@Override
+	public Progress<Void> duplicateCatalogWithProgress(@Nonnull String catalogName, @Nonnull String newCatalogName) {
+		assertActive();
+		return applyMutation(new DuplicateCatalogMutation(catalogName, newCatalogName));
+	}
+
+	@Nonnull
+	@Override
 	public Progress<Void> activateCatalogWithProgress(@Nonnull String catalogName) {
 		assertActive();
 		return applyMutation(new SetCatalogStateMutation(catalogName, true));

@@ -3047,4 +3047,204 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			evitaClient.deleteCatalogIfExists(testCatalogName);
 		}
 	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldDuplicateCatalog(EvitaClient evitaClient) {
+		final String sourceCatalogName = "sourceCatalogForDuplication";
+		final String duplicatedCatalogName = "duplicatedCatalog";
+
+		try {
+			// Create and setup a source catalog with some data
+			evitaClient.defineCatalog(sourceCatalogName)
+				.updateViaNewSession(evitaClient);
+
+			evitaClient.updateCatalog(
+				sourceCatalogName,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+						.updateVia(session);
+					session.defineEntitySchema(Entities.CATEGORY)
+						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+						.updateVia(session);
+
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "The product")
+					);
+					session.upsertEntity(
+						session.createNewEntity(Entities.CATEGORY, 1)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Category 1")
+					);
+					session.upsertEntity(
+						session.createNewEntity(Entities.CATEGORY, 2)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Category 2")
+					);
+					session.goLiveAndClose();
+				}
+			);
+
+			// Duplicate the catalog using the public API
+			evitaClient.duplicateCatalog(sourceCatalogName, duplicatedCatalogName);
+
+			// Verify that the duplicated catalog exists and is in INACTIVE state
+			assertTrue(evitaClient.getCatalogNames().contains(duplicatedCatalogName));
+			assertEquals(CatalogState.INACTIVE, evitaClient.getCatalogState(duplicatedCatalogName).orElse(null));
+
+			// Activate the duplicated catalog
+			evitaClient.activateCatalog(duplicatedCatalogName);
+
+			// Verify that the duplicated catalog is now active
+			assertEquals(CatalogState.ALIVE, evitaClient.getCatalogState(duplicatedCatalogName).orElse(null));
+
+			// Query data in the duplicated catalog to verify it contains the same data as the original
+			evitaClient.queryCatalog(
+				duplicatedCatalogName,
+				session -> {
+					// Verify that the product entity exists with the expected data
+					final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow(() -> new AssertionError("Product entity should exist in duplicated catalog"));
+
+					assertEquals("The product", product.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+
+					// Verify that category entities exist
+					final SealedEntity category1 = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+						.orElseThrow(() -> new AssertionError("Category 1 should exist in duplicated catalog"));
+					final SealedEntity category2 = session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
+						.orElseThrow(() -> new AssertionError("Category 2 should exist in duplicated catalog"));
+
+					assertNotNull(category1);
+					assertNotNull(category2);
+
+					// Verify that we can query entities
+					final List<SealedEntity> products = session.queryList(
+						query(
+							collection(Entities.PRODUCT),
+							require(entityFetchAll())
+						),
+						SealedEntity.class
+					);
+					assertEquals(1, products.size());
+
+					final List<SealedEntity> categories = session.queryList(
+						query(
+							collection(Entities.CATEGORY),
+							require(entityFetchAll())
+						),
+						SealedEntity.class
+					);
+					assertEquals(2, categories.size());
+					return null;
+				}
+			);
+
+		} finally {
+			// Clean up the test catalogs
+			evitaClient.deleteCatalogIfExists(sourceCatalogName);
+			evitaClient.deleteCatalogIfExists(duplicatedCatalogName);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldDuplicateCatalogWithProgress(EvitaClient evitaClient) {
+		final String sourceCatalogName = "sourceCatalogForProgressDuplication";
+		final String duplicatedCatalogName = "duplicatedProgressCatalog";
+
+		try {
+			// Create and setup a source catalog with some data
+			evitaClient.defineCatalog(sourceCatalogName)
+				.updateViaNewSession(evitaClient);
+
+			evitaClient.updateCatalog(
+				sourceCatalogName,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+						.updateVia(session);
+					session.defineEntitySchema(Entities.CATEGORY)
+						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+						.updateVia(session);
+
+					session.upsertEntity(
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "The product")
+					);
+					session.upsertEntity(
+						session.createNewEntity(Entities.CATEGORY, 1)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Category 1")
+					);
+					session.upsertEntity(
+						session.createNewEntity(Entities.CATEGORY, 2)
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Category 2")
+					);
+					session.goLiveAndClose();
+				}
+			);
+
+			// Duplicate the catalog with progress tracking
+			final Progress<Void> duplicateProgress = evitaClient.duplicateCatalogWithProgress(sourceCatalogName, duplicatedCatalogName);
+			assertNotNull(duplicateProgress);
+
+			// Wait for completion
+			duplicateProgress.onCompletion().toCompletableFuture().join();
+
+			// Verify that the duplicated catalog exists and is in INACTIVE state
+			assertTrue(evitaClient.getCatalogNames().contains(duplicatedCatalogName));
+			assertEquals(CatalogState.INACTIVE, evitaClient.getCatalogState(duplicatedCatalogName).orElse(null));
+
+			// Activate the duplicated catalog
+			evitaClient.activateCatalog(duplicatedCatalogName);
+
+			// Verify that the duplicated catalog is now active
+			assertEquals(CatalogState.ALIVE, evitaClient.getCatalogState(duplicatedCatalogName).orElse(null));
+
+			// Query data in the duplicated catalog to verify it contains the same data as the original
+			evitaClient.queryCatalog(
+				duplicatedCatalogName,
+				session -> {
+					// Verify that the product entity exists with the expected data
+					final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow(() -> new AssertionError("Product entity should exist in duplicated catalog"));
+
+					assertEquals("The product", product.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+
+					// Verify that category entities exist
+					final SealedEntity category1 = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+						.orElseThrow(() -> new AssertionError("Category 1 should exist in duplicated catalog"));
+					final SealedEntity category2 = session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
+						.orElseThrow(() -> new AssertionError("Category 2 should exist in duplicated catalog"));
+
+					assertNotNull(category1);
+					assertNotNull(category2);
+
+					// Verify that we can query entities
+					final List<SealedEntity> products = session.queryList(
+						query(
+							collection(Entities.PRODUCT),
+							require(entityFetchAll())
+						),
+						SealedEntity.class
+					);
+					assertEquals(1, products.size());
+
+					final List<SealedEntity> categories = session.queryList(
+						query(
+							collection(Entities.CATEGORY),
+							require(entityFetchAll())
+						),
+						SealedEntity.class
+					);
+					assertEquals(2, categories.size());
+					return null;
+				}
+			);
+
+		} finally {
+			// Clean up the test catalogs
+			evitaClient.deleteCatalogIfExists(sourceCatalogName);
+			evitaClient.deleteCatalogIfExists(duplicatedCatalogName);
+		}
+	}
 }

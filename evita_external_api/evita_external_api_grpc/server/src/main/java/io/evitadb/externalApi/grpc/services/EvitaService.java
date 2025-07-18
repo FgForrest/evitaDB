@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.progress.Progress;
+import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
@@ -656,6 +657,61 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					responseObserver);
 				final Progress<?> applyMutationProgress = this.evita.applyMutation(
 					new MakeCatalogAliveMutation(request.getCatalogName()),
+					progressObserver
+				);
+				((ServerCallStreamObserver<?>)responseObserver)
+					.setOnCancelHandler(() -> applyMutationProgress.removeProgressListener(progressObserver));
+
+				waitForFinish(responseObserver, applyMutationProgress);
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Duplicates a catalog.
+	 *
+	 * @param request          containing name of the source catalog and new catalog name
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#duplicateCatalog(String, String)
+	 */
+	@Override
+	public void duplicateCatalog(
+		GrpcDuplicateCatalogRequest request,
+		StreamObserver<GrpcDuplicateCatalogResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				this.evita.duplicateCatalog(request.getCatalogName(), request.getNewCatalogName());
+				responseObserver.onNext(GrpcDuplicateCatalogResponse.newBuilder().setSuccess(true).build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Duplicates a catalog with progress tracking.
+	 *
+	 * @param request          containing name of the source catalog and new catalog name
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#duplicateCatalogWithProgress(String, String)
+	 */
+	@Override
+	public void duplicateCatalogWithProgress(
+		GrpcDuplicateCatalogRequest request,
+		StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(
+					responseObserver);
+				final Progress<?> applyMutationProgress = this.evita.applyMutation(
+					new DuplicateCatalogMutation(request.getCatalogName(), request.getNewCatalogName()),
 					progressObserver
 				);
 				((ServerCallStreamObserver<?>)responseObserver)
