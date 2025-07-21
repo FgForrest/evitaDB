@@ -1039,8 +1039,8 @@ class EvitaTest implements EvitaTestSupport {
 							.deprecated("Already deprecated.")
 							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
 							.withAttribute("note", String.class)
-							.indexed()
 							.faceted()
+							.indexed()
 					)
 					.updateVia(session);
 

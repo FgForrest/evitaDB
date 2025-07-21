@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,7 +39,9 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcExtraResultsBuilder;
@@ -70,7 +72,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class GrpcExtraResultsBuilderTest {
 	private final static ReferenceSchemaContract REFENCE_SCHEMA = ReferenceSchema._internalBuild(
-		"test1", "test1", true, Cardinality.ONE_OR_MORE, "testGroup1", false, new Scope[] { Scope.LIVE }, new Scope[] { Scope.LIVE }
+		"test1", "test1", true, Cardinality.ONE_OR_MORE, "testGroup1", false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[] { Scope.LIVE }
 	);
 
 	@Test

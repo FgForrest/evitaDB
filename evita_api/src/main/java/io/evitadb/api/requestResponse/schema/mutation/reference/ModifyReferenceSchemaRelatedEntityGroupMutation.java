@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -109,7 +109,7 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 				this.referencedGroupTypeManaged || this.referencedGroupType == null ?
 					Collections.emptyMap() : NamingConvention.generate(this.referencedGroupType),
 				this.referencedGroupTypeManaged,
-				referenceSchema.getIndexedInScopes(),
+				referenceSchema.getReferenceIndexTypeInScopes(),
 				referenceSchema.getFacetedInScopes(),
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds()
@@ -121,7 +121,7 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
+		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {
 			// ups, the reference is missing
 			throw new InvalidSchemaMutationException(

@@ -28,30 +28,25 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
+
+import java.util.Arrays;
 
 /**
  * Serializer for {@link CreateReferenceSchemaMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateReferenceSchemaMutation> implements MutationSerializationFunctions {
+@Deprecated
+public class CreateReferenceSchemaMutationSerializer_2025_5 extends Serializer<CreateReferenceSchemaMutation> implements MutationSerializationFunctions {
 
 	@Override
 	public void write(Kryo kryo, Output output, CreateReferenceSchemaMutation mutation) {
-		output.writeString(mutation.getName());
-		output.writeString(mutation.getDescription());
-		output.writeString(mutation.getDeprecationNotice());
-		kryo.writeObject(output, mutation.getCardinality());
-		output.writeString(mutation.getReferencedEntityType());
-		output.writeBoolean(mutation.isReferencedEntityTypeManaged());
-		output.writeString(mutation.getReferencedGroupType());
-		output.writeBoolean(mutation.isReferencedGroupTypeManaged());
-		writeScopedReferenceIndexTypeArray(kryo, output, mutation.getIndexedInScopes());
-		writeScopeArray(kryo, output, mutation.getFacetedInScopes());
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
@@ -65,7 +60,7 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 		final String referencedGroupType = input.readString();
 		final boolean referencedGroupTypeManaged = input.readBoolean();
 
-		final ScopedReferenceIndexType[] indexedInScopes = readScopedReferenceIndexTypeArray(kryo, input);
+		final Scope[] indexedInScopes = readScopeArray(kryo, input);
 		final Scope[] facetedInScopes = readScopeArray(kryo, input);
 
 		return new CreateReferenceSchemaMutation(
@@ -77,7 +72,11 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 			referencedEntityTypeManaged,
 			referencedGroupType,
 			referencedGroupTypeManaged,
-			indexedInScopes,
+			Arrays.stream(indexedInScopes)
+				.map(
+					scope -> new ScopedReferenceIndexType(scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
+				)
+				.toArray(ScopedReferenceIndexType[]::new),
 			facetedInScopes
 		);
 	}

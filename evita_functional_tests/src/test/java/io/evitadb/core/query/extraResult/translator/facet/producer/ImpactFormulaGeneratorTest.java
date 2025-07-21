@@ -25,7 +25,9 @@ package io.evitadb.core.query.extraResult.translator.facet.producer;
 
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -56,7 +58,7 @@ class ImpactFormulaGeneratorTest {
 	private final Set<EntityReference> facetGroupDisjunction = new HashSet<>();
 	private final Set<EntityReference> facetGroupNegation = new HashSet<>();
 	private final Set<EntityReference> facetGroupExclusivity = new HashSet<>();
-	private final ReferenceSchema brandReference = ReferenceSchema._internalBuild(Entities.BRAND, Entities.BRAND, false, Cardinality.ZERO_OR_ONE, null, false, new Scope[]{Scope.LIVE}, new Scope[]{Scope.LIVE});
+	private final ReferenceSchema brandReference = ReferenceSchema._internalBuild(Entities.BRAND, Entities.BRAND, false, Cardinality.ZERO_OR_ONE, null, false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[]{Scope.LIVE});
 	private ImpactFormulaGenerator impactFormulaGenerator;
 
 	@BeforeEach

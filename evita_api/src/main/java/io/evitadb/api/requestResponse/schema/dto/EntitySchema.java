@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -515,9 +516,11 @@ public final class EntitySchema implements EntitySchemaContract {
 				referenceSchemaContract.getReferencedGroupType(),
 				referenceSchemaContract.getGroupTypeNameVariants(entityType -> null),
 				referenceSchemaContract.isReferencedGroupTypeManaged(),
-				Arrays.stream(Scope.values())
-					.filter(referenceSchemaContract::isIndexedInScope)
-					.toArray(Scope[]::new),
+				referenceSchemaContract.getReferenceIndexTypeInScopes()
+					.entrySet()
+					.stream()
+					.map(entry -> new ScopedReferenceIndexType(entry.getKey(), entry.getValue()))
+					.toArray(ScopedReferenceIndexType[]::new),
 				Arrays.stream(Scope.values())
 					.filter(referenceSchemaContract::isFacetedInScope)
 					.toArray(Scope[]::new),

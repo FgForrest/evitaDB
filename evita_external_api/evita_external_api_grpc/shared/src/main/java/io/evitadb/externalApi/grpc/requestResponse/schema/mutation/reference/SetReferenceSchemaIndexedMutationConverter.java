@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,8 +23,9 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
-import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaIndexedMutation.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -48,15 +49,33 @@ public class SetReferenceSchemaIndexedMutationConverter implements SchemaMutatio
 
 	@Nonnull
 	public SetReferenceSchemaIndexedMutation convert(@Nonnull GrpcSetReferenceSchemaIndexedMutation mutation) {
-		return new SetReferenceSchemaIndexedMutation(
-			mutation.getName(),
-			mutation.getInherited() ?
-				null :
-				mutation.getIndexedInScopesList()
-					.stream()
-					.map(EvitaEnumConverter::toScope)
-					.toArray(Scope[]::new)
-		);
+		if (mutation.getInherited()) {
+			return new SetReferenceSchemaIndexedMutation(mutation.getName(), (ScopedReferenceIndexType[]) null);
+		}
+
+		// Handle new scopedIndexTypes field with backward compatibility
+		final ScopedReferenceIndexType[] indexedInScopes;
+		if (!mutation.getScopedIndexTypesList().isEmpty()) {
+			// Use new scoped index types if available
+			indexedInScopes = mutation.getScopedIndexTypesList()
+				.stream()
+				.map(scopedType -> new ScopedReferenceIndexType(
+					EvitaEnumConverter.toScope(scopedType.getScope()),
+					EvitaEnumConverter.toReferenceIndexType(scopedType.getIndexType())
+				))
+				.toArray(ScopedReferenceIndexType[]::new);
+		} else if (!mutation.getIndexedInScopesList().isEmpty()) {
+			// Fall back to old indexedInScopes field for backward compatibility
+			indexedInScopes = mutation.getIndexedInScopesList()
+				.stream()
+				.map(scope -> new ScopedReferenceIndexType(EvitaEnumConverter.toScope(scope), ReferenceIndexType.FOR_FILTERING))
+				.toArray(ScopedReferenceIndexType[]::new);
+		} else {
+			// No indexing specified
+			indexedInScopes = ScopedReferenceIndexType.EMPTY;
+		}
+
+		return new SetReferenceSchemaIndexedMutation(mutation.getName(), indexedInScopes);
 	}
 
 	@Nonnull
@@ -68,11 +87,24 @@ public class SetReferenceSchemaIndexedMutationConverter implements SchemaMutatio
 		if (!indexedInherited) {
 			ofNullable(mutation.getIndexedInScopes())
 				.ifPresentOrElse(
-					it -> builder.addAllIndexedInScopes(
-						Arrays.stream(it)
-							.map(EvitaEnumConverter::toGrpcScope)
-							.toList()
-					),
+					scopedIndexTypes -> {
+						// Populate new scopedIndexTypes field
+						builder.addAllScopedIndexTypes(
+							Arrays.stream(scopedIndexTypes)
+								.map(scopedType -> io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.newBuilder()
+									.setScope(EvitaEnumConverter.toGrpcScope(scopedType.scope()))
+									.setIndexType(EvitaEnumConverter.toGrpcReferenceIndexType(scopedType.indexType()))
+									.build())
+								.toList()
+						);
+						// Populate old indexedInScopes field for backward compatibility
+						builder.addAllIndexedInScopes(
+							Arrays.stream(scopedIndexTypes)
+								.filter(it -> it.indexType() != ReferenceIndexType.NONE)
+								.map(scopedType -> EvitaEnumConverter.toGrpcScope(scopedType.scope()))
+								.toList()
+						);
+					},
 					() -> builder.setInherited(true)
 				);
 		}

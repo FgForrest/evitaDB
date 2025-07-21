@@ -29,49 +29,25 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
+import java.util.Arrays;
+
 /**
  * Serializer for {@link CreateReflectedReferenceSchemaMutation}.
  *
- * TODO jno - BACKWARD COMPATIBILITY - this serializer is not backward compatible with previous versions of EvitaDB.
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer<CreateReflectedReferenceSchemaMutation> implements MutationSerializationFunctions {
+@Deprecated
+public class CreateReflectedReferenceSchemaMutationSerializer_2025_5 extends Serializer<CreateReflectedReferenceSchemaMutation> implements MutationSerializationFunctions {
 
 	@Override
 	public void write(Kryo kryo, Output output, CreateReflectedReferenceSchemaMutation mutation) {
-		output.writeString(mutation.getName());
-		output.writeString(mutation.getDescription());
-		output.writeString(mutation.getDeprecationNotice());
-		kryo.writeObjectOrNull(output, mutation.getCardinality(), Cardinality.class);
-		output.writeString(mutation.getReferencedEntityType());
-		output.writeString(mutation.getReflectedReferenceName());
-
-		if (mutation.getIndexedInScopes() == null) {
-			output.writeBoolean(false);
-		} else {
-			output.writeBoolean(true);
-			writeScopedReferenceIndexTypeArray(kryo, output, mutation.getIndexedInScopes());
-		}
-		if (mutation.getFacetedInScopes() == null) {
-			output.writeBoolean(false);
-		} else {
-			output.writeBoolean(true);
-			writeScopeArray(kryo, output, mutation.getFacetedInScopes());
-		}
-
-		kryo.writeObject(output, mutation.getAttributesInheritanceBehavior());
-
-		final String[] attributesExcludedFromInheritance = mutation.getAttributeInheritanceFilter();
-		output.writeVarInt(attributesExcludedFromInheritance.length, true);
-		for (final String attribute : attributesExcludedFromInheritance) {
-			output.writeString(attribute);
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
@@ -83,7 +59,7 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 		final String referencedEntityType = input.readString();
 		final String reflectedReferenceName = input.readString();
 
-		final ScopedReferenceIndexType[] indexedInScopes = input.readBoolean() ? readScopedReferenceIndexTypeArray(kryo, input) : null;
+		final Scope[] indexedInScopes = input.readBoolean() ? readScopeArray(kryo, input) : null;
 		final Scope[] facetedInScopes = input.readBoolean() ? readScopeArray(kryo, input) : null;
 
 		final AttributeInheritanceBehavior attributeInheritanceBehavior = kryo.readObject(input, AttributeInheritanceBehavior.class);
@@ -100,7 +76,13 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 			cardinality,
 			referencedEntityType,
 			reflectedReferenceName,
-			indexedInScopes,
+			indexedInScopes == null ?
+				null :
+				Arrays.stream(indexedInScopes)
+					.map(
+						scope -> new ScopedReferenceIndexType(scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
+					)
+					.toArray(ScopedReferenceIndexType[]::new),
 			facetedInScopes,
 			attributeInheritanceBehavior,
 			attributesExcludedFromInheritance

@@ -5,6 +5,7 @@ option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
 import "GrpcEnums.proto";
+import "GrpcEvitaDataTypes.proto";
 import "GrpcAttributeSchemaMutations.proto";
 import "GrpcSortableAttributeCompoundSchemaMutations.proto";
 import "google/protobuf/wrappers.proto";
@@ -65,7 +66,8 @@ message GrpcCreateReferenceSchemaMutation {
   // Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
   // the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
   // alongside other references if requested.
-  repeated GrpcEntityScope indexedInScopes = 11;
+  // deprecated in favor of `scopedIndexTypes`
+  repeated GrpcEntityScope indexedInScopes = 11 [deprecated = true];
   // Whether the statistics data for this reference should be maintained and this allowing to get
   // `facetSummary` for this reference or use `facetInSet`
   // filtering query.
@@ -74,6 +76,9 @@ message GrpcCreateReferenceSchemaMutation {
   // occupies (memory/disk) space in the form of index.
   // Reference that was marked as faceted is called Facet.
   repeated GrpcEntityScope facetedInScopes = 12;
+  // Scoped reference index types that define both the scope and the type of index for the reference.
+  // This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+  repeated GrpcScopedReferenceIndexType scopedIndexTypes = 13;
 }
 
 // Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
@@ -125,7 +130,8 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
   // the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
   // alongside other references if requested.
-  repeated GrpcEntityScope indexedInScopes = 11;
+  // deprecated in favor of `scopedIndexTypes`
+  repeated GrpcEntityScope indexedInScopes = 11 [deprecated = true];
   // when set to true, the value of `facetedInScope` field is ignored and the settings are inherited from the original
   // reference.
   bool facetedInherited = 12;
@@ -137,6 +143,10 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // occupies (memory/disk) space in the form of index.
   // Reference that was marked as faceted is called Facet.
   repeated GrpcEntityScope facetedInScopes = 13;
+  // Scoped reference index types that define both the scope and the type of index for the reference.
+  // This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+  // When `indexedInherited` is true, this field is ignored.
+  repeated GrpcScopedReferenceIndexType scopedIndexTypes = 14;
 }
 
 // Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
@@ -283,5 +293,10 @@ message GrpcSetReferenceSchemaIndexedMutation {
   // Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
   // the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
   // alongside other references if requested.
-  repeated GrpcEntityScope indexedInScopes = 3;
+  // deprecated in favor of `scopedIndexTypes`
+  repeated GrpcEntityScope indexedInScopes = 3 [deprecated = true];
+  // Scoped reference index types that define both the scope and the type of index for the reference.
+  // This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+  // When `inherited` is true, this field is ignored.
+  repeated GrpcScopedReferenceIndexType scopedIndexTypes = 4;
 }

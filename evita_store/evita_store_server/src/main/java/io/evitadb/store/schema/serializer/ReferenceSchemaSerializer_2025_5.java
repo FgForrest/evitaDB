@@ -29,20 +29,23 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopeSet;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.
@@ -51,15 +54,18 @@ import java.util.Map;
  */
 @Deprecated
 @RequiredArgsConstructor
-public class ReflectedReferenceSchemaSerializer_2024_11 extends Serializer<ReflectedReferenceSchema> {
+public class ReferenceSchemaSerializer_2025_5 extends Serializer<ReferenceSchema> {
+	private static final Function<String, EntitySchemaContract> IMPOSSIBLE_EXCEPTION_PRODUCER = s -> {
+		throw new GenericEvitaInternalError("Sanity check!");
+	};
 
 	@Override
-	public void write(Kryo kryo, Output output, ReflectedReferenceSchema referenceSchema) {
+	public void write(Kryo kryo, Output output, ReferenceSchema referenceSchema) {
 		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
-	public ReflectedReferenceSchema read(Kryo kryo, Input input, Class<? extends ReflectedReferenceSchema> aClass) {
+	public ReferenceSchema read(Kryo kryo, Input input, Class<? extends ReferenceSchema> aClass) {
 		final String name = input.readString();
 		final int nameVariantCount = input.readVarInt(true);
 		final Map<NamingConvention, String> nameVariants = CollectionUtils.createLinkedHashMap(nameVariantCount);
@@ -70,14 +76,32 @@ public class ReflectedReferenceSchemaSerializer_2024_11 extends Serializer<Refle
 			);
 		}
 		final String entityType = input.readString();
-		final String reflectedReferenceName = input.readString();
-		final Cardinality cardinality = kryo.readObjectOrNull(input, Cardinality.class);
-		final Boolean faceted = kryo.readObjectOrNull(input, Boolean.class);
+		final boolean referencedEntityTypeManaged = input.readBoolean();
+		final int entityTypeNameVariantCount = input.readVarInt(true);
+		final Map<NamingConvention, String> entityTypeNameVariants = CollectionUtils.createLinkedHashMap(entityTypeNameVariantCount);
+		for(int i = 0; i < entityTypeNameVariantCount; i++) {
+			entityTypeNameVariants.put(
+				NamingConvention.values()[input.readVarInt(true)],
+				input.readString()
+			);
+		}
+		final Cardinality cardinality = kryo.readObject(input, Cardinality.class);
+		final String groupType = input.readString();
+		final boolean referencedGroupTypeManaged = input.readBoolean();
+		final int groupTypeNameVariantCount = input.readVarInt(true);
+		final Map<NamingConvention, String> groupTypeNameVariants = CollectionUtils.createLinkedHashMap(groupTypeNameVariantCount);
+		for(int i = 0; i < groupTypeNameVariantCount; i++) {
+			groupTypeNameVariants.put(
+				NamingConvention.values()[input.readVarInt(true)],
+				input.readString()
+			);
+		}
+		final EnumSet<Scope> indexedInScopes = readScopeSet(kryo, input);
+		final EnumSet<Scope> facetedInScopes = readScopeSet(kryo, input);
 
 		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributes = kryo.readObject(input, Map.class);
-
-		final String description = kryo.readObjectOrNull(input, String.class);
-		final String deprecationNotice = kryo.readObjectOrNull(input, String.class);
+		final String description = input.readBoolean() ? input.readString() : null;
+		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 
 		final int sortableAttributeCompoundsCount = input.readVarInt(true);
 		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = CollectionUtils.createHashMap(sortableAttributeCompoundsCount);
@@ -89,21 +113,21 @@ public class ReflectedReferenceSchemaSerializer_2024_11 extends Serializer<Refle
 			);
 		}
 
-		final AttributeInheritanceBehavior attributeInheritanceBehavior = kryo.readObject(input, AttributeInheritanceBehavior.class);
-		final int attributesExcludedFromInheritanceCount = input.readVarInt(true);
-		final String[] attributesExcludedFromInheritance = new String[attributesExcludedFromInheritanceCount];
-		for (int i = 0; i < attributesExcludedFromInheritanceCount; i++) {
-			attributesExcludedFromInheritance[i] = input.readString();
-		}
-
-		return ReflectedReferenceSchema._internalBuild(
+		return ReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
-			entityType, reflectedReferenceName, cardinality,
-			new EnumMap<>(Map.of(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)),
-			faceted == null ? null : (faceted ? EnumSet.of(Scope.DEFAULT_SCOPE) : EnumSet.noneOf(Scope.class)),
-			attributes,
-			sortableAttributeCompounds,
-			attributeInheritanceBehavior, attributesExcludedFromInheritance
+			cardinality,
+			entityType, entityTypeNameVariants, referencedEntityTypeManaged,
+			groupType, groupTypeNameVariants, referencedGroupTypeManaged,
+			indexedInScopes
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Function.identity(),
+						scope -> ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+					)
+				),
+			facetedInScopes,
+			attributes, sortableAttributeCompounds
 		);
 	}
 

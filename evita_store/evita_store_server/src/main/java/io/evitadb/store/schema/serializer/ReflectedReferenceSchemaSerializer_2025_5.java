@@ -42,76 +42,23 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.Map.Entry;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopeSet;
-import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopedReferenceIndexTypeArray;
-import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopeSet;
-import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopedReferenceIndexTypeArray;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated
 @RequiredArgsConstructor
-public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedReferenceSchema> {
+public class ReflectedReferenceSchemaSerializer_2025_5 extends Serializer<ReflectedReferenceSchema> {
 
 	@Override
 	public void write(Kryo kryo, Output output, ReflectedReferenceSchema referenceSchema) {
-		output.writeString(referenceSchema.getName());
-		output.writeVarInt(referenceSchema.getNameVariants().size(), true);
-		for (Entry<NamingConvention, String> entry : referenceSchema.getNameVariants().entrySet()) {
-			output.writeVarInt(entry.getKey().ordinal(), true);
-			output.writeString(entry.getValue());
-		}
-		output.writeString(referenceSchema.getReferencedEntityType());
-		output.writeString(referenceSchema.getReflectedReferenceName());
-
-		kryo.writeObjectOrNull(
-			output,
-			referenceSchema.isCardinalityInherited() ? null : referenceSchema.getCardinality(),
-			Cardinality.class
-		);
-
-		if (referenceSchema.isIndexedInherited()) {
-			output.writeBoolean(false);
-		} else {
-			output.writeBoolean(true);
-			writeScopedReferenceIndexTypeArray(kryo, output, referenceSchema.getReferenceIndexTypeInScopes());
-		}
-		if (referenceSchema.isFacetedInherited()) {
-			output.writeBoolean(false);
-		} else {
-			output.writeBoolean(true);
-			writeScopeSet(kryo, output, referenceSchema.getFacetedInScopes());
-		}
-
-		kryo.writeObject(output, referenceSchema.getDeclaredAttributes());
-
-		kryo.writeObjectOrNull(
-			output,
-			referenceSchema.isDescriptionInherited() ? null : referenceSchema.getDescription(),
-			String.class
-		);
-
-		kryo.writeObjectOrNull(
-			output,
-			referenceSchema.isDeprecatedInherited() ? null : referenceSchema.getDeprecationNotice(),
-			String.class
-		);
-
-		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = referenceSchema.getDeclaredSortableAttributeCompounds();
-		output.writeVarInt(sortableAttributeCompounds.size(), true);
-		for (SortableAttributeCompoundSchemaContract sortableAttributeCompound : sortableAttributeCompounds.values()) {
-			kryo.writeObject(output, sortableAttributeCompound);
-		}
-
-		kryo.writeObject(output, referenceSchema.getAttributesInheritanceBehavior());
-		output.writeVarInt(referenceSchema.getAttributeInheritanceFilter().length, true);
-		for (String attributeName : referenceSchema.getAttributeInheritanceFilter()) {
-			output.writeString(attributeName);
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
@@ -129,7 +76,7 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 		final String reflectedReferenceName = input.readString();
 		final Cardinality cardinality = kryo.readObjectOrNull(input, Cardinality.class);
 
-		final Map<Scope, ReferenceIndexType> indexedInScopes = input.readBoolean() ? readScopedReferenceIndexTypeArray(kryo, input) : null;
+		final EnumSet<Scope> indexedInScopes = input.readBoolean() ? readScopeSet(kryo, input) : null;
 		final EnumSet<Scope> facetedInScopes = input.readBoolean() ? readScopeSet(kryo, input) : null;
 
 		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributes = kryo.readObject(input, Map.class);
@@ -157,7 +104,17 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 		return ReflectedReferenceSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			entityType, reflectedReferenceName, cardinality,
-			indexedInScopes, facetedInScopes,
+			indexedInScopes == null ?
+				null :
+				indexedInScopes
+					.stream()
+					.collect(
+						Collectors.toMap(
+							Function.identity(),
+							scope -> ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+						)
+					),
+			facetedInScopes,
 			attributes, sortableAttributeCompounds,
 			attributeInheritanceBehavior, attributesExcludedFromInheritance
 		);

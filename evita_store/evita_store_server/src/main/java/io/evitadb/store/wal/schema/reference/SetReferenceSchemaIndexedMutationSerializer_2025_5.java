@@ -35,25 +35,19 @@ import io.evitadb.store.wal.schema.MutationSerializationFunctions;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SetReferenceSchemaIndexedMutationSerializer extends Serializer<SetReferenceSchemaIndexedMutation> implements MutationSerializationFunctions {
+@Deprecated
+public class SetReferenceSchemaIndexedMutationSerializer_2025_5 extends Serializer<SetReferenceSchemaIndexedMutation> implements MutationSerializationFunctions {
 
 	@Override
 	public void write(Kryo kryo, Output output, SetReferenceSchemaIndexedMutation mutation) {
-		output.writeString(mutation.getName());
-
-		if (mutation.getIndexedInScopes() == null) {
-			output.writeBoolean(false);
-		} else {
-			output.writeBoolean(true);
-			writeScopedReferenceIndexTypeArray(kryo, output, mutation.getIndexedInScopes());
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
 	public SetReferenceSchemaIndexedMutation read(Kryo kryo, Input input, Class<? extends SetReferenceSchemaIndexedMutation> type) {
 		return new SetReferenceSchemaIndexedMutation(
 			input.readString(),
-			input.readBoolean() ? readScopedReferenceIndexTypeArray(kryo, input) : null
+			input.readBoolean() ? readScopeArray(kryo, input) : null
 		);
 	}
 }
