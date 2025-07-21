@@ -27,10 +27,10 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.head.Collection;
+import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
@@ -115,9 +115,12 @@ public class RestQueryConverter implements AutoCloseable {
 		final List<JsonConstraint> rootConstraints = new ArrayList<>(4);
 		if (query.getHead() != null) {
 			final HeadConstraint head = ConstraintCloneVisitor.clone(query.getHead(), (visitor, theConstraint) -> theConstraint instanceof Collection ? null : theConstraint);
-			if (head != null && (!(head instanceof ConstraintContainer<?> cc) || cc.getChildrenCount() > 0)) {
+			if (head != null) { // the head might become `null` if there is only a `Collection` constraint, which we don't want to propagate
 				rootConstraints.add(
-					headConstraintToJsonConverter.convert(new GenericDataLocator(new ManagedEntityTypePointer(entityType)), head)
+					headConstraintToJsonConverter.convert(new GenericDataLocator(
+						new ManagedEntityTypePointer(entityType)),
+						head instanceof Head ? head : new Head(head) // we need the wrapper for the REST. REST expects it to be nested in the `head` constraint
+					)
 						.orElseThrow(() -> new IllegalStateException("Root JSON head constraint cannot be null if original query has head constraint."))
 				);
 			}

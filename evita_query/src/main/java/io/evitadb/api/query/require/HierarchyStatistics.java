@@ -140,7 +140,7 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 	}
 
 	/**
-	 * Internal factory method which applies default for missing arguments
+	 * Internal factory method (mainly for external APIs) which applies default for missing arguments
 	 */
 	@Creator
 	private static HierarchyStatistics createWithDefaults(

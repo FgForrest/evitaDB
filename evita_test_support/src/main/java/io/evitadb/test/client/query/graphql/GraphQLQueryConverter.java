@@ -26,12 +26,12 @@ package io.evitadb.test.client.query.graphql;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.head.Collection;
+import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -124,9 +124,12 @@ public class GraphQLQueryConverter {
 		final List<JsonConstraint> rootConstraints = new ArrayList<>(4);
 		if (query.getHead() != null) {
 			final HeadConstraint head = ConstraintCloneVisitor.clone(query.getHead(), (visitor, theConstraint) -> theConstraint instanceof Collection ? null : theConstraint);
-			if (head != null && (!(head instanceof ConstraintContainer<?> cc) || cc.getChildrenCount() > 0)) {
+			if (head != null) { // the head might become `null` if there is only a `Collection` constraint, which we don't want to propagate
 				rootConstraints.add(
-					headConstraintToJsonConverter.convert(new GenericDataLocator(new ManagedEntityTypePointer(entityType)), head)
+					headConstraintToJsonConverter.convert(
+						new GenericDataLocator(new ManagedEntityTypePointer(entityType)),
+						head instanceof Head ? head : new Head(head) // we need the wrapper for the GraphQL. GraphQL expects it to be nested in the `head` constraint
+					)
 						.orElseThrow(() -> new IllegalStateException("Root JSON head constraint cannot be null if original query has head constraint."))
 				);
 			}
