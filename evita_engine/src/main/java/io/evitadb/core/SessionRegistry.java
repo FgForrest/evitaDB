@@ -53,6 +53,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -497,7 +498,22 @@ final class SessionRegistry {
 					if (i > 0) {
 						sb.append("|");
 					}
-					sb.append(method.getParameters()[i].getName()).append("=").append(arg);
+					sb.append(method.getParameters()[i].getName())
+						.append("=");
+					if (arg == null) {
+						sb.append("null");
+					} else if (arg.getClass().isArray()) {
+						sb.append("[");
+						for (int j = 0; j < Array.getLength(arg); j++) {
+							if (j > 0) {
+								sb.append(", ");
+							}
+							sb.append(Array.get(arg, j));
+						}
+						sb.append("]");
+					} else {
+						sb.append(arg);
+					}
 				}
 			}
 			return sb.toString();

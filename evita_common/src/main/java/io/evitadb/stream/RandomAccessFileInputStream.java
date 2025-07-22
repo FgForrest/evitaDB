@@ -86,7 +86,7 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 	 */
 	public long availableLong() {
 		try {
-			return randomAccessFile.length() - randomAccessFile.getFilePointer();
+			return this.randomAccessFile.length() - this.randomAccessFile.getFilePointer();
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Error occurred while accessing length: " + e.getMessage(),
@@ -100,8 +100,8 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 	public void close() {
 		try {
 			super.close();
-			if (closeOnClose) {
-				randomAccessFile.close();
+			if (this.closeOnClose) {
+				this.randomAccessFile.close();
 			}
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
@@ -115,7 +115,7 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 	@Override
 	public int read() {
 		try {
-			return randomAccessFile.read();
+			return this.randomAccessFile.read();
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Error while reading the file: " + e.getMessage(),
@@ -128,7 +128,7 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 	@Override
 	public int read(@Nonnull final byte[] bytes) {
 		try {
-			return randomAccessFile.read(bytes);
+			return this.randomAccessFile.read(bytes);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Error while reading the file: " + e.getMessage(),
@@ -141,7 +141,7 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 	@Override
 	public int read(@Nonnull final byte[] bytes, final int offset, final int length) {
 		try {
-			return randomAccessFile.read(bytes, offset, length);
+			return this.randomAccessFile.read(bytes, offset, length);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Error while reading the file: " + e.getMessage(),
@@ -160,11 +160,24 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 	@Override
 	public void seek(final long position) {
 		try {
-			randomAccessFile.seek(position);
+			this.randomAccessFile.seek(position);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Error while seeking the position file: " + e.getMessage(),
 				"Error while seeking the position file.",
+				e
+			);
+		}
+	}
+
+	@Override
+	public long getLength() {
+		try {
+			return this.randomAccessFile.length();
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Error while getting the length of the file: " + e.getMessage(),
+				"Error while getting the length of the file.",
 				e
 			);
 		}
@@ -176,8 +189,8 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 			return 0;
 		}
 		try {
-			final long filePointer = randomAccessFile.getFilePointer();
-			final long fileLength = randomAccessFile.length();
+			final long filePointer = this.randomAccessFile.getFilePointer();
+			final long fileLength = this.randomAccessFile.length();
 			if (filePointer >= fileLength) {
 				return 0;
 			}
@@ -186,7 +199,7 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 			if (newPos > 0) {
 				seek(newPos);
 			}
-			return randomAccessFile.getFilePointer() - filePointer;
+			return this.randomAccessFile.getFilePointer() - filePointer;
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Error while skipping contents in the file: " + e.getMessage(),
