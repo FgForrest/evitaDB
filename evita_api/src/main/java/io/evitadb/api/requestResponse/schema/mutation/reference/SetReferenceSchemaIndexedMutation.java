@@ -35,7 +35,9 @@ import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -47,7 +49,9 @@ import java.io.Serial;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Mutation is responsible for setting value to a {@link ReferenceSchemaContract#isIndexed()}
@@ -114,7 +118,32 @@ public class SetReferenceSchemaIndexedMutation
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
 		if (existingMutation instanceof SetReferenceSchemaIndexedMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
-			return new MutationCombinationResult<>(null, this);
+			if (theExistingMutation.indexedInScopes == null && this.indexedInScopes == null) {
+				// both mutations are not indexed, so we can skip the combination
+				return new MutationCombinationResult<>(null, this);
+			} else {
+				final Map<Scope, ReferenceIndexType> existingIndexedScopes = theExistingMutation.indexedInScopes == null ?
+					CollectionUtils.createHashMap(Scope.values().length) :
+					Arrays.stream(theExistingMutation.indexedInScopes)
+						.collect(
+							() -> new EnumMap<>(Scope.class),
+							(map, scopedIndexType) -> map.put(scopedIndexType.scope(), scopedIndexType.indexType()),
+							EnumMap::putAll
+						);
+				for (ScopedReferenceIndexType indexedInScope : this.indexedInScopes) {
+					existingIndexedScopes.put(indexedInScope.scope(), indexedInScope.indexType());
+				}
+
+				SetReferenceSchemaIndexedMutation combinedMutation = new SetReferenceSchemaIndexedMutation(
+					this.name,
+					existingIndexedScopes
+						.entrySet()
+						.stream()
+						.map(entry -> new ScopedReferenceIndexType(entry.getKey(), entry.getValue()))
+						.toArray(ScopedReferenceIndexType[]::new)
+				);
+				return new MutationCombinationResult<>(null, combinedMutation);
+			}
 		} else {
 			return null;
 		}
@@ -224,8 +253,7 @@ public class SetReferenceSchemaIndexedMutation
 
 	@Override
 	public String toString() {
-		final Boolean indexed = getIndexed();
 		return "Set entity reference `" + this.name + "` schema: " +
-			"indexed=" + (indexed == null ? "(inherited)" : (indexed ? "(indexed in scopes: " + Arrays.toString(this.indexedInScopes) + ")" : "(not indexed)"));
+			"indexed=" + (this.indexedInScopes == null ? "(inherited)" : (ArrayUtils.isEmpty(this.indexedInScopes) ? "(not indexed)" : "(" + Arrays.stream(this.indexedInScopes).map(it -> it.scope().name() + ": " + it.indexType().name()).collect(Collectors.joining(", ")) + ")"));
 	}
 }
