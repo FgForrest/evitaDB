@@ -51,7 +51,103 @@
         }
       },
       {
-        "primaryKey" : 103885,
+        "primaryKey" : 107891,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3"
+          }
+        }
+      },
+      {
+        "primaryKey" : 107899,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-3-pro"
+          }
+        }
+      },
+      {
+        "primaryKey" : 107911,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s"
+          }
+        }
+      },
+      {
+        "primaryKey" : 107923,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-s-lite"
+          }
+        }
+      },
+      {
+        "primaryKey" : 107933,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-u"
+          }
+        }
+      },
+      {
+        "primaryKey" : 107938,
+        "type" : "Product",
+        "version" : 2,
+        "scope" : "LIVE",
+        "allLocales" : [
+          "cs",
+          "de",
+          "en"
+        ],
+        "attributes" : {
+          "global" : {
+            "code" : "amazfit-bip-u-pro"
+          }
+        }
+      },
+      {
+        "primaryKey" : 107952,
         "type" : "Product",
         "version" : 1,
         "scope" : "LIVE",
@@ -62,109 +158,13 @@
         ],
         "attributes" : {
           "global" : {
-            "code" : "alcatel-3t-10-2020"
-          }
-        }
-      },
-      {
-        "primaryKey" : 103911,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "cs",
-          "de",
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "apple-ipad-10-2-10th-generation-2022"
-          }
-        }
-      },
-      {
-        "primaryKey" : 103988,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "cs",
-          "de",
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "apple-ipad-10-2-9th-generation-2021"
-          }
-        }
-      },
-      {
-        "primaryKey" : 104008,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "cs",
-          "de",
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "apple-ipad-air-5g-5th-generation-2022"
-          }
-        }
-      },
-      {
-        "primaryKey" : 104084,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "cs",
-          "de",
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "apple-ipad-mini-6th-generation-2021"
-          }
-        }
-      },
-      {
-        "primaryKey" : 104171,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "cs",
-          "de",
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "apple-ipad-pro-11-4th-generation-2022"
-          }
-        }
-      },
-      {
-        "primaryKey" : 104227,
-        "type" : "Product",
-        "version" : 2,
-        "scope" : "LIVE",
-        "allLocales" : [
-          "cs",
-          "de",
-          "en"
-        ],
-        "attributes" : {
-          "global" : {
-            "code" : "apple-ipad-pro-12-9-6th-generation-2022"
+            "code" : "amazfit-falcon"
           }
         }
       }
     ],
     "type" : "PAGE",
-    "totalRecordCount" : 995,
+    "totalRecordCount" : 367,
     "first" : true,
     "last" : false,
     "hasPrevious" : false,
@@ -173,7 +173,7 @@
     "empty" : false,
     "pageSize" : 10,
     "pageNumber" : 1,
-    "lastPageNumber" : 100,
+    "lastPageNumber" : 37,
     "firstPageItemNumber" : 0,
     "lastPageItemNumber" : 9
   }

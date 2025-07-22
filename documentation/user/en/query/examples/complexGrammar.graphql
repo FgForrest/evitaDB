@@ -1,9 +1,13 @@
 {
   queryProduct(
-    label: {
-      name: "query-name",
-      value: "my-query"
-    },
+    head: [
+      {
+        label: {
+          name: "query-name",
+          value: "my-query"
+        }
+      }
+    ],
     filterBy: {
       and: [
         {

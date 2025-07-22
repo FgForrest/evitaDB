@@ -837,6 +837,9 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.startPosition = this.position;
 		this.expectedLength = -1;
 		this.accumulatedLength = 0;
+		this.readingPayload = false;
+		this.overflowing = false;
+		this.compressed = false;
 		return this.bytesReadFromInputStreamSinceReset - (this.limit - this.position);
 	}
 
@@ -894,6 +897,15 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.overflowing = false;
 		this.bytesReadFromInputStreamSinceReset = 0;
 		this.capacity = Math.min(this.buffer.length, location.recordLength());
+	}
+
+	/**
+	 * Retrieves the length of the input stream.
+	 *
+	 * @return the length of the input stream as a long value
+	 */
+	public long getLength() {
+		return ((AbstractRandomAccessInputStream) this.inputStream).getLength();
 	}
 
 	/**
