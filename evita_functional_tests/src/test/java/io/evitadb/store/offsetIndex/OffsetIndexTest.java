@@ -671,7 +671,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final AtomicReference<Path> currentFilePath = new AtomicReference<>(targetFile);
-		final StorageOptions storageOptions = buildOptionsWithLimitedBuffer(Crc32Check.YES, Compression.NO);
+		final StorageOptions storageOptions = buildOptionsWithLimitedBuffer(Crc32Check.YES, Compression.YES);
 		try (
 			final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class))
 		) {

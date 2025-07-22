@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi.builder;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLOutputType;
-import graphql.schema.GraphQLType;
 import graphql.schema.GraphQLUnionType;
 import graphql.schema.TypeResolver;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
@@ -94,6 +93,8 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS_INPUT.to(inputObjectBuilderTransformer).build());
 		final GraphQLObjectType attributeSchemaObject = buildAttributeSchemaObject();
 		buildingContext.registerType(attributeSchemaObject);
 		final GraphQLObjectType entityAttributeSchemaObject= buildEntityAttributeSchemaObject();

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
@@ -334,7 +335,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.e(NameVariantsDescriptor.KEBAB_CASE.name(), referenceSchema.getGroupTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.KEBAB_CASE))
 				.build())
 			.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged())
-			.e(ReferenceSchemaDescriptor.INDEXED.name(), createFlagInScopesDto(referenceSchema::isIndexedInScope))
+			.e(ReferenceSchemaDescriptor.INDEXED.name(), createReferenceIndexTypeDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.FACETED.name(), createFlagInScopesDto(referenceSchema::isFacetedInScope))
 			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()))
 			.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(referenceSchema.getSortableAttributeCompounds().size()));
@@ -367,6 +368,17 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 	@Nonnull
 	private static List<String> createFlagInScopesDto(@Nonnull Predicate<Scope> flagPredicate) {
 		return Arrays.stream(Scope.values()).filter(flagPredicate).map(Enum::name).toList();
+	}
+
+	@Nonnull
+	protected static List<Map<String, Object>> createReferenceIndexTypeDto(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return Arrays.stream(Scope.values())
+			.filter(referenceSchema::isIndexedInScope)
+			.map(scope -> map()
+				.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), scope.name())
+				.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
+				.build())
+			.toList();
 	}
 
 	@Nonnull

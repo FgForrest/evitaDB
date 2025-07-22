@@ -32,6 +32,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReflectedReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,8 +82,14 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.CARDINALITY.name(), Cardinality.ZERO_OR_MORE)
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME.name(), "tags")
-				.e(CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
-					.i(Scope.LIVE))
+				.e(
+					CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
+					list().i(
+						map()
+							.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
+					)
+				)
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES.name(), list()
 					.i(Scope.LIVE))
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT)
@@ -100,8 +107,14 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.CARDINALITY.name(), "ZERO_OR_MORE")
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME.name(), "tags")
-				.e(CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
-					.i(Scope.LIVE.name()))
+				.e(
+					CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
+					list().i(
+						map()
+							.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
+					)
+				)
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES.name(), list()
 					.i(Scope.LIVE.name()))
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())

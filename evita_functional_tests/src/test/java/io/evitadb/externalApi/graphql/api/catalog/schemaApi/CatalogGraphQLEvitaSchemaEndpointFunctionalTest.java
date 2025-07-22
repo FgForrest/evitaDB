@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 
 import javax.annotation.Nonnull;
@@ -118,10 +119,16 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 	}
 
 	@Nonnull
-	protected static List<String> createReferenceIndexedDto(ReferenceSchemaContract schema) {
-		return Arrays.stream(Scope.values())
-			.filter(schema::isIndexedInScope)
-			.map(Enum::name)
+	protected static List<Map<String, Object>> createReferenceIndexedDto(ReferenceSchemaContract schema) {
+		return schema.getReferenceIndexTypeInScopes()
+			.entrySet()
+			.stream()
+			.map(
+				it -> map()
+					.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), it.getKey().name())
+					.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), it.getValue().name())
+					.build()
+			)
 			.toList();
 	}
 }

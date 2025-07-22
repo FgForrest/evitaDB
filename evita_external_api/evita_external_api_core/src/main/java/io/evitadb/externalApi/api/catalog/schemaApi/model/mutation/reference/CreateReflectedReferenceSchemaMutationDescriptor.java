@@ -102,7 +102,7 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 			the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
 			alongside other references if requested.
 			""")
-		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS))
+		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS_INPUT))
 		.build();
 	PropertyDescriptor FACETED_IN_SCOPES = PropertyDescriptor.builder()
 		.name("facetedInScopes")

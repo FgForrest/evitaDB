@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,14 +26,15 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetche
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Provides complete list of {@link ReferenceSchemaContract#isIndexedInScope(Scope)}
@@ -41,7 +42,7 @@ import java.util.List;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class ReferenceSchemaIndexedDataFetcher implements DataFetcher<List<Scope>> {
+public class ReferenceSchemaIndexedDataFetcher implements DataFetcher<List<ScopedReferenceIndexType>> {
 
 	@Nullable
 	private static ReferenceSchemaIndexedDataFetcher INSTANCE = null;
@@ -56,10 +57,12 @@ public class ReferenceSchemaIndexedDataFetcher implements DataFetcher<List<Scope
 
 	@Override
 	@Nonnull
-	public List<Scope> get(DataFetchingEnvironment environment) throws Exception {
-		final ReferenceSchemaContract referenceSchema = environment.getSource();
-		return Arrays.stream(Scope.values())
-			.filter(scope -> referenceSchema.isIndexedInScope(scope))
+	public List<ScopedReferenceIndexType> get(DataFetchingEnvironment environment) throws Exception {
+		final ReferenceSchemaContract referenceSchema = Objects.requireNonNull(environment.getSource());
+		return referenceSchema.getReferenceIndexTypeInScopes()
+			.entrySet()
+			.stream()
+			.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
 			.toList();
 	}
 }
