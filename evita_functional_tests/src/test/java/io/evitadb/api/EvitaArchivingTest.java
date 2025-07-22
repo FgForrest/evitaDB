@@ -171,15 +171,15 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_ARCHIVING_TEST);
-		evita = new Evita(
+		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
-		evita.defineCatalog(TEST_CATALOG);
+		this.evita.defineCatalog(TEST_CATALOG);
 	}
 
 	@AfterEach
 	void tearDown() {
-		evita.close();
+		this.evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_ARCHIVING_TEST);
 	}
 
@@ -193,7 +193,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		createBrandAndCategoryEntities();
 
 		// create product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT, 100)
@@ -211,7 +211,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		checkProductCanBeLookedUpByIndexes();
 
 		// check indexes exist
-		final Catalog catalog1 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final Catalog catalog1 = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract productCollection1 = catalog1.getCollectionForEntity(Entities.PRODUCT)
 			.orElseThrow();
 
@@ -229,7 +229,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.BRAND, 2));
 
 		// archive product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.PRODUCT, 100);
@@ -241,7 +241,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		checkProductCannotBeLookedUpByIndexes(Scope.ARCHIVED);
 
 		// check archive indexes exist and previous indexes are removed
-		final Catalog catalog2 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final Catalog catalog2 = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract productCollection2 = catalog2.getCollectionForEntity(Entities.PRODUCT)
 			.orElseThrow();
 
@@ -260,7 +260,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.BRAND, 2));
 
 		// restore product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.restoreEntity(Entities.PRODUCT, 100);
@@ -271,7 +271,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		checkProductCanBeLookedUpByIndexes();
 
 		// check live indexes exist and previous indexes are removed
-		final Catalog catalog3 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final Catalog catalog3 = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract productCollection3 = catalog3.getCollectionForEntity(Entities.PRODUCT)
 			.orElseThrow();
 
@@ -289,8 +289,8 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.BRAND, 2));
 
 		// close evita and reload it from disk again
-		evita.close();
-		evita = new Evita(
+		this.evita.close();
+		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
 
@@ -298,7 +298,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		checkProductCanBeLookedUpByIndexes();
 
 		// check live indexes exist and previous indexes are removed
-		final Catalog catalog4 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final Catalog catalog4 = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract productCollection4 = catalog4.getCollectionForEntity(Entities.PRODUCT)
 			.orElseThrow();
 
@@ -326,7 +326,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		createBrandAndCategoryEntities();
 
 		// create product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT, 100)
@@ -346,7 +346,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		checkProductCannotBeLookedUpByIndexes(Scope.ARCHIVED);
 
 		// check indexes exist
-		final Catalog catalog1 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final Catalog catalog1 = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract productCollection1 = catalog1.getCollectionForEntity(Entities.PRODUCT)
 			.orElseThrow();
 
@@ -364,7 +364,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.BRAND, 2));
 
 		// archive product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.PRODUCT, 100);
@@ -377,7 +377,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		checkProductCanBeLookedUpByIndexes(Scope.values());
 
 		// check archive indexes exist and previous indexes are removed
-		final Catalog catalog2 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final Catalog catalog2 = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract productCollection2 = catalog2.getCollectionForEntity(Entities.PRODUCT)
 			.orElseThrow();
 
@@ -395,7 +395,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.BRAND, 2));
 
 		// restore product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.restoreEntity(Entities.PRODUCT, 100);
@@ -408,7 +408,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		checkProductCannotBeLookedUpByIndexes(Scope.ARCHIVED);
 
 		// check live indexes exist and previous indexes are removed
-		final Catalog catalog3 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final Catalog catalog3 = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract productCollection3 = catalog3.getCollectionForEntity(Entities.PRODUCT)
 			.orElseThrow();
 
@@ -426,8 +426,8 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.BRAND, 2));
 
 		// close evita and reload it from disk again
-		evita.close();
-		evita = new Evita(
+		this.evita.close();
+		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
 
@@ -435,7 +435,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		checkProductCanBeLookedUpByIndexes();
 
 		// check live indexes exist and previous indexes are removed
-		final Catalog catalog4 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final Catalog catalog4 = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract productCollection4 = catalog4.getCollectionForEntity(Entities.PRODUCT)
 			.orElseThrow();
 
@@ -452,7 +452,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 1));
 		assertNull(getReferencedEntityIndex(productCollection4, Scope.ARCHIVED, Entities.BRAND, 2));
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.goLiveAndClose();
@@ -460,7 +460,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// check live indexes exist and previous indexes are removed
-		final Catalog catalog5 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final Catalog catalog5 = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract productCollection5 = catalog5.getCollectionForEntity(Entities.PRODUCT)
 			.orElseThrow();
 
@@ -484,7 +484,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		/* create schema for entity archival */
 		createSchemaForEntityArchiving(Scope.LIVE, Scope.ARCHIVED);
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.goLiveAndClose();
@@ -495,7 +495,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		createBrandAndCategoryEntities();
 
 		// create product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT, 100)
@@ -515,7 +515,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		checkProductCannotBeLookedUpByIndexes(Scope.ARCHIVED);
 
 		// check indexes exist
-		final Catalog catalog1 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final Catalog catalog1 = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract productCollection1 = catalog1.getCollectionForEntity(Entities.PRODUCT)
 			.orElseThrow();
 
@@ -533,7 +533,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection1, Scope.ARCHIVED, Entities.BRAND, 2));
 
 		// archive product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.PRODUCT, 100);
@@ -546,7 +546,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		checkProductCanBeLookedUpByIndexes(Scope.values());
 
 		// check archive indexes exist and previous indexes are removed
-		final Catalog catalog2 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final Catalog catalog2 = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract productCollection2 = catalog2.getCollectionForEntity(Entities.PRODUCT)
 			.orElseThrow();
 
@@ -564,7 +564,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection2, Scope.ARCHIVED, Entities.BRAND, 2));
 
 		// restore product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.restoreEntity(Entities.PRODUCT, 100);
@@ -577,7 +577,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		checkProductCannotBeLookedUpByIndexes(Scope.ARCHIVED);
 
 		// check live indexes exist and previous indexes are removed
-		final Catalog catalog3 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final Catalog catalog3 = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract productCollection3 = catalog3.getCollectionForEntity(Entities.PRODUCT)
 			.orElseThrow();
 
@@ -595,8 +595,8 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(getReferencedEntityIndex(productCollection3, Scope.ARCHIVED, Entities.BRAND, 2));
 
 		// close evita and reload it from disk again
-		evita.close();
-		evita = new Evita(
+		this.evita.close();
+		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
 
@@ -604,7 +604,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		checkProductCanBeLookedUpByIndexes();
 
 		// check live indexes exist and previous indexes are removed
-		final Catalog catalog4 = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final Catalog catalog4 = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract productCollection4 = catalog4.getCollectionForEntity(Entities.PRODUCT)
 			.orElseThrow();
 
@@ -632,7 +632,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		createBrandAndCategoryEntities();
 
 		// create product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT, 100)
@@ -665,7 +665,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		createBrandAndCategoryEntities();
 
 		// create product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT, 100)
@@ -687,7 +687,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		checkProductCannotBeLookedUpByIndexes(Scope.LIVE);
 
 		// check live indexes exist and previous indexes are removed
-		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final Catalog catalog = (Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 			.orElseThrow();
 
@@ -716,7 +716,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		createBrandAndCategoryEntities();
 
 		// create product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT, 100)
@@ -772,7 +772,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// find products with complex query - there are no archived data at the moment
-		final List<SealedEntity> liveProducts = evita.queryCatalog(
+		final List<SealedEntity> liveProducts = this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.queryList(complexQuery, SealedEntity.class);
@@ -795,7 +795,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		}
 
 		// archive product entity and all brands
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.PRODUCT, 100);
@@ -805,7 +805,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// find products with complex query - both live and archived (combination)
-		final List<SealedEntity> liveAndArchiveProductsTogether = evita.queryCatalog(
+		final List<SealedEntity> liveAndArchiveProductsTogether = this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.queryList(complexQuery, SealedEntity.class);
@@ -829,7 +829,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 
 		assertThrows(
 			ReferenceNotIndexedException.class,
-			() -> evita.queryCatalog(
+			() -> this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					return session.queryList(
@@ -864,7 +864,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 
 		assertThrows(
 			ReferenceNotIndexedException.class,
-			() -> evita.queryCatalog(
+			() -> this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					return session.queryList(
@@ -895,11 +895,11 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	@Test
 	void shouldDropReflectedReferencesOnEntityArchivingAndCreateWhenBeingRestored() {
 		/* create schema for entity archival */
-		evita.defineCatalog(TEST_CATALOG)
+		this.evita.defineCatalog(TEST_CATALOG)
 			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally().sortable())
-			.updateViaNewSession(evita);
+			.updateViaNewSession(this.evita);
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.CATEGORY)
@@ -909,7 +909,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						REFLECTED_REFERENCE_NAME,
 						Entities.PRODUCT,
 						Entities.CATEGORY,
-						whichIs -> whichIs.indexed().withAttributesInherited()
+						whichIs -> whichIs.indexedForFilteringAndPartitioning().withAttributesInherited()
 					)
 					.withHierarchy()
 					.updateVia(session);
@@ -929,7 +929,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						Entities.CATEGORY,
 						Cardinality.ZERO_OR_MORE,
 						thatIs -> thatIs
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterable().sortable())
 							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterable())
 							.withSortableAttributeCompound(
@@ -943,7 +943,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// upsert entities product depends on
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.CATEGORY, 1)
@@ -958,7 +958,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// create product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT, 100)
@@ -972,7 +972,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// check category has reflected reference to product
-		final SealedEntity category = evita.queryCatalog(
+		final SealedEntity category = this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
@@ -985,7 +985,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertEquals("EU", products.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
 
 		// archive product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.PRODUCT, 100);
@@ -993,7 +993,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// check category has no reflected reference to product
-		final SealedEntity categoryAfterArchiving = evita.queryCatalog(
+		final SealedEntity categoryAfterArchiving = this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
@@ -1005,7 +1005,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertNull(productsAfterArchiving);
 
 		// restore both category and product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.restoreEntity(Entities.CATEGORY, 2);
@@ -1014,7 +1014,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// check restored category has reflected reference to product again
-		final SealedEntity categoryAfterRestore = evita.queryCatalog(
+		final SealedEntity categoryAfterRestore = this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
@@ -1030,13 +1030,13 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	@Test
 	void shouldFailToSetUpReflectedReferencesIncompatiblyWithMainReference() {
 		/* create schema for entity archival */
-		evita.defineCatalog(TEST_CATALOG)
-			.updateViaNewSession(evita);
+		this.evita.defineCatalog(TEST_CATALOG)
+			.updateViaNewSession(this.evita);
 
 		assertThrows(
 			InvalidSchemaMutationException.class,
 			() ->
-				evita.updateCatalog(
+				this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.defineEntitySchema(Entities.CATEGORY)
@@ -1069,12 +1069,12 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	@Test
 	void shouldFailToSetUpEntityWithReferenceAttributesInIncompatibleScopes() {
 		/* create schema for entity archival */
-		evita.defineCatalog(TEST_CATALOG)
-			.updateViaNewSession(evita);
+		this.evita.defineCatalog(TEST_CATALOG)
+			.updateViaNewSession(this.evita);
 
 		assertThrows(
 			InvalidSchemaMutationException.class,
-			() -> evita.updateCatalog(
+			() -> this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.defineEntitySchema(Entities.PRODUCT)
@@ -1100,11 +1100,11 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	void shouldRecreateReflectedReferencesInSeparateScopes() {
 		/* create schema for entity archival */
 		final Scope[] scopes = new Scope[]{Scope.LIVE, Scope.ARCHIVED};
-		evita.defineCatalog(TEST_CATALOG)
+		this.evita.defineCatalog(TEST_CATALOG)
 			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGloballyInScope(scopes).sortableInScope(scopes))
-			.updateViaNewSession(evita);
+			.updateViaNewSession(this.evita);
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.CATEGORY)
@@ -1148,7 +1148,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// upsert entities product depends on
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.CATEGORY, 1)
@@ -1163,7 +1163,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// create product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT, 100)
@@ -1177,7 +1177,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// check category has reflected reference to product
-		final SealedEntity category = evita.queryCatalog(
+		final SealedEntity category = this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
@@ -1194,7 +1194,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertProductContainsCategory(new EntityReference(Entities.PRODUCT, 100), 2, Scope.LIVE);
 
 		// archive product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.PRODUCT, 100);
@@ -1202,7 +1202,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// check category still has reflected reference to product
-		final SealedEntity categoryAfterArchiving = evita.queryCatalog(
+		final SealedEntity categoryAfterArchiving = this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
@@ -1223,7 +1223,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertProductDoesNotContainCategory(2, Scope.ARCHIVED);
 
 		// archive category entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.CATEGORY, 2);
@@ -1231,7 +1231,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// check archived category still has reflected reference to product
-		final SealedEntity archivedCategory = evita.queryCatalog(
+		final SealedEntity archivedCategory = this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.queryOne(
@@ -1265,7 +1265,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		assertProductDoesNotContainCategory(2, Scope.LIVE);
 
 		// restore both category and product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.restoreEntity(Entities.CATEGORY, 2);
@@ -1274,7 +1274,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// check restored category has still reflected reference to product
-		final SealedEntity categoryAfterRestore = evita.queryCatalog(
+		final SealedEntity categoryAfterRestore = this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
@@ -1306,7 +1306,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		createBrandAndCategoryEntities();
 
 		// create product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT, 100)
@@ -1330,14 +1330,14 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// archive product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.PRODUCT, 100);
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				// check only product 101 is retrievable in live scope
@@ -1376,11 +1376,11 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	@DisplayName("Entity sorting in multiple scopes")
 	@Test
 	void shouldOrderInAllScopes() {
-		evita.defineCatalog(TEST_CATALOG)
+		this.evita.defineCatalog(TEST_CATALOG)
 			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.sortableInScope(Scope.values()))
-			.updateViaNewSession(evita);
+			.updateViaNewSession(this.evita);
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
@@ -1410,7 +1410,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// create product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT, 100)
@@ -1450,7 +1450,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// archive product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.PRODUCT, 110);
@@ -1459,7 +1459,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final int[] sortedProductsBySharedAttribute = session.queryList(
@@ -1601,9 +1601,9 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	@DisplayName("Entity extra result generation in multiple scopes")
 	@Test
 	void shouldGenerateResultsInMultipleScopes() {
-		evita.defineCatalog(TEST_CATALOG);
+		this.evita.defineCatalog(TEST_CATALOG);
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.BRAND)
@@ -1626,7 +1626,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// create product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.BRAND, 1).upsertVia(session);
@@ -1684,7 +1684,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// archive product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.PRODUCT, 110);
@@ -1693,7 +1693,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaResponse<EntityReference> result = session.query(
@@ -1859,9 +1859,9 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	@DisplayName("Entity extra result generation over multiple scopes")
 	@Test
 	void shouldGenerateResultsInOverMultipleScopes() {
-		evita.defineCatalog(TEST_CATALOG);
+		this.evita.defineCatalog(TEST_CATALOG);
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.BRAND)
@@ -1877,14 +1877,14 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 					.withoutGeneratedPrimaryKey()
 					.withPriceIndexedInScope(Scope.values())
 					.withAttribute(ATTRIBUTE_WIDTH, int.class, thatIs -> thatIs.filterableInScope(Scope.values()))
-					.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, thatIs -> thatIs.indexedInScope(Scope.values()).facetedInScope(Scope.values()))
-					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, thatIs -> thatIs.indexedInScope(Scope.values()))
+					.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, thatIs -> thatIs.indexedForFilteringAndPartitioningInScope(Scope.values()).facetedInScope(Scope.values()))
+					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, thatIs -> thatIs.indexedForFilteringAndPartitioningInScope(Scope.values()))
 					.updateVia(session);
 			}
 		);
 
 		// create product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.BRAND, 1).upsertVia(session);
@@ -1942,7 +1942,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// archive product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.PRODUCT, 110);
@@ -1951,7 +1951,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaResponse<EntityReference> result = session.query(
@@ -2031,7 +2031,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		createBrandAndCategoryEntities();
 
 		// create product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT, 100)
@@ -2046,7 +2046,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// archive product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.PRODUCT, 100);
@@ -2054,7 +2054,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// delete archived entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.deleteEntity(Entities.PRODUCT, 100);
@@ -2069,7 +2069,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	@Test
 	void shouldBeAbleToViolateUniqueConstraintsWhenEntityIsArchived() {
 		/* create schema for entity archival */
-		evita.defineCatalog(TEST_CATALOG)
+		this.evita.defineCatalog(TEST_CATALOG)
 			.withAttribute(
 				ATTRIBUTE_CODE,
 				String.class,
@@ -2077,9 +2077,9 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 					.uniqueGloballyInScope(Scope.values())
 					.sortableInScope(Scope.values())
 			)
-			.updateViaNewSession(evita);
+			.updateViaNewSession(this.evita);
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
@@ -2094,7 +2094,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// upsert non-conflicting entities
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT, 1)
@@ -2110,7 +2110,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// archive product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.PRODUCT, 1);
@@ -2118,7 +2118,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// upsert change unique key to conflict with archived entity and upsert it
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.getEntity(Entities.PRODUCT, 2, entityFetchAllContent())
@@ -2162,7 +2162,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	@Test
 	void shouldBeAbleToRetrieveEntitiesByGloballyUniqueAttributesInBothScopes() {
 		/* create schema for entity archival */
-		evita.defineCatalog(TEST_CATALOG)
+		this.evita.defineCatalog(TEST_CATALOG)
 			.withAttribute(
 				ATTRIBUTE_URL,
 				String.class,
@@ -2170,9 +2170,9 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 					.uniqueGloballyInScope(Scope.values())
 					.localized()
 			)
-			.updateViaNewSession(evita);
+			.updateViaNewSession(this.evita);
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
@@ -2183,7 +2183,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// upsert non-conflicting entities
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT, 1)
@@ -2197,16 +2197,16 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		);
 
 		// archive product entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.archiveEntity(Entities.PRODUCT, 1);
 			}
 		);
 
-		evita.close();
+		this.evita.close();
 
-		evita = new Evita(
+		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
 
@@ -2216,7 +2216,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 				new EntityReference(Entities.PRODUCT, 1),
 				new EntityReference(Entities.PRODUCT, 2)
 			},
-			evita.queryCatalog(
+			this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					return session.queryList(
@@ -2235,7 +2235,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	}
 
 	private void createBrandAndCategoryEntities() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.BRAND, 1).upsertVia(session);
@@ -2254,11 +2254,11 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	}
 
 	private void createSchemaForEntityArchiving(@Nonnull Scope... indexScope) {
-		evita.defineCatalog(TEST_CATALOG)
+		this.evita.defineCatalog(TEST_CATALOG)
 			.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGloballyInScope(indexScope).sortableInScope(indexScope))
-			.updateViaNewSession(evita);
+			.updateViaNewSession(this.evita);
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.BRAND)
@@ -2289,7 +2289,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						Entities.BRAND,
 						Cardinality.ZERO_OR_ONE,
 						thatIs -> thatIs
-							.indexedInScope(indexScope)
+							.indexedForFilteringAndPartitioningInScope(indexScope)
 							.withAttribute(ATTRIBUTE_BRAND_EAN, String.class, whichIs -> whichIs.filterableInScope(indexScope).sortableInScope(indexScope))
 					)
 					.withReferenceToEntity(
@@ -2297,7 +2297,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 						Entities.CATEGORY,
 						Cardinality.ZERO_OR_MORE,
 						thatIs -> thatIs
-							.indexedInScope(indexScope)
+							.indexedForFilteringAndPartitioningInScope(indexScope)
 							.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, whichIs -> whichIs.filterableInScope(indexScope).sortableInScope(indexScope))
 							.withAttribute(ATTRIBUTE_CATEGORY_OPEN, Boolean.class, whichIs -> whichIs.filterableInScope(indexScope))
 							.withSortableAttributeCompound(
@@ -2336,7 +2336,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	}
 
 	private void checkProductCannotBeLookedUpByIndexes(Scope scope) {
-		final SealedEntitySchema schema = evita.queryCatalog(
+		final SealedEntitySchema schema = this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.getEntitySchema(Entities.PRODUCT).orElseThrow();
@@ -2392,7 +2392,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 
 	@Nullable
 	private EntityReference queryProductReferenceBy(@Nonnull Scope[] scope, @Nonnull FilterConstraint... filterBy) {
-		return evita.queryCatalog(
+		return this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.queryOne(
@@ -2419,7 +2419,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	) {
 		assertEquals(
 			category,
-			evita.queryCatalog(
+			this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					return session.queryOne(
@@ -2445,7 +2445,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		@Nonnull Scope... scopes
 	) {
 		assertNull(
-			evita.queryCatalog(
+			this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					return session.queryOne(
@@ -2473,7 +2473,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 	) {
 		assertEquals(
 			product,
-			evita.queryCatalog(
+			this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					return session.queryOne(
@@ -2499,7 +2499,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		@Nonnull Scope... scopes
 	) {
 		assertNull(
-			evita.queryCatalog(
+			this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					return session.queryOne(

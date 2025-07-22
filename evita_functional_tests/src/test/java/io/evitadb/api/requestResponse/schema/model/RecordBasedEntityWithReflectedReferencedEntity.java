@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
 import io.evitadb.api.requestResponse.data.annotation.ReflectedReference;
 import io.evitadb.api.requestResponse.data.annotation.ReflectedReference.InheritableBoolean;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 
 /**
  * Example interface for ClassSchemaAnalyzerTest.
@@ -68,7 +69,7 @@ public record RecordBasedEntityWithReflectedReferencedEntity(
 		@PrimaryKey
 		int id,
 
-		@Reference(indexed = true)
+		@Reference(indexed = ReferenceIndexType.FOR_FILTERING)
 		ItemReference[] items
 	) {
 	}

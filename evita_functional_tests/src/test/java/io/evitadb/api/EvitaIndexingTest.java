@@ -47,7 +47,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
@@ -205,7 +204,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			.defineEntitySchema(Entities.PRODUCT)
 			.withReferenceToEntity(
 				REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-				whichIs -> whichIs.indexed()
+				whichIs -> whichIs.indexedForFilteringAndPartitioning()
 			)
 			.updateVia(session);
 	}
@@ -227,7 +226,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			.defineEntitySchema(Entities.PRODUCT)
 			.withReferenceToEntity(
 				REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-				whichIs -> whichIs.indexed()
+				whichIs -> whichIs.indexedForFilteringAndPartitioning()
 					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED, String.class, thatIs -> thatIs.filterable().sortable().withDefaultValue("default"))
 					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, String.class, thatIs -> thatIs.filterable().sortable().nullable())
 			)
@@ -251,7 +250,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			.defineEntitySchema(Entities.PRODUCT)
 			.withReferenceToEntity(
 				REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-				whichIs -> whichIs.indexed()
+				whichIs -> whichIs.indexedForFilteringAndPartitioning()
 					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED, String.class, thatIs -> thatIs.filterable().sortable())
 					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, String.class, thatIs -> thatIs.filterable().sortable())
 			)
@@ -676,7 +675,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						"externalCategory",
 						Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 							.withAttribute(
 								ATTRIBUTE_CATEGORY_PRIORITY,
 								Long.class,
@@ -741,7 +740,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						"externalCategory",
 						Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 							.withAttribute(
 								ATTRIBUTE_CATEGORY_PRIORITY,
 								Long.class,
@@ -2258,13 +2257,13 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						Entities.CATEGORY,
 						Entities.CATEGORY,
 						Cardinality.ZERO_OR_MORE,
-						ReferenceSchemaEditor::faceted
+						whichIs -> whichIs.indexedForFilteringAndPartitioning().faceted()
 					)
 					.withReferenceToEntity(
 						Entities.BRAND,
 						Entities.BRAND,
 						Cardinality.ZERO_OR_ONE,
-						ReferenceSchemaEditor::faceted
+						whichIs -> whichIs.indexedForFilteringAndPartitioning().faceted()
 					)
 					.updateVia(session);
 
@@ -2661,8 +2660,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
-					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, whichIs -> whichIs.indexed())
-					.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE, whichIs -> whichIs.indexed())
+					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, whichIs -> whichIs.indexedForFilteringAndPartitioning())
+					.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE, whichIs -> whichIs.indexedForFilteringAndPartitioning())
 					.updateVia(session);
 
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
@@ -2758,7 +2757,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
 						Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexed()
+						whichIs -> whichIs.indexedForFilteringAndPartitioning()
 							.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.nullable())
 							.withAttribute(ATTRIBUTE_EAN, String.class, thatIs -> thatIs.nullable())
 							.withSortableAttributeCompound(
@@ -2769,7 +2768,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.withReferenceToEntity(
 						Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexed()
+						whichIs -> whichIs.indexedForFilteringAndPartitioning()
 							.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.nullable())
 							.withAttribute(ATTRIBUTE_EAN, String.class, thatIs -> thatIs.nullable())
 							.withSortableAttributeCompound(
@@ -2879,7 +2878,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
 						Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexed()
+						whichIs -> whichIs.indexedForFilteringAndPartitioning()
 							.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.nullable())
 							.withAttribute(ATTRIBUTE_EAN, String.class, thatIs -> thatIs.localized().nullable())
 							.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().nullable())
@@ -2891,7 +2890,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.withReferenceToEntity(
 						Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexed()
+						whichIs -> whichIs.indexedForFilteringAndPartitioning()
 							.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.nullable())
 							.withAttribute(ATTRIBUTE_EAN, String.class, thatIs -> thatIs.localized().nullable())
 							.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().nullable())
@@ -3087,7 +3086,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE,
-						whichIs -> whichIs.indexed()
+						whichIs -> whichIs.indexedForFilteringAndPartitioning()
 							.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class, thatIs -> thatIs.filterable())
 					)
 					.updateVia(session);

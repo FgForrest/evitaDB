@@ -37,8 +37,6 @@ import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 /**
  * Serializer for {@link CreateReflectedReferenceSchemaMutation}.
  *
- * TODO jno - BACKWARD COMPATIBILITY - this serializer is not backward compatible with previous versions of EvitaDB.
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer<CreateReflectedReferenceSchemaMutation> implements MutationSerializationFunctions {

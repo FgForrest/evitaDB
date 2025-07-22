@@ -191,7 +191,7 @@ public class EntityByMultipleOrderingFunctionalTest {
 							Entities.CATEGORY,
 							Entities.CATEGORY,
 							Cardinality.EXACTLY_ONE,
-							whichIs -> whichIs.indexed()
+							whichIs -> whichIs.indexedForFilteringAndPartitioning()
 								.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.class, thatIs -> thatIs.nullable().sortable())
 								.withAttribute(ATTRIBUTE_MARKET, String.class, thatIs -> thatIs.nullable().sortable())
 								.withAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class, thatIs -> thatIs.nullable().sortable())

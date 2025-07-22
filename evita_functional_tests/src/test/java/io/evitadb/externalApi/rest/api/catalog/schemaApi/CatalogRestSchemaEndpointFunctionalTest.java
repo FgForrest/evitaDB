@@ -34,7 +34,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
@@ -376,7 +375,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.filter(referenceSchema::isIndexedInScope)
 			.map(scope -> map()
 				.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), scope.name())
-				.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
+				.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), referenceSchema.getReferenceIndexType(scope).name())
 				.build())
 			.toList();
 	}

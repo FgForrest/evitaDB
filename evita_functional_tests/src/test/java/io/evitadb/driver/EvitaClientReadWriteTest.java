@@ -318,7 +318,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 									)
 									.withReferenceToEntity(
 										Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-										whichIs -> whichIs.indexed()
+										whichIs -> whichIs.indexedForFilteringAndPartitioning()
 											.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.class)
 									);
 								session.updateEntitySchema(builder);
@@ -695,7 +695,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 							.deprecated("Already deprecated.")
 							.withAttribute("categoryPriority", Long.class, that -> that.sortable())
 							.withAttribute("note", String.class)
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 							.faceted()
 					)
 			)
@@ -864,11 +864,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 						.withPrice()
 						.withReferenceToEntity(
 							"brand", "Brand", Cardinality.EXACTLY_ONE,
-							thatIs -> thatIs.indexed()
+							thatIs -> thatIs.indexedForFilteringAndPartitioning()
 						)
 						.withReferenceToEntity(
 							"categories", "Category", Cardinality.ZERO_OR_MORE,
-							thatIs -> thatIs.indexed()
+							thatIs -> thatIs.indexedForFilteringAndPartitioning()
 						)
 				)
 				// and now push all the definitions (mutations) to the server

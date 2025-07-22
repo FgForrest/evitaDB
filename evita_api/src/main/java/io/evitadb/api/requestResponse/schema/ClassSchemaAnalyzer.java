@@ -1055,15 +1055,19 @@ public class ClassSchemaAnalyzer {
 
 			final ScopeReferenceSettings[] scopedDefinition = reference.scope();
 			if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
-				if (reference.indexed()) {
-					editor.indexed();
+				if (reference.indexed() == ReferenceIndexType.FOR_FILTERING) {
+					editor.indexedForFiltering();
+				} else if (reference.indexed() == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
+					editor.indexedForFilteringAndPartitioning();
+				} else {
+					editor.nonIndexed();
 				}
 				if (reference.faceted()) {
 					editor.faceted();
 				}
 			} else {
 				Assert.isTrue(
-					!reference.indexed(),
+					reference.indexed() == ReferenceIndexType.NONE,
 					"When `scope` is defined in `@Reference` annotation, " +
 						"the value of `indexed` property is not taken into an account " +
 						"(and thus it doesn't make sense to set it to true)!"

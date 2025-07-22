@@ -85,7 +85,7 @@ public record RecordBasedEntityWithScopeReferenceSettings(
 	/**
 	 * Reference with no scope settings - should use defaults (LIVE scope only).
 	 */
-	@Reference(indexed = true, faceted = true)
+	@Reference(indexed = ReferenceIndexType.FOR_FILTERING, faceted = true)
 	Brand defaultBrand
 ) {
 

@@ -41,7 +41,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Deprecated
+@Deprecated(since = "2025.5", forRemoval = true)
 public class CreateReferenceSchemaMutationSerializer_2025_5 extends Serializer<CreateReferenceSchemaMutation> implements MutationSerializationFunctions {
 
 	@Override

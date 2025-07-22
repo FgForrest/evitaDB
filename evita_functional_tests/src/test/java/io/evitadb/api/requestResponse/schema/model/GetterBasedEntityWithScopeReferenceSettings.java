@@ -88,7 +88,7 @@ public interface GetterBasedEntityWithScopeReferenceSettings {
 	/**
 	 * Reference with no scope settings - should use defaults (LIVE scope only).
 	 */
-	@Reference(indexed = true, faceted = true)
+	@Reference(indexed = ReferenceIndexType.FOR_FILTERING, faceted = true)
 	Brand getDefaultBrand();
 
 	interface Brand extends Serializable {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,6 +60,6 @@ public enum EntityIndexType {
 	 * @deprecated this index was merged to {@link #REFERENCED_ENTITY} - because it contains the same data and doesn't
 	 * bring any additional value.
 	 */
-	@Deprecated
+	@Deprecated(since = "2024.11", forRemoval = true)
 	REFERENCED_HIERARCHY_NODE
 }

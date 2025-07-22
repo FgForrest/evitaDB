@@ -261,7 +261,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 *
 	 * @return builder to continue with configuration
 	 */
-	@Deprecated
+	@Deprecated(since = "2025.5", forRemoval = true)
 	@Nonnull
 	default T nonUniqueWithinLocale() {
 		return nonUniqueWithinLocaleInScope(Scope.values());
@@ -277,7 +277,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * @param inScope one or more scopes in which the attribute should not be unique within particular locale
 	 * @return builder to continue with configuration
 	 */
-	@Deprecated
+	@Deprecated(since = "2025.5", forRemoval = true)
 	@Nonnull
 	T nonUniqueWithinLocaleInScope(@Nonnull Scope... inScope);
 

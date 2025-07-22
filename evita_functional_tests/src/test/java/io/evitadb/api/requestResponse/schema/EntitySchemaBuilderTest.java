@@ -242,7 +242,7 @@ class EntitySchemaBuilderTest {
 				Cardinality.ZERO_OR_MORE,
 				whichIs ->
 					/* we can specify special attributes on relation */
-					whichIs.indexed().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+					whichIs.indexedForFilteringAndPartitioning().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
 			)
 			/* for faceted references we can compute "counts" */
 			.withReferenceToEntity(
@@ -1467,7 +1467,7 @@ class EntitySchemaBuilderTest {
 				Cardinality.ZERO_OR_MORE,
 				whichIs ->
 					/* we can specify special attributes on relation */
-					whichIs.indexed().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+					whichIs.indexedForFilteringAndPartitioning().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
 			)
 			/* for faceted references we can compute "counts" */
 			.withReferenceToEntity(
@@ -1704,7 +1704,7 @@ class EntitySchemaBuilderTest {
 				.withGroupTypeRelatedToEntity(Entities.STORE)
 				.withAttribute("note", String.class)
 				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
-				.indexed()
+				.indexedForFilteringAndPartitioning()
 				.faceted()
 		);
 
@@ -1724,7 +1724,7 @@ class EntitySchemaBuilderTest {
 				.withCardinality(Cardinality.ZERO_OR_MORE)
 				.withAttributesInheritedExcept("note")  // Inherit all attributes except "note"
 				.withAttribute("differentNote", String.class)  // Add a new attribute specific to this direction
-				.indexed()
+				.indexedForFilteringAndPartitioning()
 				.nonFaceted()
 		);
 
@@ -1780,7 +1780,7 @@ class EntitySchemaBuilderTest {
 				.withGroupTypeRelatedToEntity(Entities.STORE)
 				.withAttribute("note", String.class)                                    // Attribute that might be excluded
 				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())  // Attribute that might be inherited
-				.indexed()
+				.indexedForFilteringAndPartitioning()
 				.faceted()
 		);
 
@@ -1797,7 +1797,7 @@ class EntitySchemaBuilderTest {
 				.withCardinality(Cardinality.ZERO_OR_MORE)
 				.withAttributesInherited("note")
 				.withAttribute("differentNote", String.class)
-				.indexed()
+				.indexedForFilteringAndPartitioning()
 				.nonFaceted()
 		);
 
@@ -1842,7 +1842,7 @@ class EntitySchemaBuilderTest {
 				.withGroupTypeRelatedToEntity(Entities.STORE)
 				.withAttribute("note", String.class)
 				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
-				.indexed()
+				.indexedForFilteringAndPartitioning()
 				.faceted()
 		);
 
@@ -1859,7 +1859,7 @@ class EntitySchemaBuilderTest {
 				.withCardinality(Cardinality.ZERO_OR_MORE)
 				.withAttributesInherited()
 				.withAttribute("differentNote", String.class)
-				.indexed()
+				.indexedForFilteringAndPartitioning()
 				.nonFaceted()
 		);
 
@@ -1905,7 +1905,7 @@ class EntitySchemaBuilderTest {
 				.withGroupTypeRelatedToEntity(Entities.STORE)
 				.withAttribute("note", String.class)
 				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
-				.indexed()
+				.indexedForFilteringAndPartitioning()
 				.faceted()
 		);
 
@@ -1922,7 +1922,7 @@ class EntitySchemaBuilderTest {
 				.withCardinality(Cardinality.ZERO_OR_MORE)
 				.withoutAttributesInherited()
 				.withAttribute("differentNote", String.class)
-				.indexed()
+				.indexedForFilteringAndPartitioning()
 				.nonFaceted()
 		);
 
@@ -1966,7 +1966,7 @@ class EntitySchemaBuilderTest {
 				.withGroupTypeRelatedToEntity(Entities.STORE)
 				.withAttribute("note", String.class)
 				.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
-				.indexed()
+				.indexedForFilteringAndPartitioning()
 				.faceted()
 		);
 

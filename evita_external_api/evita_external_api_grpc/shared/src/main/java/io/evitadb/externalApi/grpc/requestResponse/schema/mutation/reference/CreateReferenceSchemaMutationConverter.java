@@ -40,8 +40,6 @@ import java.util.Arrays;
 /**
  * Converts between {@link CreateReferenceSchemaMutation} and {@link GrpcCreateReferenceSchemaMutation} in both directions.
  *
- * TODO JNO - backward compatibility - this converter is not backward compatible with previous versions of EvitaDB.
- *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)

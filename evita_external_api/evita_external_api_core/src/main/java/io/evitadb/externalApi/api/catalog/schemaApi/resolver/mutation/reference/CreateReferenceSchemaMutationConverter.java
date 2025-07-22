@@ -39,8 +39,6 @@ import javax.annotation.Nonnull;
 /**
  * Implementation of {@link SchemaMutationConverter} for resolving {@link CreateReferenceSchemaMutation}.
  *
- * TODO JNO - backward compatibility - this converter is not backward compatible with previous versions of EvitaDB.
- *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class CreateReferenceSchemaMutationConverter extends ReferenceSchemaMutationConverter<CreateReferenceSchemaMutation> {

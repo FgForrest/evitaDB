@@ -261,13 +261,13 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									Entities.CATEGORY,
 									Entities.CATEGORY,
 									Cardinality.ZERO_OR_MORE,
-									whichIs -> whichIs.indexed().faceted()
+									whichIs -> whichIs.indexedForFilteringAndPartitioning().faceted()
 								)
 								.withReferenceToEntity(
 									Entities.BRAND,
 									Entities.BRAND,
 									Cardinality.ZERO_OR_ONE,
-									whichIs -> whichIs.indexed()
+									whichIs -> whichIs.indexedForFilteringAndPartitioning()
 										.withAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class, thatIs -> thatIs.filterable().sortable())
 										.withAttribute(ATTRIBUTE_FOUNDED, OffsetDateTime.class, thatIs -> thatIs.filterable().sortable())
 								)

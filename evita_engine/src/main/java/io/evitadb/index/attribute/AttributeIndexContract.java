@@ -26,6 +26,7 @@ package io.evitadb.index.attribute;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Scope;
@@ -56,6 +57,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * @throws UniqueValueViolationException when value is not unique
 	 */
 	void insertUniqueAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nonnull Scope scope,
@@ -70,6 +72,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * @throws IllegalArgumentException when passed value doesn't match the unique value associated with the record key
 	 */
 	void removeUniqueAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nonnull Scope scope,
@@ -82,6 +85,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * Method inserts new filterable attribute to the index.
 	 */
 	void insertFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -95,6 +99,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * @throws IllegalArgumentException when passed value doesn't match the filterable value associated with the record key
 	 */
 	void removeFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -108,6 +113,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * insert it again.
 	 */
 	void addDeltaFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -121,6 +127,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * array and insert it again.
 	 */
 	void removeDeltaFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -132,6 +139,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * Method inserts new sortable attribute to the index.
 	 */
 	void insertSortAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -145,6 +153,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * @throws IllegalArgumentException when passed value doesn't match the filterable value associated with the record key
 	 */
 	void removeSortAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -157,6 +166,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * that are sorted according to {@link SortableAttributeCompoundSchemaContract#getAttributeElements()} descriptor.
 	 */
 	void insertSortAttributeCompound(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nonnull Function<String, Class<?>> attributeTypeProvider,
 		@Nullable Locale locale,
@@ -172,6 +182,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * @throws IllegalArgumentException when passed value doesn't match the value associated with the record key
 	 */
 	void removeSortAttributeCompound(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
 		@Nonnull Serializable[] value,

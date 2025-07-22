@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -101,7 +101,7 @@ class WalSerializationServiceTest {
 				Cardinality.ZERO_OR_MORE,
 				whichIs ->
 					/* we can specify special attributes on relation */
-					whichIs.indexed().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+					whichIs.indexedForFilteringAndPartitioning().withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
 			)
 			/* for indexed facets we can compute "counts" */
 			.withReferenceToEntity(

@@ -52,7 +52,7 @@ import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScop
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated
+@Deprecated(since = "2025.5", forRemoval = true)
 @RequiredArgsConstructor
 public class ReferenceSchemaSerializer_2025_5 extends Serializer<ReferenceSchema> {
 	private static final Function<String, EntitySchemaContract> IMPOSSIBLE_EXCEPTION_PRODUCER = s -> {

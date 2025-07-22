@@ -159,7 +159,7 @@ public class PathHandlingService implements HttpService {
 		return this;
 	}
 
-	@Deprecated
+	@Deprecated(since = "2024.7", forRemoval = true)
 	public synchronized PathHandlingService removePath(final String path) {
 		return removePrefixPath(path);
 	}

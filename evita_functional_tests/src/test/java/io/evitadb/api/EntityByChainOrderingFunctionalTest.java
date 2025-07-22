@@ -698,7 +698,7 @@ public class EntityByChainOrderingFunctionalTest {
 							Entities.CATEGORY,
 							Entities.CATEGORY,
 							Cardinality.EXACTLY_ONE,
-							whichIs -> whichIs.indexed()
+							whichIs -> whichIs.indexedForFilteringAndPartitioning()
 								.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.class, AttributeSchemaEditor::sortable)
 								.withAttribute(ATTRIBUTE_MARKET, String.class, thatIs -> thatIs.nullable().sortable())
 								.withAttribute(ATTRIBUTE_INCEPTION_YEAR, Integer.class, thatIs -> thatIs.nullable().sortable())
@@ -714,7 +714,7 @@ public class EntityByChainOrderingFunctionalTest {
 							Entities.BRAND,
 							Cardinality.ONE_OR_MORE,
 							whichIs -> whichIs
-								.indexed()
+								.indexedForFilteringAndPartitioning()
 								.faceted()
 								.withAttribute(ATTRIBUTE_BRAND_ORDER, Predecessor.class, AttributeSchemaEditor::sortable)
 								.withAttribute(ATTRIBUTE_MARKET, String.class, thatIs -> thatIs.nullable().sortable())
@@ -903,7 +903,7 @@ public class EntityByChainOrderingFunctionalTest {
 							REFERENCE_CATEGORY_PRODUCTS,
 							Entities.PRODUCT,
 							Cardinality.ONE_OR_MORE,
-							whichIs -> whichIs.indexed()
+							whichIs -> whichIs.indexedForFilteringAndPartitioning()
 								.withAttribute(ATTRIBUTE_CATEGORY_ORDER, ReferencedEntityPredecessor.class, AttributeSchemaEditor::sortable)
 						);
 				}

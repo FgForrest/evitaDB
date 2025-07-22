@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,50 +23,26 @@
 
 package io.evitadb.index.price;
 
+
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.index.price.model.PriceIndexKey;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Currency;
-import java.util.stream.Stream;
 
 /**
- * Void implementation of the {@link PriceIndexContract}.
+ * This interface defines write methods for the price index. It allows adding and removing prices from the index.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class VoidPriceIndex implements PriceIndexContract {
-	public static final PriceIndexContract INSTANCE = new VoidPriceIndex();
+public interface PriceIndexWriteContract {
 
-	@Nonnull
-	@Override
-	public Collection<? extends PriceListAndCurrencyPriceIndex> getPriceListAndCurrencyIndexes() {
-		return Collections.emptyList();
-	}
-
-	@Nonnull
-	@Override
-	public Stream<? extends PriceListAndCurrencyPriceIndex> getPriceIndexesStream(@Nonnull Currency currency, @Nonnull PriceInnerRecordHandling innerRecordHandling) {
-		return Stream.empty();
-	}
-
-	@Nonnull
-	@Override
-	public Stream<? extends PriceListAndCurrencyPriceIndex> getPriceIndexesStream(@Nonnull String priceListName, @Nonnull PriceInnerRecordHandling innerRecordHandling) {
-		return Stream.empty();
-	}
-
-	@Override
-	public int addPrice(
+	/**
+	 * Method registers new price to the index.
+	 */
+	int addPrice(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		int entityPrimaryKey,
 		int internalPriceId,
@@ -76,12 +52,12 @@ public class VoidPriceIndex implements PriceIndexContract {
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
 		int priceWithTax
-	) {
-		throw new UnsupportedOperationException();
-	}
+	);
 
-	@Override
-	public void priceRemove(
+	/**
+	 * Method removes registered price from the index.
+	 */
+	void priceRemove(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		int entityPrimaryKey,
 		int internalPriceId,
@@ -91,25 +67,6 @@ public class VoidPriceIndex implements PriceIndexContract {
 		@Nullable DateTimeRange validity,
 		int priceWithoutTax,
 		int priceWithTax
-	) {
-		throw new UnsupportedOperationException();
-	}
-
-	@Nullable
-	@Override
-	public PriceListAndCurrencyPriceIndex getPriceIndex(@Nonnull String priceList, @Nonnull Currency currency, @Nonnull PriceInnerRecordHandling innerRecordHandling) {
-		return null;
-	}
-
-	@Nullable
-	@Override
-	public PriceListAndCurrencyPriceIndex getPriceIndex(@Nonnull PriceIndexKey priceListAndCurrencyKey) {
-		return null;
-	}
-
-	@Override
-	public boolean isPriceIndexEmpty() {
-		return true;
-	}
+	);
 
 }

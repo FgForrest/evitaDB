@@ -39,6 +39,7 @@ import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -171,7 +172,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					final FilterByVisitor theFilterByVisitor = getFilterByVisitor();
 					final Set<Scope> scopes = theFilterByVisitor.getProcessingScope().getScopes();
 					for (Scope scope : scopes) {
-						if (!referenceSchema.isIndexedInScope(scope)) {
+						if (referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.NONE) {
 							throw new ReferenceNotIndexedException(referenceSchema.getName(), entitySchema, scope);
 						}
 					}
@@ -217,7 +218,10 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 								" composed of " + requestedHierarchyNodes.size() + " indexes",
 							constraint,
 							ReducedEntityIndex.class,
-							theTargetIndexes
+							theTargetIndexes,
+							// this is true only if all indexes are for filtering and partitioning
+							scopes.stream()
+								.allMatch(scope -> referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
 						)
 					);
 				}
@@ -231,6 +235,8 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 	 * are related to respective entity type and id. This may significantly limit the scope that needs to be examined.
 	 */
 	private void addReferenceIndexOption(@Nonnull ReferenceHaving constraint) {
+		final EntitySchema entitySchema = this.queryContext.getSchema();
+		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(constraint.getReferenceName());
 		final FilterByVisitor theFilterByVisitor = getFilterByVisitor();
 		final Set<Scope> scopes = theFilterByVisitor.getProcessingScope().getScopes();
 		final List<ReducedEntityIndex> theTargetIndexes = theFilterByVisitor
@@ -247,15 +253,26 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						" composed of " + theTargetIndexes.size() + " indexes",
 					constraint,
 					ReducedEntityIndex.class,
-					theTargetIndexes
+					theTargetIndexes,
+					// this is true only if all indexes are for filtering and partitioning
+					scopes.stream()
+						.allMatch(scope -> referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
 				)
 			);
 		}
 	}
 
+	/**
+	 * Retrieves an instance of the {@link FilterByVisitor}. If not already initialized, this method
+	 * creates a new instance of {@link FilterByVisitor} using the current {@code queryContext},
+	 * an empty collection of referenced attributes, and an empty {@link TargetIndexes}.
+	 *
+	 * @return the initialized {@link FilterByVisitor} instance
+	 */
+	@Nonnull
 	private FilterByVisitor getFilterByVisitor() {
 		if (this.filterByVisitor == null) {
-			// create lightweight visitor that can evaluate referenced attributes index location only
+			// create a lightweight visitor that can evaluate referenced attributes index location only
 			this.filterByVisitor = new FilterByVisitor(
 				this.queryContext,
 				Collections.emptyList(),
