@@ -1694,7 +1694,8 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		final CatalogStatistics statistics = catalogStatistics[0];
 
 		assertEquals(TEST_CATALOG, statistics.catalogName());
-		assertFalse(statistics.corrupted());
+		assertFalse(statistics.unusable());
+		assertFalse(statistics.readOnly());
 		assertEquals(CatalogState.ALIVE, statistics.catalogState());
 		assertEquals(1, statistics.catalogVersion());
 		assertTrue(statistics.totalRecords() > 1);

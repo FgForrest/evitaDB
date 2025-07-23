@@ -287,6 +287,7 @@ public final class UnusableCatalog implements CatalogContract {
 			null,
 			this.catalogName,
 			true,
+			false,
 			this.catalogState,
 			-1L,
 			-1,

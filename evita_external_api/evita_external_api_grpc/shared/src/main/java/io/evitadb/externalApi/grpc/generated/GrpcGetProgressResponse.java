@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -81,9 +81,17 @@ private static final long serialVersionUID = 0L;
             found_ = input.readBool();
             break;
           }
-          case 16: {
+          case 18: {
+            com.google.protobuf.Int32Value.Builder subBuilder = null;
+            if (progressInPercent_ != null) {
+              subBuilder = progressInPercent_.toBuilder();
+            }
+            progressInPercent_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(progressInPercent_);
+              progressInPercent_ = subBuilder.buildPartial();
+            }
 
-            progressInPercent_ = input.readInt32();
             break;
           }
           case 26: {
@@ -92,14 +100,30 @@ private static final long serialVersionUID = 0L;
             catalogName_ = s;
             break;
           }
-          case 32: {
+          case 34: {
+            com.google.protobuf.Int64Value.Builder subBuilder = null;
+            if (catalogVersion_ != null) {
+              subBuilder = catalogVersion_.toBuilder();
+            }
+            catalogVersion_ = input.readMessage(com.google.protobuf.Int64Value.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(catalogVersion_);
+              catalogVersion_ = subBuilder.buildPartial();
+            }
 
-            catalogVersion_ = input.readInt64();
             break;
           }
-          case 40: {
+          case 42: {
+            com.google.protobuf.Int32Value.Builder subBuilder = null;
+            if (catalogSchemaVersion_ != null) {
+              subBuilder = catalogSchemaVersion_.toBuilder();
+            }
+            catalogSchemaVersion_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(catalogSchemaVersion_);
+              catalogSchemaVersion_ = subBuilder.buildPartial();
+            }
 
-            catalogSchemaVersion_ = input.readInt32();
             break;
           }
           default: {
@@ -150,18 +174,41 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int PROGRESSINPERCENT_FIELD_NUMBER = 2;
-  private int progressInPercent_;
+  private com.google.protobuf.Int32Value progressInPercent_;
   /**
    * <pre>
    * The progress of the top-level engine mutation in percents.
    * </pre>
    *
-   * <code>int32 progressInPercent = 2;</code>
+   * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
+   * @return Whether the progressInPercent field is set.
+   */
+  @java.lang.Override
+  public boolean hasProgressInPercent() {
+    return progressInPercent_ != null;
+  }
+  /**
+   * <pre>
+   * The progress of the top-level engine mutation in percents.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
    * @return The progressInPercent.
    */
   @java.lang.Override
-  public int getProgressInPercent() {
-    return progressInPercent_;
+  public com.google.protobuf.Int32Value getProgressInPercent() {
+    return progressInPercent_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : progressInPercent_;
+  }
+  /**
+   * <pre>
+   * The progress of the top-level engine mutation in percents.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32ValueOrBuilder getProgressInPercentOrBuilder() {
+    return getProgressInPercent();
   }
 
   public static final int CATALOGNAME_FIELD_NUMBER = 3;
@@ -180,7 +227,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       catalogName_ = s;
@@ -200,7 +247,7 @@ private static final long serialVersionUID = 0L;
       getCatalogNameBytes() {
     java.lang.Object ref = catalogName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       catalogName_ = b;
@@ -211,33 +258,79 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int CATALOGVERSION_FIELD_NUMBER = 4;
-  private long catalogVersion_;
+  private com.google.protobuf.Int64Value catalogVersion_;
   /**
    * <pre>
    * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
    * </pre>
    *
-   * <code>int64 catalogVersion = 4;</code>
+   * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
+   * @return Whether the catalogVersion field is set.
+   */
+  @java.lang.Override
+  public boolean hasCatalogVersion() {
+    return catalogVersion_ != null;
+  }
+  /**
+   * <pre>
+   * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
    * @return The catalogVersion.
    */
   @java.lang.Override
-  public long getCatalogVersion() {
-    return catalogVersion_;
+  public com.google.protobuf.Int64Value getCatalogVersion() {
+    return catalogVersion_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : catalogVersion_;
+  }
+  /**
+   * <pre>
+   * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int64ValueOrBuilder getCatalogVersionOrBuilder() {
+    return getCatalogVersion();
   }
 
   public static final int CATALOGSCHEMAVERSION_FIELD_NUMBER = 5;
-  private int catalogSchemaVersion_;
+  private com.google.protobuf.Int32Value catalogSchemaVersion_;
   /**
    * <pre>
    * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
    * </pre>
    *
-   * <code>int32 catalogSchemaVersion = 5;</code>
+   * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
+   * @return Whether the catalogSchemaVersion field is set.
+   */
+  @java.lang.Override
+  public boolean hasCatalogSchemaVersion() {
+    return catalogSchemaVersion_ != null;
+  }
+  /**
+   * <pre>
+   * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
    * @return The catalogSchemaVersion.
    */
   @java.lang.Override
-  public int getCatalogSchemaVersion() {
-    return catalogSchemaVersion_;
+  public com.google.protobuf.Int32Value getCatalogSchemaVersion() {
+    return catalogSchemaVersion_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : catalogSchemaVersion_;
+  }
+  /**
+   * <pre>
+   * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32ValueOrBuilder getCatalogSchemaVersionOrBuilder() {
+    return getCatalogSchemaVersion();
   }
 
   private byte memoizedIsInitialized = -1;
@@ -257,17 +350,17 @@ private static final long serialVersionUID = 0L;
     if (found_ != false) {
       output.writeBool(1, found_);
     }
-    if (progressInPercent_ != 0) {
-      output.writeInt32(2, progressInPercent_);
+    if (progressInPercent_ != null) {
+      output.writeMessage(2, getProgressInPercent());
     }
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 3, catalogName_);
     }
-    if (catalogVersion_ != 0L) {
-      output.writeInt64(4, catalogVersion_);
+    if (catalogVersion_ != null) {
+      output.writeMessage(4, getCatalogVersion());
     }
-    if (catalogSchemaVersion_ != 0) {
-      output.writeInt32(5, catalogSchemaVersion_);
+    if (catalogSchemaVersion_ != null) {
+      output.writeMessage(5, getCatalogSchemaVersion());
     }
     unknownFields.writeTo(output);
   }
@@ -282,20 +375,20 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(1, found_);
     }
-    if (progressInPercent_ != 0) {
+    if (progressInPercent_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, progressInPercent_);
+        .computeMessageSize(2, getProgressInPercent());
     }
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(3, catalogName_);
     }
-    if (catalogVersion_ != 0L) {
+    if (catalogVersion_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(4, catalogVersion_);
+        .computeMessageSize(4, getCatalogVersion());
     }
-    if (catalogSchemaVersion_ != 0) {
+    if (catalogSchemaVersion_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(5, catalogSchemaVersion_);
+        .computeMessageSize(5, getCatalogSchemaVersion());
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -314,14 +407,23 @@ private static final long serialVersionUID = 0L;
 
     if (getFound()
         != other.getFound()) return false;
-    if (getProgressInPercent()
-        != other.getProgressInPercent()) return false;
+    if (hasProgressInPercent() != other.hasProgressInPercent()) return false;
+    if (hasProgressInPercent()) {
+      if (!getProgressInPercent()
+          .equals(other.getProgressInPercent())) return false;
+    }
     if (!getCatalogName()
         .equals(other.getCatalogName())) return false;
-    if (getCatalogVersion()
-        != other.getCatalogVersion()) return false;
-    if (getCatalogSchemaVersion()
-        != other.getCatalogSchemaVersion()) return false;
+    if (hasCatalogVersion() != other.hasCatalogVersion()) return false;
+    if (hasCatalogVersion()) {
+      if (!getCatalogVersion()
+          .equals(other.getCatalogVersion())) return false;
+    }
+    if (hasCatalogSchemaVersion() != other.hasCatalogSchemaVersion()) return false;
+    if (hasCatalogSchemaVersion()) {
+      if (!getCatalogSchemaVersion()
+          .equals(other.getCatalogSchemaVersion())) return false;
+    }
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -336,15 +438,20 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + FOUND_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getFound());
-    hash = (37 * hash) + PROGRESSINPERCENT_FIELD_NUMBER;
-    hash = (53 * hash) + getProgressInPercent();
+    if (hasProgressInPercent()) {
+      hash = (37 * hash) + PROGRESSINPERCENT_FIELD_NUMBER;
+      hash = (53 * hash) + getProgressInPercent().hashCode();
+    }
     hash = (37 * hash) + CATALOGNAME_FIELD_NUMBER;
     hash = (53 * hash) + getCatalogName().hashCode();
-    hash = (37 * hash) + CATALOGVERSION_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
-        getCatalogVersion());
-    hash = (37 * hash) + CATALOGSCHEMAVERSION_FIELD_NUMBER;
-    hash = (53 * hash) + getCatalogSchemaVersion();
+    if (hasCatalogVersion()) {
+      hash = (37 * hash) + CATALOGVERSION_FIELD_NUMBER;
+      hash = (53 * hash) + getCatalogVersion().hashCode();
+    }
+    if (hasCatalogSchemaVersion()) {
+      hash = (37 * hash) + CATALOGSCHEMAVERSION_FIELD_NUMBER;
+      hash = (53 * hash) + getCatalogSchemaVersion().hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -484,14 +591,26 @@ private static final long serialVersionUID = 0L;
       super.clear();
       found_ = false;
 
-      progressInPercent_ = 0;
-
+      if (progressInPercentBuilder_ == null) {
+        progressInPercent_ = null;
+      } else {
+        progressInPercent_ = null;
+        progressInPercentBuilder_ = null;
+      }
       catalogName_ = "";
 
-      catalogVersion_ = 0L;
-
-      catalogSchemaVersion_ = 0;
-
+      if (catalogVersionBuilder_ == null) {
+        catalogVersion_ = null;
+      } else {
+        catalogVersion_ = null;
+        catalogVersionBuilder_ = null;
+      }
+      if (catalogSchemaVersionBuilder_ == null) {
+        catalogSchemaVersion_ = null;
+      } else {
+        catalogSchemaVersion_ = null;
+        catalogSchemaVersionBuilder_ = null;
+      }
       return this;
     }
 
@@ -519,10 +638,22 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse result = new io.evitadb.externalApi.grpc.generated.GrpcGetProgressResponse(this);
       result.found_ = found_;
-      result.progressInPercent_ = progressInPercent_;
+      if (progressInPercentBuilder_ == null) {
+        result.progressInPercent_ = progressInPercent_;
+      } else {
+        result.progressInPercent_ = progressInPercentBuilder_.build();
+      }
       result.catalogName_ = catalogName_;
-      result.catalogVersion_ = catalogVersion_;
-      result.catalogSchemaVersion_ = catalogSchemaVersion_;
+      if (catalogVersionBuilder_ == null) {
+        result.catalogVersion_ = catalogVersion_;
+      } else {
+        result.catalogVersion_ = catalogVersionBuilder_.build();
+      }
+      if (catalogSchemaVersionBuilder_ == null) {
+        result.catalogSchemaVersion_ = catalogSchemaVersion_;
+      } else {
+        result.catalogSchemaVersion_ = catalogSchemaVersionBuilder_.build();
+      }
       onBuilt();
       return result;
     }
@@ -574,18 +705,18 @@ private static final long serialVersionUID = 0L;
       if (other.getFound() != false) {
         setFound(other.getFound());
       }
-      if (other.getProgressInPercent() != 0) {
-        setProgressInPercent(other.getProgressInPercent());
+      if (other.hasProgressInPercent()) {
+        mergeProgressInPercent(other.getProgressInPercent());
       }
       if (!other.getCatalogName().isEmpty()) {
         catalogName_ = other.catalogName_;
         onChanged();
       }
-      if (other.getCatalogVersion() != 0L) {
-        setCatalogVersion(other.getCatalogVersion());
+      if (other.hasCatalogVersion()) {
+        mergeCatalogVersion(other.getCatalogVersion());
       }
-      if (other.getCatalogSchemaVersion() != 0) {
-        setCatalogSchemaVersion(other.getCatalogSchemaVersion());
+      if (other.hasCatalogSchemaVersion()) {
+        mergeCatalogSchemaVersion(other.getCatalogSchemaVersion());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -639,7 +770,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setFound(boolean value) {
-      
+
       found_ = value;
       onChanged();
       return this;
@@ -653,38 +784,59 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearFound() {
-      
+
       found_ = false;
       onChanged();
       return this;
     }
 
-    private int progressInPercent_ ;
+    private com.google.protobuf.Int32Value progressInPercent_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> progressInPercentBuilder_;
     /**
      * <pre>
      * The progress of the top-level engine mutation in percents.
      * </pre>
      *
-     * <code>int32 progressInPercent = 2;</code>
+     * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
+     * @return Whether the progressInPercent field is set.
+     */
+    public boolean hasProgressInPercent() {
+      return progressInPercentBuilder_ != null || progressInPercent_ != null;
+    }
+    /**
+     * <pre>
+     * The progress of the top-level engine mutation in percents.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
      * @return The progressInPercent.
      */
-    @java.lang.Override
-    public int getProgressInPercent() {
-      return progressInPercent_;
+    public com.google.protobuf.Int32Value getProgressInPercent() {
+      if (progressInPercentBuilder_ == null) {
+        return progressInPercent_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : progressInPercent_;
+      } else {
+        return progressInPercentBuilder_.getMessage();
+      }
     }
     /**
      * <pre>
      * The progress of the top-level engine mutation in percents.
      * </pre>
      *
-     * <code>int32 progressInPercent = 2;</code>
-     * @param value The progressInPercent to set.
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
      */
-    public Builder setProgressInPercent(int value) {
-      
-      progressInPercent_ = value;
-      onChanged();
+    public Builder setProgressInPercent(com.google.protobuf.Int32Value value) {
+      if (progressInPercentBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        progressInPercent_ = value;
+        onChanged();
+      } else {
+        progressInPercentBuilder_.setMessage(value);
+      }
+
       return this;
     }
     /**
@@ -692,14 +844,105 @@ private static final long serialVersionUID = 0L;
      * The progress of the top-level engine mutation in percents.
      * </pre>
      *
-     * <code>int32 progressInPercent = 2;</code>
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
+     */
+    public Builder setProgressInPercent(
+        com.google.protobuf.Int32Value.Builder builderForValue) {
+      if (progressInPercentBuilder_ == null) {
+        progressInPercent_ = builderForValue.build();
+        onChanged();
+      } else {
+        progressInPercentBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * The progress of the top-level engine mutation in percents.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
+     */
+    public Builder mergeProgressInPercent(com.google.protobuf.Int32Value value) {
+      if (progressInPercentBuilder_ == null) {
+        if (progressInPercent_ != null) {
+          progressInPercent_ =
+            com.google.protobuf.Int32Value.newBuilder(progressInPercent_).mergeFrom(value).buildPartial();
+        } else {
+          progressInPercent_ = value;
+        }
+        onChanged();
+      } else {
+        progressInPercentBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * The progress of the top-level engine mutation in percents.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
      */
     public Builder clearProgressInPercent() {
-      
-      progressInPercent_ = 0;
-      onChanged();
+      if (progressInPercentBuilder_ == null) {
+        progressInPercent_ = null;
+        onChanged();
+      } else {
+        progressInPercent_ = null;
+        progressInPercentBuilder_ = null;
+      }
+
       return this;
+    }
+    /**
+     * <pre>
+     * The progress of the top-level engine mutation in percents.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
+     */
+    public com.google.protobuf.Int32Value.Builder getProgressInPercentBuilder() {
+
+      onChanged();
+      return getProgressInPercentFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * The progress of the top-level engine mutation in percents.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
+     */
+    public com.google.protobuf.Int32ValueOrBuilder getProgressInPercentOrBuilder() {
+      if (progressInPercentBuilder_ != null) {
+        return progressInPercentBuilder_.getMessageOrBuilder();
+      } else {
+        return progressInPercent_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : progressInPercent_;
+      }
+    }
+    /**
+     * <pre>
+     * The progress of the top-level engine mutation in percents.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        getProgressInPercentFieldBuilder() {
+      if (progressInPercentBuilder_ == null) {
+        progressInPercentBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+                getProgressInPercent(),
+                getParentForChildren(),
+                isClean());
+        progressInPercent_ = null;
+      }
+      return progressInPercentBuilder_;
     }
 
     private java.lang.Object catalogName_ = "";
@@ -735,7 +978,7 @@ private static final long serialVersionUID = 0L;
         getCatalogNameBytes() {
       java.lang.Object ref = catalogName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         catalogName_ = b;
@@ -758,7 +1001,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       catalogName_ = value;
       onChanged();
       return this;
@@ -772,7 +1015,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogName() {
-      
+
       catalogName_ = getDefaultInstance().getCatalogName();
       onChanged();
       return this;
@@ -792,38 +1035,59 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       catalogName_ = value;
       onChanged();
       return this;
     }
 
-    private long catalogVersion_ ;
+    private com.google.protobuf.Int64Value catalogVersion_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> catalogVersionBuilder_;
     /**
      * <pre>
      * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
      * </pre>
      *
-     * <code>int64 catalogVersion = 4;</code>
+     * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
+     * @return Whether the catalogVersion field is set.
+     */
+    public boolean hasCatalogVersion() {
+      return catalogVersionBuilder_ != null || catalogVersion_ != null;
+    }
+    /**
+     * <pre>
+     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
      * @return The catalogVersion.
      */
-    @java.lang.Override
-    public long getCatalogVersion() {
-      return catalogVersion_;
+    public com.google.protobuf.Int64Value getCatalogVersion() {
+      if (catalogVersionBuilder_ == null) {
+        return catalogVersion_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : catalogVersion_;
+      } else {
+        return catalogVersionBuilder_.getMessage();
+      }
     }
     /**
      * <pre>
      * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
      * </pre>
      *
-     * <code>int64 catalogVersion = 4;</code>
-     * @param value The catalogVersion to set.
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
      */
-    public Builder setCatalogVersion(long value) {
-      
-      catalogVersion_ = value;
-      onChanged();
+    public Builder setCatalogVersion(com.google.protobuf.Int64Value value) {
+      if (catalogVersionBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        catalogVersion_ = value;
+        onChanged();
+      } else {
+        catalogVersionBuilder_.setMessage(value);
+      }
+
       return this;
     }
     /**
@@ -831,42 +1095,154 @@ private static final long serialVersionUID = 0L;
      * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
      * </pre>
      *
-     * <code>int64 catalogVersion = 4;</code>
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
+     */
+    public Builder setCatalogVersion(
+        com.google.protobuf.Int64Value.Builder builderForValue) {
+      if (catalogVersionBuilder_ == null) {
+        catalogVersion_ = builderForValue.build();
+        onChanged();
+      } else {
+        catalogVersionBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
+     */
+    public Builder mergeCatalogVersion(com.google.protobuf.Int64Value value) {
+      if (catalogVersionBuilder_ == null) {
+        if (catalogVersion_ != null) {
+          catalogVersion_ =
+            com.google.protobuf.Int64Value.newBuilder(catalogVersion_).mergeFrom(value).buildPartial();
+        } else {
+          catalogVersion_ = value;
+        }
+        onChanged();
+      } else {
+        catalogVersionBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
      */
     public Builder clearCatalogVersion() {
-      
-      catalogVersion_ = 0L;
-      onChanged();
+      if (catalogVersionBuilder_ == null) {
+        catalogVersion_ = null;
+        onChanged();
+      } else {
+        catalogVersion_ = null;
+        catalogVersionBuilder_ = null;
+      }
+
       return this;
+    }
+    /**
+     * <pre>
+     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
+     */
+    public com.google.protobuf.Int64Value.Builder getCatalogVersionBuilder() {
+
+      onChanged();
+      return getCatalogVersionFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
+     */
+    public com.google.protobuf.Int64ValueOrBuilder getCatalogVersionOrBuilder() {
+      if (catalogVersionBuilder_ != null) {
+        return catalogVersionBuilder_.getMessageOrBuilder();
+      } else {
+        return catalogVersion_ == null ?
+            com.google.protobuf.Int64Value.getDefaultInstance() : catalogVersion_;
+      }
+    }
+    /**
+     * <pre>
+     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
+        getCatalogVersionFieldBuilder() {
+      if (catalogVersionBuilder_ == null) {
+        catalogVersionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>(
+                getCatalogVersion(),
+                getParentForChildren(),
+                isClean());
+        catalogVersion_ = null;
+      }
+      return catalogVersionBuilder_;
     }
 
-    private int catalogSchemaVersion_ ;
+    private com.google.protobuf.Int32Value catalogSchemaVersion_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> catalogSchemaVersionBuilder_;
     /**
      * <pre>
      * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
      * </pre>
      *
-     * <code>int32 catalogSchemaVersion = 5;</code>
+     * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
+     * @return Whether the catalogSchemaVersion field is set.
+     */
+    public boolean hasCatalogSchemaVersion() {
+      return catalogSchemaVersionBuilder_ != null || catalogSchemaVersion_ != null;
+    }
+    /**
+     * <pre>
+     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
      * @return The catalogSchemaVersion.
      */
-    @java.lang.Override
-    public int getCatalogSchemaVersion() {
-      return catalogSchemaVersion_;
+    public com.google.protobuf.Int32Value getCatalogSchemaVersion() {
+      if (catalogSchemaVersionBuilder_ == null) {
+        return catalogSchemaVersion_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : catalogSchemaVersion_;
+      } else {
+        return catalogSchemaVersionBuilder_.getMessage();
+      }
     }
     /**
      * <pre>
      * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
      * </pre>
      *
-     * <code>int32 catalogSchemaVersion = 5;</code>
-     * @param value The catalogSchemaVersion to set.
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
      */
-    public Builder setCatalogSchemaVersion(int value) {
-      
-      catalogSchemaVersion_ = value;
-      onChanged();
+    public Builder setCatalogSchemaVersion(com.google.protobuf.Int32Value value) {
+      if (catalogSchemaVersionBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        catalogSchemaVersion_ = value;
+        onChanged();
+      } else {
+        catalogSchemaVersionBuilder_.setMessage(value);
+      }
+
       return this;
     }
     /**
@@ -874,14 +1250,105 @@ private static final long serialVersionUID = 0L;
      * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
      * </pre>
      *
-     * <code>int32 catalogSchemaVersion = 5;</code>
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
+     */
+    public Builder setCatalogSchemaVersion(
+        com.google.protobuf.Int32Value.Builder builderForValue) {
+      if (catalogSchemaVersionBuilder_ == null) {
+        catalogSchemaVersion_ = builderForValue.build();
+        onChanged();
+      } else {
+        catalogSchemaVersionBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
+     */
+    public Builder mergeCatalogSchemaVersion(com.google.protobuf.Int32Value value) {
+      if (catalogSchemaVersionBuilder_ == null) {
+        if (catalogSchemaVersion_ != null) {
+          catalogSchemaVersion_ =
+            com.google.protobuf.Int32Value.newBuilder(catalogSchemaVersion_).mergeFrom(value).buildPartial();
+        } else {
+          catalogSchemaVersion_ = value;
+        }
+        onChanged();
+      } else {
+        catalogSchemaVersionBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
      */
     public Builder clearCatalogSchemaVersion() {
-      
-      catalogSchemaVersion_ = 0;
-      onChanged();
+      if (catalogSchemaVersionBuilder_ == null) {
+        catalogSchemaVersion_ = null;
+        onChanged();
+      } else {
+        catalogSchemaVersion_ = null;
+        catalogSchemaVersionBuilder_ = null;
+      }
+
       return this;
+    }
+    /**
+     * <pre>
+     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
+     */
+    public com.google.protobuf.Int32Value.Builder getCatalogSchemaVersionBuilder() {
+
+      onChanged();
+      return getCatalogSchemaVersionFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
+     */
+    public com.google.protobuf.Int32ValueOrBuilder getCatalogSchemaVersionOrBuilder() {
+      if (catalogSchemaVersionBuilder_ != null) {
+        return catalogSchemaVersionBuilder_.getMessageOrBuilder();
+      } else {
+        return catalogSchemaVersion_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : catalogSchemaVersion_;
+      }
+    }
+    /**
+     * <pre>
+     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        getCatalogSchemaVersionFieldBuilder() {
+      if (catalogSchemaVersionBuilder_ == null) {
+        catalogSchemaVersionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+                getCatalogSchemaVersion(),
+                getParentForChildren(),
+                isClean());
+        catalogSchemaVersion_ = null;
+      }
+      return catalogSchemaVersionBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

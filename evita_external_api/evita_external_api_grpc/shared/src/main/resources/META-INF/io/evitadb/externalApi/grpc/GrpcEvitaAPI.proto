@@ -213,9 +213,9 @@ message GrpcApplyMutationWithProgressResponse {
   // The progress of the go live operation in percents.
   int32 progressInPercent = 1;
   // Contains catalog version when operation finishes (only if the mutation relates to a catalog)
-  int64 catalogVersion = 2;
+  google.protobuf.Int64Value catalogVersion = 2;
   // Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
-  int32 catalogSchemaVersion = 3;
+  google.protobuf.Int32Value catalogSchemaVersion = 3;
 }
 
 // Request to register a system change capture.
@@ -252,13 +252,13 @@ message GrpcGetProgressResponse {
   // contains information whether the progress was found or not
   bool found = 1;
   // The progress of the top-level engine mutation in percents.
-  int32 progressInPercent = 2;
+  google.protobuf.Int32Value progressInPercent = 2;
   // Contains catalog name copied from the request (if the progress is related to a catalog)
   string catalogName = 3;
   // Contains catalog version when operation finishes (only if the mutation relates to a catalog)
-  int64 catalogVersion = 4;
+  google.protobuf.Int64Value catalogVersion = 4;
   // Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
-  int32 catalogSchemaVersion = 5;
+  google.protobuf.Int32Value catalogSchemaVersion = 5;
 }
 
 // This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide

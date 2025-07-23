@@ -232,6 +232,10 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 */
 	private final CatalogState state;
 	/**
+	 * Indicates whether the catalog is read-only. If TRUE, no mutations are allowed.
+	 */
+	private final AtomicBoolean readOnly = new AtomicBoolean(false);
+	/**
 	 * Contains reference to the main catalog index that allows fast lookups for entities across all types.
 	 */
 	private final CatalogIndex catalogIndex;
@@ -390,6 +394,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 * Loads a catalog asynchronously using provided configurations and services.
 	 *
 	 * @param catalogName the name of the catalog to be loaded
+	 * @param readOnly indicates whether the catalog shouldbe loaded in read-only mode
 	 * @param cacheSupervisor the supervisor responsible for cache management within the catalog
 	 * @param evitaConfiguration a configuration object for Evita settings
 	 * @param reflectionLookup utility for reflection-based operations
@@ -407,6 +412,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	@Nonnull
 	public static ProgressingFuture<Catalog> loadCatalog(
 		@Nonnull String catalogName,
+		boolean readOnly,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull EvitaConfiguration evitaConfiguration,
 		@Nonnull ReflectionLookup reflectionLookup,
@@ -439,7 +445,8 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 					tracingContext,
 					collections,
 					collectionByPk,
-					entitySchemaIndex
+					entitySchemaIndex,
+					readOnly
 				);
 
 				final CatalogHeader catalogHeader = catalog.persistenceService.getCatalogHeader(
@@ -575,7 +582,8 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		@Nonnull TracingContext tracingContext,
 		@Nonnull Map<String, EntityCollection> collections,
 		@Nonnull Map<Integer, EntityCollection> collectionByPk,
-		@Nonnull Map<String, EntitySchemaContract> entitySchemaIndex
+		@Nonnull Map<String, EntitySchemaContract> entitySchemaIndex,
+		boolean readOnly
 	) {
 		this.persistenceService = ServiceLoader
 			.load(CatalogPersistenceServiceFactory.class)
@@ -597,6 +605,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		final long catalogVersion = catalogHeader.version();
 		this.catalogId = catalogHeader.catalogId();
 		this.versionId = new TransactionalReference<>(catalogVersion);
+		this.readOnly.set(readOnly);
 		this.state = catalogHeader.catalogState();
 		// initialize container buffer
 		final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService(catalogVersion);
@@ -829,6 +838,16 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			}
 		}
 		return getSchema();
+	}
+
+	/**
+	 * Sets the read-only state of the object.
+	 *
+	 * @param readOnly a boolean value indicating whether the object should be set to read-only (true)
+	 *                 or writable (false).
+	 */
+	public void setReadOnly(boolean readOnly) {
+		this.readOnly.set(readOnly);
 	}
 
 	@Override
@@ -1201,11 +1220,13 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			.stream()
 			.map(EntityCollection::getStatistics)
 			.toArray(EntityCollectionStatistics[]::new);
+		final CatalogState catalogState = getCatalogState();
 		return new CatalogStatistics(
 			getCatalogId(),
 			getName(),
-			false,
-			getCatalogState(),
+			!(catalogState == CatalogState.ALIVE || catalogState == CatalogState.WARMING_UP),
+			this.readOnly.get(),
+			catalogState,
 			getVersion(),
 			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::totalRecords).sum(),
 			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::indexCount).sum() + 1,

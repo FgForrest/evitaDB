@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,10 +45,27 @@ public interface GrpcGetProgressResponseOrBuilder extends
    * The progress of the top-level engine mutation in percents.
    * </pre>
    *
-   * <code>int32 progressInPercent = 2;</code>
+   * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
+   * @return Whether the progressInPercent field is set.
+   */
+  boolean hasProgressInPercent();
+  /**
+   * <pre>
+   * The progress of the top-level engine mutation in percents.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
    * @return The progressInPercent.
    */
-  int getProgressInPercent();
+  com.google.protobuf.Int32Value getProgressInPercent();
+  /**
+   * <pre>
+   * The progress of the top-level engine mutation in percents.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
+   */
+  com.google.protobuf.Int32ValueOrBuilder getProgressInPercentOrBuilder();
 
   /**
    * <pre>
@@ -75,18 +92,52 @@ public interface GrpcGetProgressResponseOrBuilder extends
    * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
    * </pre>
    *
-   * <code>int64 catalogVersion = 4;</code>
+   * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
+   * @return Whether the catalogVersion field is set.
+   */
+  boolean hasCatalogVersion();
+  /**
+   * <pre>
+   * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
    * @return The catalogVersion.
    */
-  long getCatalogVersion();
+  com.google.protobuf.Int64Value getCatalogVersion();
+  /**
+   * <pre>
+   * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
+   */
+  com.google.protobuf.Int64ValueOrBuilder getCatalogVersionOrBuilder();
 
   /**
    * <pre>
    * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
    * </pre>
    *
-   * <code>int32 catalogSchemaVersion = 5;</code>
+   * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
+   * @return Whether the catalogSchemaVersion field is set.
+   */
+  boolean hasCatalogSchemaVersion();
+  /**
+   * <pre>
+   * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
    * @return The catalogSchemaVersion.
    */
-  int getCatalogSchemaVersion();
+  com.google.protobuf.Int32Value getCatalogSchemaVersion();
+  /**
+   * <pre>
+   * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
+   */
+  com.google.protobuf.Int32ValueOrBuilder getCatalogSchemaVersionOrBuilder();
 }

@@ -3594,7 +3594,7 @@ class EvitaTest implements EvitaTestSupport {
 			);
 			assertEquals(
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG, false, CatalogState.WARMING_UP, 0L, 0, 1,
+					UUIDUtil.randomUUID(), TEST_CATALOG, false, false, CatalogState.WARMING_UP, 0L, 0, 1,
 					statistics.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
 				),
 				statistics
@@ -3608,7 +3608,7 @@ class EvitaTest implements EvitaTestSupport {
 			);
 			assertEquals(
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, CatalogState.CORRUPTED, -1L, -1, -1,
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, false, CatalogState.CORRUPTED, -1L, -1, -1,
 					statistics1.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
 				),
 				statistics1
@@ -3627,7 +3627,7 @@ class EvitaTest implements EvitaTestSupport {
 			);
 			assertEquals(
 				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, CatalogState.WARMING_UP, 0, 1, 2,
+					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, false, CatalogState.WARMING_UP, 0, 1, 2,
 					statistics2.sizeOnDiskInBytes(),
 					new EntityCollectionStatistics[]{
 						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, productStatistics.sizeOnDiskInBytes())

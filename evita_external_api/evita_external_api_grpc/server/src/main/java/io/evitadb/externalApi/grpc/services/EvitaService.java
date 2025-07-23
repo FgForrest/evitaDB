@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.Empty;
+import com.google.protobuf.Int32Value;
+import com.google.protobuf.Int64Value;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
@@ -954,11 +956,11 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 										.newBuilder()
 										.setFound(true)
 										.setCatalogName(catalogName)
-										.setProgressInPercent(100);
+										.setProgressInPercent(Int32Value.of(100));
 									if (result instanceof CommitVersions commitVersions) {
 										builder
-											.setCatalogVersion(commitVersions.catalogVersion())
-											.setCatalogSchemaVersion(commitVersions.catalogSchemaVersion());
+											.setCatalogVersion(Int64Value.of(commitVersions.catalogVersion()))
+											.setCatalogSchemaVersion(Int32Value.of(commitVersions.catalogSchemaVersion()));
 									}
 									responseObserver.onNext(builder.build());
 								} else {
@@ -999,8 +1001,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 							.setProgressInPercent(100);
 						if (result instanceof CommitVersions commitVersions) {
 							responseBuilder
-								.setCatalogVersion(commitVersions.catalogVersion())
-								.setCatalogSchemaVersion(commitVersions.catalogSchemaVersion());
+								.setCatalogVersion(Int64Value.of(commitVersions.catalogVersion()))
+								.setCatalogSchemaVersion(Int32Value.of(commitVersions.catalogSchemaVersion()));
 						}
 						responseObserver.onNext(responseBuilder.build());
 					} else {
@@ -1132,7 +1134,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 						.newBuilder()
 						.setFound(true)
 						.setCatalogName(this.catalogName)
-						.setProgressInPercent(this.percentDone)
+						.setProgressInPercent(Int32Value.of(this.percentDone))
 						.build();
 				this.responseObserver.onNext(response);
 				this.lastUpdate = System.currentTimeMillis();

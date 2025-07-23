@@ -1080,6 +1080,7 @@ public final class Evita implements EvitaContract {
 		final long start = System.nanoTime();
 		return Catalog.loadCatalog(
 			catalogName,
+			this.readOnlyCatalogs.contains(catalogName),
 			this.cacheSupervisor,
 			this.configuration,
 			this.reflectionLookup,
@@ -1294,6 +1295,12 @@ public final class Evita implements EvitaContract {
 					new ProgressingFuture<>(
 						0,
 						(progressingFuture) -> {
+							final CatalogContract catalogContract = this.catalogs.get(catalogName);
+							if (catalogContract instanceof Catalog theCatalog) {
+								theCatalog.setReadOnly(false);
+							} else {
+								throw ((UnusableCatalog)catalogContract).getRepresentativeException();
+							}
 							this.readOnlyCatalogs.remove(catalogName);
 							onCompletion.run();
 							this.currentCatalogMutations.remove(catalogName);
@@ -1321,6 +1328,12 @@ public final class Evita implements EvitaContract {
 					new ProgressingFuture<>(
 						0,
 						(progressingFuture) -> {
+							final CatalogContract catalogContract = this.catalogs.get(catalogName);
+							if (catalogContract instanceof Catalog theCatalog) {
+								theCatalog.setReadOnly(true);
+							} else {
+								throw ((UnusableCatalog)catalogContract).getRepresentativeException();
+							}
 							this.readOnlyCatalogs.add(catalogName);
 							onCompletion.run();
 							this.currentCatalogMutations.remove(catalogName);

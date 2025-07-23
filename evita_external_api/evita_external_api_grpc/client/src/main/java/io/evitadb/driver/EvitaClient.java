@@ -744,8 +744,12 @@ public class EvitaClient implements EvitaContract {
 							grpcResponse.getProgressInPercent()
 						);
 
-						this.catalogVersion = grpcResponse.getCatalogVersion();
-						this.catalogSchemaVersion = grpcResponse.getCatalogSchemaVersion();
+						if (grpcResponse.hasCatalogVersion()) {
+							this.catalogVersion = grpcResponse.getCatalogVersion().getValue();
+						}
+						if (grpcResponse.hasCatalogSchemaVersion()) {
+							this.catalogSchemaVersion = grpcResponse.getCatalogSchemaVersion().getValue();
+						}
 
 						if (progressObserver != null) {
 							progressObserver.accept(grpcResponse.getProgressInPercent());

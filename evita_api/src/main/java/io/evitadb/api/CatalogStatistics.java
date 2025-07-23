@@ -34,7 +34,8 @@ import java.util.UUID;
  *
  * @param catalogId unique identifier of the catalog
  * @param catalogName name of the catalog
- * @param corrupted true if the catalog is corrupted (other data will be not available)
+ * @param unusable true if the catalog is corrupted (other data will be not available)
+ * @param readOnly true if the catalog is read-only (no mutations are allowed)
  * @param catalogState current state of the catalog, null for corrupted catalog
  * @param catalogVersion version of the catalog, -1 for corrupted catalog
  * @param totalRecords total number of records in the catalog, -1 for corrupted catalog
@@ -47,7 +48,8 @@ import java.util.UUID;
 public record CatalogStatistics(
 	@Nullable UUID catalogId,
 	@Nonnull String catalogName,
-	boolean corrupted,
+	boolean unusable,
+	boolean readOnly,
 	@Nullable CatalogState catalogState,
 	long catalogVersion,
 	long totalRecords,
@@ -62,13 +64,13 @@ public record CatalogStatistics(
 		if (o == null || getClass() != o.getClass()) return false;
 
 		CatalogStatistics that = (CatalogStatistics) o;
-		return this.indexCount == that.indexCount && this.corrupted == that.corrupted && this.totalRecords == that.totalRecords && this.catalogVersion == that.catalogVersion && this.sizeOnDiskInBytes == that.sizeOnDiskInBytes && this.catalogName.equals(that.catalogName) && this.catalogState == that.catalogState && Arrays.equals(this.entityCollectionStatistics, that.entityCollectionStatistics);
+		return this.indexCount == that.indexCount && this.unusable == that.unusable && this.totalRecords == that.totalRecords && this.catalogVersion == that.catalogVersion && this.sizeOnDiskInBytes == that.sizeOnDiskInBytes && this.catalogName.equals(that.catalogName) && this.catalogState == that.catalogState && Arrays.equals(this.entityCollectionStatistics, that.entityCollectionStatistics);
 	}
 
 	@Override
 	public int hashCode() {
 		int result = this.catalogName.hashCode();
-		result = 31 * result + Boolean.hashCode(this.corrupted);
+		result = 31 * result + Boolean.hashCode(this.unusable);
 		result = 31 * result + Objects.hashCode(this.catalogState);
 		result = 31 * result + Long.hashCode(this.catalogVersion);
 		result = 31 * result + Long.hashCode(this.totalRecords);
@@ -83,7 +85,7 @@ public record CatalogStatistics(
 	public String toString() {
 		return "CatalogStatistics{" +
 			"catalogName='" + this.catalogName + '\'' +
-			", corrupted=" + this.corrupted +
+			", corrupted=" + this.unusable +
 			", catalogState=" + this.catalogState +
 			", catalogVersion=" + this.catalogVersion +
 			", totalRecords=" + this.totalRecords +

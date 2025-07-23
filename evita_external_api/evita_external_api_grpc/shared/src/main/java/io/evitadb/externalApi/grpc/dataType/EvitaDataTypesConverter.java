@@ -1719,7 +1719,9 @@ public class EvitaDataTypesConverter {
 	public static GrpcCatalogStatistics toGrpcCatalogStatistics(@Nonnull CatalogStatistics catalogStatistics) {
 		final GrpcCatalogStatistics.Builder builder = GrpcCatalogStatistics.newBuilder()
 			.setCatalogName(catalogStatistics.catalogName())
-			.setCorrupted(catalogStatistics.corrupted())
+			.setCorrupted(catalogStatistics.unusable())
+			.setUnusable(catalogStatistics.unusable())
+			.setReadOnly(catalogStatistics.readOnly())
 			.setCatalogVersion(catalogStatistics.catalogVersion())
 			.setTotalRecords(catalogStatistics.totalRecords())
 			.setIndexCount(catalogStatistics.indexCount())
@@ -1767,7 +1769,8 @@ public class EvitaDataTypesConverter {
 		return new CatalogStatistics(
 			grpcCatalogStatistics.hasCatalogId() ? toUuid(grpcCatalogStatistics.getCatalogId()) : null,
 			grpcCatalogStatistics.getCatalogName(),
-			grpcCatalogStatistics.getCorrupted(),
+			grpcCatalogStatistics.getUnusable(),
+			grpcCatalogStatistics.getReadOnly(),
 			EvitaEnumConverter.toCatalogState(grpcCatalogStatistics.getCatalogState()),
 			grpcCatalogStatistics.getCatalogVersion(),
 			grpcCatalogStatistics.getTotalRecords(),
