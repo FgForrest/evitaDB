@@ -186,7 +186,7 @@ message GrpcFilesToFetchRequest {
   int32 pageSize = 2;
   // Optional origin of the files (derived from taskType), passing non-null value
   // in this argument filters the returned files to only those that are related to the specified origin
-  google.protobuf.StringValue origin = 3;
+  repeated google.protobuf.StringValue origin = 3;
 }
 
 // Response to a get files to fetch request.

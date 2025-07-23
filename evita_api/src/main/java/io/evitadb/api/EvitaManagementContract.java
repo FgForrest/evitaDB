@@ -40,6 +40,7 @@ import java.io.InputStream;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -183,7 +184,7 @@ public interface EvitaManagementContract {
 	 * @return list of files
 	 */
 	@Nonnull
-	PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nullable String origin);
+	PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nonnull Set<String> origin);
 
 	/**
 	 * Returns file with the specified fileId that is available for download or empty if the file is not found.

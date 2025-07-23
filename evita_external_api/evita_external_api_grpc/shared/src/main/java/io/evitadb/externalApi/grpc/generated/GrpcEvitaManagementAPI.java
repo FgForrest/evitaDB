@@ -260,7 +260,7 @@ public final class GrpcEvitaManagementAPI {
       "rpcUuid\")\n\026GrpcCancelTaskResponse\022\017\n\007suc" +
       "cess\030\001 \001(\010\"m\n\027GrpcFilesToFetchRequest\022\022\n" +
       "\npageNumber\030\001 \001(\005\022\020\n\010pageSize\030\002 \001(\005\022,\n\006o" +
-      "rigin\030\003 \001(\0132\034.google.protobuf.StringValu" +
+      "rigin\030\003 \003(\0132\034.google.protobuf.StringValu" +
       "e\"\245\001\n\030GrpcFilesToFetchResponse\022\020\n\010pageSi" +
       "ze\030\001 \001(\005\022\022\n\npageNumber\030\002 \001(\005\022E\n\014filesToF" +
       "etch\030\003 \003(\0132/.io.evitadb.externalApi.grpc" +

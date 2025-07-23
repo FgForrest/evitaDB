@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -155,7 +156,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		assertArrayEquals(
 			Lists.reverse(filteredNames).stream().limit(10).toArray(String[]::new),
-			this.exportFileService.listFilesToFetch(1, 10, "A")
+			this.exportFileService.listFilesToFetch(1, 10, Set.of("A"))
 				.getData().stream().map(FileForFetch::name).toArray(String[]::new)
 		);
 	}
