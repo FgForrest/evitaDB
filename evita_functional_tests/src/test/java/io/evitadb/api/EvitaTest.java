@@ -3063,7 +3063,7 @@ class EvitaTest implements EvitaTestSupport {
 		taskStatuses.getData().forEach(task -> assertNotNull(management.getTaskStatus(task.taskId())));
 
 		// list exported files
-		final PaginatedList<FileForFetch> exportedFiles = management.listFilesToFetch(1, numberOfTasks, null);
+		final PaginatedList<FileForFetch> exportedFiles = management.listFilesToFetch(1, numberOfTasks, Set.of());
 		// some task might have finished even if cancelled (if they were cancelled in terminal phase)
 		assertTrue(exportedFiles.getTotalRecordCount() >= backupTasks.size() - cancelled);
 		exportedFiles.getData().forEach(file -> assertTrue(file.totalSizeInBytes() > 0));
@@ -3094,7 +3094,7 @@ class EvitaTest implements EvitaTestSupport {
 			});
 
 		// list them again and there should be none of them
-		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(1, numberOfTasks, null);
+		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(1, numberOfTasks, Set.of());
 		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 
