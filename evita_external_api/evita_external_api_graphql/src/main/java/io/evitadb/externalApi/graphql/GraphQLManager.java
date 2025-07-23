@@ -183,11 +183,11 @@ public class GraphQLManager {
 	/**
 	 * Registers new Evita catalog to API. It creates new endpoint and {@link GraphQL} instance for it.
 	 */
-	public void registerCatalog(@Nonnull String catalogName) {
+	public boolean registerCatalog(@Nonnull String catalogName) {
 		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
 		if (catalog instanceof UnusableCatalog) {
 			log.warn("Catalog `" + catalogName + "` is unusable (" + catalog.getCatalogState() + "). Skipping...");
-			return;
+			return false;
 		}
 		Assert.isPremiseValid(
 			!this.registeredCatalogs.contains(catalogName),
@@ -243,6 +243,7 @@ public class GraphQLManager {
 				() -> new GraphQLInternalError("No build statistics found for catalog `" + catalogName + "`")
 			);
 			this.catalogBuildStatistics.put(catalogName, schemaBuildStatistics);
+			return true;
 		} catch (EvitaInternalError ex) {
 			// log and skip the catalog entirely
 			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by GraphQL API.", ex);
@@ -250,20 +251,20 @@ public class GraphQLManager {
 			// cleanup corrupted paths
 			this.graphQLRouter.unregisterCatalogApis(catalogName);
 			this.catalogBuildStatistics.remove(catalogName);
+			return false;
 		}
 	}
 
 	/**
 	 * Refreshes already registered catalog endpoint and its {@link GraphQL} instance.
 	 */
-	public void refreshCatalog(@Nonnull String catalogName) {
+	public boolean refreshCatalog(@Nonnull String catalogName) {
 		final boolean catalogRegistered = this.registeredCatalogs.contains(catalogName);
 		if (!catalogRegistered) {
 			// there may be case where initial registration failed and catalog is not registered at all
 			// for example, when catalog was corrupted and is replaced with new fresh one
 			log.info("Could not refresh existing catalog `{}`. Registering new one instead...", catalogName);
-			registerCatalog(catalogName);
-			return;
+			return registerCatalog(catalogName);
 		}
 
 		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
@@ -314,16 +315,21 @@ public class GraphQLManager {
 			schemaApiSchemaBuildDuration,
 			countGraphQLSchemaLines(schemaApiSchema)
 		);
+
+		return true;
 	}
 
 	/**
 	 * Deletes endpoint and its {@link GraphQL} instance for this already registered catalog.
 	 */
-	public void unregisterCatalog(@Nonnull String catalogName) {
+	public boolean unregisterCatalog(@Nonnull String catalogName) {
 		final boolean catalogRegistered = this.registeredCatalogs.remove(catalogName);
 		if (catalogRegistered) {
 			this.graphQLRouter.unregisterCatalogApis(catalogName);
 			this.catalogBuildStatistics.remove(catalogName);
+			return true;
+		} else {
+			return false;
 		}
 	}
 

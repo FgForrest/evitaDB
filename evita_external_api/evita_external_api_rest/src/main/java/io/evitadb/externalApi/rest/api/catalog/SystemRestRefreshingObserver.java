@@ -69,30 +69,36 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 			final EngineMutation<?> body = item.body();
 			if (body instanceof CreateCatalogSchemaMutation ccsm) {
 				// if the catalog schema is created, we need to register it
-				this.restManager.registerCatalog(ccsm.getCatalogName());
-				this.restManager.emitObservabilityEvents(ccsm.getCatalogName());
+				if (this.restManager.registerCatalog(ccsm.getCatalogName())) {
+					this.restManager.emitObservabilityEvents(ccsm.getCatalogName());
+				}
 			} else if (body instanceof DuplicateCatalogMutation duplicate) {
 				// if the catalog schema is duplicated, we need to register the new one
-				this.restManager.registerCatalog(duplicate.getNewCatalogName());
-				this.restManager.emitObservabilityEvents(duplicate.getNewCatalogName());
+				if (this.restManager.registerCatalog(duplicate.getNewCatalogName())) {
+					this.restManager.emitObservabilityEvents(duplicate.getNewCatalogName());
+				}
 			} else if (body instanceof ModifyCatalogSchemaNameMutation mcsnm) {
 				// remove the old catalog and register the new one
 				this.restManager.unregisterCatalog(mcsnm.getCatalogName());
-				this.restManager.registerCatalog(mcsnm.getNewCatalogName());
-				this.restManager.emitObservabilityEvents(mcsnm.getCatalogName());
+				if (this.restManager.registerCatalog(mcsnm.getNewCatalogName())) {
+					this.restManager.emitObservabilityEvents(mcsnm.getNewCatalogName());
+				}
 			} else if (body instanceof ModifyCatalogSchemaMutation mcsm) {
 				// when schema changes - just refresh the catalog
-				this.restManager.refreshCatalog(mcsm.getCatalogName());
-				this.restManager.emitObservabilityEvents(mcsm.getCatalogName());
+				if (this.restManager.refreshCatalog(mcsm.getCatalogName())) {
+					this.restManager.emitObservabilityEvents(mcsm.getCatalogName());
+				}
 			} else if (body instanceof SetCatalogMutabilityMutation setCatalogMutability) {
 				// when mutability changes - just refresh the catalog
-				this.restManager.refreshCatalog(setCatalogMutability.getCatalogName());
-				this.restManager.emitObservabilityEvents(setCatalogMutability.getCatalogName());
+				if (this.restManager.refreshCatalog(setCatalogMutability.getCatalogName())) {
+					this.restManager.emitObservabilityEvents(setCatalogMutability.getCatalogName());
+				}
 			} else if (body instanceof SetCatalogStateMutation setState) {
 				// if the catalog is set to active, we need to register it, otherwise we unregister it
 				if (setState.isActive()) {
-					this.restManager.registerCatalog(setState.getCatalogName());
-					this.restManager.emitObservabilityEvents(setState.getCatalogName());
+					if (this.restManager.registerCatalog(setState.getCatalogName())) {
+						this.restManager.emitObservabilityEvents(setState.getCatalogName());
+					}
 				} else {
 					this.restManager.unregisterCatalog(setState.getCatalogName());
 				}

@@ -180,11 +180,11 @@ public class RestManager {
 	/**
 	 * Register REST endpoints for new catalog.
 	 */
-	public void registerCatalog(@Nonnull String catalogName) {
+	public boolean registerCatalog(@Nonnull String catalogName) {
 		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
 		if (catalog instanceof UnusableCatalog) {
 			log.warn("Catalog `" + catalogName + "` is unusable (" + catalog.getCatalogState() + "). Skipping...");
-			return;
+			return false;
 		}
 		Assert.isPremiseValid(
 			!this.registeredCatalogs.contains(catalogName),
@@ -215,6 +215,7 @@ public class RestManager {
 				api.openApi().getPaths().size()
 			);
 			this.catalogBuildStatistics.put(catalogName, buildStatistics);
+			return true;
 		} catch (EvitaInternalError ex) {
 			// log and skip the catalog entirely
 			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by REST API.", ex);
@@ -222,6 +223,7 @@ public class RestManager {
 			// cleanup corrupted paths
 			this.restRouter.unregisterCatalogApi(catalogName);
 			this.catalogBuildStatistics.remove(catalogName);
+			return false;
 		}
 	}
 
@@ -239,13 +241,12 @@ public class RestManager {
 	/**
 	 * Update REST endpoints and OpenAPI schema of catalog.
 	 */
-	public void refreshCatalog(@Nonnull String catalogName) {
+	public boolean refreshCatalog(@Nonnull String catalogName) {
 		if (!this.registeredCatalogs.contains(catalogName)) {
 			// there may be case where initial registration failed and catalog is not registered at all
 			// for example, when catalog was corrupted and is replaced with new fresh one
 			log.info("Could not refresh existing catalog `{}`. Registering new one instead...", catalogName);
-			registerCatalog(catalogName);
-			return;
+			return registerCatalog(catalogName);
 		}
 
 		final long instanceBuildStartTime = System.currentTimeMillis();
@@ -272,6 +273,8 @@ public class RestManager {
 			countOpenApiSchemaLines(newApi.openApi()),
 			newApi.openApi().getPaths().size()
 		);
+
+		return true;
 	}
 
 	/**

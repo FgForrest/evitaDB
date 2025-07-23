@@ -67,26 +67,31 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 				this.graphQLManager.emitObservabilityEvents(create.getCatalogName());
 			} else if (body instanceof DuplicateCatalogMutation duplicate) {
 				// if the catalog schema is duplicated, we need to register the new one
-				this.graphQLManager.registerCatalog(duplicate.getNewCatalogName());
-				this.graphQLManager.emitObservabilityEvents(duplicate.getNewCatalogName());
+				if (this.graphQLManager.registerCatalog(duplicate.getNewCatalogName())) {
+					this.graphQLManager.emitObservabilityEvents(duplicate.getNewCatalogName());
+				}
 			} else if (body instanceof ModifyCatalogSchemaNameMutation nameChange) {
 				// if the catalog schema name is changed, we need to unregister the old one and register the new one
 				this.graphQLManager.unregisterCatalog(nameChange.getCatalogName());
-				this.graphQLManager.registerCatalog(nameChange.getNewCatalogName());
-				this.graphQLManager.emitObservabilityEvents(nameChange.getCatalogName());
+				if (this.graphQLManager.registerCatalog(nameChange.getNewCatalogName())) {
+					this.graphQLManager.emitObservabilityEvents(nameChange.getNewCatalogName());
+				}
 			} else if (body instanceof ModifyCatalogSchemaMutation modify) {
 				// if the catalog schema is modified, we need to refresh the catalog
-				this.graphQLManager.refreshCatalog(modify.getCatalogName());
-				this.graphQLManager.emitObservabilityEvents(modify.getCatalogName());
+				if (this.graphQLManager.refreshCatalog(modify.getCatalogName())) {
+					this.graphQLManager.emitObservabilityEvents(modify.getCatalogName());
+				}
 			} else if (body instanceof SetCatalogMutabilityMutation setCatalogMutability) {
 				// if the catalog mutability is set, we need to refresh the catalog
-				this.graphQLManager.refreshCatalog(setCatalogMutability.getCatalogName());
-				this.graphQLManager.emitObservabilityEvents(setCatalogMutability.getCatalogName());
+				if (this.graphQLManager.refreshCatalog(setCatalogMutability.getCatalogName())) {
+					this.graphQLManager.emitObservabilityEvents(setCatalogMutability.getCatalogName());
+				}
 			} else if (body instanceof SetCatalogStateMutation setState) {
 				// if the catalog is set to active, we need to register it, otherwise we unregister it
 				if (setState.isActive()) {
-					this.graphQLManager.registerCatalog(setState.getCatalogName());
-					this.graphQLManager.emitObservabilityEvents(setState.getCatalogName());
+					if (this.graphQLManager.registerCatalog(setState.getCatalogName())) {
+						this.graphQLManager.emitObservabilityEvents(setState.getCatalogName());
+					}
 				} else {
 					this.graphQLManager.unregisterCatalog(setState.getCatalogName());
 				}
