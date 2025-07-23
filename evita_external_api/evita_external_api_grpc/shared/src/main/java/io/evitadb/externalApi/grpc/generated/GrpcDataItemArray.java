@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -142,7 +142,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder> 
       getChildrenOrBuilderList() {
     return children_;
   }
@@ -489,7 +489,7 @@ private static final long serialVersionUID = 0L;
             childrenBuilder_ = null;
             children_ = other.children_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            childrenBuilder_ =
+            childrenBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getChildrenFieldBuilder() : null;
           } else {
@@ -782,7 +782,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder> 
          getChildrenOrBuilderList() {
       if (childrenBuilder_ != null) {
         return childrenBuilder_.getMessageOrBuilderList();
@@ -820,12 +820,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder> 
          getChildrenBuilderList() {
       return getChildrenFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDataItem, io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcDataItem, io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder> 
         getChildrenFieldBuilder() {
       if (childrenBuilder_ == null) {
         childrenBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

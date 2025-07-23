@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -879,7 +879,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder> 
         getPrimitiveValueFieldBuilder() {
       if (primitiveValueBuilder_ == null) {
         if (!(valueCase_ == 1)) {
@@ -1056,7 +1056,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDataItemArray, io.evitadb.externalApi.grpc.generated.GrpcDataItemArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataItemArrayOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcDataItemArray, io.evitadb.externalApi.grpc.generated.GrpcDataItemArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataItemArrayOrBuilder> 
         getArrayValueFieldBuilder() {
       if (arrayValueBuilder_ == null) {
         if (!(valueCase_ == 4)) {
@@ -1233,7 +1233,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.DataItemMap, io.evitadb.externalApi.grpc.generated.DataItemMap.Builder, io.evitadb.externalApi.grpc.generated.DataItemMapOrBuilder>
+        io.evitadb.externalApi.grpc.generated.DataItemMap, io.evitadb.externalApi.grpc.generated.DataItemMap.Builder, io.evitadb.externalApi.grpc.generated.DataItemMapOrBuilder> 
         getMapValueFieldBuilder() {
       if (mapValueBuilder_ == null) {
         if (!(valueCase_ == 5)) {

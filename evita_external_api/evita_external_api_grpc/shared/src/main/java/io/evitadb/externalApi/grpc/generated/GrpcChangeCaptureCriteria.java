@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -709,7 +709,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setAreaValue(int value) {
-
+      
       area_ = value;
       onChanged();
       return this;
@@ -741,7 +741,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-
+      
       area_ = value.getNumber();
       onChanged();
       return this;
@@ -755,7 +755,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearArea() {
-
+      
       area_ = 0;
       onChanged();
       return this;
@@ -920,7 +920,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureSchemaSite schemaSite = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureSchemaSite, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureSchemaSite.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureSchemaSiteOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureSchemaSite, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureSchemaSite.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureSchemaSiteOrBuilder> 
         getSchemaSiteFieldBuilder() {
       if (schemaSiteBuilder_ == null) {
         if (!(siteCase_ == 2)) {
@@ -1097,7 +1097,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureDataSite dataSite = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureDataSite, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureDataSite.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureDataSiteOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureDataSite, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureDataSite.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureDataSiteOrBuilder> 
         getDataSiteFieldBuilder() {
       if (dataSiteBuilder_ == null) {
         if (!(siteCase_ == 3)) {

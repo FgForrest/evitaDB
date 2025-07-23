@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       catalogName_ = s;
@@ -164,7 +164,7 @@ private static final long serialVersionUID = 0L;
       getCatalogNameBytes() {
     java.lang.Object ref = catalogName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       catalogName_ = b;
@@ -195,7 +195,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 2;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder> 
       getSchemaMutationsOrBuilderList() {
     return schemaMutations_;
   }
@@ -559,7 +559,7 @@ private static final long serialVersionUID = 0L;
             schemaMutationsBuilder_ = null;
             schemaMutations_ = other.schemaMutations_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            schemaMutationsBuilder_ =
+            schemaMutationsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getSchemaMutationsFieldBuilder() : null;
           } else {
@@ -630,7 +630,7 @@ private static final long serialVersionUID = 0L;
         getCatalogNameBytes() {
       java.lang.Object ref = catalogName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         catalogName_ = b;
@@ -653,7 +653,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-
+  
       catalogName_ = value;
       onChanged();
       return this;
@@ -667,7 +667,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogName() {
-
+      
       catalogName_ = getDefaultInstance().getCatalogName();
       onChanged();
       return this;
@@ -687,7 +687,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-
+      
       catalogName_ = value;
       onChanged();
       return this;
@@ -948,7 +948,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 2;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder> 
          getSchemaMutationsOrBuilderList() {
       if (schemaMutationsBuilder_ != null) {
         return schemaMutationsBuilder_.getMessageOrBuilderList();
@@ -986,12 +986,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 2;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.Builder> 
          getSchemaMutationsBuilderList() {
       return getSchemaMutationsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder> 
         getSchemaMutationsFieldBuilder() {
       if (schemaMutationsBuilder_ == null) {
         schemaMutationsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

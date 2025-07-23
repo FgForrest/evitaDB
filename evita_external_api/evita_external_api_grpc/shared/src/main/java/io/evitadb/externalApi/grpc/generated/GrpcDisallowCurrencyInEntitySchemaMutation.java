@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -142,7 +142,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
       getCurrenciesOrBuilderList() {
     return currencies_;
   }
@@ -489,7 +489,7 @@ private static final long serialVersionUID = 0L;
             currenciesBuilder_ = null;
             currencies_ = other.currencies_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            currenciesBuilder_ =
+            currenciesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getCurrenciesFieldBuilder() : null;
           } else {
@@ -782,7 +782,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
          getCurrenciesOrBuilderList() {
       if (currenciesBuilder_ != null) {
         return currenciesBuilder_.getMessageOrBuilderList();
@@ -820,12 +820,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency currencies = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder> 
          getCurrenciesBuilderList() {
       return getCurrenciesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> 
         getCurrenciesFieldBuilder() {
       if (currenciesBuilder_ == null) {
         currenciesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

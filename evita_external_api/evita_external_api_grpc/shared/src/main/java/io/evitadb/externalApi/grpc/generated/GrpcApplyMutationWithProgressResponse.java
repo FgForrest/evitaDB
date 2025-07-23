@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -531,7 +531,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setProgressInPercent(int value) {
-
+      
       progressInPercent_ = value;
       onChanged();
       return this;
@@ -545,7 +545,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearProgressInPercent() {
-
+      
       progressInPercent_ = 0;
       onChanged();
       return this;
@@ -574,7 +574,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogVersion(long value) {
-
+      
       catalogVersion_ = value;
       onChanged();
       return this;
@@ -588,7 +588,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogVersion() {
-
+      
       catalogVersion_ = 0L;
       onChanged();
       return this;
@@ -617,7 +617,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogSchemaVersion(int value) {
-
+      
       catalogSchemaVersion_ = value;
       onChanged();
       return this;
@@ -631,7 +631,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogSchemaVersion() {
-
+      
       catalogSchemaVersion_ = 0;
       onChanged();
       return this;

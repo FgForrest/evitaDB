@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -788,7 +788,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid transactionId = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getTransactionIdBuilder() {
-
+      
       onChanged();
       return getTransactionIdFieldBuilder().getBuilder();
     }
@@ -815,7 +815,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid transactionId = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
         getTransactionIdFieldBuilder() {
       if (transactionIdBuilder_ == null) {
         transactionIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -851,7 +851,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setVersion(long value) {
-
+      
       version_ = value;
       onChanged();
       return this;
@@ -865,7 +865,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-
+      
       version_ = 0L;
       onChanged();
       return this;
@@ -894,7 +894,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setMutationCount(int value) {
-
+      
       mutationCount_ = value;
       onChanged();
       return this;
@@ -908,7 +908,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearMutationCount() {
-
+      
       mutationCount_ = 0;
       onChanged();
       return this;
@@ -937,7 +937,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setWalSizeInBytes(long value) {
-
+      
       walSizeInBytes_ = value;
       onChanged();
       return this;
@@ -951,7 +951,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearWalSizeInBytes() {
-
+      
       walSizeInBytes_ = 0L;
       onChanged();
       return this;
@@ -1072,7 +1072,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime commitTimestamp = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getCommitTimestampBuilder() {
-
+      
       onChanged();
       return getCommitTimestampFieldBuilder().getBuilder();
     }
@@ -1099,7 +1099,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime commitTimestamp = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
         getCommitTimestampFieldBuilder() {
       if (commitTimestampBuilder_ == null) {
         commitTimestampBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -142,7 +142,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
       getChangeCaptureOrBuilderList() {
     return changeCapture_;
   }
@@ -489,7 +489,7 @@ private static final long serialVersionUID = 0L;
             changeCaptureBuilder_ = null;
             changeCapture_ = other.changeCapture_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            changeCaptureBuilder_ =
+            changeCaptureBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getChangeCaptureFieldBuilder() : null;
           } else {
@@ -782,7 +782,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
          getChangeCaptureOrBuilderList() {
       if (changeCaptureBuilder_ != null) {
         return changeCaptureBuilder_.getMessageOrBuilderList();
@@ -820,12 +820,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder> 
          getChangeCaptureBuilderList() {
       return getChangeCaptureFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> 
         getChangeCaptureFieldBuilder() {
       if (changeCaptureBuilder_ == null) {
         changeCaptureBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

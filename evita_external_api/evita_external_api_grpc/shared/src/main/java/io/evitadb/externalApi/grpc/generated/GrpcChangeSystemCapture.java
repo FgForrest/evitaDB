@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -625,7 +625,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setVersion(long value) {
-
+      
       version_ = value;
       onChanged();
       return this;
@@ -639,7 +639,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-
+      
       version_ = 0L;
       onChanged();
       return this;
@@ -668,7 +668,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setIndex(int value) {
-
+      
       index_ = value;
       onChanged();
       return this;
@@ -682,7 +682,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIndex() {
-
+      
       index_ = 0;
       onChanged();
       return this;
@@ -710,7 +710,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setOperationValue(int value) {
-
+      
       operation_ = value;
       onChanged();
       return this;
@@ -742,7 +742,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-
+      
       operation_ = value.getNumber();
       onChanged();
       return this;
@@ -756,7 +756,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearOperation() {
-
+      
       operation_ = 0;
       onChanged();
       return this;
@@ -877,7 +877,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.Builder getSystemMutationBuilder() {
-
+      
       onChanged();
       return getSystemMutationFieldBuilder().getBuilder();
     }
@@ -904,7 +904,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEngineMutation, io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEngineMutationOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEngineMutation, io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEngineMutationOrBuilder> 
         getSystemMutationFieldBuilder() {
       if (systemMutationBuilder_ == null) {
         systemMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

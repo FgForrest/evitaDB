@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -673,7 +673,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDataChunk.Builder getRecordPageBuilder() {
-
+      
       onChanged();
       return getRecordPageFieldBuilder().getBuilder();
     }
@@ -700,7 +700,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcDataChunk, io.evitadb.externalApi.grpc.generated.GrpcDataChunk.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataChunkOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcDataChunk, io.evitadb.externalApi.grpc.generated.GrpcDataChunk.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataChunkOrBuilder> 
         getRecordPageFieldBuilder() {
       if (recordPageBuilder_ == null) {
         recordPageBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -828,7 +828,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcExtraResults.Builder getExtraResultsBuilder() {
-
+      
       onChanged();
       return getExtraResultsFieldBuilder().getBuilder();
     }
@@ -855,7 +855,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcExtraResults, io.evitadb.externalApi.grpc.generated.GrpcExtraResults.Builder, io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcExtraResults, io.evitadb.externalApi.grpc.generated.GrpcExtraResults.Builder, io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOrBuilder> 
         getExtraResultsFieldBuilder() {
       if (extraResultsBuilder_ == null) {
         extraResultsBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
