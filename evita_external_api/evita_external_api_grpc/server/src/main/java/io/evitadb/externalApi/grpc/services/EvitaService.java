@@ -408,16 +408,19 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		GrpcApplyMutationRequest request,
 		StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver
 	) {
+		final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
+		final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
+		setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
+
 		executeWithClientContext(
 			() -> {
 				final EngineMutation<?> engineMutation = DelegatingEngineMutationConverter.INSTANCE.convert(request.getMutation());
 				if (engineMutation == null) {
-					responseObserver.onError(new EvitaInvalidUsageException("Mutation is not set in the request!"));
+					final EvitaInvalidUsageException ex = new EvitaInvalidUsageException("Mutation is not set in the request!");
+					applyMutationProgressRef.completeExceptionally(ex);
+					responseObserver.onError(ex);
 					responseObserver.onCompleted();
 				} else {
-					final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
-					final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
-					setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
 					try {
 						final Progress<?> applyMutationProgress = this.evita.applyMutation(
 							engineMutation,
@@ -477,11 +480,11 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		GrpcRenameCatalogRequest request,
 		StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver
 	) {
+		final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
+		final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
+		setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
 		executeWithClientContext(
 			() -> {
-				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
-				final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
-				setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
 				try {
 					final Progress<CommitVersions> renameCatalogProgress = this.evita.renameCatalogWithProgress(
 						request.getCatalogName(),
@@ -540,11 +543,11 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		GrpcReplaceCatalogRequest request,
 		StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver
 	) {
+		final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
+		final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
+		setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
 		executeWithClientContext(
 			() -> {
-				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
-				final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
-				setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
 				try {
 					final Progress<CommitVersions> replaceCatalogProgress = this.evita.replaceCatalogWithProgress(
 						request.getCatalogNameToBeReplacedWith(),
@@ -663,11 +666,11 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		GrpcMakeCatalogAliveRequest request,
 		StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver
 	) {
+		final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
+		final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
+		setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
 		executeWithClientContext(
 			() -> {
-				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
-				final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
-				setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
 				try {
 					final Progress<?> applyMutationProgress = this.evita.applyMutation(
 						new MakeCatalogAliveMutation(request.getCatalogName()),
@@ -722,11 +725,12 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		GrpcDuplicateCatalogRequest request,
 		StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver
 	) {
+		final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
+		final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
+		setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
+
 		executeWithClientContext(
 			() -> {
-				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
-				final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
-				setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
 				try {
 					final Progress<?> applyMutationProgress = this.evita.applyMutation(
 						new DuplicateCatalogMutation(request.getCatalogName(), request.getNewCatalogName()),
@@ -775,11 +779,11 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void makeCatalogMutableWithProgress(GrpcMakeCatalogMutableRequest request, StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {
+		final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
+		final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
+		setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
 		executeWithClientContext(
 			() -> {
-				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
-				final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
-				setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
 				try {
 					final Progress<?> applyMutationProgress = this.evita.applyMutation(
 						new SetCatalogMutabilityMutation(request.getCatalogName(), true),
@@ -828,11 +832,11 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void makeCatalogImmutableWithProgress(GrpcMakeCatalogImmutableRequest request, StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {
+		final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
+		final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
+		setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
 		executeWithClientContext(
 			() -> {
-				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
-				final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
-				setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
 				try {
 					final Progress<?> applyMutationProgress = this.evita.applyMutation(
 						new SetCatalogMutabilityMutation(request.getCatalogName(), false),
@@ -881,11 +885,12 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void activateCatalogWithProgress(GrpcActivateCatalogRequest request, StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {
+		final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
+		final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
+		setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
+
 		executeWithClientContext(
 			() -> {
-				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
-				final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
-				setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
 				try {
 					final Progress<?> applyMutationProgress = this.evita.applyMutation(
 						new SetCatalogStateMutation(request.getCatalogName(), true),
@@ -934,11 +939,12 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void deactivateCatalogWithProgress(GrpcDeactivateCatalogRequest request, StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {
+		final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
+		final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
+		setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
+
 		executeWithClientContext(
 			() -> {
-				final ApplyMutationProgressConsumer progressObserver = new ApplyMutationProgressConsumer(responseObserver);
-				final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
-				setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
 				try {
 					final Progress<?> applyMutationProgress = this.evita.applyMutation(
 						new SetCatalogStateMutation(request.getCatalogName(), false),
@@ -962,13 +968,18 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@Override
 	public void getProgress(GrpcGetProgressRequest request, StreamObserver<GrpcGetProgressResponse> responseObserver) {
+		final String catalogName = request.getCatalogName();
+		final GetProgressConsumer progressObserver = new GetProgressConsumer(catalogName, responseObserver);
+		final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
+		setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
+
 		executeWithClientContext(
 			() -> {
-				final String catalogName = request.getCatalogName();
 				final Optional<Progress<?>> progress = ofNullable(catalogName)
 					.flatMap(this.evita::getEngineMutationProgress);
 
 				if (progress.isEmpty()) {
+					applyMutationProgressRef.completeExceptionally(new RuntimeException("No progress found for catalog: " + catalogName));
 					responseObserver.onNext(
 						GrpcGetProgressResponse
 							.newBuilder()
@@ -978,14 +989,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					responseObserver.onCompleted();
 				} else {
 					final Progress<?> theProgress = progress.get();
-					final GetProgressConsumer progressObserver = new GetProgressConsumer(catalogName, responseObserver);
-					final CompletableFuture<Progress<?>> applyMutationProgressRef = new CompletableFuture<>();
-					try {
-						setOnCancelListener((ServerCallStreamObserver<?>) responseObserver, applyMutationProgressRef, progressObserver);
-						theProgress.addProgressListener(progressObserver);
-					} finally {
-						applyMutationProgressRef.complete(theProgress);
-					}
+					theProgress.addProgressListener(progressObserver);
+					applyMutationProgressRef.complete(theProgress);
 
 					theProgress
 						.onCompletion()
@@ -1036,7 +1041,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 				try {
 					applyMutationProgressRef.get().removeProgressListener(progressObserver);
 				} catch (Exception e) {
-					log.warn("Failed to remove progress listener on cancel", e);
+					log.debug("Failed to remove progress listener on cancel", e);
 				}
 			}
 		);
