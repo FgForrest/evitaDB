@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,10 +24,12 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
-import io.evitadb.dataType.Scope;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.FieldObjectListMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
@@ -55,6 +57,20 @@ public class CreateReferenceSchemaMutationConverter extends ReferenceSchemaMutat
 	@Nonnull
 	@Override
 	protected CreateReferenceSchemaMutation convert(@Nonnull Input input) {
+		final ScopedReferenceIndexType[] indexedInScopes = input.getOptionalField(
+			CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
+			new FieldObjectListMapper<>(
+				getMutationName(),
+				getExceptionFactory(),
+				CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES,
+				ScopedReferenceIndexType.class,
+				nestedInput -> new ScopedReferenceIndexType(
+					nestedInput.getRequiredField(ScopedReferenceIndexTypeDescriptor.SCOPE),
+					nestedInput.getRequiredField(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE)
+				)
+			)
+		);
+
 		return new CreateReferenceSchemaMutation(
 			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
 			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.DESCRIPTION),
@@ -64,7 +80,7 @@ public class CreateReferenceSchemaMutationConverter extends ReferenceSchemaMutat
 			input.getRequiredField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED),
 			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE),
 			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED, false),
-			(Scope[]) input.getOptionalField(CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES),
+			indexedInScopes,
 			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES)
 		);
 	}

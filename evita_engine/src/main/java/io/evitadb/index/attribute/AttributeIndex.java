@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.buffer.TrappedChanges;
@@ -230,6 +231,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	public void insertUniqueAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nonnull Scope scope,
@@ -255,6 +257,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	public void removeUniqueAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nonnull Scope scope,
@@ -276,6 +279,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	public void insertFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -296,6 +300,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	public void removeFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -316,6 +321,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	public void addDeltaFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -336,6 +342,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	public void removeDeltaFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -356,6 +363,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	public void insertSortAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -385,6 +393,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	public void removeSortAttribute(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -418,6 +427,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	public void insertSortAttributeCompound(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nonnull Function<String, Class<?>> attributeTypeProvider,
 		@Nullable Locale locale,
@@ -452,6 +462,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	public void removeSortAttributeCompound(
+		@Nullable ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
 		@Nonnull Serializable[] value,

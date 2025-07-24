@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.dataType.serializer.HeterogeneousMapSerializer;
@@ -86,6 +87,44 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 			scopes.add(kryo.readObject(input, Scope.class));
 		}
 		return scopes;
+	}
+
+	/**
+	 * Serializes a map of {@code Scope} to {@code ReferenceIndexType} into a Kryo {@code Output}.
+	 * This method writes the size of the map and then serializes each key-value pair into the output
+	 * using the provided Kryo instance.
+	 *
+	 * @param kryo         the Kryo instance to use for serialization
+	 * @param output       the Output instance to write the serialized data to
+	 * @param indexTypeMap the map of {@code Scope} to {@code ReferenceIndexType} to serialize
+	 */
+	static void writeScopedReferenceIndexTypeArray(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull Map<Scope, ReferenceIndexType> indexTypeMap) {
+		output.writeVarInt(indexTypeMap.size(), true);
+		for (Entry<Scope, ReferenceIndexType> entry : indexTypeMap.entrySet()) {
+			kryo.writeObject(output, entry.getKey());
+			kryo.writeObject(output, entry.getValue());
+		}
+	}
+
+	/**
+	 * Reads a map of {@code Scope} to {@code ReferenceIndexType} from a Kryo {@code Input} stream.
+	 * This method first reads the size of the map and then deserializes each key-value pair
+	 * using the provided Kryo instance.
+	 *
+	 * @param kryo  the Kryo instance used for deserialization
+	 * @param input the Input stream to read the serialized data from
+	 * @return a map of {@code Scope} to {@code ReferenceIndexType} that was deserialized from the input
+	 */
+	@Nonnull
+	static Map<Scope, ReferenceIndexType> readScopedReferenceIndexTypeArray(@Nonnull Kryo kryo, @Nonnull Input input) {
+		int size = input.readVarInt(true);
+		final Map<Scope, ReferenceIndexType> indexTypeMap = CollectionUtils.createHashMap(size);
+		for (int i = 0; i < size; i++) {
+			final Scope scope = kryo.readObject(input, Scope.class);
+			final ReferenceIndexType referenceIndexType = kryo.readObject(input, ReferenceIndexType.class);
+			indexTypeMap.put(scope, referenceIndexType);
+		}
+		return indexTypeMap;
 	}
 
 	@Override

@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -2479,11 +2480,22 @@ public final class EntityCollection implements
 									globalIndex instanceof GlobalEntityIndex,
 									"When reduced index is created global one must already exist!"
 								);
+								final Serializable discriminator = eikAgain.discriminator();
 								if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+									Assert.isPremiseValid(
+										discriminator instanceof String,
+										"Referenced type entity index must have discriminator of type String, but got " + (discriminator == null ? "NULL" : discriminator.getClass().getName())
+									);
 									entityIndex = new ReferencedTypeEntityIndex(
 										EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.entityType, eikAgain
 									);
 								} else {
+									Assert.isPremiseValid(
+										discriminator instanceof ReferenceKey,
+										"Reduced index must have discriminator of type ReferenceKey, but got " + (discriminator == null ? "NULL" : discriminator.getClass().getName())
+									);
+									final ReferenceSchemaContract referenceSchema = EntityCollection.this.getSchema()
+										.getReferenceOrThrowException(((ReferenceKey) discriminator).referenceName());
 									entityIndex = new ReducedEntityIndex(
 										EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.entityType, eikAgain
 									);

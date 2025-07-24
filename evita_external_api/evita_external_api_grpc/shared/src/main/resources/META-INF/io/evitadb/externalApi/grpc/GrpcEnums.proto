@@ -747,3 +747,17 @@ enum GrpcTraversalMode {
   BREADTH_FIRST = 1;
 
 }
+
+// Enum represents the type of index that should be created and maintained for a reference.
+enum GrpcReferenceIndexType {
+
+  // Reference has no index available.
+  REFERENCE_INDEX_TYPE_NONE = 0;
+
+  // Reference has only basic index available that is necessary for ReferenceHaving constraint interpretation.
+  REFERENCE_INDEX_TYPE_FOR_FILTERING = 1;
+
+  // Reference has basic index available and also partitioning indexes for the main entity type.
+  REFERENCE_INDEX_TYPE_FOR_FILTERING_AND_PARTITIONING = 2;
+
+}

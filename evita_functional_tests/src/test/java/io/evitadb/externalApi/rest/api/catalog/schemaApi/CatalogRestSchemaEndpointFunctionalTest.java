@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -301,7 +301,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 	@Nonnull
 	protected static Map<String, Object> createReferenceSchemaDto(@Nonnull Evita evita, @Nonnull ReferenceSchemaContract referenceSchema) {
 		final Function<String, EntitySchemaContract> ENTITY_SCHEMA_FETCHER = s -> evita.queryCatalog(TEST_CATALOG, session -> {
-			return session.getEntitySchemaOrThrow(s);
+			return session.getEntitySchemaOrThrowException(s);
 		});
 
 		final MapBuilder referenceSchemaBuilder = map()
@@ -334,7 +334,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.e(NameVariantsDescriptor.KEBAB_CASE.name(), referenceSchema.getGroupTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.KEBAB_CASE))
 				.build())
 			.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged())
-			.e(ReferenceSchemaDescriptor.INDEXED.name(), createFlagInScopesDto(referenceSchema::isIndexedInScope))
+			.e(ReferenceSchemaDescriptor.INDEXED.name(), createReferenceIndexTypeDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.FACETED.name(), createFlagInScopesDto(referenceSchema::isFacetedInScope))
 			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()))
 			.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(referenceSchema.getSortableAttributeCompounds().size()));
@@ -364,11 +364,48 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 		return referenceSchemaBuilder.build();
 	}
 
+	/**
+	 * Creates a list of string representations of scope names based on the provided filtering predicate.
+	 * It filters the available {@link Scope} enum values using the given predicate and maps the filtered
+	 * results to their string names.
+	 *
+	 * @param flagPredicate a predicate defining the filter criteria for the {@link Scope} enum values
+	 * @return a list of strings containing the names of the scopes that match the filter criteria
+	 */
 	@Nonnull
 	private static List<String> createFlagInScopesDto(@Nonnull Predicate<Scope> flagPredicate) {
 		return Arrays.stream(Scope.values()).filter(flagPredicate).map(Enum::name).toList();
 	}
 
+	/**
+	 * Creates a list of maps representing the reference index type DTOs based on the provided {@link ReferenceSchemaContract}.
+	 * It iterates through all {@link Scope} enumeration values, filters them according to whether they are indexed
+	 * in the provided reference schema, and maps them to a structure containing the scope name
+	 * and its corresponding reference index type.
+	 *
+	 * @param referenceSchema the reference schema contract containing details about the reference indexing
+	 * @return a list of maps, where each map represents a reference index type with fields for scope and index type
+	 */
+	@Nonnull
+	protected static List<Map<String, Object>> createReferenceIndexTypeDto(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return Arrays.stream(Scope.values())
+			.filter(referenceSchema::isIndexedInScope)
+			.map(scope -> map()
+				.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), scope.name())
+				.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), referenceSchema.getReferenceIndexType(scope).name())
+				.build())
+			.toList();
+	}
+
+	/**
+	 * Creates a list of maps that represent the attribute uniqueness type for different scopes.
+	 * For each scope, it associates the scope name with the corresponding uniqueness type.
+	 * If the scope is `LIVE`, the provided uniqueness type is used. For other scopes,
+	 * the uniqueness type is set to `NOT_UNIQUE`.
+	 *
+	 * @param uniquenessType the attribute uniqueness type to be used for the `LIVE` scope
+	 * @return a list of maps, where each map contains the scope name and its corresponding uniqueness type
+	 */
 	@Nonnull
 	protected static List<Map<String, Object>> createAttributeUniquenessTypeDto(@Nonnull AttributeUniquenessType uniquenessType) {
 		return Arrays.stream(Scope.values())
@@ -382,6 +419,15 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.toList();
 	}
 
+	/**
+	 * Creates a list of maps representing the global attribute uniqueness type for each scope.
+	 * For each {@link Scope}, it associates the scope name with the corresponding uniqueness type.
+	 * If the scope is `LIVE`, the provided uniqueness type is used. For other scopes,
+	 * the uniqueness type is set to `NOT_UNIQUE`.
+	 *
+	 * @param uniquenessType the global attribute uniqueness type to be used for the `LIVE` scope
+	 * @return a list of maps, where each map contains the scope name and its corresponding global uniqueness type
+	 */
 	@Nonnull
 	protected static List<Map<String, Object>> createGlobalAttributeUniquenessTypeDto(@Nonnull GlobalAttributeUniquenessType uniquenessType) {
 		return Arrays.stream(Scope.values())
@@ -395,6 +441,15 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.toList();
 	}
 
+	/**
+	 * Serializes a given default value into a string representation if the object is of
+	 * specific types (BigDecimal, Long, Locale, or Currency). If the object is not one of
+	 * these types, it returns the object itself. If the input is null, null is returned.
+	 *
+	 * @param object the object to serialize, which can be null
+	 * @return the serialized representation of the object if it is of type BigDecimal, Long, Locale, or Currency;
+	 *         otherwise, the original object is returned; returns null if the input object is null
+	 */
 	@Nullable
 	protected static Object serializeDefaultValue(@Nullable Object object) {
 		if (object == null) {

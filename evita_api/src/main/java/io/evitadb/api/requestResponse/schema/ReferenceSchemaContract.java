@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
 
@@ -241,6 +242,48 @@ public interface ReferenceSchemaContract extends
 	 */
 	@Nonnull
 	Set<Scope> getIndexedInScopes();
+
+	/**
+	 * Returns the type of index that should be created and maintained for this reference in the {@link Scope#DEFAULT_SCOPE}.
+	 * The index type determines the level of indexing optimization applied to improve query performance when filtering
+	 * by {@link ReferenceHaving} constraints.
+	 *
+	 * The index type affects both memory/disk usage and query performance. Maintaining partitioned indexes provides
+	 * better query performance at the cost of increased storage requirements and maintenance overhead.
+	 *
+	 * @return the reference index type for the default scope
+	 */
+	@Nonnull
+	default ReferenceIndexType getIndexType() {
+		return getReferenceIndexType(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Returns the type of index that should be created and maintained for this reference in the specified {@link Scope}.
+	 * The index type determines the level of indexing optimization applied to improve query performance when filtering
+	 * by {@link ReferenceHaving} constraints within that particular scope.
+	 *
+	 * The index type affects both memory/disk usage and query performance. Maintaining partitioned indexes provides
+	 * better query performance at the cost of increased storage requirements and maintenance overhead.
+	 *
+	 * @param scope the scope to get the reference index type for
+	 * @return the reference index type for the specified scope
+	 */
+	@Nonnull
+	ReferenceIndexType getReferenceIndexType(@Nonnull Scope scope);
+
+	/**
+	 * Returns a map of all scopes and their corresponding reference index types that are configured for this reference.
+	 * The index type determines the level of indexing optimization applied to improve query performance when filtering
+	 * by {@link ReferenceHaving} constraints within each particular scope.
+	 *
+	 * The index type affects both memory/disk usage and query performance. Maintaining partitioned indexes provides
+	 * better query performance at the cost of increased storage requirements and maintenance overhead.
+	 *
+	 * @return map where keys are scopes and values are the corresponding reference index types
+	 */
+	@Nonnull
+	Map<Scope, ReferenceIndexType> getReferenceIndexTypeInScopes();
 
 	/**
 	 * Returns TRUE if the statistics data in any scope for this reference should be maintained and this

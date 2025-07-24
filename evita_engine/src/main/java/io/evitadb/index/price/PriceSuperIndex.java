@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.index.price;
 
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
@@ -125,6 +126,7 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 
 	@Override
 	protected int addPrice(
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull PriceListAndCurrencyPriceSuperIndex priceListIndex, int entityPrimaryKey,
 		int internalPriceId, int priceId, @Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax
@@ -140,6 +142,7 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 
 	@Override
 	protected void removePrice(
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull PriceListAndCurrencyPriceSuperIndex priceListIndex, int entityPrimaryKey,
 		int internalPriceId, int priceId, @Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax

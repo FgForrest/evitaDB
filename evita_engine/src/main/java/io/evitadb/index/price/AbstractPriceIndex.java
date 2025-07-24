@@ -27,6 +27,7 @@ import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.DateTimeRange;
@@ -98,6 +99,7 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 
 	@Override
 	public int addPrice(
+		@Nullable ReferenceSchemaContract referenceSchema,
 		int entityPrimaryKey,
 		int internalPriceId,
 		@Nonnull PriceKey priceKey,
@@ -112,7 +114,7 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 			this::createNewPriceListAndCurrencyIndex
 		);
 		return addPrice(
-			priceListIndex, entityPrimaryKey,
+			referenceSchema, priceListIndex, entityPrimaryKey,
 			internalPriceId, priceKey.priceId(), innerRecordId,
 			validity, priceWithoutTax, priceWithTax
 		);
@@ -120,6 +122,7 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 
 	@Override
 	public void priceRemove(
+		@Nullable ReferenceSchemaContract referenceSchema,
 		int entityPrimaryKey,
 		int internalPriceId, @Nonnull PriceKey priceKey,
 		@Nonnull PriceInnerRecordHandling innerRecordHandling,
@@ -133,7 +136,7 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 		notNull(priceListIndex, "Price index for price list " + priceKey.priceList() + " and currency " + priceKey.currency() + " not found!");
 
 		removePrice(
-			priceListIndex, entityPrimaryKey,
+			referenceSchema, priceListIndex, entityPrimaryKey,
 			internalPriceId, priceKey.priceId(), innerRecordId,
 			validity, priceWithoutTax, priceWithTax
 		);
@@ -190,6 +193,7 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 	}
 
 	protected abstract int addPrice(
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull T priceListIndex,
 		int entityPrimaryKey,
 		int internalPriceId,
@@ -201,6 +205,7 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 	);
 
 	protected abstract void removePrice(
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull T priceListIndex,
 		int entityPrimaryKey,
 		int internalPriceId,

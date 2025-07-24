@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -257,8 +257,11 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * unique constraints on the attribute, no matter whether they are global or locale specific. This means there might
 	 * be duplicate values for this type of attribute.
 	 *
+	 * Use `nonUniqueInScope(Scope...)` instead. This method will be removed in future versions.
+	 *
 	 * @return builder to continue with configuration
 	 */
+	@Deprecated(since = "2025.5", forRemoval = true)
 	@Nonnull
 	default T nonUniqueWithinLocale() {
 		return nonUniqueWithinLocaleInScope(Scope.values());
@@ -269,9 +272,12 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * resets all unique constraints on the attribute, no matter whether they are global or locale specific. This means
 	 * there might be duplicate values for this type of attribute.
 	 *
+	 * Use `nonUniqueInScope(Scope...)` instead. This method will be removed in future versions.
+	 *
 	 * @param inScope one or more scopes in which the attribute should not be unique within particular locale
 	 * @return builder to continue with configuration
 	 */
+	@Deprecated(since = "2025.5", forRemoval = true)
 	@Nonnull
 	T nonUniqueWithinLocaleInScope(@Nonnull Scope... inScope);
 

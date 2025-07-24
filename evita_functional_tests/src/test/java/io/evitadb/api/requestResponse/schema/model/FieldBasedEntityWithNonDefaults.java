@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -118,7 +119,7 @@ public class FieldBasedEntityWithNonDefaults {
 	)
 	private PriceContract sellingPrice;
 
-	@Reference(indexed = true)
+	@Reference(indexed = ReferenceIndexType.FOR_FILTERING)
 	private Brand marketingBrand;
 
 	@Reference(
@@ -131,7 +132,7 @@ public class FieldBasedEntityWithNonDefaults {
 		groupEntity = "customBrandGroup",
 		allowEmpty = false,
 		faceted = true,
-		indexed = true
+		indexed = ReferenceIndexType.FOR_FILTERING
 	)
 	private Brand[] licensingBrands;
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -41,6 +42,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
@@ -96,20 +98,27 @@ public class ModifyReferenceSchemaDescriptionMutation
 			if (Objects.equals(referenceSchema.getDescription(), this.description)) {
 				return referenceSchema;
 			} else {
+				// Convert Map<Scope, ReferenceIndexType> to ScopedReferenceIndexType[]
+				final ScopedReferenceIndexType[] scopedIndexTypes = referenceSchema.getReferenceIndexTypeInScopes()
+					.entrySet()
+					.stream()
+					.map(entry -> new ScopedReferenceIndexType(entry.getKey(), entry.getValue()))
+					.toArray(ScopedReferenceIndexType[]::new);
+
 				return ReferenceSchema._internalBuild(
 					referenceSchema.getName(),
 					referenceSchema.getNameVariants(),
 					this.description,
 					referenceSchema.getDeprecationNotice(),
-					referenceSchema.getCardinality(),
 					referenceSchema.getReferencedEntityType(),
 					referenceSchema.isReferencedEntityTypeManaged() ? Collections.emptyMap() : referenceSchema.getEntityTypeNameVariants(s -> null),
 					referenceSchema.isReferencedEntityTypeManaged(),
+					referenceSchema.getCardinality(),
 					referenceSchema.getReferencedGroupType(),
 					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
-					referenceSchema.getIndexedInScopes(),
-					referenceSchema.getFacetedInScopes(),
+					scopedIndexTypes,
+					Arrays.stream(Scope.values()).filter(referenceSchema::isFacetedInScope).toArray(Scope[]::new),
 					referenceSchema.getAttributes(),
 					referenceSchema.getSortableAttributeCompounds()
 				);

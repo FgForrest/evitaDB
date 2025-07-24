@@ -249,7 +249,7 @@ public abstract class EntityIndex implements
 	 * Registers new entity primary key to the superset of entity ids of this entity index.
 	 */
 	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey) {
-		final boolean added = entityIds.add(entityPrimaryKey);
+		final boolean added = this.entityIds.add(entityPrimaryKey);
 		if (added) {
 			this.dirty.setToTrue();
 		}
@@ -260,7 +260,7 @@ public abstract class EntityIndex implements
 	 * Removes existing from the superset of entity ids of this entity index.
 	 */
 	public boolean removePrimaryKey(int entityPrimaryKey) {
-		final boolean removed = entityIds.remove(entityPrimaryKey);
+		final boolean removed = this.entityIds.remove(entityPrimaryKey);
 		if (removed) {
 			this.dirty.setToTrue();
 		}
@@ -271,7 +271,7 @@ public abstract class EntityIndex implements
 	 * Returns true if the `entityPrimaryKey` is known in the index.
 	 */
 	public boolean isPrimaryKeyKnown(int entityPrimaryKey) {
-		return entityIds.contains(entityPrimaryKey);
+		return this.entityIds.contains(entityPrimaryKey);
 	}
 
 	/**
@@ -279,7 +279,7 @@ public abstract class EntityIndex implements
 	 */
 	@Nonnull
 	public Formula getAllPrimaryKeysFormula() {
-		return entityIds.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(entityIds);
+		return this.entityIds.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(this.entityIds);
 	}
 
 	/**
@@ -287,7 +287,7 @@ public abstract class EntityIndex implements
 	 */
 	@Nonnull
 	public Bitmap getAllPrimaryKeys() {
-		return entityIds;
+		return this.entityIds;
 	}
 
 	/**
@@ -322,11 +322,17 @@ public abstract class EntityIndex implements
 	public boolean removeLanguage(@Nonnull Locale locale, int recordId) {
 		final TransactionalBitmap recordIdsWithLanguage = this.entityIdsByLanguage.get(locale);
 		final boolean removed = recordIdsWithLanguage != null && recordIdsWithLanguage.remove(recordId);
+
 		Assert.isTrue(
-			removed,
+			!isRequireLocaleRemoval() || removed,
 			"Entity `" + recordId + "` has unexpectedly not indexed localized data for language `" + locale + "`!"
 		);
-		if (recordIdsWithLanguage.isEmpty()) {
+
+		if (removed) {
+			this.dirty.setToTrue();
+		}
+
+		if (recordIdsWithLanguage != null && recordIdsWithLanguage.isEmpty()) {
 			this.entityIdsByLanguage.remove(locale);
 			this.dirty.setToTrue();
 			// remove the changes container - the bitmap got removed entirely
@@ -475,18 +481,32 @@ public abstract class EntityIndex implements
 		return "EntityIndex (" + StringUtils.uncapitalize(getIndexKey().toString()) + ")";
 	}
 
-	/*
-		PRIVATE METHODS
+	/**
+	 * Returns true if the index requires removal of the locale from the entityIdsByLanguage map.
+	 * @return true if locale removal is required, false otherwise
 	 */
+	protected boolean isRequireLocaleRemoval() {
+		return true;
+	}
 
 	/**
-	 * Returns the set of referenced entities in the facet index.
+	 * Method returns a stream of AttributeIndexStorageKey objects.
+	 * The stream includes AttributeIndexStorageKeys of different types (UNIQUE, FILTER, SORT, CHAIN)
+	 * created from attribute indexes of the attributeIndex object.
 	 *
-	 * @return the set of referenced entities in the facet index
+	 * The method can be overriden by descendants to provide a different stream of AttributeIndexStorageKey objects.
+	 *
+	 * @return a stream of AttributeIndexStorageKey objects.
 	 */
 	@Nonnull
-	private Set<String> getFacetIndexReferencedEntities() {
-		return facetIndex.getReferencedEntities();
+	protected Stream<AttributeIndexStorageKey> getAttributeIndexStorageKeyStream() {
+		return Stream.of(
+				this.attributeIndex.getUniqueIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.UNIQUE, it)),
+				this.attributeIndex.getFilterIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.FILTER, it)),
+				this.attributeIndex.getSortIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.SORT, it)),
+				this.attributeIndex.getChainIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.CHAIN, it))
+			)
+			.flatMap(it -> it);
 	}
 
 	/**
@@ -505,6 +525,16 @@ public abstract class EntityIndex implements
 	}
 
 	/**
+	 * Returns the set of referenced entities in the facet index.
+	 *
+	 * @return the set of referenced entities in the facet index
+	 */
+	@Nonnull
+	private Set<String> getFacetIndexReferencedEntities() {
+		return this.facetIndex.getReferencedEntities();
+	}
+
+	/**
 	 * Method returns the set of attribute index storage keys.
 	 *
 	 * @return the set of attribute index storage keys
@@ -513,26 +543,6 @@ public abstract class EntityIndex implements
 	private Set<AttributeIndexStorageKey> getAttributeIndexStorageKeys() {
 		return getAttributeIndexStorageKeyStream()
 			.collect(Collectors.toSet());
-	}
-
-	/**
-	 * Method returns a stream of AttributeIndexStorageKey objects.
-	 * The stream includes AttributeIndexStorageKeys of different types (UNIQUE, FILTER, SORT, CHAIN)
-	 * created from attribute indexes of the attributeIndex object.
-	 *
-	 * The method can be overriden by descendants to provide a different stream of AttributeIndexStorageKey objects.
-	 *
-	 * @return a stream of AttributeIndexStorageKey objects.
-	 */
-	@Nonnull
-	protected Stream<AttributeIndexStorageKey> getAttributeIndexStorageKeyStream() {
-		return Stream.of(
-				attributeIndex.getUniqueIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.UNIQUE, it)),
-				attributeIndex.getFilterIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.FILTER, it)),
-				attributeIndex.getSortIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.SORT, it)),
-				attributeIndex.getChainIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.CHAIN, it))
-			)
-			.flatMap(it -> it);
 	}
 
 }

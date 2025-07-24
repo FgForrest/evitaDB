@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,11 +24,14 @@
 package io.evitadb.core.query.indexSelection;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
+import io.evitadb.index.ReducedEntityIndex;
 import lombok.Data;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
@@ -61,19 +64,33 @@ public class TargetIndexes<T extends Index<?>> {
 	 * The list of indexes themselves.
 	 */
 	private final List<T> indexes;
+	/**
+	 * Flag indicating that the target index set contains all data necesary for consistent filtering and sorting
+	 * for currently processed query. This is true for global indexes and {@link ReducedEntityIndex} that relate
+	 * to reference schemas with {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
+	 */
+	@Getter private final boolean eligibleForSeparateQueryPlan;
 
 	public TargetIndexes(@Nonnull String indexDescription, @Nonnull Class<T> indexType, @Nonnull List<T> indexes) {
 		this.indexDescription = indexDescription;
 		this.representedConstraint = null;
 		this.indexType = indexType;
 		this.indexes = indexes;
+		this.eligibleForSeparateQueryPlan = true;
 	}
 
-	public TargetIndexes(@Nonnull String indexDescription, @Nonnull FilterConstraint representedConstraint, @Nonnull Class<T> indexType, @Nonnull List<T> indexes) {
+	public TargetIndexes(
+		@Nonnull String indexDescription,
+		@Nonnull FilterConstraint representedConstraint,
+		@Nonnull Class<T> indexType,
+		@Nonnull List<T> indexes,
+		boolean eligibleForSeparateQueryPlan
+	) {
 		this.indexDescription = indexDescription;
 		this.representedConstraint = representedConstraint;
 		this.indexType = indexType;
 		this.indexes = indexes;
+		this.eligibleForSeparateQueryPlan = eligibleForSeparateQueryPlan;
 	}
 
 	/**
@@ -85,14 +102,14 @@ public class TargetIndexes<T extends Index<?>> {
 
 	@Override
 	public String toString() {
-		return "Index type: " + indexDescription;
+		return "Index type: " + this.indexDescription + (this.eligibleForSeparateQueryPlan ? "" : " (not eligible for separate query plan)");
 	}
 
 	/**
 	 * Prints {@link #toString()} including estimated costs (that are computed and passed from outside).
 	 */
 	public String toStringWithCosts(long estimatedCost) {
-		return this + ", estimated costs " + estimatedCost;
+		return this + ", estimated costs " + estimatedCost + (this.eligibleForSeparateQueryPlan ? "" : " (not eligible for separate query plan)");
 	}
 
 	/**

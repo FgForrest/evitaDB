@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -209,19 +209,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	@Nonnull
 	@Override
 	public T nonUniqueWithinLocaleInScope(@Nonnull Scope... inScope) {
-		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				new SetAttributeSchemaUniqueMutation(
-					baseSchema.getName(),
-					Arrays.stream(Scope.values())
-						.filter(it -> !isUniqueWithinLocaleInScope(it) || !excludedScopes.contains(it))
-						.map(it -> new ScopedAttributeUniquenessType(it, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE))
-						.toArray(ScopedAttributeUniquenessType[]::new)
-				)
-			)
-		);
+		nonUniqueInScope(inScope);
 		return (T) this;
 	}
 

@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -492,6 +493,18 @@ public class EntitySchemaConverter {
 			.setGroupTypeRelatesToEntity(referenceSchema.isReferencedGroupTypeManaged())
 			.setReferencedGroupTypeManaged(referenceSchema.isReferencedGroupTypeManaged())
 			.addAllIndexedInScopes(Arrays.stream(Scope.values()).filter(referenceSchema::isIndexedInScope).map(EvitaEnumConverter::toGrpcScope).toList())
+			.addAllScopedIndexTypes(
+				referenceSchema.getReferenceIndexTypeInScopes()
+					.entrySet()
+					.stream()
+					.map(
+						it -> GrpcScopedReferenceIndexType.newBuilder()
+							.setScope(toGrpcScope(it.getKey()))
+							.setIndexType(toGrpcReferenceIndexType(it.getValue()))
+							.build()
+					)
+					.toList()
+			)
 			.setIndexed(referenceSchema.isIndexed())
 			.addAllFacetedInScopes(Arrays.stream(Scope.values()).filter(referenceSchema::isFacetedInScope).map(EvitaEnumConverter::toGrpcScope).toList())
 			.setFaceted(referenceSchema.isFaceted());
@@ -684,13 +697,7 @@ public class EntitySchemaConverter {
 	@Nonnull
 	private static ReferenceSchemaContract toReferenceSchema(@Nonnull GrpcReferenceSchema referenceSchema) {
 		final Cardinality cardinality = toCardinality(referenceSchema.getCardinality());
-		final Scope[] indexedInScopes = referenceSchema.getIndexedInScopesList().isEmpty() ?
-			(referenceSchema.getIndexed() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
-			:
-			referenceSchema.getIndexedInScopesList()
-				.stream()
-				.map(EvitaEnumConverter::toScope)
-				.toArray(Scope[]::new);
+		final ScopedReferenceIndexType[] indexedInScopes = getIndexedInScopes(referenceSchema);
 		final Scope[] facetedInScopes = referenceSchema.getFacetedInScopesList().isEmpty() ?
 			(referenceSchema.getFaceted() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
@@ -810,6 +817,48 @@ public class EntitySchemaConverter {
 						)
 					)
 			);
+		}
+	}
+
+	/**
+	 * Retrieves an array of {@link ScopedReferenceIndexType} objects based on the scoped index types
+	 * and indexed scopes provided within the given {@link GrpcReferenceSchema}. This method checks
+	 * for the most recent representation of scoped index types, followed by older representations,
+	 * to ensure backward compatibility.
+	 *
+	 * @param referenceSchema the {@link GrpcReferenceSchema} from which the scoped index types
+	 *                        or indexed scopes are extracted. Must not be null.
+	 * @return an array of {@link ScopedReferenceIndexType} objects derived from the provided
+	 *         reference schema. If no scoped index types or indexed scopes are defined, it returns
+	 *         an empty array or default representations based on older schema formats.
+	 */
+	@Nonnull
+	private static ScopedReferenceIndexType[] getIndexedInScopes(@Nonnull GrpcReferenceSchema referenceSchema) {
+		if (!referenceSchema.getScopedIndexTypesList().isEmpty()) {
+			// first check the actual implementation of the reference schema
+			return referenceSchema.getScopedIndexTypesList()
+				.stream()
+				.map(
+					scopedType -> new ScopedReferenceIndexType(
+						EvitaEnumConverter.toScope(scopedType.getScope()),
+						EvitaEnumConverter.toReferenceIndexType(scopedType.getIndexType())
+					)
+				)
+				.toArray(ScopedReferenceIndexType[]::new);
+		} else if (!referenceSchema.getIndexedInScopesList().isEmpty()) {
+			// now check the previous representation (to maintain backward compatibility)
+			return referenceSchema.getIndexedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.map(it -> new ScopedReferenceIndexType(it, ReferenceIndexType.FOR_FILTERING))
+				.toArray(ScopedReferenceIndexType[]::new);
+		} else {
+			// finally, try the oldest representation (to maintain backward compatibility)
+			return referenceSchema.getIndexed() ?
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+				} :
+				ScopedReferenceIndexType.EMPTY;
 		}
 	}
 

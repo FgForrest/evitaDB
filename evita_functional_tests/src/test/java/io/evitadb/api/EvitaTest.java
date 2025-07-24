@@ -40,9 +40,9 @@ import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.file.FileForFetch;
-import io.evitadb.api.mock.MockCatalogStructuralChangeObserver;
-import io.evitadb.api.mock.ProductInterface;
-import io.evitadb.api.mock.ProductParameterInterface;
+import io.evitadb.api.proxy.mock.MockCatalogStructuralChangeObserver;
+import io.evitadb.api.proxy.mock.ProductInterface;
+import io.evitadb.api.proxy.mock.ProductParameterInterface;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -351,7 +351,7 @@ class EvitaTest implements EvitaTestSupport {
 				.withoutGeneratedPrimaryKey()
 				.withReferenceTo(
 					Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-					whichIs -> whichIs.indexed().withAttribute(ATTRIBUTE_NAME, String.class)
+					whichIs -> whichIs.indexedForFilteringAndPartitioning().withAttribute(ATTRIBUTE_NAME, String.class)
 				)
 				.updateVia(session);
 
@@ -423,7 +423,7 @@ class EvitaTest implements EvitaTestSupport {
 				.withoutGeneratedPrimaryKey()
 				.withReferenceTo(
 					Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-					whichIs -> whichIs.indexed().withAttribute(ATTRIBUTE_NAME, String.class)
+					whichIs -> whichIs.indexedForFilteringAndPartitioning().withAttribute(ATTRIBUTE_NAME, String.class)
 				)
 				.updateVia(session);
 
@@ -1039,8 +1039,8 @@ class EvitaTest implements EvitaTestSupport {
 							.deprecated("Already deprecated.")
 							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
 							.withAttribute("note", String.class)
-							.indexed()
 							.faceted()
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 
@@ -1118,7 +1118,7 @@ class EvitaTest implements EvitaTestSupport {
 							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable().filterable())
 							.withAttribute("note", String.class)
 							.withAttribute("additionalAttribute", String.class)
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 							.nonFaceted()
 					)
 					.updateVia(session);
@@ -1350,7 +1350,7 @@ class EvitaTest implements EvitaTestSupport {
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
 							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.filterable())
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 			}
@@ -1385,7 +1385,7 @@ class EvitaTest implements EvitaTestSupport {
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
 							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.unique())
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 			}
@@ -1420,7 +1420,7 @@ class EvitaTest implements EvitaTestSupport {
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
 							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 			}
@@ -1459,7 +1459,7 @@ class EvitaTest implements EvitaTestSupport {
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-						ReferenceSchemaEditor::indexed
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 			}
@@ -1496,7 +1496,7 @@ class EvitaTest implements EvitaTestSupport {
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-						ReferenceSchemaEditor::indexed
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 			}
@@ -1534,7 +1534,7 @@ class EvitaTest implements EvitaTestSupport {
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
 							.withAttribute("categoryPriority", Long.class)
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 			}
@@ -1577,7 +1577,7 @@ class EvitaTest implements EvitaTestSupport {
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
 							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.filterable())
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 			}
@@ -1620,7 +1620,7 @@ class EvitaTest implements EvitaTestSupport {
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
 							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.unique())
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 			}
@@ -1663,7 +1663,7 @@ class EvitaTest implements EvitaTestSupport {
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
 							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 			}
@@ -1802,7 +1802,7 @@ class EvitaTest implements EvitaTestSupport {
 				session
 					.defineEntitySchema(Entities.PRODUCT)
 					.withPrice(2)
-					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, ReferenceSchemaEditor::indexed)
+					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, ReferenceSchemaEditor::indexedForFilteringAndPartitioning)
 					.updateVia(session);
 
 				session.createNewEntity(Entities.CATEGORY, 1).upsertVia(session);

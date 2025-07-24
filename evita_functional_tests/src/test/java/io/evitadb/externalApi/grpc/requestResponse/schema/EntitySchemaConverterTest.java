@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchema;
 import io.evitadb.test.Entities;
@@ -115,7 +116,7 @@ class EntitySchemaConverterTest {
 					Cardinality.ZERO_OR_MORE,
 					Entities.PARAMETER_GROUP,
 					false,
-					new Scope[]{Scope.LIVE},
+					new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) },
 					new Scope[]{Scope.LIVE}
 				),
 				"test2", ReferenceSchema._internalBuild(
@@ -127,7 +128,7 @@ class EntitySchemaConverterTest {
 					Cardinality.ONE_OR_MORE,
 					null,
 					false,
-					new Scope[]{Scope.LIVE},
+					new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) },
 					new Scope[]{Scope.LIVE},
 					Map.of(
 						"code", EntityAttributeSchema._internalBuild(

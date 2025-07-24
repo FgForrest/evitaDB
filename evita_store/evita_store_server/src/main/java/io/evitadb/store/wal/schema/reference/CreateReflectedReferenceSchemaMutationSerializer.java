@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
@@ -53,7 +54,7 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 			output.writeBoolean(false);
 		} else {
 			output.writeBoolean(true);
-			writeScopeArray(kryo, output, mutation.getIndexedInScopes());
+			writeScopedReferenceIndexTypeArray(kryo, output, mutation.getIndexedInScopes());
 		}
 		if (mutation.getFacetedInScopes() == null) {
 			output.writeBoolean(false);
@@ -80,7 +81,7 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 		final String referencedEntityType = input.readString();
 		final String reflectedReferenceName = input.readString();
 
-		final Scope[] indexedInScopes = input.readBoolean() ? readScopeArray(kryo, input) : null;
+		final ScopedReferenceIndexType[] indexedInScopes = input.readBoolean() ? readScopedReferenceIndexTypeArray(kryo, input) : null;
 		final Scope[] facetedInScopes = input.readBoolean() ? readScopeArray(kryo, input) : null;
 
 		final AttributeInheritanceBehavior attributeInheritanceBehavior = kryo.readObject(input, AttributeInheritanceBehavior.class);
@@ -97,7 +98,8 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 			cardinality,
 			referencedEntityType,
 			reflectedReferenceName,
-			indexedInScopes, facetedInScopes,
+			indexedInScopes,
+			facetedInScopes,
 			attributeInheritanceBehavior,
 			attributesExcludedFromInheritance
 		);
