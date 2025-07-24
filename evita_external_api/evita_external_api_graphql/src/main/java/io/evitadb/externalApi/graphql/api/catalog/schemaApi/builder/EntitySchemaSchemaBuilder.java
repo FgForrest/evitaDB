@@ -90,14 +90,17 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 	@Override
 	public void build() {
-		/* TODO JNO - add this */
 		// build common reusable types
-		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS_INPUT.to(inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT.to(
+			this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(
+			this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT.to(
+			this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS_INPUT.to(
+			this.inputObjectBuilderTransformer).build());
 		final GraphQLObjectType attributeSchemaObject = buildAttributeSchemaObject();
 		this.buildingContext.registerType(attributeSchemaObject);
 		final GraphQLObjectType entityAttributeSchemaObject= buildEntityAttributeSchemaObject();

@@ -24,11 +24,13 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaIndexedMutationDescriptor;
@@ -37,7 +39,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -113,7 +114,7 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 	void shouldSerializeLocalMutationToOutput() {
 		final SetReferenceSchemaIndexedMutation inputMutation = new SetReferenceSchemaIndexedMutation(
 			"tags",
-			new Scope[] { Scope.LIVE }
+			new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) }
 		);
 
 		//noinspection unchecked
@@ -123,8 +124,13 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 			.isEqualTo(
 				map()
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-					.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(), array()
-						.i(Scope.LIVE.name()))
+					.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(),
+					   list().i(
+						   map()
+							   .e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+							   .e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING.name())
+					   )
+					)
 					.build()
 			);
 	}

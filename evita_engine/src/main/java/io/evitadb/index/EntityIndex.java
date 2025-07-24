@@ -490,13 +490,9 @@ public abstract class EntityIndex implements
 	}
 
 	/**
-	 * Method returns a stream of AttributeIndexStorageKey objects.
-	 * The stream includes AttributeIndexStorageKeys of different types (UNIQUE, FILTER, SORT, CHAIN)
-	 * created from attribute indexes of the attributeIndex object.
+	 * Returns the set of referenced entities in the facet index.
 	 *
-	 * The method can be overriden by descendants to provide a different stream of AttributeIndexStorageKey objects.
-	 *
-	 * @return a stream of AttributeIndexStorageKey objects.
+	 * @return the set of referenced entities in the facet index
 	 */
 	@Nonnull
 	private Set<String> getFacetIndexReferencedEntities() {
@@ -516,16 +512,6 @@ public abstract class EntityIndex implements
 			.stream()
 			.map(PriceListAndCurrencyPriceIndex::getPriceIndexKey)
 			.collect(Collectors.toSet());
-	}
-
-	/**
-	 * Returns the set of referenced entities in the facet index.
-	 *
-	 * @return the set of referenced entities in the facet index
-	 */
-	@Nonnull
-	private Set<String> getFacetIndexReferencedEntities() {
-		return this.facetIndex.getReferencedEntities();
 	}
 
 	/**

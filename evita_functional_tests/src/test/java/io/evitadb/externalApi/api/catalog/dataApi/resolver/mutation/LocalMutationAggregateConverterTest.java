@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;

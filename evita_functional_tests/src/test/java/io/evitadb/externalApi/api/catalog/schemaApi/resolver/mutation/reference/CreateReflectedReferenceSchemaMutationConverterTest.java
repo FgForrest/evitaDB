@@ -32,6 +32,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReflectedReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
@@ -208,7 +209,7 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 			Cardinality.ZERO_OR_MORE,
 			"tag",
 			"tags",
-			new Scope[] { Scope.LIVE },
+			new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) },
 			new Scope[] { Scope.LIVE },
 			AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
 			new String[] { "order" }
@@ -226,8 +227,13 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 					.e(CreateReflectedReferenceSchemaMutationDescriptor.CARDINALITY.name(), Cardinality.ZERO_OR_MORE.name())
 					.e(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 					.e(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME.name(), "tags")
-					.e(CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), array()
-						.i(Scope.LIVE.name()))
+					.e(CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
+					   list().i(
+						   map()
+							   .e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+							   .e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING.name())
+					   )
+					)
 					.e(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES.name(), array()
 						.i(Scope.LIVE.name()))
 					.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTES_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())

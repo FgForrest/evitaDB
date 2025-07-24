@@ -57,10 +57,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.support.ParameterDeclarations;
 import org.mockito.Mockito;
 import org.opentest4j.AssertionFailedError;
 
@@ -109,6 +111,21 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		return Stream.of(OffsetIndexTest.Crc32Check.values())
 			.flatMap(crc32Check -> Stream.of(OffsetIndexTest.Compression.values())
 				.map(compression -> Arguments.of(crc32Check, compression)));
+	}
+
+	/**
+	 * Custom argument provider that combines {@link TimeArgumentProvider} functionality
+	 * with {@link Compression} enum values to provide parameterized test arguments
+	 * for generational tests that need both time input and compression settings.
+	 */
+	public static class TimeAndCompressionArgumentProvider extends TimeArgumentProvider {
+
+		@Override
+		public Stream<? extends Arguments> provideArguments(ParameterDeclarations parameters, ExtensionContext context) {
+			final Arguments arguments = super.provideArguments(parameters, context).findFirst().orElseThrow();
+			return Stream.of(Compression.values())
+				.map(compression -> Arguments.of(arguments.get()[0], compression));
+		}
 	}
 
 	/**
@@ -666,13 +683,12 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		}
 	}
 
-	@ParameterizedTest(name = "OffsetIndex should survive generational randomized test applying modifications on it")
+	@ParameterizedTest(name = "OffsetIndex should survive generational randomized test applying modifications on it, compression: {1}")
 	@Tag(LONG_RUNNING_TEST)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	/* TODO JNO - add parametrized compression */
-	void generationalProofTest(GenerationalTestInput input) {
+	@ArgumentsSource(TimeAndCompressionArgumentProvider.class)
+	void generationalProofTest(GenerationalTestInput input, Compression compression) {
 		final AtomicReference<Path> currentFilePath = new AtomicReference<>(this.targetFile);
-		final StorageOptions storageOptions = buildOptionsWithLimitedBuffer(Crc32Check.YES, Compression.NO);
+		final StorageOptions storageOptions = buildOptionsWithLimitedBuffer(Crc32Check.YES, compression);
 		try (
 			final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class))
 		) {

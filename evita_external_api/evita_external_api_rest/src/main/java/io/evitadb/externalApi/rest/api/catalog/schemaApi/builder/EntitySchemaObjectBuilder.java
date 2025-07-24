@@ -83,21 +83,23 @@ public class EntitySchemaObjectBuilder {
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 
 	public void buildCommonTypes() {
-		/* TODO JNO - add this */
 		// build common reusable objects
-		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS_INPUT.to(objectBuilderTransformer).build());
-		buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(EntityAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(AttributeElementDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(AssociatedDataSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT.to(
+			this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(
+			this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT.to(
+			this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(EntityAttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(AssociatedDataSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		// entity schema mutations
 		this.buildingContext.registerType(AllowCurrencyInEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());

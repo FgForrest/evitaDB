@@ -31,6 +31,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
@@ -194,7 +195,7 @@ class CreateReferenceSchemaMutationConverterTest {
 			true,
 			"tagGroup",
 			true,
-			new Scope[] {Scope.LIVE},
+			new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) },
 			new Scope[] {Scope.LIVE}
 		);
 
@@ -212,8 +213,14 @@ class CreateReferenceSchemaMutationConverterTest {
 					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
 					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE.name(), "tagGroup")
 					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), true)
-					.e(CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), array()
-						.i(Scope.LIVE.name()))
+					.e(
+						CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
+						list().i(
+							map()
+								.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+								.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING.name())
+						)
+					)
 					.e(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES.name(), array()
 						.i(Scope.LIVE.name()))
 					.build()
