@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ public interface GrpcChangeSystemCaptureOrBuilder extends
 
   /**
    * <pre>
-   * the version of the catalog where the operation was performed
+   * the version of the engine where the operation was performed
    * </pre>
    *
    * <code>int64 version = 1;</code>

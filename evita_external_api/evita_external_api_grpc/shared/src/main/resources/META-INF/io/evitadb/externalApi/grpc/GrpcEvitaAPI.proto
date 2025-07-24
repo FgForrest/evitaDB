@@ -220,9 +220,9 @@ message GrpcApplyMutationWithProgressResponse {
 
 // Request to register a system change capture.
 message GrpcRegisterSystemChangeCaptureRequest {
-  // Starting point for the search (catalog version)
+  // Starting point for the search (engine version)
   google.protobuf.Int64Value sinceVersion = 1;
-  // Starting point for the search (index of the mutation within catalog version)
+  // Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
   google.protobuf.Int32Value sinceIndex = 2;
   // Requested content of the capture - i.e. whether client wants to receive only the simple notification about the change
   // or whether he wants to receive the full content of the change

@@ -74,7 +74,7 @@ message GrpcChangeCatalogCapture {
 
 // Record represents a system CDC event that is sent to the subscriber if it matches to the request he made.
 message GrpcChangeSystemCapture {
-  // the version of the catalog where the operation was performed
+  // the version of the engine where the operation was performed
   int64 version = 1;
   // the index of the event within the enclosed transaction, index 0 is the transaction lead event
   int32 index = 2;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -144,7 +144,7 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int64Value sinceVersion_;
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Starting point for the search (engine version)
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -156,7 +156,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Starting point for the search (engine version)
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -168,7 +168,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Starting point for the search (engine version)
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -182,7 +182,7 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int32Value sinceIndex_;
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -194,7 +194,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -206,7 +206,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -615,7 +615,7 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> sinceVersionBuilder_;
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Starting point for the search (engine version)
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -626,7 +626,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Starting point for the search (engine version)
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -641,7 +641,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Starting point for the search (engine version)
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -661,7 +661,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Starting point for the search (engine version)
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -679,7 +679,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Starting point for the search (engine version)
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -701,7 +701,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Starting point for the search (engine version)
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -719,19 +719,19 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Starting point for the search (engine version)
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
      */
     public com.google.protobuf.Int64Value.Builder getSinceVersionBuilder() {
-      
+
       onChanged();
       return getSinceVersionFieldBuilder().getBuilder();
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Starting point for the search (engine version)
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -746,13 +746,13 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Starting point for the search (engine version)
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
         getSinceVersionFieldBuilder() {
       if (sinceVersionBuilder_ == null) {
         sinceVersionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -770,7 +770,7 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> sinceIndexBuilder_;
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -781,7 +781,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -796,7 +796,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -816,7 +816,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -834,7 +834,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -856,7 +856,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -874,19 +874,19 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
      */
     public com.google.protobuf.Int32Value.Builder getSinceIndexBuilder() {
-      
+
       onChanged();
       return getSinceIndexFieldBuilder().getBuilder();
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -901,13 +901,13 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getSinceIndexFieldBuilder() {
       if (sinceIndexBuilder_ == null) {
         sinceIndexBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -944,7 +944,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setContentValue(int value) {
-      
+
       content_ = value;
       onChanged();
       return this;
@@ -978,7 +978,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       content_ = value.getNumber();
       onChanged();
       return this;
@@ -993,7 +993,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearContent() {
-      
+
       content_ = 0;
       onChanged();
       return this;
