@@ -81,7 +81,6 @@ public class SetReferenceSchemaIndexedMutation
 		);
 	}
 
-	@SerializableCreator
 	public SetReferenceSchemaIndexedMutation(
 		@Nonnull String name,
 		@Nullable Scope[] indexedInScopes
@@ -94,6 +93,7 @@ public class SetReferenceSchemaIndexedMutation
 				.toArray(ScopedReferenceIndexType[]::new);
 	}
 
+	@SerializableCreator
 	public SetReferenceSchemaIndexedMutation(
 		@Nonnull String name,
 		@Nullable ScopedReferenceIndexType[] indexedInScopes
