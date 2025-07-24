@@ -12,7 +12,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 							or(
 								attributeIs("validity", NULL),
 								attributeInRange(
-									"validity",
+									"validity", 
 									OffsetDateTime.parse("2023-12-02T01:00:00-01:00", DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 								)
 							)

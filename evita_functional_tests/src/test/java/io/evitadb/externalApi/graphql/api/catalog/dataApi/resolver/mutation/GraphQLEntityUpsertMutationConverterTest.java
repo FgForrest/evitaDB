@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;

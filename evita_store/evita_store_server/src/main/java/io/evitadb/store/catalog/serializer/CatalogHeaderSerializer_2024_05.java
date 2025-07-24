@@ -44,7 +44,7 @@ import java.util.Map;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Deprecated
+@Deprecated(since = "2024.3", forRemoval = true)
 public class CatalogHeaderSerializer_2024_05 extends AbstractPersistentStorageHeaderSerializer<CatalogHeader> {
 
 	@Override

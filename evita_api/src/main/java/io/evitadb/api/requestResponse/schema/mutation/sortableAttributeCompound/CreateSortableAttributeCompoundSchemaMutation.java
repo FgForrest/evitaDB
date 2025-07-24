@@ -253,7 +253,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 					referenceSchema.isReferencedGroupTypeManaged() ?
 						Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
-					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getReferenceIndexTypeInScopes(),
 					referenceSchema.getFacetedInScopes(),
 					referenceSchema.getAttributes(),
 					Stream.concat(

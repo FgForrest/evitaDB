@@ -669,6 +669,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	@ParameterizedTest(name = "OffsetIndex should survive generational randomized test applying modifications on it")
 	@Tag(LONG_RUNNING_TEST)
 	@ArgumentsSource(TimeArgumentProvider.class)
+	/* TODO JNO - add parametrized compression */
 	void generationalProofTest(GenerationalTestInput input) {
 		final AtomicReference<Path> currentFilePath = new AtomicReference<>(this.targetFile);
 		final StorageOptions storageOptions = buildOptionsWithLimitedBuffer(Crc32Check.YES, Compression.NO);

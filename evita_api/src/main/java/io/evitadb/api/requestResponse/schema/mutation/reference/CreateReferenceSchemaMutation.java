@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
@@ -88,7 +89,7 @@ public class CreateReferenceSchemaMutation
 	@Getter private final boolean referencedEntityTypeManaged;
 	@Getter @Nullable private final String referencedGroupType;
 	@Getter private final boolean referencedGroupTypeManaged;
-	@Getter private final Scope[] indexedInScopes;
+	@Getter private final ScopedReferenceIndexType[] indexedInScopes;
 	@Getter private final Scope[] facetedInScopes;
 
 	public CreateReferenceSchemaMutation(
@@ -107,7 +108,7 @@ public class CreateReferenceSchemaMutation
 			name, description, deprecationNotice, cardinality,
 			referencedEntityType, referencedEntityTypeManaged,
 			referencedGroupType, referencedGroupTypeManaged,
-			indexed ? Scope.DEFAULT_SCOPES : NO_SCOPE,
+			indexed ? new ScopedReferenceIndexType[] {new ScopedReferenceIndexType(DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)} : ScopedReferenceIndexType.EMPTY,
 			faceted ? Scope.DEFAULT_SCOPES : NO_SCOPE
 		);
 	}
@@ -122,7 +123,7 @@ public class CreateReferenceSchemaMutation
 		boolean referencedEntityTypeManaged,
 		@Nullable String referencedGroupType,
 		boolean referencedGroupTypeManaged,
-		@Nullable Scope[] indexedInScopes,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
 		@Nullable Scope[] facetedInScopes
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
@@ -135,12 +136,13 @@ public class CreateReferenceSchemaMutation
 		this.referencedEntityTypeManaged = referencedEntityTypeManaged;
 		this.referencedGroupType = referencedGroupType;
 		this.referencedGroupTypeManaged = referencedGroupTypeManaged;
-		this.indexedInScopes = indexedInScopes == null ? NO_SCOPE : indexedInScopes;
+		this.indexedInScopes = indexedInScopes == null ? ScopedReferenceIndexType.EMPTY : indexedInScopes;
 		this.facetedInScopes = facetedInScopes == null ? NO_SCOPE : facetedInScopes;
 	}
 
 	public boolean isIndexed() {
-		return Arrays.stream(this.indexedInScopes).anyMatch(scope -> scope == DEFAULT_SCOPE);
+		return Arrays.stream(this.indexedInScopes)
+			.anyMatch(it -> it.scope() == DEFAULT_SCOPE && it.indexType() != ReferenceIndexType.NONE);
 	}
 
 	public boolean isFaceted() {
@@ -205,7 +207,11 @@ public class CreateReferenceSchemaMutation
 								makeMutationIfDifferent(
 									ReferenceSchemaContract.class,
 									createdVersion, existingVersion,
-									ref -> Arrays.stream(Scope.values()).filter(ref::isIndexedInScope).toArray(Scope[]::new),
+									ref -> ref.getReferenceIndexTypeInScopes()
+										.entrySet()
+										.stream()
+										.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+										.toArray(ScopedReferenceIndexType[]::new),
 									newValue -> new SetReferenceSchemaIndexedMutation(this.name, newValue)
 								),
 								makeMutationIfDifferent(

@@ -108,7 +108,7 @@ public record EvitaClientConfiguration(
 	 * @return The path to the server certificate.
 	 * @deprecated Use {@link #serverCertificatePath()} instead.
 	 */
-	@Deprecated
+	@Deprecated(since = "2024.11", forRemoval = true)
 	@Nullable
 	public Path rootCaCertificatePath() {
 		return this.serverCertificatePath;
@@ -193,7 +193,7 @@ public record EvitaClientConfiguration(
 		 * @param rootCaCertificatePath Path to the server certificate that should be used for TLS connection.
 		 * @return Builder instance for chaining.
 		 */
-		@Deprecated
+		@Deprecated(since = "2024.11", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder rootCaCertificatePath(@Nonnull Path rootCaCertificatePath) {
 			this.serverCertificatePath = rootCaCertificatePath;
@@ -223,7 +223,7 @@ public record EvitaClientConfiguration(
 		 *
 		 * @deprecated Use {@link #timeout(long, TimeUnit)} instead.
 		 */
-		@Deprecated
+		@Deprecated(since = "2024.11", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder timeoutUnit(long timeout, @Nonnull TimeUnit unit) {
 			return timeout(timeout, unit);

@@ -43,7 +43,7 @@ import java.math.BigDecimal;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Deprecated
+@Deprecated(since = "2024.11", forRemoval = true)
 @RequiredArgsConstructor
 public class PriceWithInternalIdsSerializer_2024_11 extends Serializer<PriceWithInternalIds> {
 	private final KeyCompressor keyCompressor;

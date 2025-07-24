@@ -57,7 +57,7 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated
+@Deprecated(since = "2024.11", forRemoval = true)
 @RequiredArgsConstructor
 public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityIndexStoragePart> {
 	private final KeyCompressor keyCompressor;

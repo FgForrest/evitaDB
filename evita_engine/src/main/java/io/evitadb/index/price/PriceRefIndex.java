@@ -26,6 +26,7 @@ package io.evitadb.index.price;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogRelatedDataStructure;
 import io.evitadb.core.Transaction;
@@ -181,6 +182,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 
 	@Override
 	protected int addPrice(
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull PriceListAndCurrencyPriceRefIndex priceListIndex,
 		int entityPrimaryKey,
 		int internalPriceId,
@@ -196,6 +198,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 
 	@Override
 	protected void removePrice(
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull PriceListAndCurrencyPriceRefIndex priceListIndex, int entityPrimaryKey,
 		int internalPriceId,
 		int priceId,

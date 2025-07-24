@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
@@ -33,6 +34,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.utils.NamingConvention;
 import lombok.AccessLevel;
@@ -55,6 +57,14 @@ public abstract class SchemaJsonSerializer {
 	@Nonnull
 	protected final ObjectJsonSerializer objectJsonSerializer;
 
+	/**
+	 * Serializes a map of naming conventions and associated name variants into a JSON object node.
+	 * Each entry in the map is represented as a JSON property, where the property name corresponds to the naming convention,
+	 * and the value corresponds to the associated name variant.
+	 *
+	 * @param nameVariants a map where the key is a {@link NamingConvention} and the value is the corresponding name variant
+	 * @return an {@link ObjectNode} containing the serialized name variants
+	 */
 	@Nonnull
 	protected ObjectNode serializeNameVariants(@Nonnull Map<NamingConvention, String> nameVariants) {
 		final ObjectNode nameVariantsNode = this.objectJsonSerializer.objectNode();
@@ -68,11 +78,48 @@ public abstract class SchemaJsonSerializer {
 	}
 
 
+	/**
+	 * Serializes the scopes filtered by the provided predicate into a JSON array structure.
+	 * The resulting array includes only the scopes that satisfy the given predicate.
+	 *
+	 * @param flagPredicate a predicate to filter the scopes to serialize
+	 * @return a JSON node representing the serialized array of filtered scopes
+	 */
 	@Nonnull
 	protected JsonNode serializeFlagInScopes(@Nonnull Predicate<Scope> flagPredicate) {
 		return this.objectJsonSerializer.serializeArray(Arrays.stream(Scope.values()).filter(flagPredicate).toArray(Scope[]::new));
 	}
 
+	/**
+	 * Serializes the reference index types within the given {@link ReferenceSchemaContract} into a JSON array structure.
+	 * Each entry in the resulting array represents a reference index type described by its scope and index type.
+	 *
+	 * @param referenceSchema the reference schema containing the reference index types to be serialized
+	 * @return an {@link ArrayNode} representing the serialized reference index types
+	 */
+	@Nonnull
+	protected ArrayNode serializeReferenceIndexTypes(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final ArrayNode referenceIndexesArray = this.objectJsonSerializer.arrayNode();
+		referenceSchema.getReferenceIndexTypeInScopes()
+			.entrySet()
+			.stream()
+			.map(it -> {
+				final ObjectNode referenceIndexTypeNode = this.objectJsonSerializer.objectNode();
+				referenceIndexTypeNode.put(ScopedDataDescriptor.SCOPE.name(), it.getKey().name());
+				referenceIndexTypeNode.put(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), it.getValue().name());
+				return referenceIndexTypeNode;
+			})
+			.forEach(referenceIndexesArray::add);
+		return referenceIndexesArray;
+	}
+
+	/**
+	 * Serializes the uniqueness type of attributes for different scopes into a JSON array structure.
+	 * Each scope is represented as a JSON object containing the scope name and its corresponding uniqueness type.
+	 *
+	 * @param uniquenessTypeAccessor a function that provides the {@link AttributeUniquenessType} for a given {@link Scope}
+	 * @return a {@link JsonNode} representing an array of JSON objects, where each object contains a scope name and the associated uniqueness type
+	 */
 	@Nonnull
 	protected JsonNode serializeUniquenessType(@Nonnull Function<Scope, AttributeUniquenessType> uniquenessTypeAccessor) {
 		return Arrays.stream(Scope.values())
@@ -85,6 +132,13 @@ public abstract class SchemaJsonSerializer {
 			.collect(this.objectJsonSerializer::arrayNode, ArrayNode::add, ArrayNode::addAll);
 	}
 
+	/**
+	 * Serializes the global uniqueness types of attributes for different scopes into a JSON array structure.
+	 * Each scope is represented as a JSON object containing the scope name and its corresponding global attribute uniqueness type.
+	 *
+	 * @param uniquenessTypeAccessor a function that provides the {@link GlobalAttributeUniquenessType} for a given {@link Scope}
+	 * @return a {@link JsonNode} representing an array of JSON objects, where each object contains a scope name and the associated global attribute uniqueness type
+	 */
 	@Nonnull
 	protected JsonNode serializeGlobalUniquenessType(@Nonnull Function<Scope, GlobalAttributeUniquenessType> uniquenessTypeAccessor) {
 		return Arrays.stream(Scope.values())

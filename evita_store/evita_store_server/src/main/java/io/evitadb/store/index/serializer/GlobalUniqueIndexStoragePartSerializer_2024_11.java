@@ -46,7 +46,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated
+@Deprecated(since = "2024.11", forRemoval = true)
 @RequiredArgsConstructor
 public class GlobalUniqueIndexStoragePartSerializer_2024_11 extends Serializer<GlobalUniqueIndexStoragePart> {
 	private final KeyCompressor keyCompressor;

@@ -209,19 +209,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	@Nonnull
 	@Override
 	public T nonUniqueWithinLocaleInScope(@Nonnull Scope... inScope) {
-		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				new SetAttributeSchemaUniqueMutation(
-					this.baseSchema.getName(),
-					Arrays.stream(Scope.values())
-						.filter(it -> !isUniqueWithinLocaleInScope(it) || !excludedScopes.contains(it))
-						.map(it -> new ScopedAttributeUniquenessType(it, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE))
-						.toArray(ScopedAttributeUniquenessType[]::new)
-				)
-			)
-		);
+		nonUniqueInScope(inScope);
 		return (T) this;
 	}
 

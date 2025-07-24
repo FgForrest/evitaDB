@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInternalError;
@@ -47,16 +48,8 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -75,12 +68,12 @@ import static java.util.Optional.ofNullable;
 @Immutable
 @ThreadSafe
 public sealed class ReferenceSchema implements ReferenceSchemaContract permits ReflectedReferenceSchema {
-	@Serial private static final long serialVersionUID = -5640763435228403921L;
+	@Serial private static final long serialVersionUID = 6899584103779653340L;
 	@Getter @Nonnull protected final String name;
 	@Getter @Nonnull protected final Cardinality cardinality;
 	@Getter @Nullable protected final String deprecationNotice;
 	@Getter @Nullable protected final String description;
-	@Getter protected final Set<Scope> indexedInScopes;
+	protected final Map<Scope, ReferenceIndexType> indexedInScopes;
 	@Getter protected final Set<Scope> facetedInScopes;
 	@Getter @Nonnull protected final Map<NamingConvention, String> nameVariants;
 	@Getter @Nonnull protected final String referencedEntityType;
@@ -123,6 +116,24 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	@Nonnull private final Map<String, Collection<SortableAttributeCompoundSchemaContract>> attributeToSortableAttributeCompoundIndex;
 
 	/**
+	 * Converts an array of ScopedReferenceIndexType objects into a Map linking Scope to ReferenceIndexType.
+	 * If the input array is null, it initializes the map with a default value of Scope.DEFAULT_SCOPE mapped to ReferenceIndexType.NONE.
+	 *
+	 * @param indexedInScopes An array of ScopedReferenceIndexType to be converted. Can be null.
+	 * @return A Map where each Scope is associated with its corresponding ReferenceIndexType.
+	 */
+	@Nonnull
+	public static Map<Scope, ReferenceIndexType> toReferenceIndexEnumMap(@Nullable ScopedReferenceIndexType[] indexedInScopes) {
+		final Map<Scope, ReferenceIndexType> theIndexType = new EnumMap<>(Scope.class);
+		if (indexedInScopes != null) {
+			for (ScopedReferenceIndexType indexedInScope : indexedInScopes) {
+				theIndexType.put(indexedInScope.scope(), indexedInScope.indexType());
+			}
+		}
+		return theIndexType;
+	}
+
+	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
 	 *
@@ -136,7 +147,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Cardinality cardinality,
 		@Nullable String groupType,
 		boolean referencedGroupTypeManaged,
-		@Nullable Scope[] indexedInScopes,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
 		@Nullable Scope[] facetedInScopes
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
@@ -144,9 +155,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, groupType);
 		}
 
-		final EnumSet<Scope> indexedScopes = ArrayUtils.toEnumSet(Scope.class, indexedInScopes);
+		final Map<Scope, ReferenceIndexType> indexedScopesMap = toReferenceIndexEnumMap(indexedInScopes);
 		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
-		validateScopeSettings(facetedScopes, indexedScopes);
+		validateScopeSettings(facetedScopes, indexedScopesMap);
 
 		return new ReferenceSchema(
 			name, NamingConvention.generate(name),
@@ -158,7 +169,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			groupType != null && groupType.isBlank() && !referencedGroupTypeManaged ?
 				NamingConvention.generate(groupType) : Collections.emptyMap(),
 			referencedGroupTypeManaged,
-			indexedScopes,
+			indexedScopesMap,
 			facetedScopes,
 			Collections.emptyMap(),
 			Collections.emptyMap()
@@ -181,7 +192,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Cardinality cardinality,
 		@Nullable String groupType,
 		boolean referencedGroupTypeManaged,
-		@Nonnull Scope[] indexedInScopes,
+		@Nonnull ScopedReferenceIndexType[] indexedInScopes,
 		@Nonnull Scope[] facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
@@ -191,9 +202,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, groupType);
 		}
 
-		final EnumSet<Scope> indexedScopes = ArrayUtils.toEnumSet(Scope.class, indexedInScopes);
+		final Map<Scope, ReferenceIndexType> indexedScopesMap = toReferenceIndexEnumMap(indexedInScopes);
 		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
-		validateScopeSettings(facetedScopes, indexedScopes);
+		validateScopeSettings(facetedScopes, indexedScopesMap);
 
 		return new ReferenceSchema(
 			name, NamingConvention.generate(name),
@@ -205,7 +216,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			groupType != null && groupType.isBlank() && !referencedGroupTypeManaged ?
 				NamingConvention.generate(groupType) : Collections.emptyMap(),
 			referencedGroupTypeManaged,
-			indexedScopes,
+			indexedScopesMap,
 			facetedScopes,
 			attributes,
 			sortableAttributeCompounds
@@ -231,7 +242,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nullable String referencedGroupType,
 		@Nonnull Map<NamingConvention, String> groupTypeNameVariants,
 		boolean referencedGroupTypeManaged,
-		@Nonnull Set<Scope> indexedInScopes,
+		@Nonnull Map<Scope, ReferenceIndexType> indexedInScopes,
 		@Nonnull Set<Scope> facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
@@ -271,7 +282,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nullable String groupType,
 		@Nullable Map<NamingConvention, String> groupTypeNameVariants,
 		boolean referencedGroupTypeManaged,
-		@Nonnull Scope[] indexedInScopes,
+		@Nonnull ScopedReferenceIndexType[] indexedInScopes,
 		@Nonnull Scope[] facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
@@ -281,9 +292,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, groupType);
 		}
 
-		final EnumSet<Scope> indexedScopes = ArrayUtils.toEnumSet(Scope.class, indexedInScopes);
+		final Map<Scope, ReferenceIndexType> indexedScopesMap = toReferenceIndexEnumMap(indexedInScopes);
 		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
-		validateScopeSettings(facetedScopes, indexedScopes);
+		validateScopeSettings(facetedScopes, indexedScopesMap);
 
 		return new ReferenceSchema(
 			name, nameVariants,
@@ -294,7 +305,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			groupType,
 			ofNullable(groupTypeNameVariants).orElse(Collections.emptyMap()),
 			referencedGroupTypeManaged,
-			indexedScopes,
+			indexedScopesMap,
 			facetedScopes,
 			attributes,
 			sortableAttributeCompounds
@@ -310,13 +321,13 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 */
 	static void validateScopeSettings(
 		@Nonnull Set<Scope> facetedScopes,
-		@Nonnull Set<Scope> indexedScopes
+		@Nonnull Map<Scope, ReferenceIndexType> indexedScopes
 	) {
 		final Scope[] scopes = Scope.values();
 		for (Scope scope : scopes) {
 			if (facetedScopes.contains(scope)) {
 				Assert.isTrue(
-					indexedScopes.contains(scope),
+					indexedScopes.get(scope) != ReferenceIndexType.NONE,
 					() -> new InvalidSchemaMutationException(
 						"When reference is marked as faceted in scope `" + scope + "`, it needs also to be indexed for the same scope."
 					)
@@ -337,7 +348,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nullable String referencedGroupType,
 		@Nonnull Map<NamingConvention, String> groupTypeNameVariants,
 		boolean referencedGroupTypeManaged,
-		@Nonnull Set<Scope> indexedInScopes,
+		@Nonnull Map<Scope, ReferenceIndexType> indexedInScopes,
 		@Nonnull Set<Scope> facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
@@ -354,7 +365,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		this.referencedGroupType = referencedGroupType;
 		this.groupTypeNameVariants = Collections.unmodifiableMap(groupTypeNameVariants);
 		this.referencedGroupTypeManaged = referencedGroupTypeManaged;
-		this.indexedInScopes = CollectionUtils.toUnmodifiableSet(indexedInScopes);
+		this.indexedInScopes = CollectionUtils.toUnmodifiableMap(indexedInScopes);
 		this.facetedInScopes = CollectionUtils.toUnmodifiableSet(facetedInScopes);
 		this.attributes = Collections.unmodifiableMap(
 			attributes.entrySet()
@@ -447,7 +458,29 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 
 	@Override
 	public boolean isIndexedInScope(@Nonnull Scope scope) {
-		return this.indexedInScopes.contains(scope);
+		return this.indexedInScopes.containsKey(scope) && this.indexedInScopes.get(scope) != ReferenceIndexType.NONE;
+	}
+
+	@Nonnull
+	@Override
+	public Set<Scope> getIndexedInScopes() {
+		return this.indexedInScopes.entrySet()
+			.stream()
+			.filter(entry -> entry.getValue() != ReferenceIndexType.NONE)
+			.map(Map.Entry::getKey)
+			.collect(Collectors.toSet());
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceIndexType getReferenceIndexType(@Nonnull Scope scope) {
+		return this.indexedInScopes.getOrDefault(scope, ReferenceIndexType.NONE);
+	}
+
+	@Nonnull
+	@Override
+	public Map<Scope, ReferenceIndexType> getReferenceIndexTypeInScopes() {
+		return this.indexedInScopes;
 	}
 
 	@Override

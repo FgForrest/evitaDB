@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
@@ -49,7 +50,7 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 		output.writeBoolean(mutation.isReferencedEntityTypeManaged());
 		output.writeString(mutation.getReferencedGroupType());
 		output.writeBoolean(mutation.isReferencedGroupTypeManaged());
-		writeScopeArray(kryo, output, mutation.getIndexedInScopes());
+		writeScopedReferenceIndexTypeArray(kryo, output, mutation.getIndexedInScopes());
 		writeScopeArray(kryo, output, mutation.getFacetedInScopes());
 	}
 
@@ -64,7 +65,7 @@ public class CreateReferenceSchemaMutationSerializer extends Serializer<CreateRe
 		final String referencedGroupType = input.readString();
 		final boolean referencedGroupTypeManaged = input.readBoolean();
 
-		final Scope[] indexedInScopes = readScopeArray(kryo, input);
+		final ScopedReferenceIndexType[] indexedInScopes = readScopedReferenceIndexTypeArray(kryo, input);
 		final Scope[] facetedInScopes = readScopeArray(kryo, input);
 
 		return new CreateReferenceSchemaMutation(

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
-import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
@@ -36,7 +36,9 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults.Builder;
@@ -61,13 +63,13 @@ public class GrpcFacetSummaryBuilderTest {
 	void buildFacetSummary() {
 		final ReferenceSchema[] types = {
 			ReferenceSchema._internalBuild(
-				"test1", "test1", false, Cardinality.ONE_OR_MORE, "testGroup1", false, new Scope[] { Scope.LIVE }, new Scope[] { Scope.LIVE }
+				"test1", "test1", false, Cardinality.ONE_OR_MORE, "testGroup1", false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[] { Scope.LIVE }
 			),
 			ReferenceSchema._internalBuild(
-				"test2", "test2", false, Cardinality.ONE_OR_MORE, "testGroup2", false, new Scope[] { Scope.LIVE }, new Scope[] { Scope.LIVE }
+				"test2", "test2", false, Cardinality.ONE_OR_MORE, "testGroup2", false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[] { Scope.LIVE }
 			),
 			ReferenceSchema._internalBuild(
-				"test3", "test3", false, Cardinality.ONE_OR_MORE, null, false, new Scope[] { Scope.LIVE }, new Scope[] { Scope.LIVE }
+				"test3", "test3", false, Cardinality.ONE_OR_MORE, null, false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[] { Scope.LIVE }
 			),
 		};
 

@@ -32,13 +32,14 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
+import io.evitadb.index.mutation.index.AttributeAndCompoundSchemaProvider;
 import io.evitadb.index.mutation.index.AttributeIndexMutator;
 import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.index.EntitySchemaAttributeAndCompoundSchemaProvider;
 import io.evitadb.index.mutation.index.dataAccess.EntityStoragePartExistingDataFactory;
 import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.store.model.StoragePart;
@@ -60,9 +61,7 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static io.evitadb.index.mutation.index.AttributeIndexMutator.executeAttributeDelta;
 import static io.evitadb.index.mutation.index.AttributeIndexMutator.executeAttributeRemoval;
@@ -85,8 +84,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	private static final String ATTRIBUTE_GLOBAL_CODE = "globalCode";
 	private static final String ATTRIBUTE_VARIANT_COUNT = "variantCount";
 	private static final String ATTRIBUTE_CHAR_ARRAY = "charArray";
-	private Function<String, AttributeSchema> productAttributeSchemaProvider;
-	private Function<String, Stream<SortableAttributeCompoundSchema>> productCompoundSchemaProvider;
+	private AttributeAndCompoundSchemaProvider productAttributeSchemaProvider;
 	private final AtomicInteger priceIdSequence = new AtomicInteger(1);
 
 	private static int findInArray(int[] ids, int id) {
@@ -113,12 +111,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 	@BeforeEach
 	void setUp() {
-		this.productAttributeSchemaProvider = attributeName -> this.productSchema.getAttribute(attributeName)
-			.map(AttributeSchema.class::cast)
-			.orElse(null);
-		this.productCompoundSchemaProvider = attributeKey -> this.productSchema.getSortableAttributeCompoundsForAttribute(attributeKey)
-			.stream()
-			.map(SortableAttributeCompoundSchema.class::cast);
+		this.productAttributeSchemaProvider = new EntitySchemaAttributeAndCompoundSchemaProvider(this.productSchema);
 	}
 
 	@Test
@@ -126,7 +119,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeUpsert(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, new AttributeKey(ATTRIBUTE_CODE), "A",
 			true, true, DO_NOTHING_CONSUMER
@@ -134,7 +126,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeUpsert(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, new AttributeKey(ATTRIBUTE_EAN), "EAN-001",
 			true, true, DO_NOTHING_CONSUMER
@@ -142,16 +133,15 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeUpsert(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, new AttributeKey(ATTRIBUTE_GLOBAL_CODE), "GA",
 			true, true, DO_NOTHING_CONSUMER
 		);
 
-		final AttributeSchema codeSchema = this.productAttributeSchemaProvider.apply(ATTRIBUTE_CODE);
+		final AttributeSchema codeSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_CODE);
 		assertEquals(1, this.productIndex.getUniqueIndex(codeSchema, null).getRecordIdByUniqueValue("A"));
 		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(ATTRIBUTE_EAN, null).getRecordsEqualTo("EAN-001").getArray());
-		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) this.productAttributeSchemaProvider.apply(ATTRIBUTE_GLOBAL_CODE);
+		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_GLOBAL_CODE);
 		final GlobalUniqueIndex globalUniqueIndex = this.catalogIndex.getGlobalUniqueIndex(attributeSchema, null);
 		assertNotNull(globalUniqueIndex);
 		assertEquals(
@@ -161,7 +151,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		final TrappedChanges trappedChanges1 = new TrappedChanges();
 
-		productIndex.getModifiedStorageParts(trappedChanges1);
+		this.productIndex.getModifiedStorageParts(trappedChanges1);
 		assertEquals(6, trappedChanges1.getTrappedChangesCount());
 		assertContainsChangedPart(trappedChanges1, AttributeIndexType.UNIQUE, ATTRIBUTE_CODE);
 		assertContainsChangedPart(trappedChanges1, AttributeIndexType.FILTER, ATTRIBUTE_CODE);
@@ -171,7 +161,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		final TrappedChanges trappedChanges2 = new TrappedChanges();
 
-		catalogIndex.getModifiedStorageParts(trappedChanges2);
+		this.catalogIndex.getModifiedStorageParts(trappedChanges2);
 		assertEquals(2, trappedChanges2.getTrappedChangesCount());
 		assertContainsChangedPart(trappedChanges2, ATTRIBUTE_GLOBAL_CODE);
 	}
@@ -181,7 +171,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeUpsert(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, new AttributeKey(ATTRIBUTE_VARIANT_COUNT), "115",
 			false, true, DO_NOTHING_CONSUMER
@@ -192,7 +181,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		final TrappedChanges trappedChanges = new TrappedChanges();
 
-		productIndex.getModifiedStorageParts(trappedChanges);
+		this.productIndex.getModifiedStorageParts(trappedChanges);
 		assertEquals(3, trappedChanges.getTrappedChangesCount());
 		assertContainsChangedPart(trappedChanges, AttributeIndexType.FILTER, ATTRIBUTE_VARIANT_COUNT);
 		assertContainsChangedPart(trappedChanges, AttributeIndexType.SORT, ATTRIBUTE_VARIANT_COUNT);
@@ -210,7 +199,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeUpsert(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, codeAttributeKey, "B",
 			true, true, DO_NOTHING_CONSUMER
@@ -224,7 +212,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeUpsert(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, eanAttributeKey, "EAN-002",
 			true, true, DO_NOTHING_CONSUMER
@@ -238,7 +225,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeUpsert(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, globalCodeAttributeKey, "GB",
 			true, true, DO_NOTHING_CONSUMER
@@ -252,7 +238,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		assertArrayEquals(new int[0], filterIndex.getRecordsEqualTo("EAN-001").getArray());
 		assertArrayEquals(new int[]{1}, filterIndex.getRecordsEqualTo("EAN-002").getArray());
 
-		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) this.productAttributeSchemaProvider.apply(ATTRIBUTE_GLOBAL_CODE);
+		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_GLOBAL_CODE);
 		final GlobalUniqueIndex globalUniqueIndex = this.catalogIndex.getGlobalUniqueIndex(attributeSchema, null);
 		assertNull(globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null).orElse(null));
 		assertEquals(
@@ -262,7 +248,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		final TrappedChanges trappedChanges1 = new TrappedChanges();
 
-		productIndex.getModifiedStorageParts(trappedChanges1);
+		this.productIndex.getModifiedStorageParts(trappedChanges1);
 		assertEquals(6, trappedChanges1.getTrappedChangesCount());
 		assertContainsChangedPart(trappedChanges1, AttributeIndexType.UNIQUE, ATTRIBUTE_CODE);
 		assertContainsChangedPart(trappedChanges1, AttributeIndexType.FILTER, ATTRIBUTE_CODE);
@@ -272,7 +258,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		final TrappedChanges trappedChanges2 = new TrappedChanges();
 
-		catalogIndex.getModifiedStorageParts(trappedChanges2);
+		this.catalogIndex.getModifiedStorageParts(trappedChanges2);
 		assertEquals(2, trappedChanges2.getTrappedChangesCount());
 		assertContainsChangedPart(trappedChanges2, ATTRIBUTE_GLOBAL_CODE);
 	}
@@ -285,7 +271,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeUpsert(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, charArrayAttr, 'A',
 			false, true, DO_NOTHING_CONSUMER
@@ -298,7 +283,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeUpsert(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, charArrayAttr, new Character[]{'C', 'D'},
 			false, true, DO_NOTHING_CONSUMER
@@ -311,7 +295,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		final TrappedChanges trappedChanges = new TrappedChanges();
 
-		productIndex.getModifiedStorageParts(trappedChanges);
+		this.productIndex.getModifiedStorageParts(trappedChanges);
 		assertEquals(2, trappedChanges.getTrappedChangesCount());
 		assertContainsChangedPart(trappedChanges, AttributeIndexType.FILTER, ATTRIBUTE_CHAR_ARRAY);
 	}
@@ -324,7 +308,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeUpsert(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, charArrayAttr, new Character[]{'A', 'B'},
 			false, true, DO_NOTHING_CONSUMER
@@ -338,7 +321,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeUpsert(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, charArrayAttr, new Character[]{'C', 'D'},
 			false, true, DO_NOTHING_CONSUMER
@@ -352,7 +334,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		final TrappedChanges trappedChanges = new TrappedChanges();
 
-		productIndex.getModifiedStorageParts(trappedChanges);
+		this.productIndex.getModifiedStorageParts(trappedChanges);
 		assertEquals(2, trappedChanges.getTrappedChangesCount());
 		assertContainsChangedPart(trappedChanges, AttributeIndexType.FILTER, ATTRIBUTE_CHAR_ARRAY);
 	}
@@ -385,7 +367,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						UNSUPPORTED_OPERATION
 					),
 					this.productAttributeSchemaProvider,
-					this.productCompoundSchemaProvider,
 					getEntityAttributeValueSupplier(ENTITY_NAME, 2),
 					this.productIndex, attrCode, "A",
 					false, true, DO_NOTHING_CONSUMER
@@ -408,7 +389,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						UNSUPPORTED_OPERATION
 					),
 					this.productAttributeSchemaProvider,
-					this.productCompoundSchemaProvider,
 					getEntityAttributeValueSupplier(ENTITY_NAME, 2),
 					this.productIndex, attrGlobalCode, "GA",
 					false, true, DO_NOTHING_CONSUMER
@@ -435,7 +415,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				UNSUPPORTED_OPERATION
 			),
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 2),
 			this.productIndex, attrCode, "A",
 			true, true, DO_NOTHING_CONSUMER
@@ -453,25 +432,24 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				UNSUPPORTED_OPERATION
 			),
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 2),
 			this.productIndex, attrGlobalCode, "GA",
 			true, true, DO_NOTHING_CONSUMER
 		);
 
-		final AttributeSchema codeSchema = this.productAttributeSchemaProvider.apply(ATTRIBUTE_CODE);
+		final AttributeSchema codeSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_CODE);
 		final UniqueIndex uniqueIndex = this.productIndex.getUniqueIndex(codeSchema, null);
 		assertEquals(2, uniqueIndex.getRecordIdByUniqueValue("A"));
 		assertEquals(1, uniqueIndex.getRecordIdByUniqueValue("B"));
 
-		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) this.productAttributeSchemaProvider.apply(ATTRIBUTE_GLOBAL_CODE);
+		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_GLOBAL_CODE);
 		final GlobalUniqueIndex globalUniqueIndex = this.catalogIndex.getGlobalUniqueIndex(attributeSchema, null);
 		assertEquals(new EntityReference(this.productSchema.getName(), 2), globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null).orElse(null));
 		assertEquals(new EntityReference(this.productSchema.getName(), 1), globalUniqueIndex.getEntityReferenceByUniqueValue("GB", null).orElse(null));
 
 		final TrappedChanges trappedChanges1 = new TrappedChanges();
 
-		productIndex.getModifiedStorageParts(trappedChanges1);
+		this.productIndex.getModifiedStorageParts(trappedChanges1);
 		assertEquals(5, trappedChanges1.getTrappedChangesCount());
 		assertContainsChangedPart(trappedChanges1, AttributeIndexType.UNIQUE, ATTRIBUTE_CODE);
 		assertContainsChangedPart(trappedChanges1, AttributeIndexType.FILTER, ATTRIBUTE_CODE);
@@ -480,7 +458,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		final TrappedChanges trappedChanges2 = new TrappedChanges();
 
-		catalogIndex.getModifiedStorageParts(trappedChanges2);
+		this.catalogIndex.getModifiedStorageParts(trappedChanges2);
 		assertEquals(2, trappedChanges2.getTrappedChangesCount());
 		assertContainsChangedPart(trappedChanges2, ATTRIBUTE_GLOBAL_CODE);
 	}
@@ -500,7 +478,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeRemoval(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, attributeCode,
 			true, true, DO_NOTHING_CONSUMER
@@ -515,26 +492,25 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeRemoval(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, attributeGlobalCode,
 			true, true, DO_NOTHING_CONSUMER
 		);
 
-		final AttributeSchema codeSchema = this.productAttributeSchemaProvider.apply(ATTRIBUTE_CODE);
+		final AttributeSchema codeSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_CODE);
 		assertNull(this.productIndex.getUniqueIndex(codeSchema, null));
 		assertNull(this.productIndex.getFilterIndex(ATTRIBUTE_CODE, null));
-		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) this.productAttributeSchemaProvider.apply(ATTRIBUTE_GLOBAL_CODE);
+		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_GLOBAL_CODE);
 		assertNull(this.catalogIndex.getGlobalUniqueIndex(attributeSchema, null));
 
 		final TrappedChanges trappedChanges1 = new TrappedChanges();
 
-		productIndex.getModifiedStorageParts(trappedChanges1);
+		this.productIndex.getModifiedStorageParts(trappedChanges1);
 		assertEquals(1, trappedChanges1.getTrappedChangesCount());
 
 		final TrappedChanges trappedChanges2 = new TrappedChanges();
 
-		catalogIndex.getModifiedStorageParts(trappedChanges2);
+		this.catalogIndex.getModifiedStorageParts(trappedChanges2);
 		assertEquals(1, trappedChanges2.getTrappedChangesCount());
 	}
 
@@ -546,7 +522,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeUpsert(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, attrVariantCount, 10,
 			false, true, DO_NOTHING_CONSUMER
@@ -562,13 +537,12 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				UNSUPPORTED_OPERATION
 			),
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 2),
 			this.productIndex, attrVariantCount, 9,
 			false, true, DO_NOTHING_CONSUMER
 		);
 
-		final AttributeSchema variantCountSchema = this.productAttributeSchemaProvider.apply(ATTRIBUTE_VARIANT_COUNT);
+		final AttributeSchema variantCountSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_VARIANT_COUNT);
 		assertNull(this.productIndex.getUniqueIndex(variantCountSchema, null));
 		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(ATTRIBUTE_VARIANT_COUNT, null).getRecordsEqualTo(10).getArray());
 		final int position = findInArray(this.productIndex.getSortIndex(ATTRIBUTE_VARIANT_COUNT, null).getAscendingOrderRecordsSupplier().getSortedRecordIds(), 1);
@@ -580,7 +554,6 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		executeAttributeDelta(
 			this.executor,
 			this.productAttributeSchemaProvider,
-			this.productCompoundSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, attrVariantCount, -3, DO_NOTHING_CONSUMER
 		);
@@ -591,7 +564,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		final TrappedChanges trappedChanges = new TrappedChanges();
 
-		productIndex.getModifiedStorageParts(trappedChanges);
+		this.productIndex.getModifiedStorageParts(trappedChanges);
 		assertEquals(3, trappedChanges.getTrappedChangesCount());
 		assertContainsChangedPart(trappedChanges, AttributeIndexType.FILTER, ATTRIBUTE_VARIANT_COUNT);
 		assertContainsChangedPart(trappedChanges, AttributeIndexType.SORT, ATTRIBUTE_VARIANT_COUNT);

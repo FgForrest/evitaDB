@@ -669,7 +669,12 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 								"referencedEntityType": "tag",
 								"referencedEntityTypeManaged": false,
 								"referencedGroupTypeManaged": false,
-								"indexedInScopes": ["LIVE"],
+								"indexedInScopes": [
+									{
+										"scope": "LIVE",
+										"indexType": "FOR_FILTERING"
+									}
+								],
 								"facetedInScopes": ["LIVE"]
 							}
 						}
@@ -723,7 +728,10 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 							.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), null)
 							.e(NameVariantsDescriptor.KEBAB_CASE.name(), null))
 						.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
-						.e(ReferenceSchemaDescriptor.INDEXED.name(), list().i(Scope.LIVE.name()))
+						.e(
+							ReferenceSchemaDescriptor.INDEXED.name(),
+							createReferenceIndexTypeDto(getEntitySchemaFromTestData(evita, ENTITY_EMPTY).getReference("mySpecialTags").orElseThrow())
+						)
 						.e(ReferenceSchemaDescriptor.FACETED.name(), list().i(Scope.LIVE.name()))
 						.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map())
 						.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())

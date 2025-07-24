@@ -40,4 +40,10 @@ public abstract class AbstractRandomAccessInputStream extends InputStream {
 	 */
 	public abstract void seek(final long position);
 
+	/**
+	 * Returns length of the underlying input stream. I.e. last position that can be seeked to plus one.
+	 * @return The length of the underlying input stream.
+	 */
+	public abstract long getLength();
+
 }

@@ -108,7 +108,7 @@ public class ModifyReferenceSchemaDeprecationNoticeMutation
 					referenceSchema.getReferencedGroupType(),
 					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
-					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getReferenceIndexTypeInScopes(),
 					referenceSchema.getFacetedInScopes(),
 					referenceSchema.getAttributes(),
 					referenceSchema.getSortableAttributeCompounds()

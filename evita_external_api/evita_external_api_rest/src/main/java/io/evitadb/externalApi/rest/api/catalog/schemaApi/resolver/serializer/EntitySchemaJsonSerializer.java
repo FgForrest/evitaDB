@@ -237,7 +237,7 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		referenceSchemaNode.put(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), referenceSchema.getReferencedGroupType());
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS.name(), serializeNameVariants(referenceSchema.getGroupTypeNameVariants(entitySchemaFetcher)));
 		referenceSchemaNode.put(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged());
-		referenceSchemaNode.set(ReferenceSchemaDescriptor.INDEXED.name(), serializeFlagInScopes(referenceSchema::isIndexedInScope));
+		referenceSchemaNode.set(ReferenceSchemaDescriptor.INDEXED.name(), serializeReferenceIndexTypes(referenceSchema));
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.FACETED.name(), serializeFlagInScopes(referenceSchema::isFacetedInScope));
 
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(referenceSchema));
@@ -245,4 +245,5 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 
 		return referenceSchemaNode;
 	}
+
 }

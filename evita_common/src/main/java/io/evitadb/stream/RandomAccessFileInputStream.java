@@ -171,6 +171,19 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 	}
 
 	@Override
+	public long getLength() {
+		try {
+			return this.randomAccessFile.length();
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Error while getting the length of the file: " + e.getMessage(),
+				"Error while getting the length of the file.",
+				e
+			);
+		}
+	}
+
+	@Override
 	public long skip(final long skipCount) {
 		if (skipCount <= 0) {
 			return 0;

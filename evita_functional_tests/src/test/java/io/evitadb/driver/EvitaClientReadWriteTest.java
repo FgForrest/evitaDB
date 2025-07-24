@@ -40,6 +40,9 @@ import io.evitadb.api.mock.MockCatalogChangeCaptureSubscriber;
 import io.evitadb.api.mock.MockEngineChangeCaptureSubscriber;
 import io.evitadb.api.mock.ProductInterface;
 import io.evitadb.api.mock.TestEntity;
+import io.evitadb.api.proxy.mock.CategoryInterface;
+import io.evitadb.api.proxy.mock.ProductInterface;
+import io.evitadb.api.proxy.mock.TestEntity;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
@@ -342,8 +345,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 									)
 									.withReferenceToEntity(
 										Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-										whichIs -> whichIs.indexed()
-										                  .withAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.class)
+										whichIs -> whichIs.indexedForFilteringAndPartitioning()
+											.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.class)
 									);
 								session.updateEntitySchema(builder);
 								return builder.toInstance();
@@ -699,55 +702,55 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		@Nonnull String someCatalogName
 	) {
 		evitaClient.defineCatalog(someCatalogName)
-		           .withDescription("This is a tutorial catalog.")
-		           // define category schema
-		           .withEntitySchema(
-			           Entities.CATEGORY,
-			           whichIs -> whichIs.withDescription("A category of products.")
-			                             .withReflectedReferenceToEntity(
-				                             "productsInCategory", Entities.PRODUCT, "productCategory",
-				                             thatIs -> thatIs.withAttributesInheritedExcept("note")
-				                                             .withCardinality(Cardinality.ZERO_OR_MORE)
-				                                             .withAttribute("customNote", String.class)
-			                             )
-			                             .withAttribute(
-				                             "name", String.class,
-				                             thatIs -> thatIs.localized().filterable().sortable()
-			                             )
-			                             .withHierarchy()
-		           )
-		           // define product schema
-		           .withEntitySchema(
-			           Entities.PRODUCT,
-			           whichIs -> whichIs.withDescription("A product in inventory.")
-			                             .withAttribute(
-				                             "name", String.class,
-				                             thatIs -> thatIs.localized().filterable().sortable()
-			                             )
-			                             .withAttribute(
-				                             "cores", Integer.class,
-				                             thatIs -> thatIs.withDescription("Number of CPU cores.")
-				                                             .filterable()
-			                             )
-			                             .withAttribute(
-				                             "graphics", String.class,
-				                             thatIs -> thatIs.withDescription("Graphics card.")
-				                                             .filterable()
-			                             )
-			                             .withPrice()
-			                             .withReferenceToEntity(
-				                             "productCategory", Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-				                             thatIs -> thatIs
-					                             .withDescription("Assigned category.")
-					                             .deprecated("Already deprecated.")
-					                             .withAttribute("categoryPriority", Long.class, that -> that.sortable())
-					                             .withAttribute("note", String.class)
-					                             .indexed()
-					                             .faceted()
-			                             )
-		           )
-		           // and now push all the definitions (mutations) to the server
-		           .updateViaNewSession(evitaClient);
+			.withDescription("This is a tutorial catalog.")
+			// define category schema
+			.withEntitySchema(
+				Entities.CATEGORY,
+				whichIs -> whichIs.withDescription("A category of products.")
+					.withReflectedReferenceToEntity(
+						"productsInCategory", Entities.PRODUCT, "productCategory",
+						thatIs -> thatIs.withAttributesInheritedExcept("note")
+							.withCardinality(Cardinality.ZERO_OR_MORE)
+							.withAttribute("customNote", String.class)
+					)
+					.withAttribute(
+						"name", String.class,
+						thatIs -> thatIs.localized().filterable().sortable()
+					)
+					.withHierarchy()
+			)
+			// define product schema
+			.withEntitySchema(
+				Entities.PRODUCT,
+				whichIs -> whichIs.withDescription("A product in inventory.")
+					.withAttribute(
+						"name", String.class,
+						thatIs -> thatIs.localized().filterable().sortable()
+					)
+					.withAttribute(
+						"cores", Integer.class,
+						thatIs -> thatIs.withDescription("Number of CPU cores.")
+							.filterable()
+					)
+					.withAttribute(
+						"graphics", String.class,
+						thatIs -> thatIs.withDescription("Graphics card.")
+							.filterable()
+					)
+					.withPrice()
+					.withReferenceToEntity(
+						"productCategory", Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
+						thatIs -> thatIs
+							.withDescription("Assigned category.")
+							.deprecated("Already deprecated.")
+							.withAttribute("categoryPriority", Long.class, that -> that.sortable())
+							.withAttribute("note", String.class)
+							.indexedForFilteringAndPartitioning()
+							.faceted()
+					)
+			)
+			// and now push all the definitions (mutations) to the server
+			.updateViaNewSession(evitaClient);
 	}
 
 	@Nonnull
@@ -1024,56 +1027,56 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		final String someCatalogName = "differentCatalog";
 		try {
 			evitaClient.defineCatalog(someCatalogName)
-			           .withDescription("This is a tutorial catalog.")
-			           // define brand schema
-			           .withEntitySchema(
-				           "Brand",
-				           whichIs -> whichIs.withDescription("A manufacturer of products.")
-				                             .withAttribute(
-					                             "name", String.class,
-					                             thatIs -> thatIs.localized().filterable().sortable()
-				                             )
-			           )
-			           // define category schema
-			           .withEntitySchema(
-				           "Category",
-				           whichIs -> whichIs.withDescription("A category of products.")
-				                             .withAttribute(
-					                             "name", String.class,
-					                             thatIs -> thatIs.localized().filterable().sortable()
-				                             )
-				                             .withHierarchy()
-			           )
-			           // define product schema
-			           .withEntitySchema(
-				           "Product",
-				           whichIs -> whichIs.withDescription("A product in inventory.")
-				                             .withAttribute(
-					                             "name", String.class,
-					                             thatIs -> thatIs.localized().filterable().sortable()
-				                             )
-				                             .withAttribute(
-					                             "cores", Integer.class,
-					                             thatIs -> thatIs.withDescription("Number of CPU cores.")
-					                                             .filterable()
-				                             )
-				                             .withAttribute(
-					                             "graphics", String.class,
-					                             thatIs -> thatIs.withDescription("Graphics card.")
-					                                             .filterable()
-				                             )
-				                             .withPrice()
-				                             .withReferenceToEntity(
-					                             "brand", "Brand", Cardinality.EXACTLY_ONE,
-					                             thatIs -> thatIs.indexed()
-				                             )
-				                             .withReferenceToEntity(
-					                             "categories", "Category", Cardinality.ZERO_OR_MORE,
-					                             thatIs -> thatIs.indexed()
-				                             )
-			           )
-			           // and now push all the definitions (mutations) to the server
-			           .updateViaNewSession(evitaClient);
+				.withDescription("This is a tutorial catalog.")
+				// define brand schema
+				.withEntitySchema(
+					"Brand",
+					whichIs -> whichIs.withDescription("A manufacturer of products.")
+						.withAttribute(
+							"name", String.class,
+							thatIs -> thatIs.localized().filterable().sortable()
+						)
+				)
+				// define category schema
+				.withEntitySchema(
+					"Category",
+					whichIs -> whichIs.withDescription("A category of products.")
+						.withAttribute(
+							"name", String.class,
+							thatIs -> thatIs.localized().filterable().sortable()
+						)
+						.withHierarchy()
+				)
+				// define product schema
+				.withEntitySchema(
+					"Product",
+					whichIs -> whichIs.withDescription("A product in inventory.")
+						.withAttribute(
+							"name", String.class,
+							thatIs -> thatIs.localized().filterable().sortable()
+						)
+						.withAttribute(
+							"cores", Integer.class,
+							thatIs -> thatIs.withDescription("Number of CPU cores.")
+								.filterable()
+						)
+						.withAttribute(
+							"graphics", String.class,
+							thatIs -> thatIs.withDescription("Graphics card.")
+								.filterable()
+						)
+						.withPrice()
+						.withReferenceToEntity(
+							"brand", "Brand", Cardinality.EXACTLY_ONE,
+							thatIs -> thatIs.indexedForFilteringAndPartitioning()
+						)
+						.withReferenceToEntity(
+							"categories", "Category", Cardinality.ZERO_OR_MORE,
+							thatIs -> thatIs.indexedForFilteringAndPartitioning()
+						)
+				)
+				// and now push all the definitions (mutations) to the server
+				.updateViaNewSession(evitaClient);
 
 			assertTrue(evitaClient.getCatalogNames().contains(someCatalogName));
 			evitaClient.queryCatalog(
@@ -2337,7 +2340,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		taskStatuses.getData().forEach(task -> assertNotNull(management.getTaskStatus(task.taskId())));
 
 		// list exported files
-		final PaginatedList<FileForFetch> exportedFiles = management.listFilesToFetch(1, numberOfTasks, null);
+		final PaginatedList<FileForFetch> exportedFiles = management.listFilesToFetch(1, numberOfTasks, Set.of());
 		// some task might have finished even if cancelled (if they were cancelled in terminal phase)
 		assertTrue(exportedFiles.getTotalRecordCount() >= backupTasks.size() - cancelled);
 		exportedFiles.getData().forEach(file -> assertTrue(file.totalSizeInBytes() > 0));
@@ -2368,10 +2371,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		             });
 
 		// list them again and there should be none of them
-		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(
-			1, numberOfTasks, null);
-		assertTrue(
-			exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
+		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(1, numberOfTasks, Set.of());
+		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 
 	@Test

@@ -394,7 +394,12 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 											"referencedEntityType": "tag",
 											"referencedEntityTypeManaged": false,
 											"referencedGroupTypeManaged": false,
-											"indexedInScopes": ["LIVE"],
+											"indexedInScopes": [
+												{
+													"scope": "LIVE",
+													"indexType": "FOR_FILTERING"
+												}
+											],
 											"facetedInScopes": ["LIVE"]
 										}
 									}

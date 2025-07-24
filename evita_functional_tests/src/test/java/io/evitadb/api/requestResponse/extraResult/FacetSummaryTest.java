@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,9 @@ import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatist
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.Test;
 
@@ -57,7 +59,11 @@ class FacetSummaryTest {
 	@Nonnull
 	private static FacetSummary createFacetSummary() {
 		final ReferenceSchema parameter = ReferenceSchema._internalBuild(
-			"parameter", "parameter", false, Cardinality.ZERO_OR_MORE, "parameterGroup", false, new Scope[]{Scope.LIVE}, new Scope[]{Scope.LIVE}
+			"parameter",
+			"parameter", false, Cardinality.ZERO_OR_MORE,
+			"parameterGroup", false,
+			new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) },
+			new Scope[]{Scope.LIVE}
 		);
 		return new FacetSummary(
 			Arrays.asList(

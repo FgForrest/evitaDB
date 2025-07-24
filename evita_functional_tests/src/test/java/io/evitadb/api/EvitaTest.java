@@ -36,6 +36,9 @@ import io.evitadb.api.mock.MockCatalogChangeCaptureSubscriber;
 import io.evitadb.api.mock.MockEngineChangeCaptureSubscriber;
 import io.evitadb.api.mock.ProductInterface;
 import io.evitadb.api.mock.ProductParameterInterface;
+import io.evitadb.api.proxy.mock.MockCatalogStructuralChangeObserver;
+import io.evitadb.api.proxy.mock.ProductInterface;
+import io.evitadb.api.proxy.mock.ProductParameterInterface;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -583,12 +586,12 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldFailGracefullyWhenTryingToFilterByNonFilterableReferenceAttribute() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.defineEntitySchema(Entities.PRODUCT)
-			       .withoutGeneratedPrimaryKey()
-			       .withReferenceTo(
-				       Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-				       whichIs -> whichIs.indexed().withAttribute(ATTRIBUTE_NAME, String.class)
-			       )
-			       .updateVia(session);
+				.withoutGeneratedPrimaryKey()
+				.withReferenceTo(
+					Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					whichIs -> whichIs.indexedForFilteringAndPartitioning().withAttribute(ATTRIBUTE_NAME, String.class)
+				)
+				.updateVia(session);
 
 			session.createNewEntity(
 				       Entities.PRODUCT,
@@ -667,12 +670,12 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldFailGracefullyWhenTryingToOrderByNonSortableReferenceAttribute() {
 		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			session.defineEntitySchema(Entities.PRODUCT)
-			       .withoutGeneratedPrimaryKey()
-			       .withReferenceTo(
-				       Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
-				       whichIs -> whichIs.indexed().withAttribute(ATTRIBUTE_NAME, String.class)
-			       )
-			       .updateVia(session);
+				.withoutGeneratedPrimaryKey()
+				.withReferenceTo(
+					Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					whichIs -> whichIs.indexedForFilteringAndPartitioning().withAttribute(ATTRIBUTE_NAME, String.class)
+				)
+				.updateVia(session);
 
 			session.createNewEntity(
 				       Entities.PRODUCT,
@@ -1917,8 +1920,8 @@ class EvitaTest implements EvitaTestSupport {
 							.deprecated("Already deprecated.")
 							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::sortable)
 							.withAttribute("note", String.class)
-							.indexed()
 							.faceted()
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 
@@ -2017,7 +2020,7 @@ class EvitaTest implements EvitaTestSupport {
 							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable().filterable())
 							.withAttribute("note", String.class)
 							.withAttribute("additionalAttribute", String.class)
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 							.nonFaceted()
 					)
 					.updateVia(session);
@@ -2332,7 +2335,7 @@ class EvitaTest implements EvitaTestSupport {
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
 							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.filterable())
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 			}
@@ -2374,8 +2377,8 @@ class EvitaTest implements EvitaTestSupport {
 					.withReferenceTo(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
-							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::unique)
-							.indexed()
+							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.unique())
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 			}
@@ -2417,8 +2420,8 @@ class EvitaTest implements EvitaTestSupport {
 					.withReferenceTo(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
-							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::sortable)
-							.indexed()
+							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 			}
@@ -2465,7 +2468,7 @@ class EvitaTest implements EvitaTestSupport {
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-						ReferenceSchemaEditor::indexed
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 			}
@@ -2510,7 +2513,7 @@ class EvitaTest implements EvitaTestSupport {
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
-						ReferenceSchemaEditor::indexed
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 			}
@@ -2557,7 +2560,7 @@ class EvitaTest implements EvitaTestSupport {
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
 							.withAttribute("categoryPriority", Long.class)
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 			}
@@ -2607,8 +2610,8 @@ class EvitaTest implements EvitaTestSupport {
 					.withReferenceToEntity(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
-							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::filterable)
-							.indexed()
+							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.filterable())
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 			}
@@ -2658,8 +2661,8 @@ class EvitaTest implements EvitaTestSupport {
 					.withReferenceToEntity(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
-							.withAttribute("categoryPriority", Long.class, AttributeSchemaEditor::unique)
-							.indexed()
+							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.unique())
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 			}
@@ -2710,7 +2713,7 @@ class EvitaTest implements EvitaTestSupport {
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 						whichIs -> whichIs
 							.withAttribute("categoryPriority", Long.class, thatIs -> thatIs.sortable())
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 					)
 					.updateVia(session);
 			}
@@ -2882,8 +2885,7 @@ class EvitaTest implements EvitaTestSupport {
 				session
 					.defineEntitySchema(Entities.PRODUCT)
 					.withPrice(2)
-					.withReferenceToEntity(
-						Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, ReferenceSchemaEditor::indexed)
+					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, ReferenceSchemaEditor::indexedForFilteringAndPartitioning)
 					.updateVia(session);
 
 				session.createNewEntity(Entities.CATEGORY, 1).upsertVia(session);
@@ -4373,7 +4375,7 @@ class EvitaTest implements EvitaTestSupport {
 		taskStatuses.getData().forEach(task -> assertNotNull(management.getTaskStatus(task.taskId())));
 
 		// list exported files
-		final PaginatedList<FileForFetch> exportedFiles = management.listFilesToFetch(1, numberOfTasks, null);
+		final PaginatedList<FileForFetch> exportedFiles = management.listFilesToFetch(1, numberOfTasks, Set.of());
 		// some task might have finished even if cancelled (if they were cancelled in terminal phase)
 		assertTrue(exportedFiles.getTotalRecordCount() >= backupTasks.size() - cancelled);
 		exportedFiles.getData().forEach(file -> assertTrue(file.totalSizeInBytes() > 0));
@@ -4404,10 +4406,8 @@ class EvitaTest implements EvitaTestSupport {
 		             });
 
 		// list them again and there should be none of them
-		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(
-			1, numberOfTasks, null);
-		assertTrue(
-			exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
+		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(1, numberOfTasks, Set.of());
+		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 
 	/**

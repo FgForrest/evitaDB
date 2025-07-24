@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.At
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
@@ -110,7 +111,12 @@ public final class ReflectedReferenceSchemaBuilder
 					entityType,
 					reflectedReferenceName,
 					this.baseSchema.isIndexedInherited() ?
-						null : Arrays.stream(Scope.values()).filter(this.baseSchema::isIndexedInScope).toArray(Scope[]::new),
+						null :
+						this.baseSchema.getReferenceIndexTypeInScopes()
+							.entrySet()
+							.stream()
+							.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+							.toArray(ScopedReferenceIndexType[]::new),
 					this.baseSchema.isFacetedInherited() ?
 						null : Arrays.stream(Scope.values()).filter(this.baseSchema::isFacetedInScope).toArray(Scope[]::new),
 					this.baseSchema.getAttributesInheritanceBehavior(),
@@ -352,9 +358,12 @@ public final class ReflectedReferenceSchemaBuilder
 		);
 
 		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
-		final Scope[] newScopes = getIndexedInScopes().stream()
-			.filter(it -> !excludedScopes.contains(it))
-			.toArray(Scope[]::new);
+		final ScopedReferenceIndexType[] newScopes = getReferenceIndexTypeInScopes()
+			.entrySet()
+			.stream()
+			.filter(it -> !excludedScopes.contains(it.getKey()))
+			.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+			.toArray(ScopedReferenceIndexType[]::new);
 
 		Assert.isTrue(
 			newScopes.length > 0,
@@ -441,6 +450,40 @@ public final class ReflectedReferenceSchemaBuilder
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetReferenceSchemaFacetedMutation(getName(), newScopes)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder indexedForFilteringInScope(@Nonnull Scope... inScope) {
+		final ScopedReferenceIndexType[] scopedIndexTypes = Arrays.stream(inScope)
+			.map(scope -> new ScopedReferenceIndexType(scope, ReferenceIndexType.FOR_FILTERING))
+			.toArray(ScopedReferenceIndexType[]::new);
+
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaIndexedMutation(getName(), scopedIndexTypes)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder indexedForFilteringAndPartitioningInScope(@Nonnull Scope... inScope) {
+		final ScopedReferenceIndexType[] scopedIndexTypes = Arrays.stream(inScope)
+			.map(scope -> new ScopedReferenceIndexType(scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING))
+			.toArray(ScopedReferenceIndexType[]::new);
+
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaIndexedMutation(getName(), scopedIndexTypes)
 			)
 		);
 		return this;

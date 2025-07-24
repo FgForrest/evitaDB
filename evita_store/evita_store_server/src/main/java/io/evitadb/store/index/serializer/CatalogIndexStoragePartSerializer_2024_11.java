@@ -43,7 +43,7 @@ import java.util.Set;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated
+@Deprecated(since = "2024.11", forRemoval = true)
 @RequiredArgsConstructor
 public class CatalogIndexStoragePartSerializer_2024_11 extends Serializer<CatalogIndexStoragePart> {
 	private final KeyCompressor keyCompressor;

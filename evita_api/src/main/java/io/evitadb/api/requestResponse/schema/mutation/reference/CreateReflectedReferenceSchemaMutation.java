@@ -75,14 +75,14 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = -2419676866574635677L;
+	@Serial private static final long serialVersionUID = -3833868605223655352L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nullable private final Cardinality cardinality;
 	@Getter @Nonnull private final String referencedEntityType;
 	@Getter @Nonnull private final String reflectedReferenceName;
-	@Getter @Nullable private final Scope[] indexedInScopes;
+	@Getter @Nullable private final ScopedReferenceIndexType[] indexedInScopes;
 	@Getter @Nullable private final Scope[] facetedInScopes;
 	@Getter @Nonnull private final AttributeInheritanceBehavior attributeInheritanceBehavior;
 	@Getter @Nonnull private final String[] attributeInheritanceFilter;
@@ -128,7 +128,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		@Nullable Cardinality cardinality,
 		@Nonnull String referencedEntityType,
 		@Nonnull String reflectedReferenceName,
-		@Nullable Scope[] indexedInScopes,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
 		@Nullable Scope[] facetedInScopes,
 		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter

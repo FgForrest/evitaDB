@@ -23,45 +23,45 @@
             }
           },
           {
-            "primaryKey" : 103885,
+            "primaryKey" : 107891,
             "attributes" : {
-              "code" : "alcatel-3t-10-2020"
+              "code" : "amazfit-bip-3"
             }
           },
           {
-            "primaryKey" : 103911,
+            "primaryKey" : 107899,
             "attributes" : {
-              "code" : "apple-ipad-10-2-10th-generation-2022"
+              "code" : "amazfit-bip-3-pro"
             }
           },
           {
-            "primaryKey" : 103988,
+            "primaryKey" : 107911,
             "attributes" : {
-              "code" : "apple-ipad-10-2-9th-generation-2021"
+              "code" : "amazfit-bip-s"
             }
           },
           {
-            "primaryKey" : 104008,
+            "primaryKey" : 107923,
             "attributes" : {
-              "code" : "apple-ipad-air-5g-5th-generation-2022"
+              "code" : "amazfit-bip-s-lite"
             }
           },
           {
-            "primaryKey" : 104084,
+            "primaryKey" : 107933,
             "attributes" : {
-              "code" : "apple-ipad-mini-6th-generation-2021"
+              "code" : "amazfit-bip-u"
             }
           },
           {
-            "primaryKey" : 104171,
+            "primaryKey" : 107938,
             "attributes" : {
-              "code" : "apple-ipad-pro-11-4th-generation-2022"
+              "code" : "amazfit-bip-u-pro"
             }
           },
           {
-            "primaryKey" : 104227,
+            "primaryKey" : 107952,
             "attributes" : {
-              "code" : "apple-ipad-pro-12-9-6th-generation-2022"
+              "code" : "amazfit-falcon"
             }
           }
         ]

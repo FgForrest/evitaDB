@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,6 +66,7 @@ private static final long serialVersionUID = 0L;
     attributeInheritanceFilter_ = com.google.protobuf.LazyStringArrayList.EMPTY;
     indexedInScopes_ = java.util.Collections.emptyList();
     facetedInScopes_ = java.util.Collections.emptyList();
+    scopedIndexTypes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -338,6 +339,15 @@ private static final long serialVersionUID = 0L;
             input.popLimit(oldLimit);
             break;
           }
+          case 226: {
+            if (!((mutable_bitField0_ & 0x00000100) != 0)) {
+              scopedIndexTypes_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType>();
+              mutable_bitField0_ |= 0x00000100;
+            }
+            scopedIndexTypes_.add(
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.parser(), extensionRegistry));
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -370,6 +380,9 @@ private static final long serialVersionUID = 0L;
       }
       if (((mutable_bitField0_ & 0x00000080) != 0)) {
         facetedInScopes_ = java.util.Collections.unmodifiableList(facetedInScopes_);
+      }
+      if (((mutable_bitField0_ & 0x00000100) != 0)) {
+        scopedIndexTypes_ = java.util.Collections.unmodifiableList(scopedIndexTypes_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -419,7 +432,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       name_ = s;
@@ -440,7 +453,7 @@ private static final long serialVersionUID = 0L;
       getNameBytes() {
     java.lang.Object ref = name_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       name_ = b;
@@ -587,7 +600,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       entityType_ = s;
@@ -608,7 +621,7 @@ private static final long serialVersionUID = 0L;
       getEntityTypeBytes() {
     java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       entityType_ = b;
@@ -744,7 +757,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSchema_AttributesEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSchema_AttributesEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -869,7 +882,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSchema_SortableAttributeCompoundsEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceSchema_SortableAttributeCompoundsEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -981,7 +994,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getNameVariantOrBuilderList() {
     return nameVariant_;
   }
@@ -1041,7 +1054,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getEntityTypeNameVariantOrBuilderList() {
     return entityTypeNameVariant_;
   }
@@ -1101,7 +1114,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getGroupTypeNameVariantOrBuilderList() {
     return groupTypeNameVariant_;
   }
@@ -1392,13 +1405,15 @@ private static final long serialVersionUID = 0L;
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
    * fetched.
+   * deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+   * @deprecated
    * @return A list containing the indexedInScopes.
    */
   @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
+  @java.lang.Deprecated public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
     return new com.google.protobuf.Internal.ListAdapter<
         java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(indexedInScopes_, indexedInScopes_converter_);
   }
@@ -1411,13 +1426,15 @@ private static final long serialVersionUID = 0L;
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
    * fetched.
+   * deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+   * @deprecated
    * @return The count of indexedInScopes.
    */
   @java.lang.Override
-  public int getIndexedInScopesCount() {
+  @java.lang.Deprecated public int getIndexedInScopesCount() {
     return indexedInScopes_.size();
   }
   /**
@@ -1429,14 +1446,16 @@ private static final long serialVersionUID = 0L;
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
    * fetched.
+   * deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+   * @deprecated
    * @param index The index of the element to return.
    * @return The indexedInScopes at the given index.
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index) {
+  @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index) {
     return indexedInScopes_converter_.convert(indexedInScopes_.get(index));
   }
   /**
@@ -1448,13 +1467,15 @@ private static final long serialVersionUID = 0L;
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
    * fetched.
+   * deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+   * @deprecated
    * @return A list containing the enum numeric values on the wire for indexedInScopes.
    */
   @java.lang.Override
-  public java.util.List<java.lang.Integer>
+  @java.lang.Deprecated public java.util.List<java.lang.Integer>
   getIndexedInScopesValueList() {
     return indexedInScopes_;
   }
@@ -1467,14 +1488,16 @@ private static final long serialVersionUID = 0L;
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
    * fetched.
+   * deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+   * @deprecated
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of indexedInScopes at the given index.
    */
   @java.lang.Override
-  public int getIndexedInScopesValue(int index) {
+  @java.lang.Deprecated public int getIndexedInScopesValue(int index) {
     return indexedInScopes_.get(index);
   }
   private int indexedInScopesMemoizedSerializedSize;
@@ -1581,6 +1604,71 @@ private static final long serialVersionUID = 0L;
     return facetedInScopes_.get(index);
   }
   private int facetedInScopesMemoizedSerializedSize;
+
+  public static final int SCOPEDINDEXTYPES_FIELD_NUMBER = 28;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType> scopedIndexTypes_;
+  /**
+   * <pre>
+   * Scoped reference index types that define both the scope and the type of index for the reference.
+   * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType> getScopedIndexTypesList() {
+    return scopedIndexTypes_;
+  }
+  /**
+   * <pre>
+   * Scoped reference index types that define both the scope and the type of index for the reference.
+   * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder>
+      getScopedIndexTypesOrBuilderList() {
+    return scopedIndexTypes_;
+  }
+  /**
+   * <pre>
+   * Scoped reference index types that define both the scope and the type of index for the reference.
+   * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+   */
+  @java.lang.Override
+  public int getScopedIndexTypesCount() {
+    return scopedIndexTypes_.size();
+  }
+  /**
+   * <pre>
+   * Scoped reference index types that define both the scope and the type of index for the reference.
+   * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType getScopedIndexTypes(int index) {
+    return scopedIndexTypes_.get(index);
+  }
+  /**
+   * <pre>
+   * Scoped reference index types that define both the scope and the type of index for the reference.
+   * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder getScopedIndexTypesOrBuilder(
+      int index) {
+    return scopedIndexTypes_.get(index);
+  }
 
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
@@ -1691,6 +1779,9 @@ private static final long serialVersionUID = 0L;
     }
     for (int i = 0; i < facetedInScopes_.size(); i++) {
       output.writeEnumNoTag(facetedInScopes_.get(i));
+    }
+    for (int i = 0; i < scopedIndexTypes_.size(); i++) {
+      output.writeMessage(28, scopedIndexTypes_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -1839,6 +1930,10 @@ private static final long serialVersionUID = 0L;
           .computeUInt32SizeNoTag(dataSize);
       }facetedInScopesMemoizedSerializedSize = dataSize;
     }
+    for (int i = 0; i < scopedIndexTypes_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(28, scopedIndexTypes_.get(i));
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1916,6 +2011,8 @@ private static final long serialVersionUID = 0L;
         != other.getIndexedInherited()) return false;
     if (!indexedInScopes_.equals(other.indexedInScopes_)) return false;
     if (!facetedInScopes_.equals(other.facetedInScopes_)) return false;
+    if (!getScopedIndexTypesList()
+        .equals(other.getScopedIndexTypesList())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -2015,6 +2112,10 @@ private static final long serialVersionUID = 0L;
     if (getFacetedInScopesCount() > 0) {
       hash = (37 * hash) + FACETEDINSCOPES_FIELD_NUMBER;
       hash = (53 * hash) + facetedInScopes_.hashCode();
+    }
+    if (getScopedIndexTypesCount() > 0) {
+      hash = (37 * hash) + SCOPEDINDEXTYPES_FIELD_NUMBER;
+      hash = (53 * hash) + getScopedIndexTypesList().hashCode();
     }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
@@ -2190,6 +2291,7 @@ private static final long serialVersionUID = 0L;
         getNameVariantFieldBuilder();
         getEntityTypeNameVariantFieldBuilder();
         getGroupTypeNameVariantFieldBuilder();
+        getScopedIndexTypesFieldBuilder();
       }
     }
     @java.lang.Override
@@ -2275,6 +2377,12 @@ private static final long serialVersionUID = 0L;
       bitField0_ = (bitField0_ & ~0x00000040);
       facetedInScopes_ = java.util.Collections.emptyList();
       bitField0_ = (bitField0_ & ~0x00000080);
+      if (scopedIndexTypesBuilder_ == null) {
+        scopedIndexTypes_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000100);
+      } else {
+        scopedIndexTypesBuilder_.clear();
+      }
       return this;
     }
 
@@ -2383,6 +2491,15 @@ private static final long serialVersionUID = 0L;
         bitField0_ = (bitField0_ & ~0x00000080);
       }
       result.facetedInScopes_ = facetedInScopes_;
+      if (scopedIndexTypesBuilder_ == null) {
+        if (((bitField0_ & 0x00000100) != 0)) {
+          scopedIndexTypes_ = java.util.Collections.unmodifiableList(scopedIndexTypes_);
+          bitField0_ = (bitField0_ & ~0x00000100);
+        }
+        result.scopedIndexTypes_ = scopedIndexTypes_;
+      } else {
+        result.scopedIndexTypes_ = scopedIndexTypesBuilder_.build();
+      }
       onBuilt();
       return result;
     }
@@ -2485,7 +2602,7 @@ private static final long serialVersionUID = 0L;
             nameVariantBuilder_ = null;
             nameVariant_ = other.nameVariant_;
             bitField0_ = (bitField0_ & ~0x00000004);
-            nameVariantBuilder_ = 
+            nameVariantBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getNameVariantFieldBuilder() : null;
           } else {
@@ -2511,7 +2628,7 @@ private static final long serialVersionUID = 0L;
             entityTypeNameVariantBuilder_ = null;
             entityTypeNameVariant_ = other.entityTypeNameVariant_;
             bitField0_ = (bitField0_ & ~0x00000008);
-            entityTypeNameVariantBuilder_ = 
+            entityTypeNameVariantBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getEntityTypeNameVariantFieldBuilder() : null;
           } else {
@@ -2537,7 +2654,7 @@ private static final long serialVersionUID = 0L;
             groupTypeNameVariantBuilder_ = null;
             groupTypeNameVariant_ = other.groupTypeNameVariant_;
             bitField0_ = (bitField0_ & ~0x00000010);
-            groupTypeNameVariantBuilder_ = 
+            groupTypeNameVariantBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getGroupTypeNameVariantFieldBuilder() : null;
           } else {
@@ -2601,6 +2718,32 @@ private static final long serialVersionUID = 0L;
           facetedInScopes_.addAll(other.facetedInScopes_);
         }
         onChanged();
+      }
+      if (scopedIndexTypesBuilder_ == null) {
+        if (!other.scopedIndexTypes_.isEmpty()) {
+          if (scopedIndexTypes_.isEmpty()) {
+            scopedIndexTypes_ = other.scopedIndexTypes_;
+            bitField0_ = (bitField0_ & ~0x00000100);
+          } else {
+            ensureScopedIndexTypesIsMutable();
+            scopedIndexTypes_.addAll(other.scopedIndexTypes_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.scopedIndexTypes_.isEmpty()) {
+          if (scopedIndexTypesBuilder_.isEmpty()) {
+            scopedIndexTypesBuilder_.dispose();
+            scopedIndexTypesBuilder_ = null;
+            scopedIndexTypes_ = other.scopedIndexTypes_;
+            bitField0_ = (bitField0_ & ~0x00000100);
+            scopedIndexTypesBuilder_ =
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getScopedIndexTypesFieldBuilder() : null;
+          } else {
+            scopedIndexTypesBuilder_.addAllMessages(other.scopedIndexTypes_);
+          }
+        }
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -2667,7 +2810,7 @@ private static final long serialVersionUID = 0L;
         getNameBytes() {
       java.lang.Object ref = name_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         name_ = b;
@@ -2691,7 +2834,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       name_ = value;
       onChanged();
       return this;
@@ -2706,7 +2849,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearName() {
-      
+
       name_ = getDefaultInstance().getName();
       onChanged();
       return this;
@@ -2727,7 +2870,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       name_ = value;
       onChanged();
       return this;
@@ -2855,7 +2998,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
-      
+
       onChanged();
       return getDescriptionFieldBuilder().getBuilder();
     }
@@ -2884,7 +3027,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDescriptionFieldBuilder() {
       if (descriptionBuilder_ == null) {
         descriptionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3026,7 +3169,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
-      
+
       onChanged();
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
@@ -3057,7 +3200,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDeprecationNoticeFieldBuilder() {
       if (deprecationNoticeBuilder_ == null) {
         deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3100,7 +3243,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCardinalityValue(int value) {
-      
+
       cardinality_ = value;
       onChanged();
       return this;
@@ -3140,7 +3283,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       cardinality_ = value.getNumber();
       onChanged();
       return this;
@@ -3158,7 +3301,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCardinality() {
-      
+
       cardinality_ = 0;
       onChanged();
       return this;
@@ -3199,7 +3342,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeBytes() {
       java.lang.Object ref = entityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         entityType_ = b;
@@ -3223,7 +3366,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       entityType_ = value;
       onChanged();
       return this;
@@ -3238,7 +3381,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityType() {
-      
+
       entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
@@ -3259,7 +3402,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       entityType_ = value;
       onChanged();
       return this;
@@ -3292,7 +3435,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder setEntityTypeRelatesToEntity(boolean value) {
-      
+
       entityTypeRelatesToEntity_ = value;
       onChanged();
       return this;
@@ -3308,7 +3451,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearEntityTypeRelatesToEntity() {
-      
+
       entityTypeRelatesToEntity_ = false;
       onChanged();
       return this;
@@ -3436,7 +3579,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue groupType = 7;</code>
      */
     public com.google.protobuf.StringValue.Builder getGroupTypeBuilder() {
-      
+
       onChanged();
       return getGroupTypeFieldBuilder().getBuilder();
     }
@@ -3465,7 +3608,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue groupType = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getGroupTypeFieldBuilder() {
       if (groupTypeBuilder_ == null) {
         groupTypeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3505,7 +3648,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder setGroupTypeRelatesToEntity(boolean value) {
-      
+
       groupTypeRelatesToEntity_ = value;
       onChanged();
       return this;
@@ -3521,7 +3664,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearGroupTypeRelatesToEntity() {
-      
+
       groupTypeRelatesToEntity_ = false;
       onChanged();
       return this;
@@ -3566,7 +3709,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder setIndexed(boolean value) {
-      
+
       indexed_ = value;
       onChanged();
       return this;
@@ -3588,7 +3731,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearIndexed() {
-      
+
       indexed_ = false;
       onChanged();
       return this;
@@ -3631,7 +3774,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder setFaceted(boolean value) {
-      
+
       faceted_ = value;
       onChanged();
       return this;
@@ -3652,7 +3795,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearFaceted() {
-      
+
       faceted_ = false;
       onChanged();
       return this;
@@ -4280,7 +4423,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
          getNameVariantOrBuilderList() {
       if (nameVariantBuilder_ != null) {
         return nameVariantBuilder_.getMessageOrBuilderList();
@@ -4318,12 +4461,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder>
          getNameVariantBuilderList() {
       return getNameVariantFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
         getNameVariantFieldBuilder() {
       if (nameVariantBuilder_ == null) {
         nameVariantBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -4592,7 +4735,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
          getEntityTypeNameVariantOrBuilderList() {
       if (entityTypeNameVariantBuilder_ != null) {
         return entityTypeNameVariantBuilder_.getMessageOrBuilderList();
@@ -4630,12 +4773,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder>
          getEntityTypeNameVariantBuilderList() {
       return getEntityTypeNameVariantFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
         getEntityTypeNameVariantFieldBuilder() {
       if (entityTypeNameVariantBuilder_ == null) {
         entityTypeNameVariantBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -4904,7 +5047,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
          getGroupTypeNameVariantOrBuilderList() {
       if (groupTypeNameVariantBuilder_ != null) {
         return groupTypeNameVariantBuilder_.getMessageOrBuilderList();
@@ -4942,12 +5085,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder>
          getGroupTypeNameVariantBuilderList() {
       return getGroupTypeNameVariantFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcNameVariant, io.evitadb.externalApi.grpc.generated.GrpcNameVariant.Builder, io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
         getGroupTypeNameVariantFieldBuilder() {
       if (groupTypeNameVariantBuilder_ == null) {
         groupTypeNameVariantBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -4984,7 +5127,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setReferencedEntityTypeManaged(boolean value) {
-      
+
       referencedEntityTypeManaged_ = value;
       onChanged();
       return this;
@@ -4998,7 +5141,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReferencedEntityTypeManaged() {
-      
+
       referencedEntityTypeManaged_ = false;
       onChanged();
       return this;
@@ -5027,7 +5170,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setReferencedGroupTypeManaged(boolean value) {
-      
+
       referencedGroupTypeManaged_ = value;
       onChanged();
       return this;
@@ -5041,7 +5184,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReferencedGroupTypeManaged() {
-      
+
       referencedGroupTypeManaged_ = false;
       onChanged();
       return this;
@@ -5176,7 +5319,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
      */
     public com.google.protobuf.StringValue.Builder getReflectedReferenceNameBuilder() {
-      
+
       onChanged();
       return getReflectedReferenceNameFieldBuilder().getBuilder();
     }
@@ -5207,7 +5350,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue reflectedReferenceName = 18;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getReflectedReferenceNameFieldBuilder() {
       if (reflectedReferenceNameBuilder_ == null) {
         reflectedReferenceNameBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -5243,7 +5386,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setDescriptionInherited(boolean value) {
-      
+
       descriptionInherited_ = value;
       onChanged();
       return this;
@@ -5257,7 +5400,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearDescriptionInherited() {
-      
+
       descriptionInherited_ = false;
       onChanged();
       return this;
@@ -5286,7 +5429,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setDeprecationNoticeInherited(boolean value) {
-      
+
       deprecationNoticeInherited_ = value;
       onChanged();
       return this;
@@ -5300,7 +5443,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearDeprecationNoticeInherited() {
-      
+
       deprecationNoticeInherited_ = false;
       onChanged();
       return this;
@@ -5329,7 +5472,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCardinalityInherited(boolean value) {
-      
+
       cardinalityInherited_ = value;
       onChanged();
       return this;
@@ -5343,7 +5486,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCardinalityInherited() {
-      
+
       cardinalityInherited_ = false;
       onChanged();
       return this;
@@ -5372,7 +5515,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setFacetedInherited(boolean value) {
-      
+
       facetedInherited_ = value;
       onChanged();
       return this;
@@ -5386,7 +5529,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearFacetedInherited() {
-      
+
       facetedInherited_ = false;
       onChanged();
       return this;
@@ -5414,7 +5557,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setAttributeInheritanceBehaviorValue(int value) {
-      
+
       attributeInheritanceBehavior_ = value;
       onChanged();
       return this;
@@ -5446,7 +5589,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       attributeInheritanceBehavior_ = value.getNumber();
       onChanged();
       return this;
@@ -5460,7 +5603,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearAttributeInheritanceBehavior() {
-      
+
       attributeInheritanceBehavior_ = 0;
       onChanged();
       return this;
@@ -5644,7 +5787,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setIndexedInherited(boolean value) {
-      
+
       indexedInherited_ = value;
       onChanged();
       return this;
@@ -5658,7 +5801,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIndexedInherited() {
-      
+
       indexedInherited_ = false;
       onChanged();
       return this;
@@ -5681,12 +5824,14 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
      * fetched.
+     * deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+     * @deprecated
      * @return A list containing the indexedInScopes.
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
+    @java.lang.Deprecated public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
       return new com.google.protobuf.Internal.ListAdapter<
           java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityScope>(indexedInScopes_, indexedInScopes_converter_);
     }
@@ -5699,12 +5844,14 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
      * fetched.
+     * deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+     * @deprecated
      * @return The count of indexedInScopes.
      */
-    public int getIndexedInScopesCount() {
+    @java.lang.Deprecated public int getIndexedInScopesCount() {
       return indexedInScopes_.size();
     }
     /**
@@ -5716,13 +5863,15 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
      * fetched.
+     * deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+     * @deprecated
      * @param index The index of the element to return.
      * @return The indexedInScopes at the given index.
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index) {
+    @java.lang.Deprecated public io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index) {
       return indexedInScopes_converter_.convert(indexedInScopes_.get(index));
     }
     /**
@@ -5734,14 +5883,16 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
      * fetched.
+     * deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+     * @deprecated
      * @param index The index to set the value at.
      * @param value The indexedInScopes to set.
      * @return This builder for chaining.
      */
-    public Builder setIndexedInScopes(
+    @java.lang.Deprecated public Builder setIndexedInScopes(
         int index, io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
       if (value == null) {
         throw new NullPointerException();
@@ -5760,13 +5911,15 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
      * fetched.
+     * deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+     * @deprecated
      * @param value The indexedInScopes to add.
      * @return This builder for chaining.
      */
-    public Builder addIndexedInScopes(io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
+    @java.lang.Deprecated public Builder addIndexedInScopes(io.evitadb.externalApi.grpc.generated.GrpcEntityScope value) {
       if (value == null) {
         throw new NullPointerException();
       }
@@ -5784,13 +5937,15 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
      * fetched.
+     * deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+     * @deprecated
      * @param values The indexedInScopes to add.
      * @return This builder for chaining.
      */
-    public Builder addAllIndexedInScopes(
+    @java.lang.Deprecated public Builder addAllIndexedInScopes(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityScope> values) {
       ensureIndexedInScopesIsMutable();
       for (io.evitadb.externalApi.grpc.generated.GrpcEntityScope value : values) {
@@ -5808,12 +5963,14 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
      * fetched.
+     * deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+     * @deprecated
      * @return This builder for chaining.
      */
-    public Builder clearIndexedInScopes() {
+    @java.lang.Deprecated public Builder clearIndexedInScopes() {
       indexedInScopes_ = java.util.Collections.emptyList();
       bitField0_ = (bitField0_ & ~0x00000040);
       onChanged();
@@ -5828,12 +5985,14 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
      * fetched.
+     * deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+     * @deprecated
      * @return A list containing the enum numeric values on the wire for indexedInScopes.
      */
-    public java.util.List<java.lang.Integer>
+    @java.lang.Deprecated public java.util.List<java.lang.Integer>
     getIndexedInScopesValueList() {
       return java.util.Collections.unmodifiableList(indexedInScopes_);
     }
@@ -5846,13 +6005,15 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
      * fetched.
+     * deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+     * @deprecated
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of indexedInScopes at the given index.
      */
-    public int getIndexedInScopesValue(int index) {
+    @java.lang.Deprecated public int getIndexedInScopesValue(int index) {
       return indexedInScopes_.get(index);
     }
     /**
@@ -5864,14 +6025,16 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
      * fetched.
+     * deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+     * @deprecated
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of indexedInScopes at the given index.
      * @return This builder for chaining.
      */
-    public Builder setIndexedInScopesValue(
+    @java.lang.Deprecated public Builder setIndexedInScopesValue(
         int index, int value) {
       ensureIndexedInScopesIsMutable();
       indexedInScopes_.set(index, value);
@@ -5887,13 +6050,15 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
      * fetched.
+     * deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+     * @deprecated
      * @param value The enum numeric value on the wire for indexedInScopes to add.
      * @return This builder for chaining.
      */
-    public Builder addIndexedInScopesValue(int value) {
+    @java.lang.Deprecated public Builder addIndexedInScopesValue(int value) {
       ensureIndexedInScopesIsMutable();
       indexedInScopes_.add(value);
       onChanged();
@@ -5908,13 +6073,15 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
      * fetched.
+     * deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+     * @deprecated
      * @param values The enum numeric values on the wire for indexedInScopes to add.
      * @return This builder for chaining.
      */
-    public Builder addAllIndexedInScopesValue(
+    @java.lang.Deprecated public Builder addAllIndexedInScopesValue(
         java.lang.Iterable<java.lang.Integer> values) {
       ensureIndexedInScopesIsMutable();
       for (int value : values) {
@@ -6170,6 +6337,336 @@ private static final long serialVersionUID = 0L;
       }
       onChanged();
       return this;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType> scopedIndexTypes_ =
+      java.util.Collections.emptyList();
+    private void ensureScopedIndexTypesIsMutable() {
+      if (!((bitField0_ & 0x00000100) != 0)) {
+        scopedIndexTypes_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType>(scopedIndexTypes_);
+        bitField0_ |= 0x00000100;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder> scopedIndexTypesBuilder_;
+
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType> getScopedIndexTypesList() {
+      if (scopedIndexTypesBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(scopedIndexTypes_);
+      } else {
+        return scopedIndexTypesBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public int getScopedIndexTypesCount() {
+      if (scopedIndexTypesBuilder_ == null) {
+        return scopedIndexTypes_.size();
+      } else {
+        return scopedIndexTypesBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType getScopedIndexTypes(int index) {
+      if (scopedIndexTypesBuilder_ == null) {
+        return scopedIndexTypes_.get(index);
+      } else {
+        return scopedIndexTypesBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public Builder setScopedIndexTypes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType value) {
+      if (scopedIndexTypesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureScopedIndexTypesIsMutable();
+        scopedIndexTypes_.set(index, value);
+        onChanged();
+      } else {
+        scopedIndexTypesBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public Builder setScopedIndexTypes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.Builder builderForValue) {
+      if (scopedIndexTypesBuilder_ == null) {
+        ensureScopedIndexTypesIsMutable();
+        scopedIndexTypes_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        scopedIndexTypesBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public Builder addScopedIndexTypes(io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType value) {
+      if (scopedIndexTypesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureScopedIndexTypesIsMutable();
+        scopedIndexTypes_.add(value);
+        onChanged();
+      } else {
+        scopedIndexTypesBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public Builder addScopedIndexTypes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType value) {
+      if (scopedIndexTypesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureScopedIndexTypesIsMutable();
+        scopedIndexTypes_.add(index, value);
+        onChanged();
+      } else {
+        scopedIndexTypesBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public Builder addScopedIndexTypes(
+        io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.Builder builderForValue) {
+      if (scopedIndexTypesBuilder_ == null) {
+        ensureScopedIndexTypesIsMutable();
+        scopedIndexTypes_.add(builderForValue.build());
+        onChanged();
+      } else {
+        scopedIndexTypesBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public Builder addScopedIndexTypes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.Builder builderForValue) {
+      if (scopedIndexTypesBuilder_ == null) {
+        ensureScopedIndexTypesIsMutable();
+        scopedIndexTypes_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        scopedIndexTypesBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public Builder addAllScopedIndexTypes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType> values) {
+      if (scopedIndexTypesBuilder_ == null) {
+        ensureScopedIndexTypesIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, scopedIndexTypes_);
+        onChanged();
+      } else {
+        scopedIndexTypesBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public Builder clearScopedIndexTypes() {
+      if (scopedIndexTypesBuilder_ == null) {
+        scopedIndexTypes_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000100);
+        onChanged();
+      } else {
+        scopedIndexTypesBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public Builder removeScopedIndexTypes(int index) {
+      if (scopedIndexTypesBuilder_ == null) {
+        ensureScopedIndexTypesIsMutable();
+        scopedIndexTypes_.remove(index);
+        onChanged();
+      } else {
+        scopedIndexTypesBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.Builder getScopedIndexTypesBuilder(
+        int index) {
+      return getScopedIndexTypesFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder getScopedIndexTypesOrBuilder(
+        int index) {
+      if (scopedIndexTypesBuilder_ == null) {
+        return scopedIndexTypes_.get(index);  } else {
+        return scopedIndexTypesBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder>
+         getScopedIndexTypesOrBuilderList() {
+      if (scopedIndexTypesBuilder_ != null) {
+        return scopedIndexTypesBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(scopedIndexTypes_);
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.Builder addScopedIndexTypesBuilder() {
+      return getScopedIndexTypesFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.Builder addScopedIndexTypesBuilder(
+        int index) {
+      return getScopedIndexTypesFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Scoped reference index types that define both the scope and the type of index for the reference.
+     * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.Builder>
+         getScopedIndexTypesBuilderList() {
+      return getScopedIndexTypesFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder>
+        getScopedIndexTypesFieldBuilder() {
+      if (scopedIndexTypesBuilder_ == null) {
+        scopedIndexTypesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder>(
+                scopedIndexTypes_,
+                ((bitField0_ & 0x00000100) != 0),
+                getParentForChildren(),
+                isClean());
+        scopedIndexTypes_ = null;
+      }
+      return scopedIndexTypesBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

@@ -133,7 +133,7 @@ public class SetReferenceSchemaFacetedMutation
 					referenceSchema.getReferencedGroupType(),
 					referenceSchema.isReferencedGroupTypeManaged() ? Collections.emptyMap() : referenceSchema.getGroupTypeNameVariants(s -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
-					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getReferenceIndexTypeInScopes(),
 					facetedScopes,
 					referenceSchema.getAttributes(),
 					referenceSchema.getSortableAttributeCompounds()

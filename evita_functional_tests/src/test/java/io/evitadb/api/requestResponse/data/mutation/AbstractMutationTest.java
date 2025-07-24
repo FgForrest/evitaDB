@@ -33,7 +33,9 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
@@ -68,7 +70,10 @@ public abstract class AbstractMutationTest {
 				"brand", false,
 				Cardinality.ZERO_OR_ONE,
 				null, false,
-				new Scope[] {Scope.LIVE}, new Scope[] {Scope.LIVE}
+				new ScopedReferenceIndexType[] {
+					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+				},
+				new Scope[] {Scope.LIVE}
 			)
 		),
 		EnumSet.allOf(EvolutionMode.class),

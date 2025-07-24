@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.index.price;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.price.model.PriceIndexKey;
 import lombok.AccessLevel;
@@ -65,12 +66,32 @@ public class VoidPriceIndex implements PriceIndexContract {
 	}
 
 	@Override
-	public int addPrice(int entityPrimaryKey, int internalPriceId, @Nonnull PriceKey priceKey, @Nonnull PriceInnerRecordHandling innerRecordHandling, @Nullable Integer innerRecordId, @Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax) {
+	public int addPrice(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		int entityPrimaryKey,
+		int internalPriceId,
+		@Nonnull PriceKey priceKey,
+		@Nonnull PriceInnerRecordHandling innerRecordHandling,
+		@Nullable Integer innerRecordId,
+		@Nullable DateTimeRange validity,
+		int priceWithoutTax,
+		int priceWithTax
+	) {
 		throw new UnsupportedOperationException();
 	}
 
 	@Override
-	public void priceRemove(int entityPrimaryKey, int internalPriceId, @Nonnull PriceKey priceKey, @Nonnull PriceInnerRecordHandling innerRecordHandling, @Nullable Integer innerRecordId, @Nullable DateTimeRange validity, int priceWithoutTax, int priceWithTax) {
+	public void priceRemove(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		int entityPrimaryKey,
+		int internalPriceId,
+		@Nonnull PriceKey priceKey,
+		@Nonnull PriceInnerRecordHandling innerRecordHandling,
+		@Nullable Integer innerRecordId,
+		@Nullable DateTimeRange validity,
+		int priceWithoutTax,
+		int priceWithTax
+	) {
 		throw new UnsupportedOperationException();
 	}
 

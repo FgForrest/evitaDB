@@ -232,7 +232,7 @@ public class RemoveAttributeSchemaMutation implements
 					referenceSchema.getReferencedGroupType(),
 					referenceSchema.getGroupTypeNameVariants(entityType -> null),
 					referenceSchema.isReferencedGroupTypeManaged(),
-					referenceSchema.getIndexedInScopes(),
+					referenceSchema.getReferenceIndexTypeInScopes(),
 					referenceSchema.getFacetedInScopes(),
 					referenceSchema.getAttributes().values()
 						.stream()

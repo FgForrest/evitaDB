@@ -737,7 +737,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @return the catalog bootstrap record
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated
+	@Deprecated(since = "2025.1", forRemoval = true)
 	@Nonnull
 	private static CatalogBootstrap deserializeOldCatalogBootstrapRecord(
 		long fromPosition, @Nonnull ReadOnlyFileHandle readHandle) {
@@ -966,7 +966,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @param bootstrapFilePath       path to the bootstrap file
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated
+	@Deprecated(since = "2025.1", forRemoval = true)
 	private static void upgradeCatalogFiles(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions bootstrapStorageOptions,
@@ -3134,7 +3134,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @param storagePartPersistenceService the storage part persistence service
 	 * @deprecated introduced with ##41 and could be removed later when no version prior to 2024.11 is used
 	 */
-	@Deprecated
+	@Deprecated(since = "2025.1", forRemoval = true)
 	private void upgradeFromStorageProtocolVersion_1_to_2(
 		@Nonnull CatalogHeader catalogHeader,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService

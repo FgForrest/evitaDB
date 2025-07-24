@@ -23,11 +23,13 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaIndexedMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,8 +68,14 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 		final SetReferenceSchemaIndexedMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-				.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
-					.i(Scope.LIVE))
+				.e(
+					SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(),
+					list().i(
+						map()
+							.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
+					)
+				)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -75,8 +83,13 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 		final SetReferenceSchemaIndexedMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-				.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
-					.i(Scope.LIVE.name()))
+				.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(),
+					list().i(
+						map()
+							.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
+					)
+				)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);

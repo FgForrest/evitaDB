@@ -70,6 +70,11 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 	}
 
 	@Override
+	public long getLength() {
+		return getWrittenBytes();
+	}
+
+	@Override
 	public int read() throws IOException {
 		if (available() > 0) {
 			return (int) this.buffer.get();

@@ -322,11 +322,17 @@ public abstract class EntityIndex implements
 	public boolean removeLanguage(@Nonnull Locale locale, int recordId) {
 		final TransactionalBitmap recordIdsWithLanguage = this.entityIdsByLanguage.get(locale);
 		final boolean removed = recordIdsWithLanguage != null && recordIdsWithLanguage.remove(recordId);
+
 		Assert.isTrue(
-			removed,
+			!isRequireLocaleRemoval() || removed,
 			"Entity `" + recordId + "` has unexpectedly not indexed localized data for language `" + locale + "`!"
 		);
-		if (recordIdsWithLanguage.isEmpty()) {
+
+		if (removed) {
+			this.dirty.setToTrue();
+		}
+
+		if (recordIdsWithLanguage != null && recordIdsWithLanguage.isEmpty()) {
 			this.entityIdsByLanguage.remove(locale);
 			this.dirty.setToTrue();
 			// remove the changes container - the bitmap got removed entirely
@@ -475,14 +481,22 @@ public abstract class EntityIndex implements
 		return "EntityIndex (" + StringUtils.uncapitalize(getIndexKey().toString()) + ")";
 	}
 
-	/*
-		PRIVATE METHODS
+	/**
+	 * Returns true if the index requires removal of the locale from the entityIdsByLanguage map.
+	 * @return true if locale removal is required, false otherwise
 	 */
+	protected boolean isRequireLocaleRemoval() {
+		return true;
+	}
 
 	/**
-	 * Returns the set of referenced entities in the facet index.
+	 * Method returns a stream of AttributeIndexStorageKey objects.
+	 * The stream includes AttributeIndexStorageKeys of different types (UNIQUE, FILTER, SORT, CHAIN)
+	 * created from attribute indexes of the attributeIndex object.
 	 *
-	 * @return the set of referenced entities in the facet index
+	 * The method can be overriden by descendants to provide a different stream of AttributeIndexStorageKey objects.
+	 *
+	 * @return a stream of AttributeIndexStorageKey objects.
 	 */
 	@Nonnull
 	private Set<String> getFacetIndexReferencedEntities() {
@@ -502,6 +516,16 @@ public abstract class EntityIndex implements
 			.stream()
 			.map(PriceListAndCurrencyPriceIndex::getPriceIndexKey)
 			.collect(Collectors.toSet());
+	}
+
+	/**
+	 * Returns the set of referenced entities in the facet index.
+	 *
+	 * @return the set of referenced entities in the facet index
+	 */
+	@Nonnull
+	private Set<String> getFacetIndexReferencedEntities() {
+		return this.facetIndex.getReferencedEntities();
 	}
 
 	/**

@@ -399,7 +399,8 @@ message GrpcReferenceSchema {
   // Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
   // the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
   // fetched.
-  repeated GrpcEntityScope indexedInScopes = 26;
+  // deprecated in favor of `scopedIndexTypes`
+  repeated GrpcEntityScope indexedInScopes = 26 [deprecated = true];
   // Contains `true` if the statistics data for this reference should be maintained and this allowing to get
   // `facetStatistics` for this reference or use `facet_{reference name}_inSet`
   // filtering constraint.
@@ -409,6 +410,9 @@ message GrpcReferenceSchema {
   //
   // Reference that was marked as faceted is called Facet.
   repeated GrpcEntityScope facetedInScopes = 27;
+  // Scoped reference index types that define both the scope and the type of index for the reference.
+  // This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+  repeated GrpcScopedReferenceIndexType scopedIndexTypes = 28;
 }
 
 // Sortable attribute compounds are used to sort entities or references by multiple attributes at once. evitaDB

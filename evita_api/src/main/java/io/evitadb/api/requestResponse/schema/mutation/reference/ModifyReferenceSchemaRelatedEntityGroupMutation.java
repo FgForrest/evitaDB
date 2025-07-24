@@ -109,7 +109,7 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 				this.referencedGroupTypeManaged || this.referencedGroupType == null ?
 					Collections.emptyMap() : NamingConvention.generate(this.referencedGroupType),
 				this.referencedGroupTypeManaged,
-				referenceSchema.getIndexedInScopes(),
+				referenceSchema.getReferenceIndexTypeInScopes(),
 				referenceSchema.getFacetedInScopes(),
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds()

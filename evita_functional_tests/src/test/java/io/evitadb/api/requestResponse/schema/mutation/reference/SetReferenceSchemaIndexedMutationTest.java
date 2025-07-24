@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,9 +28,9 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
-import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -49,9 +49,18 @@ public class SetReferenceSchemaIndexedMutationTest {
 	@Test
 	void shouldOverrideIndexedFlagOfPreviousMutationIfNamesMatch() {
 		SetReferenceSchemaIndexedMutation mutation = new SetReferenceSchemaIndexedMutation(
-			REFERENCE_NAME, Scope.NO_SCOPE
+			REFERENCE_NAME,
+			new ScopedReferenceIndexType[] {
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.NONE),
+				new ScopedReferenceIndexType(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING)
+			}
 		);
-		SetReferenceSchemaIndexedMutation existingMutation = new SetReferenceSchemaIndexedMutation(REFERENCE_NAME, true);
+		SetReferenceSchemaIndexedMutation existingMutation = new SetReferenceSchemaIndexedMutation(
+			REFERENCE_NAME,
+			new ScopedReferenceIndexType[] {
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+			}
+		);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.getReference(REFERENCE_NAME)).thenReturn(of(createExistingReferenceSchema()));
 		final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
@@ -59,7 +68,13 @@ public class SetReferenceSchemaIndexedMutationTest {
 		assertNull(result.origin());
 		assertNotNull(result.current());
 		assertInstanceOf(SetReferenceSchemaIndexedMutation.class, result.current()[0]);
-		assertTrue(ArrayUtils.isEmpty(((SetReferenceSchemaIndexedMutation) result.current()[0]).getIndexedInScopes()));
+		assertArrayEquals(
+			new ScopedReferenceIndexType[] {
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.NONE),
+				new ScopedReferenceIndexType(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING)
+			},
+			((SetReferenceSchemaIndexedMutation) result.current()[0]).getIndexedInScopes()
+		);
 	}
 
 	@Test

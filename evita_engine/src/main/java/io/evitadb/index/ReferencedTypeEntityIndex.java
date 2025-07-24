@@ -26,6 +26,7 @@ package io.evitadb.index;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.buffer.TrappedChanges;
@@ -168,8 +169,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		(method, state) -> null,
 		(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 			final EntityIndexKey theIndexKey = proxy.getIndexKey();
+			final Serializable discriminator = Objects.requireNonNull(theIndexKey.discriminator());
 			throw new ReferenceNotIndexedException(
-				(String) theIndexKey.discriminator(),
+				(String) discriminator,
 				proxyState.getEntitySchema(),
 				theIndexKey.scope()
 			);
@@ -214,50 +216,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		return ByteBuddyProxyGenerator.instantiate(
 			new ByteBuddyDispatcherInvocationHandler<>(
 				new ReferencedTypeEntityIndexProxyStateThrowing(entitySchema),
-				// objects method must pass through
-				OBJECT_METHODS_IMPLEMENTATION,
-				// index id will be provided as 0, because this id cannot be generated for the index
-				GET_ID_IMPLEMENTATION,
-				// index key is known and will be used in additional code
-				GET_INDEX_KEY_IMPLEMENTATION,
-				// this is used to retrieve superset of primary keys in missing index - let's return empty bitmap
-				GET_ALL_PRIMARY_KEYS_IMPLEMENTATION,
-				// this is used to retrieve superset of primary keys in missing index - let's return empty formula
-				GET_ALL_PRIMARY_KEYS_FORMULA_IMPLEMENTATION,
-				// for all other methods we will throw the exception that the reference is not indexed
-				THROW_REFERENCE_NOT_FOUND_IMPLEMENTATION
-			),
-			new Class<?>[]{
-				ReferencedTypeEntityIndex.class
-			},
-			new Class<?>[]{
-				int.class,
-				String.class,
-				EntityIndexKey.class
-			},
-			new Object[]{
-				-1, entitySchema.getName(), entityIndexKey
-			}
-		);
-	}
-
-	/**
-	 * Creates a proxy instance of {@link ReferencedTypeEntityIndex} that throws a {@link ReferenceNotIndexedException}
-	 * for any methods not explicitly handled within the proxy.
-	 *
-	 * @param entitySchema The schema contract for the entity associated with the index.
-	 * @param entityIndexKey The key for the entity index.
-	 * @return A proxy instance of {@link ReferencedTypeEntityIndex} that conditionally throws exceptions.
-	 */
-	@Nonnull
-	public static ReferencedTypeEntityIndex createThrowingStub(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull EntityIndexKey entityIndexKey,
-		@Nonnull int[] superSetOfPrimaryKeys
-	) {
-		return ByteBuddyProxyGenerator.instantiate(
-			new ByteBuddyDispatcherInvocationHandler<>(
-				new ReferencedTypeEntityIndexProxyStateWithSuperSet(entitySchema, superSetOfPrimaryKeys),
 				// objects method must pass through
 				OBJECT_METHODS_IMPLEMENTATION,
 				// index id will be provided as 0, because this id cannot be generated for the index
@@ -454,13 +412,14 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	}
 
 	/**
-	 * This method delegates call to {@link EntityIndex#insertFilterAttribute(AttributeSchemaContract, Set, Locale, Serializable, int)}
+	 * This method delegates call to {@link EntityIndex#insertFilterAttribute(ReferenceSchemaContract, AttributeSchemaContract, Set, Locale, Serializable, int)}
 	 * but tracks the cardinality of the referenced primary key in {@link #cardinalityIndexes}.
 	 */
 	@Override
 	public void insertFilterAttribute(
-		AttributeSchemaContract attributeSchema,
-		Set<Locale> allowedLocales,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		Serializable value,
 		int recordId
@@ -487,23 +446,26 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			if (onlyNewItemsValueArrayIndex > 0) {
 				final Serializable[] delta = Arrays.copyOfRange(onlyNewItemsValueArray, 0, onlyNewItemsValueArrayIndex);
 				super.addDeltaFilterAttribute(
-					attributeSchema, allowedLocales, locale,
-					delta,
-					recordId
+					referenceSchema, attributeSchema, allowedLocales, locale,
+					delta, recordId
 				);
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality was zero
 			if (theCardinalityIndex.addRecord(value, recordId)) {
-				super.insertFilterAttribute(attributeSchema, allowedLocales, locale, value, recordId);
+				super.insertFilterAttribute(
+					referenceSchema, attributeSchema, allowedLocales, locale,
+					value, recordId
+				);
 			}
 		}
 	}
 
 	@Override
 	public void removeFilterAttribute(
-		AttributeSchemaContract attributeSchema,
-		Set<Locale> allowedLocales,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		Serializable value,
 		int recordId
@@ -528,15 +490,17 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			if (onlyRemovedItemsValueArrayIndex > 0) {
 				final Serializable[] delta = Arrays.copyOfRange(onlyRemovedItemsValueArray, 0, onlyRemovedItemsValueArrayIndex);
 				super.removeDeltaFilterAttribute(
-					attributeSchema, allowedLocales, locale,
-					delta,
-					recordId
+					referenceSchema, attributeSchema, allowedLocales, locale,
+					delta, recordId
 				);
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality reaches zero
 			if (theCardinalityIndex.removeRecord(value, recordId)) {
-				super.removeFilterAttribute(attributeSchema, allowedLocales, locale, value, recordId);
+				super.removeFilterAttribute(
+					referenceSchema, attributeSchema, allowedLocales, locale,
+					value, recordId
+				);
 			}
 		}
 
@@ -549,8 +513,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Override
 	public void insertSortAttribute(
-		AttributeSchemaContract attributeSchema,
-		Set<Locale> allowedLocales,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		Serializable value,
 		int recordId
@@ -561,8 +526,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Override
 	public void removeSortAttribute(
-		AttributeSchemaContract attributeSchema,
-		Set<Locale> allowedLocales,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		Serializable value,
 		int recordId
@@ -573,8 +539,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Override
 	public void insertSortAttributeCompound(
-		SortableAttributeCompoundSchemaContract compoundSchemaContract,
-		Function<String, Class<?>> attributeTypeProvider,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		@Nonnull Function<String, Class<?>> attributeTypeProvider,
 		@Nullable Locale locale,
 		Serializable[] value,
 		int recordId
@@ -585,7 +552,8 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Override
 	public void removeSortAttributeCompound(
-		SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
 		Serializable[] value,
 		int recordId

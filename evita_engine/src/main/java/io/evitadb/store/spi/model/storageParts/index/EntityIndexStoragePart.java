@@ -68,7 +68,7 @@ public class EntityIndexStoragePart implements StoragePart {
 	 */
 	@Getter private final int version;
 	/**
-	 * Type of the index.
+	 * Unique business key that identifies the entity index.
 	 */
 	@Getter private final EntityIndexKey entityIndexKey;
 	/**

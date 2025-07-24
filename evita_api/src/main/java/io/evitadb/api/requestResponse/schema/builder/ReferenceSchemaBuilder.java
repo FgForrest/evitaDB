@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
@@ -99,7 +100,7 @@ public final class ReferenceSchemaBuilder
 			ReferenceSchema._internalBuild(
 				name, entityType, referencedEntityTypeManaged, cardinality,
 				null, false,
-				Scope.NO_SCOPE, Scope.NO_SCOPE
+				ScopedReferenceIndexType.EMPTY, Scope.NO_SCOPE
 			) :
 			existingSchema;
 		if (createNew) {
@@ -113,7 +114,11 @@ public final class ReferenceSchemaBuilder
 					referencedEntityTypeManaged,
 					this.baseSchema.getReferencedGroupType(),
 					this.baseSchema.isReferencedGroupTypeManaged(),
-					Arrays.stream(Scope.values()).filter(this.baseSchema::isIndexedInScope).toArray(Scope[]::new),
+					this.baseSchema.getReferenceIndexTypeInScopes()
+						.entrySet()
+						.stream()
+						.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+						.toArray(ScopedReferenceIndexType[]::new),
 					Arrays.stream(Scope.values()).filter(this.baseSchema::isFacetedInScope).toArray(Scope[]::new)
 				)
 			);
@@ -247,10 +252,12 @@ public final class ReferenceSchemaBuilder
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetReferenceSchemaIndexedMutation(
 					getName(),
-					Arrays.stream(Scope.values())
-						.filter(this::isIndexedInScope)
-						.filter(it -> !excludedScopes.contains(it))
-						.toArray(Scope[]::new)
+					this.getReferenceIndexTypeInScopes()
+						.entrySet()
+						.stream()
+						.filter(it -> !excludedScopes.contains(it.getKey()))
+						.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+						.toArray(ScopedReferenceIndexType[]::new)
 				)
 			)
 		);
@@ -304,6 +311,40 @@ public final class ReferenceSchemaBuilder
 						.filter(it -> !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
 				)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceSchemaBuilder indexedForFilteringInScope(@Nonnull Scope... inScope) {
+		final ScopedReferenceIndexType[] scopedIndexTypes = Arrays.stream(inScope)
+			.map(scope -> new ScopedReferenceIndexType(scope, ReferenceIndexType.FOR_FILTERING))
+			.toArray(ScopedReferenceIndexType[]::new);
+
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaIndexedMutation(getName(), scopedIndexTypes)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceSchemaBuilder indexedForFilteringAndPartitioningInScope(@Nonnull Scope... inScope) {
+		final ScopedReferenceIndexType[] scopedIndexTypes = Arrays.stream(inScope)
+			.map(scope -> new ScopedReferenceIndexType(scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING))
+			.toArray(ScopedReferenceIndexType[]::new);
+
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaIndexedMutation(getName(), scopedIndexTypes)
 			)
 		);
 		return this;
