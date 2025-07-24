@@ -493,6 +493,18 @@ public class EntitySchemaConverter {
 			.setGroupTypeRelatesToEntity(referenceSchema.isReferencedGroupTypeManaged())
 			.setReferencedGroupTypeManaged(referenceSchema.isReferencedGroupTypeManaged())
 			.addAllIndexedInScopes(Arrays.stream(Scope.values()).filter(referenceSchema::isIndexedInScope).map(EvitaEnumConverter::toGrpcScope).toList())
+			.addAllScopedIndexTypes(
+				referenceSchema.getReferenceIndexTypeInScopes()
+					.entrySet()
+					.stream()
+					.map(
+						it -> GrpcScopedReferenceIndexType.newBuilder()
+							.setScope(toGrpcScope(it.getKey()))
+							.setIndexType(toGrpcReferenceIndexType(it.getValue()))
+							.build()
+					)
+					.toList()
+			)
 			.setIndexed(referenceSchema.isIndexed())
 			.addAllFacetedInScopes(Arrays.stream(Scope.values()).filter(referenceSchema::isFacetedInScope).map(EvitaEnumConverter::toGrpcScope).toList())
 			.setFaceted(referenceSchema.isFaceted());

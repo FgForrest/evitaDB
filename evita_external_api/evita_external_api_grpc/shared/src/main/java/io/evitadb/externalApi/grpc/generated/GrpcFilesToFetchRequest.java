@@ -43,6 +43,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcFilesToFetchRequest() {
+    origin_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -65,6 +66,7 @@ private static final long serialVersionUID = 0L;
     if (extensionRegistry == null) {
       throw new java.lang.NullPointerException();
     }
+    int mutable_bitField0_ = 0;
     com.google.protobuf.UnknownFieldSet.Builder unknownFields =
         com.google.protobuf.UnknownFieldSet.newBuilder();
     try {
@@ -86,16 +88,12 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 26: {
-            com.google.protobuf.StringValue.Builder subBuilder = null;
-            if (origin_ != null) {
-              subBuilder = origin_.toBuilder();
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              origin_ = new java.util.ArrayList<com.google.protobuf.StringValue>();
+              mutable_bitField0_ |= 0x00000001;
             }
-            origin_ = input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry);
-            if (subBuilder != null) {
-              subBuilder.mergeFrom(origin_);
-              origin_ = subBuilder.buildPartial();
-            }
-
+            origin_.add(
+                input.readMessage(com.google.protobuf.StringValue.parser(), extensionRegistry));
             break;
           }
           default: {
@@ -113,6 +111,9 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
+      if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        origin_ = java.util.Collections.unmodifiableList(origin_);
+      }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
     }
@@ -161,19 +162,18 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int ORIGIN_FIELD_NUMBER = 3;
-  private com.google.protobuf.StringValue origin_;
+  private java.util.List<com.google.protobuf.StringValue> origin_;
   /**
    * <pre>
    * Optional origin of the files (derived from taskType), passing non-null value
    * in this argument filters the returned files to only those that are related to the specified origin
    * </pre>
    *
-   * <code>.google.protobuf.StringValue origin = 3;</code>
-   * @return Whether the origin field is set.
+   * <code>repeated .google.protobuf.StringValue origin = 3;</code>
    */
   @java.lang.Override
-  public boolean hasOrigin() {
-    return origin_ != null;
+  public java.util.List<com.google.protobuf.StringValue> getOriginList() {
+    return origin_;
   }
   /**
    * <pre>
@@ -181,12 +181,12 @@ private static final long serialVersionUID = 0L;
    * in this argument filters the returned files to only those that are related to the specified origin
    * </pre>
    *
-   * <code>.google.protobuf.StringValue origin = 3;</code>
-   * @return The origin.
+   * <code>repeated .google.protobuf.StringValue origin = 3;</code>
    */
   @java.lang.Override
-  public com.google.protobuf.StringValue getOrigin() {
-    return origin_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : origin_;
+  public java.util.List<? extends com.google.protobuf.StringValueOrBuilder> 
+      getOriginOrBuilderList() {
+    return origin_;
   }
   /**
    * <pre>
@@ -194,11 +194,36 @@ private static final long serialVersionUID = 0L;
    * in this argument filters the returned files to only those that are related to the specified origin
    * </pre>
    *
-   * <code>.google.protobuf.StringValue origin = 3;</code>
+   * <code>repeated .google.protobuf.StringValue origin = 3;</code>
    */
   @java.lang.Override
-  public com.google.protobuf.StringValueOrBuilder getOriginOrBuilder() {
-    return getOrigin();
+  public int getOriginCount() {
+    return origin_.size();
+  }
+  /**
+   * <pre>
+   * Optional origin of the files (derived from taskType), passing non-null value
+   * in this argument filters the returned files to only those that are related to the specified origin
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue origin = 3;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValue getOrigin(int index) {
+    return origin_.get(index);
+  }
+  /**
+   * <pre>
+   * Optional origin of the files (derived from taskType), passing non-null value
+   * in this argument filters the returned files to only those that are related to the specified origin
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue origin = 3;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValueOrBuilder getOriginOrBuilder(
+      int index) {
+    return origin_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
@@ -221,8 +246,8 @@ private static final long serialVersionUID = 0L;
     if (pageSize_ != 0) {
       output.writeInt32(2, pageSize_);
     }
-    if (origin_ != null) {
-      output.writeMessage(3, getOrigin());
+    for (int i = 0; i < origin_.size(); i++) {
+      output.writeMessage(3, origin_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -241,9 +266,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(2, pageSize_);
     }
-    if (origin_ != null) {
+    for (int i = 0; i < origin_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(3, getOrigin());
+        .computeMessageSize(3, origin_.get(i));
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -264,11 +289,8 @@ private static final long serialVersionUID = 0L;
         != other.getPageNumber()) return false;
     if (getPageSize()
         != other.getPageSize()) return false;
-    if (hasOrigin() != other.hasOrigin()) return false;
-    if (hasOrigin()) {
-      if (!getOrigin()
-          .equals(other.getOrigin())) return false;
-    }
+    if (!getOriginList()
+        .equals(other.getOriginList())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -284,9 +306,9 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getPageNumber();
     hash = (37 * hash) + PAGESIZE_FIELD_NUMBER;
     hash = (53 * hash) + getPageSize();
-    if (hasOrigin()) {
+    if (getOriginCount() > 0) {
       hash = (37 * hash) + ORIGIN_FIELD_NUMBER;
-      hash = (53 * hash) + getOrigin().hashCode();
+      hash = (53 * hash) + getOriginList().hashCode();
     }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
@@ -420,6 +442,7 @@ private static final long serialVersionUID = 0L;
     private void maybeForceBuilderInitialization() {
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
+        getOriginFieldBuilder();
       }
     }
     @java.lang.Override
@@ -430,10 +453,10 @@ private static final long serialVersionUID = 0L;
       pageSize_ = 0;
 
       if (originBuilder_ == null) {
-        origin_ = null;
+        origin_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
       } else {
-        origin_ = null;
-        originBuilder_ = null;
+        originBuilder_.clear();
       }
       return this;
     }
@@ -461,9 +484,14 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest result = new io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest(this);
+      int from_bitField0_ = bitField0_;
       result.pageNumber_ = pageNumber_;
       result.pageSize_ = pageSize_;
       if (originBuilder_ == null) {
+        if (((bitField0_ & 0x00000001) != 0)) {
+          origin_ = java.util.Collections.unmodifiableList(origin_);
+          bitField0_ = (bitField0_ & ~0x00000001);
+        }
         result.origin_ = origin_;
       } else {
         result.origin_ = originBuilder_.build();
@@ -522,8 +550,31 @@ private static final long serialVersionUID = 0L;
       if (other.getPageSize() != 0) {
         setPageSize(other.getPageSize());
       }
-      if (other.hasOrigin()) {
-        mergeOrigin(other.getOrigin());
+      if (originBuilder_ == null) {
+        if (!other.origin_.isEmpty()) {
+          if (origin_.isEmpty()) {
+            origin_ = other.origin_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+          } else {
+            ensureOriginIsMutable();
+            origin_.addAll(other.origin_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.origin_.isEmpty()) {
+          if (originBuilder_.isEmpty()) {
+            originBuilder_.dispose();
+            originBuilder_ = null;
+            origin_ = other.origin_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+            originBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getOriginFieldBuilder() : null;
+          } else {
+            originBuilder_.addAllMessages(other.origin_);
+          }
+        }
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -553,6 +604,7 @@ private static final long serialVersionUID = 0L;
       }
       return this;
     }
+    private int bitField0_;
 
     private int pageNumber_ ;
     /**
@@ -640,35 +692,31 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private com.google.protobuf.StringValue origin_;
-    private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> originBuilder_;
-    /**
-     * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
-     * </pre>
-     *
-     * <code>.google.protobuf.StringValue origin = 3;</code>
-     * @return Whether the origin field is set.
-     */
-    public boolean hasOrigin() {
-      return originBuilder_ != null || origin_ != null;
+    private java.util.List<com.google.protobuf.StringValue> origin_ =
+      java.util.Collections.emptyList();
+    private void ensureOriginIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        origin_ = new java.util.ArrayList<com.google.protobuf.StringValue>(origin_);
+        bitField0_ |= 0x00000001;
+       }
     }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> originBuilder_;
+
     /**
      * <pre>
      * Optional origin of the files (derived from taskType), passing non-null value
      * in this argument filters the returned files to only those that are related to the specified origin
      * </pre>
      *
-     * <code>.google.protobuf.StringValue origin = 3;</code>
-     * @return The origin.
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
      */
-    public com.google.protobuf.StringValue getOrigin() {
+    public java.util.List<com.google.protobuf.StringValue> getOriginList() {
       if (originBuilder_ == null) {
-        return origin_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : origin_;
+        return java.util.Collections.unmodifiableList(origin_);
       } else {
-        return originBuilder_.getMessage();
+        return originBuilder_.getMessageList();
       }
     }
     /**
@@ -677,19 +725,50 @@ private static final long serialVersionUID = 0L;
      * in this argument filters the returned files to only those that are related to the specified origin
      * </pre>
      *
-     * <code>.google.protobuf.StringValue origin = 3;</code>
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
      */
-    public Builder setOrigin(com.google.protobuf.StringValue value) {
+    public int getOriginCount() {
+      if (originBuilder_ == null) {
+        return origin_.size();
+      } else {
+        return originBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Optional origin of the files (derived from taskType), passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified origin
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
+     */
+    public com.google.protobuf.StringValue getOrigin(int index) {
+      if (originBuilder_ == null) {
+        return origin_.get(index);
+      } else {
+        return originBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Optional origin of the files (derived from taskType), passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified origin
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
+     */
+    public Builder setOrigin(
+        int index, com.google.protobuf.StringValue value) {
       if (originBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        origin_ = value;
+        ensureOriginIsMutable();
+        origin_.set(index, value);
         onChanged();
       } else {
-        originBuilder_.setMessage(value);
+        originBuilder_.setMessage(index, value);
       }
-
       return this;
     }
     /**
@@ -698,17 +777,79 @@ private static final long serialVersionUID = 0L;
      * in this argument filters the returned files to only those that are related to the specified origin
      * </pre>
      *
-     * <code>.google.protobuf.StringValue origin = 3;</code>
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
      */
     public Builder setOrigin(
+        int index, com.google.protobuf.StringValue.Builder builderForValue) {
+      if (originBuilder_ == null) {
+        ensureOriginIsMutable();
+        origin_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        originBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional origin of the files (derived from taskType), passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified origin
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
+     */
+    public Builder addOrigin(com.google.protobuf.StringValue value) {
+      if (originBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureOriginIsMutable();
+        origin_.add(value);
+        onChanged();
+      } else {
+        originBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional origin of the files (derived from taskType), passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified origin
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
+     */
+    public Builder addOrigin(
+        int index, com.google.protobuf.StringValue value) {
+      if (originBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureOriginIsMutable();
+        origin_.add(index, value);
+        onChanged();
+      } else {
+        originBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional origin of the files (derived from taskType), passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified origin
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
+     */
+    public Builder addOrigin(
         com.google.protobuf.StringValue.Builder builderForValue) {
       if (originBuilder_ == null) {
-        origin_ = builderForValue.build();
+        ensureOriginIsMutable();
+        origin_.add(builderForValue.build());
         onChanged();
       } else {
-        originBuilder_.setMessage(builderForValue.build());
+        originBuilder_.addMessage(builderForValue.build());
       }
-
       return this;
     }
     /**
@@ -717,21 +858,17 @@ private static final long serialVersionUID = 0L;
      * in this argument filters the returned files to only those that are related to the specified origin
      * </pre>
      *
-     * <code>.google.protobuf.StringValue origin = 3;</code>
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
      */
-    public Builder mergeOrigin(com.google.protobuf.StringValue value) {
+    public Builder addOrigin(
+        int index, com.google.protobuf.StringValue.Builder builderForValue) {
       if (originBuilder_ == null) {
-        if (origin_ != null) {
-          origin_ =
-            com.google.protobuf.StringValue.newBuilder(origin_).mergeFrom(value).buildPartial();
-        } else {
-          origin_ = value;
-        }
+        ensureOriginIsMutable();
+        origin_.add(index, builderForValue.build());
         onChanged();
       } else {
-        originBuilder_.mergeFrom(value);
+        originBuilder_.addMessage(index, builderForValue.build());
       }
-
       return this;
     }
     /**
@@ -740,17 +877,36 @@ private static final long serialVersionUID = 0L;
      * in this argument filters the returned files to only those that are related to the specified origin
      * </pre>
      *
-     * <code>.google.protobuf.StringValue origin = 3;</code>
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
+     */
+    public Builder addAllOrigin(
+        java.lang.Iterable<? extends com.google.protobuf.StringValue> values) {
+      if (originBuilder_ == null) {
+        ensureOriginIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, origin_);
+        onChanged();
+      } else {
+        originBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Optional origin of the files (derived from taskType), passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified origin
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
      */
     public Builder clearOrigin() {
       if (originBuilder_ == null) {
-        origin_ = null;
+        origin_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        origin_ = null;
-        originBuilder_ = null;
+        originBuilder_.clear();
       }
-
       return this;
     }
     /**
@@ -759,12 +915,17 @@ private static final long serialVersionUID = 0L;
      * in this argument filters the returned files to only those that are related to the specified origin
      * </pre>
      *
-     * <code>.google.protobuf.StringValue origin = 3;</code>
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
      */
-    public com.google.protobuf.StringValue.Builder getOriginBuilder() {
-      
-      onChanged();
-      return getOriginFieldBuilder().getBuilder();
+    public Builder removeOrigin(int index) {
+      if (originBuilder_ == null) {
+        ensureOriginIsMutable();
+        origin_.remove(index);
+        onChanged();
+      } else {
+        originBuilder_.remove(index);
+      }
+      return this;
     }
     /**
      * <pre>
@@ -772,14 +933,25 @@ private static final long serialVersionUID = 0L;
      * in this argument filters the returned files to only those that are related to the specified origin
      * </pre>
      *
-     * <code>.google.protobuf.StringValue origin = 3;</code>
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
      */
-    public com.google.protobuf.StringValueOrBuilder getOriginOrBuilder() {
-      if (originBuilder_ != null) {
-        return originBuilder_.getMessageOrBuilder();
-      } else {
-        return origin_ == null ?
-            com.google.protobuf.StringValue.getDefaultInstance() : origin_;
+    public com.google.protobuf.StringValue.Builder getOriginBuilder(
+        int index) {
+      return getOriginFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Optional origin of the files (derived from taskType), passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified origin
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
+     */
+    public com.google.protobuf.StringValueOrBuilder getOriginOrBuilder(
+        int index) {
+      if (originBuilder_ == null) {
+        return origin_.get(index);  } else {
+        return originBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
@@ -788,15 +960,61 @@ private static final long serialVersionUID = 0L;
      * in this argument filters the returned files to only those that are related to the specified origin
      * </pre>
      *
-     * <code>.google.protobuf.StringValue origin = 3;</code>
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
      */
-    private com.google.protobuf.SingleFieldBuilderV3<
+    public java.util.List<? extends com.google.protobuf.StringValueOrBuilder> 
+         getOriginOrBuilderList() {
+      if (originBuilder_ != null) {
+        return originBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(origin_);
+      }
+    }
+    /**
+     * <pre>
+     * Optional origin of the files (derived from taskType), passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified origin
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
+     */
+    public com.google.protobuf.StringValue.Builder addOriginBuilder() {
+      return getOriginFieldBuilder().addBuilder(
+          com.google.protobuf.StringValue.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Optional origin of the files (derived from taskType), passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified origin
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
+     */
+    public com.google.protobuf.StringValue.Builder addOriginBuilder(
+        int index) {
+      return getOriginFieldBuilder().addBuilder(
+          index, com.google.protobuf.StringValue.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Optional origin of the files (derived from taskType), passing non-null value
+     * in this argument filters the returned files to only those that are related to the specified origin
+     * </pre>
+     *
+     * <code>repeated .google.protobuf.StringValue origin = 3;</code>
+     */
+    public java.util.List<com.google.protobuf.StringValue.Builder> 
+         getOriginBuilderList() {
+      return getOriginFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
         getOriginFieldBuilder() {
       if (originBuilder_ == null) {
-        originBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+        originBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
-                getOrigin(),
+                origin_,
+                ((bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
         origin_ = null;

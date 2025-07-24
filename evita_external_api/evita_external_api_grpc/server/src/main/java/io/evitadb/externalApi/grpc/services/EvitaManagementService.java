@@ -79,6 +79,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcTaskStatus;
@@ -596,7 +597,10 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				final PaginatedList<FileForFetch> filesToFetch = this.management.listFilesToFetch(
 					request.getPageNumber(),
 					request.getPageSize(),
-					request.hasOrigin() ? request.getOrigin().getValue() : null
+					request.getOriginList()
+						.stream()
+						.map(StringValue::getValue)
+						.collect(Collectors.toSet())
 				);
 
 				final GrpcFilesToFetchResponse.Builder builder = GrpcFilesToFetchResponse.newBuilder();

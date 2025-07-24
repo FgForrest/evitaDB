@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -99,7 +100,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		writeFile("testFile.txt", "A,B");
 
 		// verify the file was written
-		final PaginatedList<FileForFetch> files = exportFileService.listFilesToFetch(1, Integer.MAX_VALUE, null);
+		final PaginatedList<FileForFetch> files = exportFileService.listFilesToFetch(1, Integer.MAX_VALUE, Set.of());
 		assertEquals(1, files.getTotalRecordCount());
 
 		final FileForFetch fileForFetch = files.getData().get(0);
@@ -128,7 +129,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 			);
 		}
 
-		final PaginatedList<FileForFetch> fileForFetches = this.exportFileService.listFilesToFetch(1, 5, null);
+		final PaginatedList<FileForFetch> fileForFetches = this.exportFileService.listFilesToFetch(1, 5, Set.of());
 		assertArrayEquals(
 			new String[]{
 				"testFile27.txt", "testFile26.txt", "testFile25.txt", "testFile24.txt", "testFile23.txt"
@@ -141,7 +142,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 			new String[]{
 				"testFile2.txt", "testFile1.txt", "testFile0.txt"
 			},
-			this.exportFileService.listFilesToFetch(6, 5, null)
+			this.exportFileService.listFilesToFetch(6, 5, Set.of())
 				.getData().stream().map(FileForFetch::name).toArray(String[]::new)
 		);
 
@@ -155,7 +156,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		assertArrayEquals(
 			Lists.reverse(filteredNames).stream().limit(10).toArray(String[]::new),
-			this.exportFileService.listFilesToFetch(1, 10, "A")
+			this.exportFileService.listFilesToFetch(1, 10, Set.of("A"))
 				.getData().stream().map(FileForFetch::name).toArray(String[]::new)
 		);
 	}
@@ -170,13 +171,13 @@ class ExportFileServiceTest implements EvitaTestSupport {
 			11, numberOfFiles(storageOptions.exportDirectory())
 		);
 
-		final PaginatedList<FileForFetch> filesBeforeDelete = this.exportFileService.listFilesToFetch(1, 20, null);
+		final PaginatedList<FileForFetch> filesBeforeDelete = this.exportFileService.listFilesToFetch(1, 20, Set.of());
 		assertEquals(5, filesBeforeDelete.getTotalRecordCount());
 
 		this.exportFileService.deleteFile(filesBeforeDelete.getData().get(0).fileId());
 		this.exportFileService.deleteFile(filesBeforeDelete.getData().get(3).fileId());
 
-		assertEquals(3, this.exportFileService.listFilesToFetch(1, 20, null).getTotalRecordCount());
+		assertEquals(3, this.exportFileService.listFilesToFetch(1, 20, Set.of()).getTotalRecordCount());
 
 		assertEquals(
 			7, numberOfFiles(storageOptions.exportDirectory())
@@ -206,7 +207,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		// Check files before purging
 		int numOfFilesBeforePurge = numberOfFiles(storageOptions.exportDirectory());
-		int totalFilesBeforePurge = this.exportFileService.listFilesToFetch(1, 20, null).getTotalRecordCount();
+		int totalFilesBeforePurge = this.exportFileService.listFilesToFetch(1, 20, Set.of()).getTotalRecordCount();
 		assertEquals(10, totalFilesBeforePurge);
 		assertEquals(totalFilesBeforePurge * 2 + 5 + 1, numOfFilesBeforePurge);
 
@@ -215,7 +216,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		// Check files after purging
 		int numOfFilesAfterPurge = numberOfFiles(storageOptions.exportDirectory());
-		int totalFilesAfterPurge = this.exportFileService.listFilesToFetch(1, 20, null).getTotalRecordCount();
+		int totalFilesAfterPurge = this.exportFileService.listFilesToFetch(1, 20, Set.of()).getTotalRecordCount();
 		assertEquals(5, totalFilesAfterPurge);
 		assertEquals(totalFilesAfterPurge * 2 + 5 + 1, numOfFilesAfterPurge);
 
@@ -223,7 +224,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 		// Check files after purging
 		int numOfFilesAfterPurge2 = numberOfFiles(storageOptions.exportDirectory());
-		int totalFilesAfterPurge2 = this.exportFileService.listFilesToFetch(1, 20, null).getTotalRecordCount();
+		int totalFilesAfterPurge2 = this.exportFileService.listFilesToFetch(1, 20, Set.of()).getTotalRecordCount();
 		assertEquals(0, totalFilesAfterPurge2);
 		assertEquals(totalFilesAfterPurge2 * 2 + 1, numOfFilesAfterPurge2);
 	}

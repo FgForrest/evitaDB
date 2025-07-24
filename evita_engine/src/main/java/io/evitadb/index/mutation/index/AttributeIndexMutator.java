@@ -634,8 +634,9 @@ public interface AttributeIndexMutator {
 			.toArray(Serializable[]::new);
 
 		if (!ArrayUtils.isEmptyOrItsValuesNull(newCompoundValues)) {
+			final ReferenceSchema referenceSchema = attributeSchemaProvider.getReferenceSchema();
 			entityIndex.insertSortAttributeCompound(
-				attributeSchemaProvider.getReferenceSchema(),
+				referenceSchema,
 				compound,
 				theAttributeName -> attributeSchemaProvider.getAttributeSchema(theAttributeName).getPlainType(),
 				locale,
@@ -644,7 +645,7 @@ public interface AttributeIndexMutator {
 			if (undoActionConsumer != null) {
 				undoActionConsumer.accept(
 					() -> entityIndex.removeSortAttributeCompound(
-						attributeSchemaProvider.getReferenceSchema(),
+						referenceSchema,
 						compound, locale, newCompoundValues, entityPrimaryKey
 					)
 				);
@@ -674,13 +675,14 @@ public interface AttributeIndexMutator {
 			.toArray(Serializable[]::new);
 
 		if (!ArrayUtils.isEmptyOrItsValuesNull(oldCompoundValues)) {
+			final ReferenceSchema referenceSchema = attributeSchemaProvider.getReferenceSchema();
 			entityIndex.removeSortAttributeCompound(
-				attributeSchemaProvider.getReferenceSchema(), compound, locale, oldCompoundValues, entityPrimaryKey
+				referenceSchema, compound, locale, oldCompoundValues, entityPrimaryKey
 			);
 			if (undoActionConsumer != null) {
 				undoActionConsumer.accept(
 					() -> entityIndex.insertSortAttributeCompound(
-						attributeSchemaProvider.getReferenceSchema(),
+						referenceSchema,
 						compound,
 						theAttributeName -> attributeSchemaProvider.getAttributeSchema(theAttributeName).getPlainType(),
 						locale,

@@ -56,27 +56,46 @@ public interface GrpcFilesToFetchRequestOrBuilder extends
    * in this argument filters the returned files to only those that are related to the specified origin
    * </pre>
    *
-   * <code>.google.protobuf.StringValue origin = 3;</code>
-   * @return Whether the origin field is set.
+   * <code>repeated .google.protobuf.StringValue origin = 3;</code>
    */
-  boolean hasOrigin();
+  java.util.List<com.google.protobuf.StringValue> 
+      getOriginList();
   /**
    * <pre>
    * Optional origin of the files (derived from taskType), passing non-null value
    * in this argument filters the returned files to only those that are related to the specified origin
    * </pre>
    *
-   * <code>.google.protobuf.StringValue origin = 3;</code>
-   * @return The origin.
+   * <code>repeated .google.protobuf.StringValue origin = 3;</code>
    */
-  com.google.protobuf.StringValue getOrigin();
+  com.google.protobuf.StringValue getOrigin(int index);
   /**
    * <pre>
    * Optional origin of the files (derived from taskType), passing non-null value
    * in this argument filters the returned files to only those that are related to the specified origin
    * </pre>
    *
-   * <code>.google.protobuf.StringValue origin = 3;</code>
+   * <code>repeated .google.protobuf.StringValue origin = 3;</code>
    */
-  com.google.protobuf.StringValueOrBuilder getOriginOrBuilder();
+  int getOriginCount();
+  /**
+   * <pre>
+   * Optional origin of the files (derived from taskType), passing non-null value
+   * in this argument filters the returned files to only those that are related to the specified origin
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue origin = 3;</code>
+   */
+  java.util.List<? extends com.google.protobuf.StringValueOrBuilder> 
+      getOriginOrBuilderList();
+  /**
+   * <pre>
+   * Optional origin of the files (derived from taskType), passing non-null value
+   * in this argument filters the returned files to only those that are related to the specified origin
+   * </pre>
+   *
+   * <code>repeated .google.protobuf.StringValue origin = 3;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getOriginOrBuilder(
+      int index);
 }

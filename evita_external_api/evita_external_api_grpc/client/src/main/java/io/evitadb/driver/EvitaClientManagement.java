@@ -68,6 +68,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -344,15 +345,18 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 
 	@Nonnull
 	@Override
-	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nullable String origin) {
+	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nonnull Set<String> origin) {
 		this.evitaClient.assertActive();
 
-		final GrpcFilesToFetchRequest request = GrpcFilesToFetchRequest.newBuilder()
+		final GrpcFilesToFetchRequest.Builder requestBuilder = GrpcFilesToFetchRequest.newBuilder()
 			.setPageNumber(page)
-			.setPageSize(pageSize)
-			.build();
+			.setPageSize(pageSize);
+		for (String theOrigin : origin) {
+			requestBuilder.addOrigin(StringValue.of(theOrigin));
+		}
+
 		final GrpcFilesToFetchResponse response = executeWithEvitaService(
-			evitaService -> evitaService.listFilesToFetch(request)
+			evitaService -> evitaService.listFilesToFetch(requestBuilder.build())
 		);
 
 		return new PaginatedList<>(
