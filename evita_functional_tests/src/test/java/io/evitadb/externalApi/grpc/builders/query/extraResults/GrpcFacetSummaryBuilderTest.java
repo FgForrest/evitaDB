@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
-import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;

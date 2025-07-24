@@ -102,14 +102,14 @@ public class TargetIndexes<T extends Index<?>> {
 
 	@Override
 	public String toString() {
-		return "Index type: " + this.indexDescription;
+		return "Index type: " + this.indexDescription + (this.eligibleForSeparateQueryPlan ? "" : " (not eligible for separate query plan)");
 	}
 
 	/**
 	 * Prints {@link #toString()} including estimated costs (that are computed and passed from outside).
 	 */
 	public String toStringWithCosts(long estimatedCost) {
-		return this + ", estimated costs " + estimatedCost;
+		return this + ", estimated costs " + estimatedCost + (this.eligibleForSeparateQueryPlan ? "" : " (not eligible for separate query plan)");
 	}
 
 	/**

@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -337,7 +338,7 @@ class CatalogWriteAheadLogIntegrationTest {
 			TestConstants.TEST_CATALOG,
 			NamingConvention.generate(TestConstants.TEST_CATALOG),
 			EnumSet.allOf(CatalogEvolutionMode.class),
-			io.evitadb.api.mock.EmptyEntitySchemaAccessor.INSTANCE
+			EmptyEntitySchemaAccessor.INSTANCE
 		);
 		final EvitaSession mockSession = Mockito.mock(EvitaSession.class);
 		Mockito.when(mockSession.getCatalogSchema()).thenReturn(new CatalogSchemaDecorator(catalogSchema));

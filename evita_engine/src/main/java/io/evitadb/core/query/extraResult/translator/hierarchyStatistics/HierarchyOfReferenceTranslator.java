@@ -34,9 +34,11 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
@@ -54,6 +56,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -70,8 +73,8 @@ public class HierarchyOfReferenceTranslator
 	implements RequireConstraintTranslator<HierarchyOfReference>, SelfTraversingTranslator {
 
 	@Nonnull
-	private static EntityIndexKey createReferencedHierarchyIndexKey(@Nonnull String referenceName, int hierarchyNodeId) {
-		return new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, new ReferenceKey(referenceName, hierarchyNodeId));
+	private static EntityIndexKey createReferencedHierarchyIndexKey(@Nonnull String referenceName, @Nonnull Scope scope, int hierarchyNodeId) {
+		return new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, new ReferenceKey(referenceName, hierarchyNodeId));
 	}
 
 	@Nullable
@@ -143,24 +146,45 @@ public class HierarchyOfReferenceTranslator
 					null,
 					// we need to access EntityIndexType.REFERENCED_HIERARCHY_NODE of the queried type to access
 					// entity primary keys that are referencing the hierarchy entity
-					(nodeId, statisticsBase) ->
-						extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, nodeId), ReducedEntityIndex.class)
-							.map(hierarchyIndex -> {
-								final FilterBy filter = extraResultPlanner.getFilterByForStatisticsBase(statisticsBase, referenceSchema);
+					(nodeId, statisticsBase) -> {
+						final FilterBy filter = extraResultPlanner.getFilterByForStatisticsBase(statisticsBase, referenceSchema);
+						return extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, scope, nodeId), ReducedEntityIndex.class)
+							.map(reducedIndex -> {
 								if (filter == null || !filter.isApplicable()) {
-									return hierarchyIndex.getAllPrimaryKeysFormula();
+									return reducedIndex.getAllPrimaryKeysFormula();
 								} else {
-									return createFilterFormula(
-										extraResultPlanner.getQueryContext(),
-										filter,
-										ReducedEntityIndex.class,
-										extraResultPlanner.getSchema(queriedEntityType),
-										hierarchyIndex,
-										extraResultPlanner.getAttributeSchemaAccessor()
-									);
+									if (referenceSchema.getReferenceIndexType(reducedIndex.getIndexKey().scope()) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
+										// if the reduced index contains partitioned data, we can take advantage of it
+										return createFilterFormula(
+											extraResultPlanner.getQueryContext(),
+											filter,
+											ReducedEntityIndex.class,
+											entitySchema,
+											reducedIndex,
+											extraResultPlanner.getAttributeSchemaAccessor()
+										);
+									} else {
+										// else we need to compute the formula from the global index
+										return FormulaFactory.and(
+											reducedIndex.getAllPrimaryKeysFormula(),
+											extraResultPlanner.computeOnlyOnce(
+												List.of(globalIndex),
+												filter,
+												() -> createFilterFormula(
+													extraResultPlanner.getQueryContext(),
+													filter,
+													GlobalEntityIndex.class,
+													entitySchema,
+													extraResultPlanner.getGlobalEntityIndex(scope),
+													extraResultPlanner.getAttributeSchemaAccessor()
+												)
+											)
+										);
+									}
 								}
 							})
-							.orElse(EmptyFormula.INSTANCE),
+							.orElse(EmptyFormula.INSTANCE);
+					},
 					null,
 					hierarchyOfReference.getEmptyHierarchicalEntityBehaviour(),
 					sorter,
