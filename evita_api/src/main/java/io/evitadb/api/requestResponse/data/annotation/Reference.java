@@ -113,7 +113,7 @@ public @interface Reference {
 
 	/**
 	 * Enables filtering / sorting by attributes of reference of this name.
-	 * Propagates to {@link ReferenceSchemaContract#isIndexed()}.
+	 * Propagates to {@link ReferenceSchemaContract#getReferenceIndexType(Scope)}.
 	 */
 	ReferenceIndexType indexed() default ReferenceIndexType.NONE;
 
