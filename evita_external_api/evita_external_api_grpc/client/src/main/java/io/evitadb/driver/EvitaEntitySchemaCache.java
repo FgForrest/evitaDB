@@ -183,10 +183,7 @@ class EvitaEntitySchemaCache {
 			// if not found or versions don't match - re-fetch the contents
 			final CatalogSchema schemaRelevantToSession = schemaAccessor.get();
 			final SchemaWrapper newCachedValue = new SchemaWrapper(schemaRelevantToSession, now);
-			this.cachedSchemas.putIfAbsent(
-				LatestCatalogSchema.INSTANCE,
-				newCachedValue
-			);
+			setLatestCatalogSchemaInternal(newCachedValue);
 			return new ClientCatalogSchemaDecorator(schemaRelevantToSession, entitySchemaAccessor);
 		} else {
 			// if found in cache, update last used timestamp
@@ -200,8 +197,7 @@ class EvitaEntitySchemaCache {
 	 * be used when the catalog schema is freshly fetched from the server side.
 	 */
 	public void setLatestCatalogSchema(@Nonnull CatalogSchema catalogSchema) {
-		this.cachedSchemas.putIfAbsent(
-			LatestCatalogSchema.INSTANCE,
+		setLatestCatalogSchemaInternal(
 			new SchemaWrapper(catalogSchema, System.currentTimeMillis())
 		);
 	}
@@ -280,7 +276,7 @@ class EvitaEntitySchemaCache {
 	 * be used when the entity schema is freshly fetched from the server side.
 	 */
 	public void setLatestEntitySchema(@Nonnull EntitySchema entitySchema) {
-		this.cachedSchemas.putIfAbsent(
+		setLatestEntitySchemaInternal(
 			new LatestEntitySchema(entitySchema.getName()),
 			new SchemaWrapper(entitySchema, System.currentTimeMillis())
 		);
@@ -340,13 +336,7 @@ class EvitaEntitySchemaCache {
 					new EntitySchemaWithVersion(cacheKey.entityType(), it.version()),
 					newCachedValue
 				);
-				// initialize the latest known entity schema if missing
-				final LatestEntitySchema latestEntitySchema = new LatestEntitySchema(cacheKey.entityType());
-				final SchemaWrapper latestCachedVersion = this.cachedSchemas.putIfAbsent(latestEntitySchema, newCachedValue);
-				// if not missing verify the stored value is really the latest one and if not rewrite it
-				if (latestCachedVersion != null && latestCachedVersion.getEntitySchema().version() < newCachedValue.getEntitySchema().version()) {
-					this.cachedSchemas.put(latestEntitySchema, newCachedValue);
-				}
+				setLatestEntitySchemaInternal(cacheKey, newCachedValue);
 			});
 			return schemaRelevantToSession;
 		} else {
@@ -368,6 +358,44 @@ class EvitaEntitySchemaCache {
 			if (this.lastObsoleteCheck.compareAndSet(lastCheck, now)) {
 				this.cachedSchemas.values().removeIf(entitySchemaWrapper -> entitySchemaWrapper.isObsolete(now));
 			}
+		}
+	}
+
+	/**
+	 * Updates the cache with the latest catalog schema provided in the {@code newCachedValue}.
+	 * If the schema does not exist for the {@link LatestCatalogSchema#INSTANCE} key, it is added to the cache.
+	 * If a schema already exists, it is replaced only if the version in {@code newCachedValue} is newer than the
+	 * version of the existing one.
+	 *
+	 * @param newCachedValue the wrapper containing the new catalog schema and associated details to be added to the cache
+	 */
+	private void setLatestCatalogSchemaInternal(@Nonnull SchemaWrapper newCachedValue) {
+		final SchemaWrapper previousValue = this.cachedSchemas.putIfAbsent(LatestCatalogSchema.INSTANCE, newCachedValue);
+		if (previousValue != null && previousValue.getCatalogSchema().version() < newCachedValue.getCatalogSchema().version()) {
+			// if the previous value was older, replace it with the new one
+			this.cachedSchemas.put(LatestCatalogSchema.INSTANCE, newCachedValue);
+		}
+	}
+
+	/**
+	 * Updates the cache with the latest entity schema provided in the {@code newCachedValue}.
+	 * If the schema does not exist for the given {@code cacheKey}, it is added to the cache.
+	 * If a schema already exists, it is replaced only if the version in {@code newCachedValue}
+	 * is newer than the existing one.
+	 *
+	 * @param cacheKey the unique key representing the entity schema to be updated
+	 * @param newCachedValue the wrapper containing the new entity schema and associated details to be added to the cache
+	 */
+	private void setLatestEntitySchemaInternal(
+		@Nonnull EntitySchemaCacheKey cacheKey,
+		@Nonnull SchemaWrapper newCachedValue
+	) {
+		// initialize the latest known entity schema if missing
+		final LatestEntitySchema latestEntitySchema = new LatestEntitySchema(cacheKey.entityType());
+		final SchemaWrapper previousValue = this.cachedSchemas.putIfAbsent(latestEntitySchema, newCachedValue);
+		// if not missing verify the stored value is really the latest one and if not rewrite it
+		if (previousValue != null && previousValue.getEntitySchema().version() < newCachedValue.getEntitySchema().version()) {
+			this.cachedSchemas.put(latestEntitySchema, newCachedValue);
 		}
 	}
 
