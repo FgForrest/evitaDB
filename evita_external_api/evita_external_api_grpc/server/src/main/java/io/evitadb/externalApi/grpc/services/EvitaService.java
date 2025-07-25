@@ -612,18 +612,34 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		GrpcRegisterSystemChangeCaptureRequest request,
 		StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver
 	) {
+		final CompletableFuture<Subscription> subscriptionFuture = new CompletableFuture<>();
+		((ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>)responseObserver).setOnCancelHandler(
+			() -> {
+				try {
+					subscriptionFuture.get().cancel();
+				} catch (Exception e) {
+					log.debug("Failed to remove progress listener on cancel", e);
+				}
+			}
+		);
+
 		executeWithClientContext(
-			() -> this.evita.registerSystemChangeCapture(
-				new ChangeSystemCaptureRequest(
-					request.hasSinceVersion() ? request.getSinceVersion().getValue() : null,
-					request.hasSinceIndex() ? request.getSinceIndex().getValue() : null,
-					toCaptureContent(request.getContent())
-				)
-			).subscribe(
-				new ChangeSystemCaptureSubscriber(
-					(ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>) responseObserver
-				)
-			),
+			() -> {
+				try {
+					this.evita.registerSystemChangeCapture(
+						new ChangeSystemCaptureRequest(
+							request.hasSinceVersion() ? request.getSinceVersion().getValue() : null,
+							request.hasSinceIndex() ? request.getSinceIndex().getValue() : null,
+							toCaptureContent(request.getContent())
+						)
+					).subscribe(
+						new ChangeSystemCaptureSubscriber(responseObserver, subscriptionFuture)
+					);
+				} catch (RuntimeException e) {
+					subscriptionFuture.completeExceptionally(e);
+					throw e;
+				}
+			},
 			this.evita.getRequestExecutor(),
 			responseObserver,
 			this.context
@@ -1093,13 +1109,15 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	@RequiredArgsConstructor
 	private static class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCapture> {
-		private final ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver;
+		private final StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver;
+		private final CompletableFuture<Subscription> subscriptionFuture;
 		private Subscription subscription;
 
 		@Override
 		public void onSubscribe(Subscription subscription) {
 			this.subscription = subscription;
-			this.responseObserver.setOnCancelHandler(this.subscription::cancel);
+			this.subscriptionFuture.complete(subscription);
+
 			final GrpcRegisterSystemChangeCaptureResponse.Builder response = GrpcRegisterSystemChangeCaptureResponse
 				.newBuilder();
 			if (subscription instanceof ChangeCaptureSubscription ccs) {
@@ -1127,6 +1145,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 
 		@Override
 		public void onError(Throwable throwable) {
+			this.subscriptionFuture.completeExceptionally(throwable);
 			this.responseObserver.onError(throwable);
 		}
 

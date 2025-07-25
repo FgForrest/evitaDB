@@ -115,6 +115,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1930,12 +1931,22 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		GrpcRegisterChangeCatalogCaptureRequest request,
 		StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver
 	) {
+		final CompletableFuture<Subscription> subscriptionFuture = new CompletableFuture<>();
+		((ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse>)responseObserver).setOnCancelHandler(
+			() -> {
+				try {
+					subscriptionFuture.get().cancel();
+				} catch (Exception e) {
+					log.debug("Failed to remove progress listener on cancel", e);
+				}
+			}
+		);
+
 		executeWithClientContext(
 			session -> session.registerChangeCatalogCapture(
 				ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
 			).subscribe(
-				new ChangeCatalogCaptureSubscriber(
-					(ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse>) responseObserver)
+				new ChangeCatalogCaptureSubscriber(responseObserver, subscriptionFuture)
 			),
 			this.evita.getRequestExecutor(),
 			responseObserver,
@@ -1994,13 +2005,14 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 */
 	@RequiredArgsConstructor
 	private static class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogCapture> {
-		private final ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver;
+		private final StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver;
+		private final CompletableFuture<Subscription> subscriptionFuture;
 		private Subscription subscription;
 
 		@Override
 		public void onSubscribe(Subscription subscription) {
 			this.subscription = subscription;
-			this.responseObserver.setOnCancelHandler(this.subscription::cancel);
+			this.subscriptionFuture.complete(subscription);
 			final GrpcRegisterChangeCatalogCaptureResponse.Builder response = GrpcRegisterChangeCatalogCaptureResponse
 				.newBuilder();
 			if (subscription instanceof ChangeCaptureSubscription ccs) {
@@ -2028,6 +2040,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 		@Override
 		public void onError(Throwable throwable) {
+			this.subscriptionFuture.completeExceptionally(throwable);
 			this.responseObserver.onError(throwable);
 		}
 
