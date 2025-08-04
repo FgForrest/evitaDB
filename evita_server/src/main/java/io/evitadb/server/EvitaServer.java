@@ -738,16 +738,20 @@ public class EvitaServer {
 		@Override
 		public void run() {
 			final Evita evita = this.evitaServer.getEvita();
-			try {
-				evita.getServiceExecutor().prepareForBeingShutdown();
-				this.evitaServer.stop()
-					.thenAccept(unused -> stop())
-					.get(30, TimeUnit.SECONDS);
-			} catch (ExecutionException | InterruptedException | TimeoutException e) {
-				ConsoleWriter.write("Failed to stop evita server in dedicated time (30 secs.).\n");
-			} finally {
-				evita.close();
-				ConsoleWriter.write("evitaDB instance closed, all files synced on disk.\n\n");
+			if (evita == null) {
+				ConsoleWriter.write("evitaDB instance is still being initialized (aborting initialization).\n\n");
+			} else {
+				try {
+					evita.getServiceExecutor().prepareForBeingShutdown();
+					this.evitaServer.stop()
+						.thenAccept(unused -> stop())
+						.get(30, TimeUnit.SECONDS);
+				} catch (ExecutionException | InterruptedException | TimeoutException e) {
+					ConsoleWriter.write("Failed to stop evita server in dedicated time (30 secs.).\n");
+				} finally {
+					evita.close();
+					ConsoleWriter.write("evitaDB instance closed, all files synced on disk.\n\n");
+				}
 			}
 		}
 
