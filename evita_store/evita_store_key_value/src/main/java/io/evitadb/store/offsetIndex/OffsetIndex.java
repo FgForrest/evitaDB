@@ -403,7 +403,7 @@ public class OffsetIndex {
 				storageOptions.maxOpenedReadHandles(),
 				version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
 			);
-			this.writeKryo = fileOffsetDescriptor.getWriteKryo();
+			this.writeKryo = this.fileOffsetDescriptor.getWriteKryo();
 			this.decompressionPool = new Pool<>(true, false, DECOMPRESSION_ARRAY_POOL_MAXIMUM_CAPACITY) {
 				@Override
 				protected byte[] create() {
@@ -473,14 +473,14 @@ public class OffsetIndex {
 	 * there was any real change made before and after {@link #flush(long)} or {@link #close()} operations.
 	 */
 	public long getVersion() {
-		return fileOffsetDescriptor.version();
+		return this.fileOffsetDescriptor.version();
 	}
 
 	/**
 	 * Returns readable instance of key compressor.
 	 */
 	public KeyCompressor getReadOnlyKeyCompressor() {
-		return fileOffsetDescriptor.getReadOnlyKeyCompressor();
+		return this.fileOffsetDescriptor.getReadOnlyKeyCompressor();
 	}
 
 	/**
@@ -491,7 +491,7 @@ public class OffsetIndex {
 	@Nonnull
 	public Map<Integer, Object> getCompressedKeys() {
 		return Collections.unmodifiableMap(
-			fileOffsetDescriptor.getWriteKeyCompressor().getKeys()
+			this.fileOffsetDescriptor.getWriteKeyCompressor().getKeys()
 		);
 	}
 
@@ -500,7 +500,7 @@ public class OffsetIndex {
 	 */
 	public Collection<Entry<RecordKey, FileLocation>> getEntries() {
 		assertOperative();
-		return Collections.unmodifiableCollection(keyToLocations.entrySet());
+		return Collections.unmodifiableCollection(this.keyToLocations.entrySet());
 	}
 
 	/**
@@ -508,7 +508,7 @@ public class OffsetIndex {
 	 */
 	public int count(long catalogVersion) {
 		assertOperative();
-		return keyToLocations.size() + volatileValues.countDifference(catalogVersion);
+		return this.keyToLocations.size() + this.volatileValues.countDifference(catalogVersion);
 	}
 
 	/**
@@ -516,8 +516,8 @@ public class OffsetIndex {
 	 */
 	public int count(long catalogVersion, @Nonnull Class<? extends StoragePart> recordType) {
 		assertOperative();
-		final byte recordTypeId = recordTypeRegistry.idFor(recordType);
-		return ofNullable(histogram.get(recordTypeId)).orElse(0) + volatileValues.countDifference(catalogVersion, recordTypeId);
+		final byte recordTypeId = this.recordTypeRegistry.idFor(recordType);
+		return ofNullable(this.histogram.get(recordTypeId)).orElse(0) + this.volatileValues.countDifference(catalogVersion, recordTypeId);
 	}
 
 	/**
@@ -542,11 +542,11 @@ public class OffsetIndex {
 			} else {
 				try {
 					// if the record was not yet flushed to the disk we need to enforce sync so that we can read it
-					if (lastSyncedPosition < nonFlushedValue.fileLocation().endPosition()) {
+					if (this.lastSyncedPosition < nonFlushedValue.fileLocation().endPosition()) {
 						doSoftFlush();
 					}
 					//noinspection unchecked
-					return (T) get(nonFlushedValue.fileLocation(), recordTypeRegistry.typeFor(nonFlushedValue.recordType()));
+					return (T) get(nonFlushedValue.fileLocation(), this.recordTypeRegistry.typeFor(nonFlushedValue.recordType()));
 				} catch (KryoException exception) {
 					throw new RecordNotYetWrittenException(primaryKey, recordType, exception);
 				}
@@ -565,7 +565,7 @@ public class OffsetIndex {
 						return null;
 					} else {
 						//noinspection unchecked
-						return (T) get(rewrittenValue.fileLocation(), recordTypeRegistry.typeFor(rewrittenValue.recordType()));
+						return (T) get(rewrittenValue.fileLocation(), this.recordTypeRegistry.typeFor(rewrittenValue.recordType()));
 					}
 				}
 			}
@@ -636,7 +636,7 @@ public class OffsetIndex {
 					if (rewrittenValue == null) {
 						return null;
 					} else {
-						return getBinary(rewrittenValue.fileLocation(), recordTypeRegistry.typeFor(rewrittenValue.recordType()));
+						return getBinary(rewrittenValue.fileLocation(), this.recordTypeRegistry.typeFor(rewrittenValue.recordType()));
 					}
 				}
 			}
@@ -670,7 +670,7 @@ public class OffsetIndex {
 	public <T extends StoragePart> boolean contains(long catalogVersion, long primaryKey, @Nonnull Class<T> recordType) {
 		assertOperative();
 		final RecordKey key = new RecordKey(
-			recordTypeRegistry.idFor(recordType),
+			this.recordTypeRegistry.idFor(recordType),
 			primaryKey
 		);
 
@@ -688,7 +688,7 @@ public class OffsetIndex {
 			}
 		}
 
-		return keyToLocations.containsKey(key);
+		return this.keyToLocations.containsKey(key);
 	}
 
 	/**
@@ -699,12 +699,12 @@ public class OffsetIndex {
 	 * @param value          value to be stored
 	 */
 	public <T extends StoragePart> long put(long catalogVersion, @Nonnull T value) {
-		return writeHandle.checkAndExecute(
+		return this.writeHandle.checkAndExecute(
 			"Storing record",
 			this::assertOperative,
 			exclusiveWriteAccess -> {
 				final long partId = ofNullable(value.getStoragePartPK())
-					.orElseGet(() -> value.computeUniquePartIdAndSet(fileOffsetDescriptor.getWriteKeyCompressor()));
+					.orElseGet(() -> value.computeUniquePartIdAndSet(this.fileOffsetDescriptor.getWriteKeyCompressor()));
 				doPut(
 					catalogVersion,
 					partId, value,
@@ -724,7 +724,7 @@ public class OffsetIndex {
 	 * @return true if the record was found and removed
 	 */
 	public <T extends StoragePart> boolean remove(long catalogVersion, long primaryKey, @Nonnull Class<T> recordType) {
-		return writeHandle.checkAndExecute(
+		return this.writeHandle.checkAndExecute(
 			"Removing record",
 			this::assertOperative,
 			exclusiveWriteAccess -> doRemove(
@@ -744,7 +744,7 @@ public class OffsetIndex {
 	 */
 	@Nonnull
 	public FileOffsetIndexStatistics verifyContents() {
-		return readOnlyHandlePool.borrowAndExecute(
+		return this.readOnlyHandlePool.borrowAndExecute(
 			readOnlyFileHandle -> readOnlyFileHandle.execute(
 				inputStream -> {
 					assertOperative();
@@ -773,8 +773,8 @@ public class OffsetIndex {
 	public OffsetIndexDescriptor flush(long catalogVersion) {
 		assertOperative();
 		this.keyCatalogVersion = catalogVersion;
-		this.fileOffsetDescriptor = doFlush(catalogVersion, fileOffsetDescriptor, false);
-		return fileOffsetDescriptor;
+		this.fileOffsetDescriptor = doFlush(catalogVersion, this.fileOffsetDescriptor, false);
+		return this.fileOffsetDescriptor;
 	}
 
 	/**
@@ -808,10 +808,10 @@ public class OffsetIndex {
 		// flush all non-flushed values to the disk
 		this.doSoftFlush();
 		// copy the active parts to a new file
-		return readOnlyHandlePool.borrowAndExecute(
+		return this.readOnlyHandlePool.borrowAndExecute(
 			readOnlyFileHandle -> readOnlyFileHandle.execute(
 				// by requesting write-handle we enforce no other thread can write to the source file while we are copying
-				inputStream -> writeHandle.checkAndExecute(
+				inputStream -> this.writeHandle.checkAndExecute(
 					"Writing mem table",
 					this::assertOperative,
 					output -> this.readKryoPool.borrowAndExecute(
@@ -822,15 +822,15 @@ public class OffsetIndex {
 							final Map<RecordKey, byte[]> overriddenEntries;
 							if (updatedStorageParts != null && updatedStorageParts.length > 0) {
 								overriddenEntries = CollectionUtils.createHashMap(updatedStorageParts.length);
-								final ByteArrayOutputStream baos = new ByteArrayOutputStream(storageOptions.outputBufferSize());
+								final ByteArrayOutputStream baos = new ByteArrayOutputStream(this.storageOptions.outputBufferSize());
 								final ObservableOutput<ByteArrayOutputStream> observableOutput = new ObservableOutput<>(
-									baos, storageOptions.outputBufferSize(), 0
+									baos, this.storageOptions.outputBufferSize(), 0
 								);
 								for (StoragePart value : updatedStorageParts) {
 									final RecordKey recordKey = new RecordKey(
-										recordTypeRegistry.idFor(value.getClass()),
+										this.recordTypeRegistry.idFor(value.getClass()),
 										ofNullable(value.getStoragePartPK())
-											.orElseGet(() -> value.computeUniquePartIdAndSet(fileOffsetDescriptor.getWriteKeyCompressor()))
+											.orElseGet(() -> value.computeUniquePartIdAndSet(this.fileOffsetDescriptor.getWriteKeyCompressor()))
 									);
 									baos.reset();
 									observableOutput.reset();
@@ -922,7 +922,7 @@ public class OffsetIndex {
 			}
 		}
 		// these handles were not released by the clients within the timeout
-		for (ReadOnlyHandle readOnlyOpenedHandle : readOnlyOpenedHandles) {
+		for (ReadOnlyHandle readOnlyOpenedHandle : this.readOnlyOpenedHandles) {
 			readOnlyOpenedHandle.close();
 		}
 		this.readOnlyOpenedHandles.clear();
@@ -951,7 +951,7 @@ public class OffsetIndex {
 	 * Returns record id for passed type of {@link StoragePart}.
 	 */
 	public byte getIdForRecordType(Class<? extends StoragePart> storagePartClass) {
-		return recordTypeRegistry.idFor(storagePartClass);
+		return this.recordTypeRegistry.idFor(storagePartClass);
 	}
 
 	/**
@@ -960,7 +960,7 @@ public class OffsetIndex {
 	 * @return maximal observed record size in this index
 	 */
 	public long getMaxRecordSizeBytes() {
-		return maxRecordSizeBytes.get();
+		return this.maxRecordSizeBytes.get();
 	}
 
 	/**
@@ -970,7 +970,7 @@ public class OffsetIndex {
 	 */
 	@Nonnull
 	public Optional<OffsetDateTime> getOldestRecordKeptTimestamp() {
-		return volatileValues.getOldestRecordKeptTimestamp();
+		return this.volatileValues.getOldestRecordKeptTimestamp();
 	}
 
 	/**
@@ -980,7 +980,7 @@ public class OffsetIndex {
 	 */
 	@Nonnull
 	public Map<String, Integer> getHistogram() {
-		return histogram.entrySet().stream()
+		return this.histogram.entrySet().stream()
 			.collect(
 				Collectors.toMap(
 					it -> this.recordTypeRegistry.typeFor(it.getKey()).getSimpleName(),
@@ -1057,7 +1057,7 @@ public class OffsetIndex {
 	 */
 	Collection<RecordKey> getKeys() {
 		assertOperative();
-		return Collections.unmodifiableCollection(keyToLocations.keySet());
+		return Collections.unmodifiableCollection(this.keyToLocations.keySet());
 	}
 
 	/**
@@ -1065,7 +1065,7 @@ public class OffsetIndex {
 	 */
 	Collection<FileLocation> getFileLocations() {
 		assertOperative();
-		return Collections.unmodifiableCollection(keyToLocations.values());
+		return Collections.unmodifiableCollection(this.keyToLocations.values());
 	}
 
 	/**
@@ -1073,7 +1073,7 @@ public class OffsetIndex {
 	 */
 	boolean fileOffsetIndexEquals(@Nonnull OffsetIndex o) {
 		if (this == o) return true;
-		return keyToLocations.equals(o.keyToLocations);
+		return this.keyToLocations.equals(o.keyToLocations);
 	}
 
 	/**
@@ -1112,7 +1112,7 @@ public class OffsetIndex {
 	 * @return The total active size.
 	 */
 	private long getTotalActiveSize() {
-		return this.totalSizeBytes.get() + countFileOffsetTableSize(this.keyToLocations.size(), storageOptions);
+		return this.totalSizeBytes.get() + countFileOffsetTableSize(this.keyToLocations.size(), this.storageOptions);
 	}
 
 	/**
@@ -1129,12 +1129,12 @@ public class OffsetIndex {
 	 * Reads OffsetIndex from the disk using write handle.
 	 */
 	private CollectingOffsetIndexBuilder readFileOffsetIndex(@Nonnull FileLocation location) {
-		return readOnlyHandlePool.borrowAndExecute(
+		return this.readOnlyHandlePool.borrowAndExecute(
 			readOnlyFileHandle -> readOnlyFileHandle.execute(
 				exclusiveReadAccess -> {
 					assertOperative();
 					final CollectingOffsetIndexBuilder builder = new CollectingOffsetIndexBuilder();
-					return readKryoPool.borrowAndExecute(kryo -> {
+					return this.readKryoPool.borrowAndExecute(kryo -> {
 						deserialize(
 							exclusiveReadAccess,
 							location,
@@ -1159,7 +1159,7 @@ public class OffsetIndex {
 	) {
 		// if there are any non-flushed values, we need to flush them to the disk (of if the offset index was not yet created)
 		if (this.volatileValues.hasValuesToFlush() || fileOffsetIndexDescriptor.fileLocation() == FileLocation.EMPTY) {
-			final OffsetIndexDescriptor newFileOffsetIndexDescriptor = writeHandle.checkAndExecuteAndSync(
+			final OffsetIndexDescriptor newFileOffsetIndexDescriptor = this.writeHandle.checkAndExecuteAndSync(
 				"Writing mem table",
 				this::assertOperative,
 				outputStream -> {
@@ -1177,13 +1177,14 @@ public class OffsetIndex {
 							catalogVersion,
 							valuesToPromote,
 							this.getFileOffsetIndexLocation(),
-							this.getStorageOptions()
-						).fileLocation()
+							this.getStorageOptions(),
+							"File: " + this.writeHandle + ", last written position: " + this.writeHandle.getLastWrittenPosition()
+						)
 					);
 				},
 				(outputStream, nonFlushedValuesWithFileLocation) -> {
 					// update last synced position, since in post action we are already after sync
-					this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
+					this.lastSyncedPosition = this.writeHandle.getLastWrittenPosition();
 					// now empty all NonFlushedValueSet and move them to current state
 					promoteNonFlushedValuesToSharedState(
 						nonFlushedValuesWithFileLocation.valueCount(),
@@ -1194,11 +1195,11 @@ public class OffsetIndex {
 						this.readKryoPool.expireAllPreviouslyCreated();
 					}
 					// create new OffsetIndexDescriptor with updated version
-					final long fileSize = writeHandle.getLastWrittenPosition();
+					final long fileSize = this.writeHandle.getLastWrittenPosition();
 					return new OffsetIndexDescriptor(
 						nonFlushedValuesWithFileLocation.fileLocation(),
 						fileOffsetIndexDescriptor,
-						getActiveRecordShare(writeHandle.getLastWrittenPosition()),
+						getActiveRecordShare(this.writeHandle.getLastWrittenPosition()),
 						fileSize
 					);
 				}
@@ -1232,10 +1233,14 @@ public class OffsetIndex {
 					// update last synced position, since in post action we are already after sync
 					this.lastSyncedPosition = this.writeHandle.getLastWrittenPosition();
 					// propagate changes in KeyCompressor to the read kryo pool
-					if (fileOffsetDescriptor.resetDirty()) {
+					if (this.fileOffsetDescriptor.resetDirty()) {
 						this.fileOffsetDescriptor = new OffsetIndexDescriptor(
-							fileOffsetDescriptor.fileLocation(),
-							fileOffsetDescriptor,
+							new FileLocationAndWrittenBytes(
+								this.fileOffsetDescriptor.fileLocation(),
+								0,
+								"Soft flush of non-flushed values"
+							),
+							this.fileOffsetDescriptor,
 							getActiveRecordShare(this.lastSyncedPosition),
 							this.lastSyncedPosition
 						);
@@ -1325,12 +1330,12 @@ public class OffsetIndex {
 	 * directly from the code. All writes are serialized by exclusive write access.
 	 */
 	private void doPut(long catalogVersion, long primaryKey, @Nonnull StoragePart value, @Nonnull ObservableOutput<?> exclusiveWriteAccess) {
-		final byte recordType = recordTypeRegistry.idFor(value.getClass());
+		final byte recordType = this.recordTypeRegistry.idFor(value.getClass());
 		final RecordKey key = new RecordKey(recordType, primaryKey);
 
-		final boolean update = keyToLocations.containsKey(key);
+		final boolean update = this.keyToLocations.containsKey(key);
 		final FileLocation recordLocation = new StorageRecord<>(
-			writeKryo,
+			this.writeKryo,
 			exclusiveWriteAccess,
 			catalogVersion,
 			false,
@@ -1374,7 +1379,7 @@ public class OffsetIndex {
 			}
 		}
 
-		final FileLocation currentLocation = keyToLocations.get(key);
+		final FileLocation currentLocation = this.keyToLocations.get(key);
 		if (currentLocation == null) {
 			return false;
 		} else {
@@ -1474,7 +1479,7 @@ public class OffsetIndex {
 		private int maxRecordSize;
 
 		public double getActiveRecordShare() {
-			return (double) livingRecordSize / (double) totalSize;
+			return (double) this.livingRecordSize / (double) this.totalSize;
 		}
 
 		/**
@@ -1485,7 +1490,7 @@ public class OffsetIndex {
 		void registerRecord(int length) {
 			this.recordCount++;
 			this.totalSize += length;
-			if (length > maxRecordSize) {
+			if (length > this.maxRecordSize) {
 				this.maxRecordSize = length;
 			}
 		}
@@ -1539,7 +1544,7 @@ public class OffsetIndex {
 		 */
 		@Nullable
 		public VersionedValue get(@Nonnull RecordKey key) {
-			return nonFlushedValueIndex.get(key);
+			return this.nonFlushedValueIndex.get(key);
 		}
 
 		/**
@@ -1549,7 +1554,7 @@ public class OffsetIndex {
 		 * @return {@code true} if the record was added, {@code false} otherwise.
 		 */
 		public boolean wasAdded(@Nonnull RecordKey key) {
-			return addedKeys.contains(key);
+			return this.addedKeys.contains(key);
 		}
 
 		/**
@@ -1559,7 +1564,7 @@ public class OffsetIndex {
 		 */
 		@Nonnull
 		public Collection<VersionedValue> getAllValues() {
-			return nonFlushedValueIndex.values();
+			return this.nonFlushedValueIndex.values();
 		}
 
 		/**
@@ -1594,7 +1599,7 @@ public class OffsetIndex {
 		 */
 		@Nonnull
 		public Iterable<? extends Entry<RecordKey, VersionedValue>> entrySet() {
-			return nonFlushedValueIndex.entrySet();
+			return this.nonFlushedValueIndex.entrySet();
 		}
 
 		/**
@@ -1605,17 +1610,17 @@ public class OffsetIndex {
 		 */
 		@Nonnull
 		public PastMemory createFrom(@Nonnull Map<RecordKey, FileLocation> currentLocations) {
-			final Map<RecordKey, VersionedValue> result = CollectionUtils.createHashMap(nonFlushedValueIndex.size());
-			for (RecordKey replacedKey : nonFlushedValueIndex.keySet()) {
+			final Map<RecordKey, VersionedValue> result = CollectionUtils.createHashMap(this.nonFlushedValueIndex.size());
+			for (RecordKey replacedKey : this.nonFlushedValueIndex.keySet()) {
 				ofNullable(currentLocations.get(replacedKey))
 					.map(it -> new VersionedValue(replacedKey.primaryKey(), replacedKey.recordType(), it))
 					.ifPresent(it -> result.put(replacedKey, it));
 			}
 			return new PastMemory(
 				Collections.unmodifiableMap(result),
-				addedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(addedKeys),
-				removedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(removedKeys),
-				nonFlushedValuesHistogram
+				this.addedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(this.addedKeys),
+				this.removedKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(this.removedKeys),
+				this.nonFlushedValuesHistogram
 			);
 		}
 
@@ -1638,11 +1643,11 @@ public class OffsetIndex {
 			final Set<RecordKey> removedKeys = new HashSet<>(existingHistory.getRemovedKeys());
 			removedKeys.addAll(this.removedKeys);
 			final Map<Byte, Integer> histogram = new HashMap<>(existingHistory.getHistogram());
-			for (Entry<Byte, Integer> entry : nonFlushedValuesHistogram.entrySet()) {
+			for (Entry<Byte, Integer> entry : this.nonFlushedValuesHistogram.entrySet()) {
 				histogram.compute(entry.getKey(), (k, v) -> v == null ? entry.getValue() : v + entry.getValue());
 			}
 			final Map<RecordKey, VersionedValue> replacedValues = new HashMap<>(existingHistory.getReplacedValues());
-			for (RecordKey replacedKey : nonFlushedValueIndex.keySet()) {
+			for (RecordKey replacedKey : this.nonFlushedValueIndex.keySet()) {
 				// if the existing history already contains the key, we must not overwrite it, the currentLocations
 				// already contains value written in this catalog version and we would store invalid value (and lose
 				// the proper historical one) - the single record may have been written multiple times in single tx
@@ -1668,10 +1673,10 @@ public class OffsetIndex {
 		public long getTotalSize() {
 			return MemoryMeasuringConstants.LONG_SIZE +
 				MemoryMeasuringConstants.OBJECT_HEADER_SIZE * 7 +
-				nonFlushedValueIndex.size() * (RecordKey.MEMORY_SIZE + VersionedValue.MEMORY_SIZE) +
-				nonFlushedValuesHistogram.size() * (2 * MemoryMeasuringConstants.OBJECT_HEADER_SIZE) +
-				addedKeys.size() * RecordKey.MEMORY_SIZE +
-				removedKeys.size() * RecordKey.MEMORY_SIZE;
+				this.nonFlushedValueIndex.size() * (RecordKey.MEMORY_SIZE + VersionedValue.MEMORY_SIZE) +
+				this.nonFlushedValuesHistogram.size() * (2 * MemoryMeasuringConstants.OBJECT_HEADER_SIZE) +
+				this.addedKeys.size() * RecordKey.MEMORY_SIZE +
+				this.removedKeys.size() * RecordKey.MEMORY_SIZE;
 		}
 
 		/**
@@ -1680,7 +1685,7 @@ public class OffsetIndex {
 		 * @return the count of non-flushed records of particular type
 		 */
 		public int getCountFor(byte recordTypeId) {
-			return nonFlushedValuesHistogram.getOrDefault(recordTypeId, 0);
+			return this.nonFlushedValuesHistogram.getOrDefault(recordTypeId, 0);
 		}
 	}
 
@@ -2275,7 +2280,7 @@ public class OffsetIndex {
 		 */
 		@Override
 		protected VersionedKryo create() {
-			return supplier.apply(version);
+			return this.supplier.apply(this.version);
 		}
 
 		/**
@@ -2285,7 +2290,7 @@ public class OffsetIndex {
 		public void free(VersionedKryo object) {
 			// if object version is the same as actual version, accept it,
 			// otherwise it would be discarded and garbage collected
-			if (object.getVersion() == version) {
+			if (object.getVersion() == this.version) {
 				super.free(object);
 			}
 		}
@@ -2317,7 +2322,7 @@ public class OffsetIndex {
 		 */
 		@Nullable
 		public VersionedValue getPreviousValue(@Nonnull RecordKey key) {
-			return replacedValues.get(key);
+			return this.replacedValues.get(key);
 		}
 
 		/**
@@ -2327,7 +2332,7 @@ public class OffsetIndex {
 		 * @return true if the record key exists in the map of replaced values, false otherwise.
 		 */
 		public boolean containsKey(@Nonnull RecordKey replacedKey) {
-			return replacedValues.containsKey(replacedKey);
+			return this.replacedValues.containsKey(replacedKey);
 		}
 
 		/**
@@ -2338,9 +2343,9 @@ public class OffsetIndex {
 		public long getTotalSize() {
 			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
 				MemoryMeasuringConstants.LONG_SIZE +
-				replacedValues.size() * (RecordKey.MEMORY_SIZE + VersionedValue.MEMORY_SIZE) +
-				addedKeys.size() * RecordKey.MEMORY_SIZE +
-				removedKeys.size() * RecordKey.MEMORY_SIZE;
+				this.replacedValues.size() * (RecordKey.MEMORY_SIZE + VersionedValue.MEMORY_SIZE) +
+				this.addedKeys.size() * RecordKey.MEMORY_SIZE +
+				this.removedKeys.size() * RecordKey.MEMORY_SIZE;
 		}
 
 		/**
@@ -2349,7 +2354,7 @@ public class OffsetIndex {
 		 * @return the count of past memory records of particular type
 		 */
 		public int getCountFor(byte recordTypeId) {
-			return histogram.getOrDefault(recordTypeId, 0);
+			return this.histogram.getOrDefault(recordTypeId, 0);
 		}
 	}
 
@@ -2364,7 +2369,7 @@ public class OffsetIndex {
 	private record NonFlushedValuesWithFileLocation(
 		@Nonnull Collection<NonFlushedValueSet> nonFlushedValueSets,
 		int valueCount,
-		@Nonnull FileLocation fileLocation
+		@Nonnull FileLocationAndWrittenBytes fileLocation
 	) {
 	}
 
@@ -2429,11 +2434,11 @@ public class OffsetIndex {
 		@Override
 		protected ReadOnlyHandle create() {
 			try {
-				if (this.readFilesLock.tryLock(storageOptions.lockTimeoutSeconds(), TimeUnit.SECONDS)) {
+				if (this.readFilesLock.tryLock(OffsetIndex.this.storageOptions.lockTimeoutSeconds(), TimeUnit.SECONDS)) {
 					try {
 						final ReadOnlyHandle readOnlyFileHandle = OffsetIndex.this.writeHandle.toReadOnlyHandle();
 						if (OffsetIndex.this.readOnlyOpenedHandles.size() >= OffsetIndex.this.storageOptions.maxOpenedReadHandles()) {
-							throw new PoolExhaustedException(storageOptions.maxOpenedReadHandles(), readOnlyFileHandle.toString());
+							throw new PoolExhaustedException(OffsetIndex.this.storageOptions.maxOpenedReadHandles(), readOnlyFileHandle.toString());
 						}
 						OffsetIndex.this.readOnlyOpenedHandles.add(readOnlyFileHandle);
 						return readOnlyFileHandle;
