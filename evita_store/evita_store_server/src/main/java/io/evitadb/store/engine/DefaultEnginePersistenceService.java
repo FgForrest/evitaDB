@@ -43,7 +43,9 @@ import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.EnginePersistenceService;
 import io.evitadb.store.spi.model.EngineState;
+import io.evitadb.store.spi.model.reference.EngineTransactionMutationWithWalFileReference;
 import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
+import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.wal.EngineWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.ArrayUtils;
@@ -56,10 +58,13 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.File;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
 import static io.evitadb.store.offsetIndex.model.StorageRecord.read;
@@ -208,6 +213,45 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			this.engineState = createNewEngineState(storageOptions);
 			this.created = true;
 		}
+
+		// Initialize the write-ahead log if there are any WAL files present
+		this.writeAheadLog = createWalIfAnyWalFilePresent(
+			this.engineState.version(),
+			EnginePersistenceService::getWalFileName,
+			storageOptions, transactionOptions, scheduler,
+			this.walKryoPool
+		);
+	}
+
+	/**
+	 * Creates a CatalogWriteAheadLog if there are any WAL files present in the catalog file path.
+	 *
+	 * @param version            the version of the engine
+	 * @param storageOptions     the storage options
+	 * @param transactionOptions the transaction options
+	 * @param scheduler          the executor service
+	 * @param kryoPool           the Kryo pool
+	 * @return a EngineWriteAheadLog object if WAL files are present, otherwise null
+	 */
+	@Nullable
+	static EngineWriteAheadLog createWalIfAnyWalFilePresent(
+		long version,
+		@Nonnull IntFunction<String> walFileNameProvider,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull Pool<Kryo> kryoPool
+	) {
+		final Path storageFolder = storageOptions.storageDirectory();
+		final File[] walFiles = storageFolder
+			.toFile()
+			.listFiles((dir, name) -> name.endsWith(WAL_FILE_SUFFIX));
+		return walFiles == null || walFiles.length == 0 ?
+			null :
+			new EngineWriteAheadLog(
+				version, walFileNameProvider, storageFolder, kryoPool,
+				storageOptions, transactionOptions, scheduler
+			);
 	}
 
 	@Override
@@ -302,46 +346,52 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		// Allocate off-heap memory for the mutation, it will be released automatically on buffer release
 		this.walWriteHandle.allocateOffHeapMemory();
 
-		// Write the mutation to the WAL and get its size in bytes
-		final int mutationSizeInBytes = this.walWriteHandle.checkAndExecute(
-			"write mutation",
-			() -> {
-			},
-			output -> {
-				final Kryo writeKryo = this.walKryoPool.obtain();
-				try {
-					// Create a storage record with the mutation
-					final StorageRecord<Mutation> record = new StorageRecord<>(
-						output, version, true,
-						theOutput -> {
-							// Serialize the mutation using Kryo
-							writeKryo.writeClassAndObject(output, mutation);
-							return mutation;
-						}
-					);
-					// Return the size of the record
-					return record.fileLocation().recordLength();
-				} finally {
-					// Return Kryo instance to the pool
-					this.walKryoPool.free(writeKryo);
+		try {
+			// Write the mutation to the WAL and get its size in bytes
+			final int mutationSizeInBytes = this.walWriteHandle.checkAndExecute(
+				"write mutation",
+				() -> {
+				},
+				output -> {
+					final Kryo writeKryo = this.walKryoPool.obtain();
+					try {
+						// Create a storage record with the mutation
+						final StorageRecord<Mutation> record = new StorageRecord<>(
+							output, version, true,
+							theOutput -> {
+								// Serialize the mutation using Kryo
+								writeKryo.writeClassAndObject(output, mutation);
+								return mutation;
+							}
+						);
+						// Return the size of the record
+						return record.fileLocation().recordLength();
+					} finally {
+						// Return Kryo instance to the pool
+						this.walKryoPool.free(writeKryo);
+					}
 				}
-			}
-		);
+			);
 
-		// Create a transaction mutation with the mutation size
-		final TransactionMutation transactionMutation = new TransactionMutation(
-			UUIDUtil.randomUUID(), version, 1, mutationSizeInBytes, OffsetDateTime.now()
-		);
+			// Create a transaction mutation with the mutation size
+			final TransactionMutation transactionMutation = new TransactionMutation(
+				UUIDUtil.randomUUID(), version, 1, mutationSizeInBytes, OffsetDateTime.now()
+			);
 
-		// Append the transaction mutation to the WAL
-		return new TransactionMutationWithWalFileReference(
-			this.writeAheadLog.append(
-				transactionMutation,
-				// when reading is done, the off-heap memory will be released automatically
-				this.walWriteHandle.toReadOffHeapReference()
-			),
-			transactionMutation
-		);
+			// Append the transaction mutation to the WAL
+			return new TransactionMutationWithWalFileReference(
+				this.writeAheadLog.append(
+					transactionMutation,
+					// when reading is done, the off-heap memory will be released automatically
+					this.walWriteHandle.toReadOffHeapReference()
+				),
+				transactionMutation
+			);
+		} catch (RuntimeException ex) {
+			this.walWriteHandle.releaseOffHeapMemory();
+			// propagate the exception to the caller
+			throw ex;
+		}
 	}
 
 	@Nonnull
@@ -352,9 +402,8 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			return Optional.empty();
 		} else {
 			// Get the first non-processed transaction from the WAL
-			return this.writeAheadLog.getFirstNonProcessedTransaction(
-				this.engineState.walFileReference()
-			);
+			return this.writeAheadLog.getFirstNonProcessedTransaction(this.engineState.walFileReference())
+			                         .map(TransactionMutationWithWalFileReference::transactionMutation);
 		}
 	}
 
@@ -379,6 +428,42 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		} else {
 			// Get stream of committed mutations in reverse order from the WAL
 			return this.writeAheadLog.getCommittedReversedMutationStream(version == null ? getVersion() : version);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Optional<EngineTransactionMutationWithWalFileReference> getNextTransaction(
+		@Nonnull WalFileReference walFileReference
+	) {
+		if (this.writeAheadLog == null) {
+			// If WAL is not initialized, there are no transactions
+			return Optional.empty();
+		} else {
+			// Get the next transaction from the WAL using the provided file reference
+			return this.writeAheadLog.getFirstNonProcessedTransaction(walFileReference)
+				.map(transactionMutationWithWalFileReference -> {
+					final TransactionMutation transactionMutation = transactionMutationWithWalFileReference.transactionMutation();
+					final List<EngineMutation<?>> engineMutations = this.writeAheadLog
+						.getCommittedMutationStream(transactionMutation.getVersion())
+						.limit(2)
+						.toList();
+					Assert.isPremiseValid(engineMutations.size() == 2, "Expected exactly 2 mutations: transaction mutation and engine mutation!");
+					Assert.isPremiseValid(
+						engineMutations.get(0).equals(transactionMutationWithWalFileReference.transactionMutation()),
+						"First mutation in the stream must be the transaction mutation!"
+					);
+					Assert.isPremiseValid(
+						!(engineMutations.get(1) instanceof TransactionMutation),
+						"Second mutation in the stream must be an engine mutation!"
+					);
+					// Create a new transaction mutation with the WAL file reference
+					return new EngineTransactionMutationWithWalFileReference(
+						transactionMutationWithWalFileReference.walFileReference(),
+						transactionMutation,
+						engineMutations.get(1)
+					);
+				});
 		}
 	}
 

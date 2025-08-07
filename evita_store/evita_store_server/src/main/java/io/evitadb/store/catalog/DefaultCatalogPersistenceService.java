@@ -116,6 +116,7 @@ import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
+import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.spi.model.storageParts.index.CatalogIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.GlobalUniqueIndexStoragePart;
@@ -1977,9 +1978,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		if (this.catalogWal == null) {
 			return Optional.empty();
 		} else {
-			return this.catalogWal.getFirstNonProcessedTransaction(
-				getCatalogHeader(catalogVersion).walFileReference()
-			);
+			return this.catalogWal.getFirstNonProcessedTransaction(getCatalogHeader(catalogVersion).walFileReference())
+				.map(TransactionMutationWithWalFileReference::transactionMutation);
 		}
 	}
 

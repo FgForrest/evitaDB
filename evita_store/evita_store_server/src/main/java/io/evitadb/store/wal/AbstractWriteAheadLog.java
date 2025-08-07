@@ -47,6 +47,7 @@ import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
+import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.wal.supplier.MutationSupplier;
 import io.evitadb.store.wal.supplier.ReverseMutationSupplier;
@@ -1060,18 +1061,21 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 	 * @return UUID of the first transaction that is present in the WAL file and which transitions the catalog to
 	 */
 	@Nonnull
-	public Optional<TransactionMutation> getFirstNonProcessedTransaction(
+	public Optional<TransactionMutationWithWalFileReference> getFirstNonProcessedTransaction(
 		@Nullable WalFileReference walReference
 	) {
 		final Path walFilePath;
+		final int walFileIndex;
 		final long startPosition;
 		if (walReference == null) {
-			walFilePath = this.storageFolder.resolve(this.walFileNameProvider.apply(getWalFileIndex()));
+			walFileIndex = getWalFileIndex();
+			walFilePath = this.storageFolder.resolve(this.walFileNameProvider.apply(walFileIndex));
 			startPosition = 0L;
 		} else {
 			walFilePath = walReference.toFilePath(this.storageFolder);
+			walFileIndex = walReference.fileIndex();
 			final FileLocation fileLocation = Objects.requireNonNull(walReference.fileLocation());
-			startPosition = fileLocation.startingPosition() + fileLocation.recordLength();
+			startPosition = fileLocation.endPosition();
 		}
 		final File walFile = walFilePath.toFile();
 		if (walFile.exists() && walFile.length() > startPosition + 4) {
@@ -1082,11 +1086,20 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 				)
 			) {
 				input.seekWithUnknownLength(startPosition + 4);
+				final StorageRecord<Object> storageRecord = StorageRecord.read(
+					input, (stream, length) -> this.kryoPool.obtain().readClassAndObject(stream)
+				);
+				final TransactionMutation transactionMutation = Objects.requireNonNull((TransactionMutation) storageRecord.payload());
 				return of(
-					Objects.requireNonNull(
-						(TransactionMutation) StorageRecord.read(
-							input, (stream, length) -> this.kryoPool.obtain().readClassAndObject(stream)
-						).payload()
+					new TransactionMutationWithWalFileReference(
+						new WalFileReference(
+							this.walFileNameProvider, walFileIndex,
+							new FileLocation(
+								storageRecord.fileLocation().startingPosition(),
+								Math.toIntExact((long)storageRecord.fileLocation().recordLength() + transactionMutation.getWalSizeInBytes())
+							)
+						),
+						transactionMutation
 					)
 				);
 			} catch (Exception e) {

@@ -47,6 +47,7 @@ import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
+import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.wal.AbstractWriteAheadLog.FirstAndLastVersionsInWalFile;
 import io.evitadb.store.wal.supplier.MutationSupplier;
@@ -309,7 +310,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 			final List<Mutation> mutations = txInMutations.get((long) i);
 			final List<Mutation> nextMutations = txInMutations.get((long) i + 1);
 			final TransactionMutationWithLocation transactionMutation = (TransactionMutationWithLocation) mutations.get(0);
-			final Optional<TransactionMutation> txId = this.wal.getFirstNonProcessedTransaction(
+			final Optional<TransactionMutationWithWalFileReference> txId = this.wal.getFirstNonProcessedTransaction(
 				new WalFileReference(
 					index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
 					transactionMutation.getWalFileIndex(),
@@ -317,13 +318,13 @@ public class CatalogWriteAheadLogIntegrationTest {
 				)
 			);
 			assertTrue(txId.isPresent());
-			assertEquals(nextMutations.get(0), txId.get());
+			assertEquals(nextMutations.get(0), txId.get().transactionMutation());
 		}
 
 		// last transaction must return empty value (there is no next transaction to transition to)
 		final List<Mutation> mutations = txInMutations.get((long) aFewTransactions.length);
 		final TransactionMutationWithLocation transactionMutation = (TransactionMutationWithLocation) mutations.get(0);
-		final Optional<TransactionMutation> txId = this.wal.getFirstNonProcessedTransaction(
+		final Optional<TransactionMutationWithWalFileReference> txId = this.wal.getFirstNonProcessedTransaction(
 			new WalFileReference(
 				index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
 				transactionMutation.getWalFileIndex(),

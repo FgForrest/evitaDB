@@ -412,21 +412,23 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	 */
 	@Nonnull
 	private <T extends ObservableTask> T addTaskToQueue(@Nonnull T task) {
-		final WeakReference<ObservableTask> taskRef = new WeakReference<>(task);
-		try {
-			// add the task to the queue
-			this.queue.add(taskRef);
-		} catch (IllegalStateException e) {
-			// this means the queue is full, so we need to remove some tasks
-			this.cancelTimedOutTasks();
-			// and try adding the task again
+		if (task.canTimeOut()) {
+			final WeakReference<ObservableTask> taskRef = new WeakReference<>(task);
 			try {
+				// add the task to the queue
 				this.queue.add(taskRef);
-			} catch (IllegalStateException exceptionAgain) {
-				// and this should never happen since queue was cleared of finished and timed out tasks and its size
-				// is double the configured size
-				this.rejectedExecutionHandler.rejectedExecution();
-				throw exceptionAgain;
+			} catch (IllegalStateException e) {
+				// this means the queue is full, so we need to remove some tasks
+				this.cancelTimedOutTasks();
+				// and try adding the task again
+				try {
+					this.queue.add(taskRef);
+				} catch (IllegalStateException exceptionAgain) {
+					// and this should never happen since queue was cleared of finished and timed out tasks and its size
+					// is double the configured size
+					this.rejectedExecutionHandler.rejectedExecution();
+					throw exceptionAgain;
+				}
 			}
 		}
 		return task;
@@ -519,6 +521,13 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 		boolean isTimedOut(long now);
 
 		/**
+		 * Determines whether the task has the capability to time out.
+		 *
+		 * @return true if the task can time out, false otherwise
+		 */
+		boolean canTimeOut();
+
+		/**
 		 * Cancels the task.
 		 */
 		void cancel();
@@ -591,6 +600,11 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 		@Override
 		public boolean isTimedOut(long now) {
 			return this.timedOutAt < now;
+		}
+
+		@Override
+		public boolean canTimeOut() {
+			return this.timedOutAt < Long.MAX_VALUE;
 		}
 
 		@Override
@@ -691,6 +705,11 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 		@Override
 		public boolean isTimedOut(long now) {
 			return this.timedOutAt < now;
+		}
+
+		@Override
+		public boolean canTimeOut() {
+			return this.timedOutAt < Long.MAX_VALUE;
 		}
 
 		@Override

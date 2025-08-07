@@ -217,7 +217,7 @@ public class WriteOnlyOffHeapHandle implements WriteOnlyHandle {
 	 *
 	 * This method closes the off-heap memory output stream and sets it to null.
 	 */
-	private void releaseOffHeapMemory() {
+	public void releaseOffHeapMemory() {
 		if (this.offHeapMemoryOutput != null) {
 			this.offHeapMemoryOutput.close();
 		}

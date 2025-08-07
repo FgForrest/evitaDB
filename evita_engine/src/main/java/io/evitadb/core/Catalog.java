@@ -90,6 +90,7 @@ import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
@@ -261,6 +262,10 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 */
 	private final ObservableExecutorService transactionalExecutor;
 	/**
+	 * Wrapping executor service that is used to flush changes to the persistent storage that cannot time out.
+	 */
+	private final ObservableExecutorService flushExecutor;
+	/**
 	 * Reference to the shared executor service that provides carrier threads for transaction processing.
 	 */
 	private final Scheduler scheduler;
@@ -367,6 +372,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		this.evitaConfiguration = evitaConfiguration;
 		this.scheduler = scheduler;
 		this.transactionalExecutor = transactionalExecutor;
+		this.flushExecutor = new SystemObservableExecutorService("flush", transactionalExecutor);
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
 		this.transactionManager = new TransactionManager(
@@ -643,6 +649,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		this.evitaConfiguration = evitaConfiguration;
 		this.scheduler = scheduler;
 		this.transactionalExecutor = transactionalExecutor;
+		this.flushExecutor = new SystemObservableExecutorService("flush", transactionalExecutor);
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = catalogSchema.version();
 		this.transactionManager = new TransactionManager(
@@ -701,6 +708,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		this.evitaConfiguration = previousCatalogVersion.evitaConfiguration;
 		this.scheduler = previousCatalogVersion.scheduler;
 		this.transactionalExecutor = previousCatalogVersion.transactionalExecutor;
+		this.flushExecutor = previousCatalogVersion.flushExecutor;
 		this.newCatalogVersionConsumer = previousCatalogVersion.newCatalogVersionConsumer;
 		this.transactionManager = previousCatalogVersion.transactionManager;
 
@@ -1864,7 +1872,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		if (transaction == null) {
 			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
 			final ProgressingFuture<Void> flushFuture = this.flush();
-			flushFuture.execute(this.transactionalExecutor);
+			flushFuture.execute(this.flushExecutor);
 			flushFuture.join();
 		}
 		return newSchema;
@@ -1914,7 +1922,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		if (transaction == null) {
 			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
 			final ProgressingFuture<Void> flushFuture = this.flush();
-			flushFuture.execute(this.transactionalExecutor);
+			flushFuture.execute(this.flushExecutor);
 			flushFuture.join();
 		}
 		return result;
@@ -2039,7 +2047,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			// store catalog with a new file pointer
 			// TOBEDONE #409 - we should execute all schema operations in asynchronous manner
 			final ProgressingFuture<Void> flushFuture = this.flush();
-			flushFuture.execute(this.transactionalExecutor);
+			flushFuture.execute(this.flushExecutor);
 			flushFuture.join();
 		} else {
 			// update managed reference entity types and groups that target renamed entity

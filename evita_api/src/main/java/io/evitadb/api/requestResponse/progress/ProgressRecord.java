@@ -165,13 +165,13 @@ public class ProgressRecord<T> implements Progress<T> {
 		if (percentage < 0 || percentage > 100) {
 			throw new IllegalArgumentException("Percentage must be between 0 and 100, but was: " + percentage);
 		}
-		if (this.lastLoggedTime + 1000 < System.currentTimeMillis()) {
-			// Log the progress update every second to avoid flooding the logs
-			log.info("{} is at {}%", this.operationName, this.percentCompleted.get());
-			this.lastLoggedTime = System.currentTimeMillis();
-		}
 		final int previousValue = this.percentCompleted.getAndSet(percentage);
 		if (previousValue != percentage) {
+			if (this.lastLoggedTime + 1000 < System.currentTimeMillis()) {
+				// Log the progress update every second to avoid flooding the logs
+				log.info("{} is at {}%", this.operationName, percentage);
+				this.lastLoggedTime = System.currentTimeMillis();
+			}
 			notifyClientObserver(percentage);
 		}
 	}
@@ -181,9 +181,8 @@ public class ProgressRecord<T> implements Progress<T> {
 	 */
 	public void complete(@Nullable T result) {
 		if (!this.onCompletion.isDone()) {
+			updatePercentCompleted(100);
 			log.info("{} has been successfully completed.", this.operationName);
-			this.percentCompleted.set(100);
-			notifyClientObserver(100);
 			this.onCompletion.complete(result);
 		}
 	}

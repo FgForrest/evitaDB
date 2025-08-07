@@ -27,7 +27,9 @@ package io.evitadb.store.spi;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.store.spi.model.EngineState;
+import io.evitadb.store.spi.model.reference.EngineTransactionMutationWithWalFileReference;
 import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
+import io.evitadb.store.spi.model.reference.WalFileReference;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -56,7 +58,7 @@ public non-sealed interface EnginePersistenceService extends PersistenceService 
 	/**
 	 * Returns name of the Write-Ahead-Log file that contains all mutations that were not yet propagated to the boot file.
 	 *
-	 * @param fileIndex   index of the WAL file
+	 * @param fileIndex index of the WAL file
 	 * @return name of the WAL file
 	 */
 	@Nonnull
@@ -89,8 +91,8 @@ public non-sealed interface EnginePersistenceService extends PersistenceService 
 	/**
 	 * Appends the given transaction mutation to the write-ahead log (WAL) and appends its mutation chain.
 	 *
-	 * @param version             version the transaction mutation is written for
-	 * @param mutation           set of mutations that are part of the transaction mutation
+	 * @param version  version the transaction mutation is written for
+	 * @param mutation set of mutations that are part of the transaction mutation
 	 * @return the number of Bytes written
 	 */
 	@Nonnull
@@ -122,11 +124,21 @@ public non-sealed interface EnginePersistenceService extends PersistenceService 
 	 * first one and continues backward with previous transaction after that until the beginning of the WAL.
 	 *
 	 * @param version version of the engine state to start the stream with, if null is provided then the stream will
-	 *                       start with the last transaction in the WAL
+	 *                start with the last transaction in the WAL
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
 	Stream<EngineMutation<?>> getReversedCommittedMutationStream(@Nullable Long version);
+
+	/**
+	 * Retrieves the next transaction mutation associated with the given WAL (Write-Ahead Log) file reference.
+	 *
+	 * @param walFileReference the reference to the WAL file from which the next transaction mutation should be retrieved
+	 * @return an {@link Optional} containing the next transaction mutation wrapped in an {@link EngineTransactionMutationWithWalFileReference},
+	 * or an empty {@link Optional} if no further transactions are available
+	 */
+	@Nonnull
+	Optional<EngineTransactionMutationWithWalFileReference> getNextTransaction(@Nonnull WalFileReference walFileReference);
 
 	/**
 	 * Retrieves the last engine state version written in the WAL stream.
@@ -140,5 +152,4 @@ public non-sealed interface EnginePersistenceService extends PersistenceService 
 	 */
 	@Override
 	void close();
-
 }
