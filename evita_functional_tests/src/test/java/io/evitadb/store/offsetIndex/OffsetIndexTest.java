@@ -38,6 +38,7 @@ import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexStatistics;
+import io.evitadb.store.offsetIndex.OffsetIndexSerializationService.FileLocationAndWrittenBytes;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
@@ -360,7 +361,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 			sourceOffsetIndex = new OffsetIndex(
 				insertionOutput.catalogVersion(),
 				new OffsetIndexDescriptor(
-					fileOffsetIndexDescriptor.fileLocation(),
+					new FileLocationAndWrittenBytes(fileOffsetIndexDescriptor.fileLocation(), 0, ""),
 					fileOffsetIndexDescriptor,
 					1.0,
 					fileOffsetIndexDescriptor.getFileSize()
@@ -385,7 +386,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 			purgedSourceOffsetIndex = new OffsetIndex(
 				nextCatalogVersion,
 				new OffsetIndexDescriptor(
-					updatedOffsetIndexDescriptor.fileLocation(),
+					new FileLocationAndWrittenBytes(updatedOffsetIndexDescriptor.fileLocation(), 0, ""),
 					updatedOffsetIndexDescriptor,
 					1.0,
 					updatedOffsetIndexDescriptor.getFileSize()
@@ -470,7 +471,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 			loadedFileOffsetIndex = new OffsetIndex(
 				0L,
 				new OffsetIndexDescriptor(
-					fileOffsetIndexInfo.fileLocation(),
+					new FileLocationAndWrittenBytes(fileOffsetIndexInfo.fileLocation(), 0, ""),
 					fileOffsetIndexInfo,
 					1.0,
 					fileOffsetIndexInfo.getFileSize()
@@ -539,7 +540,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 			loadedFileOffsetIndex = new OffsetIndex(
 				0L,
 				new OffsetIndexDescriptor(
-					fileOffsetIndexDescriptor.fileLocation(),
+					new FileLocationAndWrittenBytes(fileOffsetIndexDescriptor.fileLocation(), 0, ""),
 					fileOffsetIndexDescriptor,
 					1.0,
 					fileOffsetIndexDescriptor.getFileSize()
@@ -772,7 +773,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 					final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
 						transactionId,
 						new OffsetIndexDescriptor(
-							fileOffsetIndexDescriptor.fileLocation(),
+							new FileLocationAndWrittenBytes(fileOffsetIndexDescriptor.fileLocation(), 0, ""),
 							fileOffsetIndexDescriptor,
 							1.0,
 							fileOffsetIndexDescriptor.getFileSize()
@@ -863,7 +864,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 						final OffsetIndex newOffsetIndex = new OffsetIndex(
 							transactionId,
 							new OffsetIndexDescriptor(
-								compactedDescriptor.fileLocation(),
+								new FileLocationAndWrittenBytes(compactedDescriptor.fileLocation(), 0, ""),
 								compactedDescriptor,
 								1.0,
 								compactedDescriptor.getFileSize()
@@ -963,7 +964,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 			loadedFileOffsetIndex = new OffsetIndex(
 				0L,
 				new OffsetIndexDescriptor(
-					fileOffsetIndexDescriptor.fileLocation(),
+					new FileLocationAndWrittenBytes(fileOffsetIndexDescriptor.fileLocation(), 0, ""),
 					fileOffsetIndexDescriptor,
 					1.0,
 					fileOffsetIndexDescriptor.getFileSize()

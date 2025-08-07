@@ -1177,8 +1177,9 @@ public class OffsetIndex {
 							catalogVersion,
 							valuesToPromote,
 							this.getFileOffsetIndexLocation(),
-							this.getStorageOptions()
-						).fileLocation()
+							this.getStorageOptions(),
+							"File: " + this.writeHandle + ", last written position: " + this.writeHandle.getLastWrittenPosition()
+						)
 					);
 				},
 				(outputStream, nonFlushedValuesWithFileLocation) -> {
@@ -1234,7 +1235,11 @@ public class OffsetIndex {
 					// propagate changes in KeyCompressor to the read kryo pool
 					if (this.fileOffsetDescriptor.resetDirty()) {
 						this.fileOffsetDescriptor = new OffsetIndexDescriptor(
-							this.fileOffsetDescriptor.fileLocation(),
+							new FileLocationAndWrittenBytes(
+								this.fileOffsetDescriptor.fileLocation(),
+								0,
+								"Soft flush of non-flushed values"
+							),
 							this.fileOffsetDescriptor,
 							getActiveRecordShare(this.lastSyncedPosition),
 							this.lastSyncedPosition
@@ -2364,7 +2369,7 @@ public class OffsetIndex {
 	private record NonFlushedValuesWithFileLocation(
 		@Nonnull Collection<NonFlushedValueSet> nonFlushedValueSets,
 		int valueCount,
-		@Nonnull FileLocation fileLocation
+		@Nonnull FileLocationAndWrittenBytes fileLocation
 	) {
 	}
 

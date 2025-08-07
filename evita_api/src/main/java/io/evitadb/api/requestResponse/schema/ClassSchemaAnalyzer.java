@@ -1160,8 +1160,8 @@ public class ClassSchemaAnalyzer {
 
 		Assert.isTrue(
 			!targetEntity.entityType().isBlank(),
-			"Target entity type needs to be specified either by `@ReflectedReference` entity attribute or by `@ReferencedEntity` " +
-				" and `@Entity` annotation on target class!"
+			"Target entity of reference `" + referenceName + "` type needs to be specified either by " +
+				"`@ReflectedReference` entity attribute or by `@ReferencedEntity` and `@Entity` annotation on target class!"
 		);
 
 		final Map<String, String> relationAttributes = new HashMap<>(32);
@@ -1183,6 +1183,13 @@ public class ClassSchemaAnalyzer {
 
 			final ScopeReferenceSettings[] scopedDefinition = reference.scope();
 			if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
+				if (reference.indexed() == ReferenceIndexType.FOR_FILTERING) {
+					editor.indexedForFiltering();
+				} else if (reference.indexed() == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
+					editor.indexedForFilteringAndPartitioning();
+				} else {
+					editor.nonIndexed();
+				}
 				if (reference.faceted() == InheritableBoolean.TRUE) {
 					editor.faceted();
 				} else if (reference.faceted() == InheritableBoolean.FALSE) {
@@ -1201,10 +1208,10 @@ public class ClassSchemaAnalyzer {
 				}
 
 				Assert.isTrue(
-					reference.faceted() == InheritableBoolean.INHERITED,
+					reference.faceted() == InheritableBoolean.FALSE,
 					"When `scope` is defined in `@Reference` annotation, " +
-						"the value of `faceted` property is not taken into an account " +
-						"(and thus it doesn't make sense to set it to true)!"
+						"the value of `faceted` property of reflected reference `" + reference + "` is not taken " +
+						"into an account (and thus it doesn't make sense to set it to true)!"
 				);
 				editor.facetedInScope(
 					Arrays.stream(scopedDefinition)
