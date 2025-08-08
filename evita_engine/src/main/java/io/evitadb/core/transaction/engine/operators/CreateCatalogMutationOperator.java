@@ -49,7 +49,8 @@ import java.util.function.Consumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @RequiredArgsConstructor
-public class CreateCatalogMutationOperator implements EngineMutationOperator<CommitVersions, CreateCatalogSchemaMutation> {
+public class CreateCatalogMutationOperator
+	implements EngineMutationOperator<CommitVersions, CreateCatalogSchemaMutation> {
 	private final Path storageDirectory;
 
 	@Nonnull
@@ -74,14 +75,18 @@ public class CreateCatalogMutationOperator implements EngineMutationOperator<Com
 			new AbstractEngineStateUpdater(transactionId, mutation) {
 				@Override
 				public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
-					return expandedEngineState.withCatalog(
-						new UnusableCatalog(
-							catalogName,
-							CatalogState.BEING_CREATED,
-							CreateCatalogMutationOperator.this.storageDirectory.resolve(catalogName),
-							(cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_CREATED)
-						)
-					);
+					return ExpandedEngineState
+						.builder(expandedEngineState)
+						.withCatalog(
+							new UnusableCatalog(
+								catalogName,
+								CatalogState.BEING_CREATED,
+								CreateCatalogMutationOperator.this.storageDirectory.resolve(
+									catalogName),
+								(cn, path) -> new CatalogTransitioningException(
+									cn, path, CatalogState.BEING_CREATED)
+							)
+						).build();
 				}
 			}
 		);
@@ -99,7 +104,10 @@ public class CreateCatalogMutationOperator implements EngineMutationOperator<Com
 					new AbstractEngineStateUpdater(transactionId, mutation) {
 						@Override
 						public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
-							return expandedEngineState.withCatalog(theCatalog);
+							return ExpandedEngineState
+								.builder(expandedEngineState)
+								.withCatalog(theCatalog)
+								.build();
 						}
 					}
 				);

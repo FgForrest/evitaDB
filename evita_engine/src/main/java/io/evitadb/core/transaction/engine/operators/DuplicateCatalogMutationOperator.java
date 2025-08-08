@@ -79,14 +79,18 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 					new AbstractEngineStateUpdater(transactionId, mutation) {
 						@Override
 						public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
-							return expandedEngineState.withCatalog(
-								new UnusableCatalog(
-									targetCatalogName,
-									CatalogState.INACTIVE,
-									DuplicateCatalogMutationOperator.this.storageDirectory.resolve(targetCatalogName),
-									CatalogInactiveException::new
+							return ExpandedEngineState
+								.builder(expandedEngineState)
+								.withCatalog(
+									new UnusableCatalog(
+										targetCatalogName,
+										CatalogState.INACTIVE,
+										DuplicateCatalogMutationOperator.this.storageDirectory.resolve(
+											targetCatalogName),
+										CatalogInactiveException::new
+									)
 								)
-							);
+								.build();
 						}
 					}
 				);

@@ -133,7 +133,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	/**
 	 * Handle for writing WAL data to off-heap memory.
 	 */
-	private final WriteOnlyOffHeapHandle walWriteHandle;
+	private final WriteOnlyOffHeapHandle logWriteHandle;
 
 	/**
 	 * Path to the bootstrap file that contains the engine state.
@@ -148,7 +148,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	/**
 	 * Write-ahead log for storing mutations before they are committed to the main storage.
 	 */
-	@Nullable private EngineMutationLog writeAheadLog;
+	@Nullable private EngineMutationLog mutationLog;
 
 	/**
 	 * Current state of the engine.
@@ -194,7 +194,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		);
 
 		// Initialize handle for writing WAL data to off-heap memory
-		this.walWriteHandle = new WriteOnlyOffHeapHandle(
+		this.logWriteHandle = new WriteOnlyOffHeapHandle(
 			storageOptions,
 			this.observableOutputKeeper,
 			this.offHeapMemoryManager
@@ -218,7 +218,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		}
 
 		// Initialize the write-ahead log if there are any WAL files present
-		this.writeAheadLog = createWalIfAnyWalFilePresent(
+		this.mutationLog = createWalIfAnyWalFilePresent(
 			this.engineState.version(),
 			EnginePersistenceService::getWalFileName,
 			storageOptions, transactionOptions, scheduler,
@@ -338,8 +338,8 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		@Nonnull EngineMutation<?> mutation
 	) {
 		// Initialize WAL if it doesn't exist yet
-		if (this.writeAheadLog == null) {
-			this.writeAheadLog = new EngineMutationLog(
+		if (this.mutationLog == null) {
+			this.mutationLog = new EngineMutationLog(
 				getVersion(),
 				EnginePersistenceService::getWalFileName,
 				this.storageOptions.storageDirectory(),
@@ -351,11 +351,11 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		}
 
 		// Allocate off-heap memory for the mutation, it will be released automatically on buffer release
-		this.walWriteHandle.allocateOffHeapMemory();
+		this.logWriteHandle.allocateOffHeapMemory();
 
 		try {
 			// Write the mutation to the WAL and get its size in bytes
-			final int mutationSizeInBytes = this.walWriteHandle.checkAndExecute(
+			final int mutationSizeInBytes = this.logWriteHandle.checkAndExecute(
 				"write mutation",
 				() -> {
 				},
@@ -387,15 +387,15 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 			// Append the transaction mutation to the WAL
 			return new TransactionMutationWithWalFileReference(
-				this.writeAheadLog.append(
+				this.mutationLog.append(
 					transactionMutation,
 					// when reading is done, the off-heap memory will be released automatically
-					this.walWriteHandle.toReadOffHeapReference()
+					this.logWriteHandle.toReadOffHeapReference()
 				),
 				transactionMutation
 			);
 		} catch (RuntimeException ex) {
-			this.walWriteHandle.releaseOffHeapMemory();
+			this.logWriteHandle.releaseOffHeapMemory();
 			// propagate the exception to the caller
 			throw ex;
 		}
@@ -404,37 +404,37 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	@Nonnull
 	@Override
 	public Optional<TransactionMutation> getFirstNonProcessedTransactionInWal(long version) {
-		if (this.writeAheadLog == null) {
+		if (this.mutationLog == null) {
 			// If WAL is not initialized, there are no transactions
 			return Optional.empty();
 		} else {
 			// Get the first non-processed transaction from the WAL
-			return this.writeAheadLog.getFirstNonProcessedTransaction(this.engineState.walFileReference())
-			                         .map(TransactionMutationWithWalFileReference::transactionMutation);
+			return this.mutationLog.getFirstNonProcessedTransaction(this.engineState.walFileReference())
+			                       .map(TransactionMutationWithWalFileReference::transactionMutation);
 		}
 	}
 
 	@Nonnull
 	@Override
 	public Stream<EngineMutation<?>> getCommittedMutationStream(long version) {
-		if (this.writeAheadLog == null) {
+		if (this.mutationLog == null) {
 			// If WAL is not initialized, there are no mutations
 			return Stream.empty();
 		} else {
 			// Get stream of committed mutations from the WAL
-			return this.writeAheadLog.getCommittedMutationStream(version);
+			return this.mutationLog.getCommittedMutationStream(version);
 		}
 	}
 
 	@Nonnull
 	@Override
 	public Stream<EngineMutation<?>> getReversedCommittedMutationStream(@Nullable Long version) {
-		if (this.writeAheadLog == null) {
+		if (this.mutationLog == null) {
 			// If WAL is not initialized, there are no mutations
 			return Stream.empty();
 		} else {
 			// Get stream of committed mutations in reverse order from the WAL
-			return this.writeAheadLog.getCommittedReversedMutationStream(version == null ? getVersion() : version);
+			return this.mutationLog.getCommittedReversedMutationStream(version == null ? getVersion() : version);
 		}
 	}
 
@@ -462,12 +462,12 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 	@Override
 	public long getLastVersionInMutationStream() {
-		if (this.writeAheadLog == null) {
+		if (this.mutationLog == null) {
 			// If WAL is not initialized, return 0 as the last version
 			return 0L;
 		} else {
 			// Get the last written version from the WAL
-			return this.writeAheadLog.getLastWrittenVersion();
+			return this.mutationLog.getLastWrittenVersion();
 		}
 	}
 
@@ -477,7 +477,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			this.closed = true;
 			// Close all resources quietly (without throwing exceptions)
 			IOUtils.closeQuietly(
-				this.walWriteHandle::close,
+				this.logWriteHandle::close,
 				this.offHeapMemoryManager::close,
 				this.folderLock::close
 			);

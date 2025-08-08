@@ -157,6 +157,8 @@ public class EngineTransactionManager implements Closeable {
 	 */
 	private final long engineMutationWaitIntervalInMillis;
 
+	private long lastStoredEngineStateVersion;
+
 	/**
 	 * Creates a new EngineTransactionManager bound to the provided Evita instance.
 	 *
@@ -197,7 +199,9 @@ public class EngineTransactionManager implements Closeable {
 		this.engineExecutor = new SystemObservableExecutorService("engineExecutor", executor);
 		this.enginePersistenceService = enginePersistenceService;
 		this.engineMutationWaitIntervalInMillis = this.evita.getConfiguration().server().transactionTimeoutInMilliseconds();
-		truncateWalFile(this.evita.getEngineState());
+		final ExpandedEngineState engineState = this.evita.getEngineState();
+		truncateWalFile(engineState);
+		this.lastStoredEngineStateVersion = engineState.version();
 	}
 
 	/**
@@ -422,11 +426,12 @@ public class EngineTransactionManager implements Closeable {
 	private void updateEngineStateAfterEngineMutation(@Nonnull EngineStateUpdater engineStateUpdater) {
 		this.engineStateLock.lock();
 		try {
-			final ExpandedEngineState currentEngineState = this.evita.getEngineState();
+			final long nextStateVersion = this.lastStoredEngineStateVersion + 1;
+
 			// first store the mutation into the persistence service
 			final EngineMutation<?> engineMutation = engineStateUpdater.getEngineMutation();
 			final TransactionMutationWithWalFileReference txMutationWithWalFileReference = this.enginePersistenceService.appendWal(
-				currentEngineState.version() + 1,
+				nextStateVersion,
 				engineStateUpdater.getTransactionId(),
 				engineMutation
 			);
@@ -435,9 +440,13 @@ public class EngineTransactionManager implements Closeable {
 			this.changeObserver.processMutation(engineMutation);
 
 			// create new engine state with the incremented version, and store it in the persistence service
-			final ExpandedEngineState nextEngineState = engineStateUpdater.apply(currentEngineState);
-			final EngineState theEngineState = nextEngineState.engineState(txMutationWithWalFileReference.walFileReference());
+			final ExpandedEngineState nextEngineState = engineStateUpdater.apply(this.evita.getEngineState());
+			final EngineState theEngineState = nextEngineState.engineState(
+				txMutationWithWalFileReference.walFileReference(),
+				nextStateVersion
+			);
 			this.enginePersistenceService.storeEngineState(theEngineState);
+			this.lastStoredEngineStateVersion++;
 			this.evita.setNextEngineState(nextEngineState);
 			// finally, notify the change observer about the new version
 			this.changeObserver.notifyVersionPresentInLiveView(nextEngineState.version());

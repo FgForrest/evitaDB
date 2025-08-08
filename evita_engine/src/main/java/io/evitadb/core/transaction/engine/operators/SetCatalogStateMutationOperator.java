@@ -82,14 +82,17 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 			new AbstractEngineStateUpdater(transactionId, mutation) {
 				@Override
 				public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
-					return expandedEngineState.withCatalog(
-						new UnusableCatalog(
-							catalogName,
-							transitionState,
-							SetCatalogStateMutationOperator.this.storageDirectory.resolve(catalogName),
-							(cn, path) -> new CatalogTransitioningException(cn, path, transitionState)
-						)
-					);
+					return ExpandedEngineState.builder(expandedEngineState)
+					                          .withCatalog(
+						                          new UnusableCatalog(
+							                          catalogName,
+							                          transitionState,
+							                          SetCatalogStateMutationOperator.this.storageDirectory.resolve(
+								                          catalogName),
+							                          (cn, path) -> new CatalogTransitioningException(
+								                          cn, path, transitionState)
+						                          )
+					                          ).build();
 				}
 			}
 		);
@@ -103,7 +106,10 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 						new AbstractEngineStateUpdater(transactionId, mutation) {
 							@Override
 							public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
-								return expandedEngineState.withCatalog(theCatalog.iterator().next());
+								return ExpandedEngineState
+									.builder(expandedEngineState)
+									.withCatalog(theCatalog.iterator().next())
+									.build();
 							}
 						}
 					);
@@ -121,13 +127,17 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 						new AbstractEngineStateUpdater(transactionId, mutation) {
 							@Override
 							public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
-								return expandedEngineState.withCatalog(
-									new UnusableCatalog(
-										catalogName, CatalogState.INACTIVE,
-										SetCatalogStateMutationOperator.this.storageDirectory.resolve(catalogName),
-										CatalogInactiveException::new
+								return ExpandedEngineState
+									.builder(expandedEngineState)
+									.withCatalog(
+										new UnusableCatalog(
+											catalogName, CatalogState.INACTIVE,
+											SetCatalogStateMutationOperator.this.storageDirectory.resolve(
+												catalogName),
+											CatalogInactiveException::new
+										)
 									)
-								);
+									.build();
 							}
 						}
 					);

@@ -159,7 +159,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	/**
 	 * Reference to the current WAL file information record.
 	 */
-	protected final AtomicReference<CurrentWalFile> currentWalFile = new AtomicReference<>();
+	protected final AtomicReference<CurrentMutationLogFile> currentWalFile = new AtomicReference<>();
 	/**
 	 * Contains reference to the asynchronous task executor that clears the cached WAL pointers after some
 	 * time of inactivity.
@@ -212,7 +212,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	/**
 	 * Cache of already scanned WAL files. The locations might not be complete, but they will be always cover the start
 	 * of the particular WAL file, but they may be later appended with new records that are not yet scanned or gradually
-	 * added to the working WAL file. The index key in this map is the {@link CurrentWalFile#getWalFileIndex()} of the WAL file.
+	 * added to the working WAL file. The index key in this map is the {@link CurrentMutationLogFile#getWalFileIndex()} of the WAL file.
 	 *
 	 * For each existing file there is at least single with the last read position of the file - so that the trunk
 	 * incorporation doesn't need to scan the file from the beginning.
@@ -674,7 +674,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			);
 
 			this.currentWalFile.set(
-				new CurrentWalFile(
+				new CurrentMutationLogFile(
 					currentWalFileIndex.get(),
 					versions.firstVersion(),
 					versions.lastVersion(),
@@ -743,7 +743,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			);
 
 			this.currentWalFile.set(
-				new CurrentWalFile(
+				new CurrentMutationLogFile(
 					walFileIndex,
 					-1,
 					-1,
@@ -858,7 +858,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		try {
 			// write transaction mutation to memory buffer
 			this.transactionMutationOutputStream.reset();
-			final CurrentWalFile theCurrentWalFile = this.currentWalFile.get();
+			final CurrentMutationLogFile theCurrentWalFile = this.currentWalFile.get();
 			theCurrentWalFile.checkNextVersionMatch(transactionMutation.getVersion());
 
 			final ObservableOutput<ByteArrayOutputStream> output = theCurrentWalFile.getOutput();
@@ -1024,7 +1024,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 */
 	@Nonnull
 	public Stream<T> getCommittedReversedMutationStream(long version) {
-		final CurrentWalFile theCurrentWalFile = this.currentWalFile.get();
+		final CurrentMutationLogFile theCurrentWalFile = this.currentWalFile.get();
 		final File walFile = theCurrentWalFile.getWalFilePath().toFile();
 		if (!walFile.exists() || walFile.length() < 4) {
 			// WAL file does not exist or is empty, nothing to read
@@ -1525,7 +1525,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 *                                         is found to be invalid or inconsistent.
 	 */
 	private int findWalIndexFor(long version) {
-		final CurrentWalFile theCurrentWalFile = this.currentWalFile.get();
+		final CurrentMutationLogFile theCurrentWalFile = this.currentWalFile.get();
 		// if the particular version is within current file, return it
 		final long firstCatalogVersionOfCurrentWalFile = theCurrentWalFile.getFirstVersionOfCurrentWalFile();
 		final int currentWalFileIndex = theCurrentWalFile.getWalFileIndex();
@@ -1614,7 +1614,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	private void rotateWalFile() {
 		final WalRotationEvent event = createWalRotationEvent();
 
-		final CurrentWalFile theCurrentWalFile = this.currentWalFile.get();
+		final CurrentMutationLogFile theCurrentWalFile = this.currentWalFile.get();
 		try {
 			// write information about last and first catalog version in this WAL file
 			final long firstCvInFile = this.getFirstVersionOfCurrentWalFile();
@@ -1665,7 +1665,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			);
 
 			this.currentWalFile.set(
-				new CurrentWalFile(
+				new CurrentMutationLogFile(
 					newWalFileIndex,
 					-1L, -1L,
 					walFilePath,

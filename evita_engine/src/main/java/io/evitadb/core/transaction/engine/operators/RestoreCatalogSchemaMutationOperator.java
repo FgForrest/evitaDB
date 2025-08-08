@@ -47,7 +47,8 @@ import java.util.function.Consumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @RequiredArgsConstructor
-public class RestoreCatalogSchemaMutationOperator implements EngineMutationOperator<Void, RestoreCatalogSchemaMutation> {
+public class RestoreCatalogSchemaMutationOperator
+	implements EngineMutationOperator<Void, RestoreCatalogSchemaMutation> {
 	private final Path storageDirectory;
 
 	@Nonnull
@@ -80,13 +81,16 @@ public class RestoreCatalogSchemaMutationOperator implements EngineMutationOpera
 					new AbstractEngineStateUpdater(transactionId, mutation) {
 						@Override
 						public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
-							return expandedEngineState.withCatalog(
-								new UnusableCatalog(
-									catalogName, CatalogState.INACTIVE,
-									catalogFolder,
-									CatalogInactiveException::new
+							return ExpandedEngineState
+								.builder(expandedEngineState)
+								.withCatalog(
+									new UnusableCatalog(
+										catalogName, CatalogState.INACTIVE,
+										catalogFolder,
+										CatalogInactiveException::new
+									)
 								)
-							);
+								.build();
 						}
 					}
 				);

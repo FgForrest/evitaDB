@@ -99,7 +99,7 @@ public class DuplicateCatalogMutation implements TopLevelCatalogSchemaMutation<V
 			throw new InvalidMutationException("Catalog `" + this.newCatalogName + "` already exists!");
 		}
 		// check the names in all naming conventions are unique in the entity schema
-		CatalogSchema.checkCatalogNameIsAvailable(evita, this.catalogName);
+		CatalogSchema.checkCatalogNameIsAvailable(evita, this.newCatalogName);
 	}
 
 	@Nullable

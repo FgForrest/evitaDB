@@ -44,7 +44,8 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class SetCatalogMutabilityMutationOperator implements EngineMutationOperator<Void, SetCatalogMutabilityMutation> {
+public class SetCatalogMutabilityMutationOperator
+	implements EngineMutationOperator<Void, SetCatalogMutabilityMutation> {
 
 	@Nonnull
 	@Override
@@ -76,7 +77,10 @@ public class SetCatalogMutabilityMutationOperator implements EngineMutationOpera
 								@Override
 								public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
 									theCatalog.setReadOnly(false);
-									return expandedEngineState.withoutReadOnlyCatalog(theCatalog);
+									return ExpandedEngineState
+										.builder(expandedEngineState)
+										.withoutReadOnlyCatalog(theCatalog)
+										.build();
 								}
 							}
 						);
@@ -97,7 +101,10 @@ public class SetCatalogMutabilityMutationOperator implements EngineMutationOpera
 								@Override
 								public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
 									theCatalog.setReadOnly(true);
-									return expandedEngineState.withReadOnlyCatalog(theCatalog);
+									return ExpandedEngineState
+										.builder(expandedEngineState)
+										.withReadOnlyCatalog(theCatalog)
+										.build();
 								}
 							}
 						);

@@ -40,9 +40,9 @@ import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Record contains information about currently use WAL file.
+ * Record contains information about currently use mutation log file.
  */
-class CurrentWalFile implements Closeable {
+class CurrentMutationLogFile implements Closeable {
 	/**
 	 * This field contains the version of the first transaction in the current {@link #walFilePath}.
 	 */
@@ -77,7 +77,7 @@ class CurrentWalFile implements Closeable {
 	 */
 	private boolean closed = false;
 
-	public CurrentWalFile(
+	public CurrentMutationLogFile(
 		int walFileIndex,
 		long firstCatalogVersion,
 		long lastCatalogVersion,

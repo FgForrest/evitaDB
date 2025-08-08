@@ -26,7 +26,6 @@ package io.evitadb.core;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.store.spi.model.EngineState;
-import io.evitadb.store.spi.model.EngineState.Builder;
 import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -59,22 +58,21 @@ import java.util.stream.Collectors;
  * Concurrency and mutability notes:
  * - Instances of this record are intended to be published safely and treated as immutable snapshots.
  * - The two-argument constructor wraps the provided {@code catalogs} map with
- *   {@link java.util.Collections#unmodifiableMap(Map)} to prevent accidental writes.
+ * {@link java.util.Collections#unmodifiableMap(Map)} to prevent accidental writes.
  * - The helper {@link #replaceCatalogReference(Catalog)} method refreshes pointer to the modified catalog
- *   instance without changing the engine state or catalogs map structure.
+ * instance without changing the engine state or catalogs map structure.
  *
  * Invariants and interpretation:
  * - Presence of a catalog in the {@code catalogs} map implies its name exists in either
- *   {@link EngineState#activeCatalogs()} or {@link EngineState#inactiveCatalogs()}.
+ * {@link EngineState#activeCatalogs()} or {@link EngineState#inactiveCatalogs()}.
  * - {@code readOnlyCatalogs} is a quick-access set derived from
- *   {@link EngineState#readOnlyCatalogs()} to avoid repeated array scans.
+ * {@link EngineState#readOnlyCatalogs()} to avoid repeated array scans.
  * - Passing an actual {@link Catalog} instance to {@link #withCatalog(CatalogContract)} marks the
- *   catalog as active; passing a non-runtime representation keeps it inactive.
+ * catalog as active; passing a non-runtime representation keeps it inactive.
  *
  * @param engineState      persisted snapshot of engine-level state
  * @param catalogs         map of catalog instances keyed by their names
  * @param readOnlyCatalogs names of catalogs considered read-only in this snapshot
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @Immutable
@@ -85,16 +83,11 @@ public record ExpandedEngineState(
 ) {
 
 	/**
-	 * Retrieves a collection of catalog contracts derived from the current state.
-	 * The catalogs are extracted and converted using their respective wrappers.
-	 *
-	 * @return a {@code Collection} of {@code CatalogContract} instances representing the catalogs in the current state
+	 * Returns a new builder initialized with values from the current instance.
 	 */
 	@Nonnull
-	public Collection<CatalogContract> getCatalogCollection() {
-		return this.catalogs.values().stream()
-			.map(CatalogWrapper::catalog)
-			.toList();
+	public static Builder builder(@Nonnull ExpandedEngineState base) {
+		return new Builder(base);
 	}
 
 	/**
@@ -119,12 +112,12 @@ public record ExpandedEngineState(
 			engineState,
 			Collections.unmodifiableMap(
 				catalogs.entrySet().stream()
-					.collect(
-						Collectors.toMap(
-							Map.Entry::getKey,
-							entry -> new CatalogWrapper(entry.getValue())
-						)
-					)
+				        .collect(
+					        Collectors.toMap(
+						        Map.Entry::getKey,
+						        entry -> new CatalogWrapper(entry.getValue())
+					        )
+				        )
 			),
 			Set.copyOf(
 				Arrays.asList(engineState.readOnlyCatalogs())
@@ -160,7 +153,21 @@ public record ExpandedEngineState(
 	}
 
 	/**
+	 * Retrieves a collection of catalog contracts derived from the current state.
+	 * The catalogs are extracted and converted using their respective wrappers.
+	 *
+	 * @return a {@code Collection} of {@code CatalogContract} instances representing the catalogs in the current state
+	 */
+	@Nonnull
+	public Collection<CatalogContract> getCatalogCollection() {
+		return this.catalogs.values().stream()
+		                    .map(CatalogWrapper::catalog)
+		                    .toList();
+	}
+
+	/**
 	 * Returns the current version of the engine state.
+	 *
 	 * @return the current version of the engine state
 	 */
 	public long version() {
@@ -171,7 +178,7 @@ public record ExpandedEngineState(
 	 * Retrieves the current WAL (Write-Ahead Log) file reference from the engine state.
 	 *
 	 * @return a {@code LogFileRecordReference} object representing the current WAL file reference,
-	 *         or {@code null} if no WAL file reference is present in the engine state
+	 * or {@code null} if no WAL file reference is present in the engine state
 	 */
 	@Nullable
 	public LogFileRecordReference walFileReference() {
@@ -183,7 +190,7 @@ public record ExpandedEngineState(
 	 *
 	 * @param catalogName the name of the catalog to retrieve, must not be null
 	 * @return an {@code Optional} containing the {@code CatalogContract} if a catalog with the specified name exists,
-	 *         or an empty {@code Optional} if no such catalog is found
+	 * or an empty {@code Optional} if no such catalog is found
 	 */
 	@Nonnull
 	public Optional<CatalogContract> getCatalog(@Nonnull String catalogName) {
@@ -232,9 +239,9 @@ public record ExpandedEngineState(
 	 *
 	 * Rules:
 	 * - If {@code catalog} is an actual {@link Catalog} instance, its name is inserted into
-	 *   {@link EngineState#activeCatalogs()} and removed from {@link EngineState#inactiveCatalogs()}.
+	 * {@link EngineState#activeCatalogs()} and removed from {@link EngineState#inactiveCatalogs()}.
 	 * - Otherwise, the name is inserted into {@link EngineState#inactiveCatalogs()} and removed
-	 *   from {@link EngineState#activeCatalogs()}.
+	 * from {@link EngineState#activeCatalogs()}.
 	 *
 	 * The resulting catalogs map is a copy of the current map with the entry updated and is wrapped
 	 * as unmodifiable in the returned record.
@@ -247,13 +254,19 @@ public record ExpandedEngineState(
 		final HashMap<String, CatalogWrapper> updatedCatalogs = new HashMap<>(this.catalogs);
 		updatedCatalogs.put(catalog.getName(), new CatalogWrapper(catalog));
 
-		final Builder engineStateBuilder = EngineState.builder(this.engineState);
+		final io.evitadb.store.spi.model.EngineState.Builder engineStateBuilder = EngineState.builder(this.engineState)
+		                                                                                     .version(
+			                                                                                     this.engineState.version() + 1);
 		if (catalog instanceof Catalog) {
-			engineStateBuilder.activeCatalogs(ArrayUtils.insertRecordIntoOrderedArray(catalog.getName(), this.engineState.activeCatalogs()));
-			engineStateBuilder.inactiveCatalogs(ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.inactiveCatalogs()));
+			engineStateBuilder.activeCatalogs(
+				ArrayUtils.insertRecordIntoOrderedArray(catalog.getName(), this.engineState.activeCatalogs()));
+			engineStateBuilder.inactiveCatalogs(
+				ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.inactiveCatalogs()));
 		} else {
-			engineStateBuilder.activeCatalogs(ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.activeCatalogs()));
-			engineStateBuilder.inactiveCatalogs(ArrayUtils.insertRecordIntoOrderedArray(catalog.getName(), this.engineState.inactiveCatalogs()));
+			engineStateBuilder.activeCatalogs(
+				ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.activeCatalogs()));
+			engineStateBuilder.inactiveCatalogs(
+				ArrayUtils.insertRecordIntoOrderedArray(catalog.getName(), this.engineState.inactiveCatalogs()));
 		}
 		return new ExpandedEngineState(
 			engineStateBuilder.build(),
@@ -267,7 +280,7 @@ public record ExpandedEngineState(
 	 * Effects:
 	 * - Removes the catalog entry from the catalogs map.
 	 * - Removes the catalog name from {@link EngineState#activeCatalogs()},
-	 *   {@link EngineState#inactiveCatalogs()} and {@link EngineState#readOnlyCatalogs()}.
+	 * {@link EngineState#inactiveCatalogs()} and {@link EngineState#readOnlyCatalogs()}.
 	 *
 	 * @param catalog catalog to remove, identified by its name
 	 * @return new ExpandedEngineState reflecting the removal
@@ -277,10 +290,15 @@ public record ExpandedEngineState(
 		final HashMap<String, CatalogWrapper> updatedCatalogs = new HashMap<>(this.catalogs);
 		updatedCatalogs.remove(catalog.getName());
 
-		final Builder engineStateBuilder = EngineState.builder(this.engineState);
-		engineStateBuilder.activeCatalogs(ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.activeCatalogs()));
-		engineStateBuilder.inactiveCatalogs(ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.inactiveCatalogs()));
-		engineStateBuilder.readOnlyCatalogs(ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.readOnlyCatalogs()));
+		final io.evitadb.store.spi.model.EngineState.Builder engineStateBuilder = EngineState.builder(this.engineState)
+		                                                                                     .version(
+			                                                                                     this.engineState.version() + 1);
+		engineStateBuilder.activeCatalogs(
+			ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.activeCatalogs()));
+		engineStateBuilder.inactiveCatalogs(
+			ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.inactiveCatalogs()));
+		engineStateBuilder.readOnlyCatalogs(
+			ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.readOnlyCatalogs()));
 		return new ExpandedEngineState(
 			engineStateBuilder.build(),
 			updatedCatalogs
@@ -299,8 +317,11 @@ public record ExpandedEngineState(
 	 */
 	@Nonnull
 	public ExpandedEngineState withReadOnlyCatalog(@Nonnull CatalogContract catalog) {
-		final Builder engineStateBuilder = EngineState.builder(this.engineState);
-		engineStateBuilder.readOnlyCatalogs(ArrayUtils.insertRecordIntoOrderedArray(catalog.getName(), this.engineState.readOnlyCatalogs()));
+		final io.evitadb.store.spi.model.EngineState.Builder engineStateBuilder = EngineState.builder(this.engineState)
+		                                                                                     .version(
+			                                                                                     this.engineState.version() + 1);
+		engineStateBuilder.readOnlyCatalogs(
+			ArrayUtils.insertRecordIntoOrderedArray(catalog.getName(), this.engineState.readOnlyCatalogs()));
 		return new ExpandedEngineState(
 			engineStateBuilder.build(),
 			this.catalogs
@@ -319,8 +340,11 @@ public record ExpandedEngineState(
 	 */
 	@Nonnull
 	public ExpandedEngineState withoutReadOnlyCatalog(@Nonnull CatalogContract catalog) {
-		final Builder engineStateBuilder = EngineState.builder(this.engineState);
-		engineStateBuilder.readOnlyCatalogs(ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.readOnlyCatalogs()));
+		final io.evitadb.store.spi.model.EngineState.Builder engineStateBuilder = EngineState.builder(this.engineState)
+		                                                                                     .version(
+			                                                                                     this.engineState.version() + 1);
+		engineStateBuilder.readOnlyCatalogs(
+			ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.readOnlyCatalogs()));
 		return new ExpandedEngineState(
 			engineStateBuilder.build(),
 			this.catalogs
@@ -335,13 +359,106 @@ public record ExpandedEngineState(
 	 * will be stored together with the next engine snapshot.
 	 *
 	 * @param walFileReference new write-ahead log reference to embed in the returned EngineState
+	 * @param engineStateVersion the version to set on the new EngineState
 	 * @return a new {@link EngineState} identical to the current one except for the WAL reference
 	 */
 	@Nonnull
-	public EngineState engineState(@Nonnull LogFileRecordReference walFileReference) {
+	public EngineState engineState(
+		@Nonnull LogFileRecordReference walFileReference,
+		long engineStateVersion
+	) {
 		return EngineState.builder(this.engineState)
-				.walFileReference(walFileReference)
-				.build();
+		                  .version(engineStateVersion)
+		                  .walFileReference(walFileReference)
+		                  .build();
+	}
+
+	/**
+	 * Builder for creating modified snapshots of ExpandedEngineState without bumping the version on
+	 * each intermediate operation. The version is increased exactly once upon build().
+	 */
+	public static class Builder {
+		@Nonnull private final ExpandedEngineState base;
+		@Nonnull private final HashMap<String, CatalogWrapper> catalogs;
+		@Nonnull private String[] activeCatalogs;
+		@Nonnull private String[] inactiveCatalogs;
+		@Nonnull private String[] readOnlyCatalogs;
+
+		/**
+		 * Initializes builder with values from the provided snapshot.
+		 */
+		Builder(@Nonnull ExpandedEngineState base) {
+			this.base = base;
+			this.catalogs = new HashMap<>(base.catalogs);
+			this.activeCatalogs = base.engineState.activeCatalogs();
+			this.inactiveCatalogs = base.engineState.inactiveCatalogs();
+			this.readOnlyCatalogs = base.engineState.readOnlyCatalogs();
+		}
+
+		/**
+		 * Stages the provided catalog into the snapshot.
+		 * If the catalog is a live Catalog instance it will be marked active, otherwise inactive.
+		 */
+		@Nonnull
+		public Builder withCatalog(@Nonnull CatalogContract catalog) {
+			this.catalogs.put(catalog.getName(), new CatalogWrapper(catalog));
+			if (catalog instanceof Catalog) {
+				this.activeCatalogs = ArrayUtils.insertRecordIntoOrderedArray(catalog.getName(), this.activeCatalogs);
+				this.inactiveCatalogs = ArrayUtils.removeRecordFromOrderedArray(
+					catalog.getName(), this.inactiveCatalogs);
+			} else {
+				this.activeCatalogs = ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.activeCatalogs);
+				this.inactiveCatalogs = ArrayUtils.insertRecordIntoOrderedArray(
+					catalog.getName(), this.inactiveCatalogs);
+			}
+			return this;
+		}
+
+		/**
+		 * Stages removal of the provided catalog from the snapshot including all arrays.
+		 */
+		@Nonnull
+		public Builder withoutCatalog(@Nonnull CatalogContract catalog) {
+			this.catalogs.remove(catalog.getName());
+			this.activeCatalogs = ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.activeCatalogs);
+			this.inactiveCatalogs = ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.inactiveCatalogs);
+			this.readOnlyCatalogs = ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.readOnlyCatalogs);
+			return this;
+		}
+
+		/**
+		 * Marks the catalog as read-only in the staged snapshot.
+		 */
+		@Nonnull
+		public Builder withReadOnlyCatalog(@Nonnull CatalogContract catalog) {
+			this.readOnlyCatalogs = ArrayUtils.insertRecordIntoOrderedArray(catalog.getName(), this.readOnlyCatalogs);
+			return this;
+		}
+
+		/**
+		 * Removes the read-only flag for the catalog in the staged snapshot.
+		 */
+		@Nonnull
+		public Builder withoutReadOnlyCatalog(@Nonnull CatalogContract catalog) {
+			this.readOnlyCatalogs = ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.readOnlyCatalogs);
+			return this;
+		}
+
+		/**
+		 * Builds a new ExpandedEngineState snapshot, increasing the version exactly once.
+		 */
+		@Nonnull
+		public ExpandedEngineState build() {
+			final EngineState.Builder engineStateBuilder = EngineState.builder(this.base.engineState)
+			                                                          .version(this.base.engineState.version() + 1)
+			                                                          .activeCatalogs(this.activeCatalogs)
+			                                                          .inactiveCatalogs(this.inactiveCatalogs)
+			                                                          .readOnlyCatalogs(this.readOnlyCatalogs);
+			return new ExpandedEngineState(
+				engineStateBuilder.build(),
+				this.catalogs
+			);
+		}
 	}
 
 	/**
@@ -380,7 +497,8 @@ public record ExpandedEngineState(
 				(existing, newCatalog) -> {
 					Assert.isPremiseValid(
 						existing instanceof Catalog,
-						"Catalog reference must be an instance of Catalog to replace its state, but was: " + existing.getClass().getName()
+						"Catalog reference must be an instance of Catalog to replace its state, but was: " + existing.getClass()
+						                                                                                             .getName()
 					);
 					return newCatalog;
 				}

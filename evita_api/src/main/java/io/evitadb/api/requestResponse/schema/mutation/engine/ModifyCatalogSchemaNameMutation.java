@@ -93,7 +93,7 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 				);
 			}
 			// check the names in all naming conventions are unique in the entity schema
-			CatalogSchema.checkCatalogNameIsAvailable(evita, this.catalogName);
+			CatalogSchema.checkCatalogNameIsAvailable(evita, this.newCatalogName);
 		}
 	}
 

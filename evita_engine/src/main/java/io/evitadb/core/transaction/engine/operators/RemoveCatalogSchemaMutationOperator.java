@@ -72,14 +72,18 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 			new AbstractEngineStateUpdater(transactionId, mutation) {
 				@Override
 				public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
-					return expandedEngineState.withCatalog(
-						new UnusableCatalog(
-							catalogName,
-							CatalogState.BEING_DELETED,
-							RemoveCatalogSchemaMutationOperator.this.storageDirectory.resolve(catalogName),
-							(cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_DELETED)
-						)
-					);
+					return ExpandedEngineState
+						.builder(expandedEngineState)
+						.withCatalog(
+							new UnusableCatalog(
+								catalogName,
+								CatalogState.BEING_DELETED,
+								RemoveCatalogSchemaMutationOperator.this.storageDirectory.resolve(
+									catalogName),
+								(cn, path) -> new CatalogTransitioningException(
+									cn, path, CatalogState.BEING_DELETED)
+							)
+						).build();
 				}
 			}
 		);
@@ -96,7 +100,10 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 					new AbstractEngineStateUpdater(transactionId, mutation) {
 						@Override
 						public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
-							return expandedEngineState.withoutCatalog(catalogToRemove);
+							return ExpandedEngineState
+								.builder(expandedEngineState)
+								.withoutCatalog(catalogToRemove)
+								.build();
 						}
 					}
 				);

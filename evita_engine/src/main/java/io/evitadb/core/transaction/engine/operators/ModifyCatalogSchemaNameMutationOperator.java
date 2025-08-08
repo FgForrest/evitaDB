@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchema
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
 import io.evitadb.core.ExpandedEngineState;
+import io.evitadb.core.ExpandedEngineState.Builder;
 import io.evitadb.core.SessionRegistry;
 import io.evitadb.core.SuspendOperation;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
@@ -168,14 +169,13 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 						new AbstractEngineStateUpdater(transactionId, mutation) {
 							@Override
 							public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
-								final ExpandedEngineState stateAfterAddingRenamedCatalog = expandedEngineState
-									.withCatalog(replacedCatalog);
-								if (catalogNameToBeReplacedWith.equals(catalogNameToBeReplaced)) {
-									return stateAfterAddingRenamedCatalog;
-								} else {
+								final Builder stateAfterAddingRenamedCatalog = ExpandedEngineState.builder(expandedEngineState)
+								                                           .withCatalog(replacedCatalog);
+								if (!catalogNameToBeReplacedWith.equals(catalogNameToBeReplaced)) {
 									evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplacedWith);
-									return stateAfterAddingRenamedCatalog.withoutCatalog(catalogToBeReplacedWith);
+									stateAfterAddingRenamedCatalog.withoutCatalog(catalogToBeReplacedWith);
 								}
+								return stateAfterAddingRenamedCatalog.build();
 							}
 						}
 					);

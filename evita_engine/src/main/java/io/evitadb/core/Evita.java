@@ -911,7 +911,7 @@ public final class Evita implements EvitaContract {
 			engineState,
 			(current, next) -> {
 				Assert.isPremiseValid(
-					current.version() == next.version() + 1,
+					current.version() == next.version() || current.version() + 1 == next.version(),
 					() -> new GenericEvitaInternalError(
 						"Next engine state must have version that is one higher than current engine state version! " +
 							"Current version: " + current.version() + ", next version: " + next.version(),
@@ -1280,13 +1280,7 @@ public final class Evita implements EvitaContract {
 		}
 
 		try {
-			// then close all thread pools and management services
-			CompletableFuture.allOf(
-				CompletableFuture.runAsync(this.management::close),
-				CompletableFuture.runAsync(() -> shutdownScheduler("request", this.requestExecutor, 60)),
-				CompletableFuture.runAsync(() -> shutdownScheduler("transaction", this.transactionExecutor, 60)),
-				CompletableFuture.runAsync(() -> shutdownScheduler("service", this.serviceExecutor, 60))
-			).join();
+			closeCatalogs().join();
 		} catch (RuntimeException ex) {
 			if (exception == null) {
 				exception = ex;
@@ -1296,8 +1290,13 @@ public final class Evita implements EvitaContract {
 		}
 
 		try {
-			// terminate all catalogs finally (if we did this prematurely, many exceptions would occur)
-			closeCatalogs().join();
+			// then close all thread pools and management services
+			CompletableFuture.allOf(
+				CompletableFuture.runAsync(this.management::close),
+				CompletableFuture.runAsync(() -> shutdownScheduler("request", this.requestExecutor, 60)),
+				CompletableFuture.runAsync(() -> shutdownScheduler("transaction", this.transactionExecutor, 60)),
+				CompletableFuture.runAsync(() -> shutdownScheduler("service", this.serviceExecutor, 60))
+			).join();
 		} catch (RuntimeException ex) {
 			if (exception == null) {
 				exception = ex;
