@@ -9,7 +9,6 @@ on:
 permissions:
   contents: read                   # To checkout the repository code using actions/checkout.
   packages: write                  # To publish the Docker image to the GitHub Packages registry.
-  secrets: read                    # To access the secrets.
 
 concurrency:
   group: ${{ github.head_ref || github.ref_name }}  # for the same branch (dev or PR)
