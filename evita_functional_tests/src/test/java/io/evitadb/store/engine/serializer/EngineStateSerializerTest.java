@@ -31,7 +31,7 @@ import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.EnginePersistenceService;
 import io.evitadb.store.spi.model.EngineState;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -78,7 +78,7 @@ class EngineStateSerializerTest {
         final EngineState engineState = EngineState.builder()
             .storageProtocolVersion(1)
             .version(2L)
-            .walFileReference(new WalFileReference(
+            .walFileReference(new LogFileRecordReference(
                 EnginePersistenceService::getWalFileName,
                 3,
                 new FileLocation(100L, 200)
@@ -93,9 +93,9 @@ class EngineStateSerializerTest {
     }
 
     @Test
-    @DisplayName("EngineState with null WalFileReference")
+    @DisplayName("EngineState with null LogFileRecordReference")
     void shouldSerializeAndDeserializeEngineStateWithNullWalFileReference() {
-        // Create an EngineState with null WalFileReference
+        // Create an EngineState with null LogFileRecordReference
         final EngineState engineState = EngineState.builder()
             .storageProtocolVersion(1)
             .version(2L)
@@ -116,7 +116,7 @@ class EngineStateSerializerTest {
         final EngineState engineState = EngineState.builder()
             .storageProtocolVersion(1)
             .version(2L)
-            .walFileReference(new WalFileReference(
+            .walFileReference(new LogFileRecordReference(
                 EnginePersistenceService::getWalFileName,
                 3,
                 new FileLocation(100L, 200)

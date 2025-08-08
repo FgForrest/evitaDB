@@ -28,7 +28,7 @@ import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.wal.AbstractWriteAheadLog;
+import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -87,7 +87,7 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 				try {
 					// check the entire transaction was written
 					final long currentFileLength = this.walFile.length();
-					if (currentFileLength <= this.filePosition + AbstractWriteAheadLog.WAL_TAIL_LENGTH) {
+					if (currentFileLength <= this.filePosition + AbstractMutationLog.WAL_TAIL_LENGTH) {
 						// we've reached EOF
 						if (!moveToNextWalFile(1)) {
 							// we've reached EOF and there is no next WAL file

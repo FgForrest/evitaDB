@@ -68,7 +68,7 @@ import java.util.function.LongSupplier;
  */
 @Slf4j
 @NotThreadSafe
-public class EngineWriteAheadLog extends AbstractWriteAheadLog<EngineMutation<?>> {
+public class EngineMutationLog extends AbstractMutationLog<EngineMutation<?>> {
 
 	/**
 	 * Creates an instance of {@link EngineTransactionChanges} to describe transaction changes based on the provided mutation details
@@ -94,7 +94,7 @@ public class EngineWriteAheadLog extends AbstractWriteAheadLog<EngineMutation<?>
 		);
 	}
 
-	public EngineWriteAheadLog(
+	public EngineMutationLog(
 		long version,
 		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path storageFolder,

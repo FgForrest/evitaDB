@@ -33,7 +33,7 @@ import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.spi.model.EngineState;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +46,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import static io.evitadb.store.spi.EnginePersistenceService.STORAGE_PROTOCOL_VERSION;
@@ -220,7 +221,7 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 		EngineMutation<?> mutation = createTestEngineMutation();
 
 		// Call appendWal
-		WalFileReference result = this.service.appendWal(1L, mutation).walFileReference();
+		LogFileRecordReference result = this.service.appendWal(1L, UUID.randomUUID(), mutation).walFileReference();
 
 		// Verify the result
 		assertNotNull(result);
@@ -242,7 +243,7 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 	void shouldGetFirstNonProcessedTransactionInWalAfterAppending() {
 		// Append a mutation to the WAL
 		EngineMutation<?> mutation = createTestEngineMutation();
-		this.service.appendWal(1L, mutation);
+		this.service.appendWal(1L, UUID.randomUUID(), mutation);
 
 		// Call getFirstNonProcessedTransactionInWal
 		Optional<TransactionMutation> result = this.service.getFirstNonProcessedTransactionInWal(1L);
@@ -268,8 +269,8 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 	@DisplayName("should get committed mutation stream after appending")
 	void shouldGetCommittedMutationStreamAfterAppending() {
 		// Append a mutation to the WAL
-		this.service.appendWal(1L, createTestEngineMutation("a"));
-		this.service.appendWal(2L, createTestEngineMutation("b"));
+		this.service.appendWal(1L, UUID.randomUUID(), createTestEngineMutation("a"));
+		this.service.appendWal(2L, UUID.randomUUID(), createTestEngineMutation("b"));
 
 		// Get the committed mutation stream
 		Stream<EngineMutation<?>> result = this.service.getCommittedMutationStream(1L);
@@ -303,8 +304,8 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 	@DisplayName("should get reversed committed mutation stream after appending")
 	void shouldGetReversedCommittedMutationStreamAfterAppending() {
 		// Append a mutation to the WAL
-		this.service.appendWal(1L, createTestEngineMutation("a"));
-		this.service.appendWal(2L, createTestEngineMutation("b"));
+		this.service.appendWal(1L, UUID.randomUUID(), createTestEngineMutation("a"));
+		this.service.appendWal(2L, UUID.randomUUID(), createTestEngineMutation("b"));
 
 		// Get the reversed committed mutation stream
 		Stream<EngineMutation<?>> result = this.service.getReversedCommittedMutationStream(2L);

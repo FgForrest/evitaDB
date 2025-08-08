@@ -93,7 +93,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-final class SessionRegistry {
+public final class SessionRegistry {
 	/**
 	 * Provides the tracing context for tracking the execution flow in the application.
 	 **/

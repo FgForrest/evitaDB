@@ -753,8 +753,8 @@ public class EvitaServer {
 				try {
 					evita.getServiceExecutor().prepareForBeingShutdown();
 					this.evitaServer.stop()
-		                .thenAccept(unused -> stop())
-		                .get(30, TimeUnit.SECONDS);
+					                .thenAccept(unused -> stop())
+					                .get(30, TimeUnit.SECONDS);
 				} catch (ExecutionException | InterruptedException | TimeoutException e) {
 					ConsoleWriter.write("Failed to stop evita server in dedicated time (30 secs.).\n");
 				} finally {

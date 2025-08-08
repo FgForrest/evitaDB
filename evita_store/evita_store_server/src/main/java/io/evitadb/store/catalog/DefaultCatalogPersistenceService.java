@@ -116,12 +116,12 @@ import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
-import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.spi.model.storageParts.index.CatalogIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.GlobalUniqueIndexStoragePart;
-import io.evitadb.store.wal.AbstractWriteAheadLog;
-import io.evitadb.store.wal.AbstractWriteAheadLog.WalPurgeCallback;
+import io.evitadb.store.wal.AbstractMutationLog;
+import io.evitadb.store.wal.AbstractMutationLog.WalPurgeCallback;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.stream.RandomAccessFileInputStream;
@@ -798,10 +798,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull LongConsumer bootstrapFileTrimFunction,
 		@Nonnull Supplier<WalPurgeCallback> onWalPurgeCallback
 	) {
-		WalFileReference currentWalFileRef = catalogHeader.walFileReference();
+		LogFileRecordReference currentWalFileRef = catalogHeader.walFileReference();
 		if (catalogHeader.catalogState() == CatalogState.ALIVE && currentWalFileRef == null) {
 			// set up new empty WAL file
-			currentWalFileRef = new WalFileReference(walFileNameProvider, 0, null);
+			currentWalFileRef = new LogFileRecordReference(walFileNameProvider, 0, null);
 			final Path walFilePath = catalogStoragePath.resolve(
 				walFileNameProvider.apply(currentWalFileRef.fileIndex()));
 			Assert.isPremiseValid(
@@ -1192,7 +1192,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			final int catalogIndex = CatalogPersistenceService.getIndexFromCatalogFileName(fileName);
 			return CatalogPersistenceService.getCatalogDataStoreFileName(catalogName, catalogIndex);
 		} else if (fileName.endsWith(WAL_FILE_SUFFIX)) {
-			final int walIndex = AbstractWriteAheadLog.getIndexFromWalFileName(fileName);
+			final int walIndex = AbstractMutationLog.getIndexFromWalFileName(fileName);
 			return CatalogPersistenceService.getWalFileName(catalogName, walIndex);
 		} else {
 			return fileName;
@@ -2967,7 +2967,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				catalogVersion,
 				catalogStoragePath,
 				ofNullable(catalogHeader.walFileReference())
-					.map(it -> new WalFileReference(this.walFileNameProvider, it.fileIndex(), it.fileLocation()))
+					.map(it -> new LogFileRecordReference(this.walFileNameProvider, it.fileIndex(), it.fileLocation()))
 					.orElse(null),
 				catalogHeader.collectionFileIndex(),
 				catalogHeader.catalogId(),

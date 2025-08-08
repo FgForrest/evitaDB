@@ -24,7 +24,9 @@
 package io.evitadb.store.spi.model;
 
 
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -54,7 +56,7 @@ public record EngineState(
 	int storageProtocolVersion,
 	long version,
 	@Nonnull OffsetDateTime introducedAt,
-	@Nullable WalFileReference walFileReference,
+	@Nullable LogFileRecordReference walFileReference,
 	@Nonnull String[] activeCatalogs,
 	@Nonnull String[] inactiveCatalogs,
 	@Nonnull String[] readOnlyCatalogs
@@ -82,117 +84,54 @@ public record EngineState(
 	}
 
 	/**
-	 * Returns a new instance with updated storage protocol version.
+	 * Verifies that the given array of items is sorted in ascending order based on their natural ordering.
+	 * If the array is not sorted, an internal error is thrown with a descriptive message.
 	 *
-	 * @param storageProtocolVersion new storage protocol version
-	 * @return new instance with updated storage protocol version
+	 * @param type  a descriptive name or type associated with the items being validated; used in the error message if the assertion fails
+	 * @param items the array of strings to be validated for ascending order
+	 * @throws GenericEvitaInternalError if the array is not sorted in ascending order
 	 */
-	@Nonnull
-	public EngineState withStorageProtocolVersion(int storageProtocolVersion) {
-		return new EngineState(
-			storageProtocolVersion,
-			this.version,
-			OffsetDateTime.now(),
-			this.walFileReference,
-			this.activeCatalogs,
-			this.inactiveCatalogs,
-			this.readOnlyCatalogs
-		);
+	private static void assertSorted(@Nonnull String type, @Nonnull String[] items) {
+		String previousCatalog = null;
+		for (int i = 0; i < items.length; i++) {
+			if (i > 0) {
+				Assert.isPremiseValid(
+					previousCatalog == null || previousCatalog.compareTo(items[i]) < 0,
+					type + " catalogs must be sorted in ascending order, but found: " + Arrays.toString(items)
+				);
+			}
+			previousCatalog = items[i];
+		}
 	}
 
-	/**
-	 * Returns a new instance with updated version.
-	 *
-	 * @param version new version
-	 * @return new instance with updated version
-	 */
-	@Nonnull
-	public EngineState withVersion(long version) {
-		return new EngineState(
-			this.storageProtocolVersion,
-			version,
-			OffsetDateTime.now(),
-			this.walFileReference,
-			this.activeCatalogs,
-			this.inactiveCatalogs,
-			this.readOnlyCatalogs
-		);
+	public EngineState {
+		assertSorted("Active", activeCatalogs);
+		assertSorted("Inactive", inactiveCatalogs);
+		assertSorted("Read-only", readOnlyCatalogs);
 	}
 
-	/**
-	 * Returns a new instance with updated WAL file reference.
-	 *
-	 * @param walFileReference new WAL file reference
-	 * @return new instance with updated WAL file reference
-	 */
-	@Nonnull
-	public EngineState withWalFileReference(@Nullable WalFileReference walFileReference) {
-		return new EngineState(
-			this.storageProtocolVersion,
-			this.version,
-			OffsetDateTime.now(),
-			walFileReference,
-			this.activeCatalogs,
-			this.inactiveCatalogs,
-			this.readOnlyCatalogs
-		);
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof final EngineState that)) return false;
+
+		return this.version == that.version && this.storageProtocolVersion == that.storageProtocolVersion && Arrays.equals(
+			this.activeCatalogs, that.activeCatalogs) && Arrays.equals(
+			this.inactiveCatalogs, that.inactiveCatalogs) && Arrays.equals(
+			this.readOnlyCatalogs, that.readOnlyCatalogs) && this.introducedAt.equals(
+			that.introducedAt) && Objects.equals(
+			this.walFileReference, that.walFileReference);
 	}
 
-	/**
-	 * Returns a new instance with updated active catalogs.
-	 *
-	 * @param activeCatalogs new active catalogs
-	 * @return new instance with updated active catalogs
-	 */
-	@Nonnull
-	public EngineState withActiveCatalogs(@Nonnull String[] activeCatalogs) {
-		return new EngineState(
-			this.storageProtocolVersion,
-			this.version,
-			OffsetDateTime.now(),
-			this.walFileReference,
-			activeCatalogs,
-			this.inactiveCatalogs,
-			this.readOnlyCatalogs
-		);
-	}
-
-	/**
-	 * Returns a new instance with updated inactive catalogs.
-	 *
-	 * @param inactiveCatalogs new inactive catalogs
-	 * @return new instance with updated inactive catalogs
-	 */
-	@Nonnull
-	public EngineState withInactiveCatalogs(@Nonnull String[] inactiveCatalogs) {
-		return new EngineState(
-			this.storageProtocolVersion,
-			this.version,
-			OffsetDateTime.now(),
-			this.walFileReference,
-			this.activeCatalogs,
-			inactiveCatalogs,
-			this.readOnlyCatalogs
-		);
-	}
-
-	/**
-	 * Returns a new instance with updated read-only catalogs.
-	 *
-	 * @param readOnlyCatalogs new read-only catalogs
-	 * @return new instance with updated read-only catalogs
-	 */
-	@Nonnull
-	public EngineState withReadOnlyCatalogs(@Nonnull String[] readOnlyCatalogs) {
-		return new EngineState(
-			this.storageProtocolVersion,
-			this.version,
-			OffsetDateTime.now(),
-			this.walFileReference,
-			this.activeCatalogs,
-			this.inactiveCatalogs,
-			readOnlyCatalogs
-		);
+	@Override
+	public int hashCode() {
+		int result = this.storageProtocolVersion;
+		result = 31 * result + Long.hashCode(this.version);
+		result = 31 * result + this.introducedAt.hashCode();
+		result = 31 * result + Objects.hashCode(this.walFileReference);
+		result = 31 * result + Arrays.hashCode(this.activeCatalogs);
+		result = 31 * result + Arrays.hashCode(this.inactiveCatalogs);
+		result = 31 * result + Arrays.hashCode(this.readOnlyCatalogs);
+		return result;
 	}
 
 	@Nonnull
@@ -209,29 +148,6 @@ public record EngineState(
 			'}';
 	}
 
-	@Override
-	public boolean equals(Object o) {
-		if (!(o instanceof final EngineState that)) return false;
-
-		return this.version == that.version && this.storageProtocolVersion == that.storageProtocolVersion && Arrays.equals(
-			this.activeCatalogs, that.activeCatalogs) && Arrays.equals(
-			this.inactiveCatalogs, that.inactiveCatalogs) && Arrays.equals(
-			this.readOnlyCatalogs, that.readOnlyCatalogs) && this.introducedAt.equals(that.introducedAt) && Objects.equals(
-			this.walFileReference, that.walFileReference);
-	}
-
-	@Override
-	public int hashCode() {
-		int result = this.storageProtocolVersion;
-		result = 31 * result + Long.hashCode(this.version);
-		result = 31 * result + this.introducedAt.hashCode();
-		result = 31 * result + Objects.hashCode(this.walFileReference);
-		result = 31 * result + Arrays.hashCode(this.activeCatalogs);
-		result = 31 * result + Arrays.hashCode(this.inactiveCatalogs);
-		result = 31 * result + Arrays.hashCode(this.readOnlyCatalogs);
-		return result;
-	}
-
 	/**
 	 * Builder for creating modified instances of EngineState.
 	 */
@@ -239,7 +155,7 @@ public record EngineState(
 		private int storageProtocolVersion;
 		private long version;
 		@Nullable
-		private WalFileReference walFileReference;
+		private LogFileRecordReference walFileReference;
 		@Nonnull
 		private String[] activeCatalogs = new String[0];
 		@Nonnull
@@ -290,7 +206,7 @@ public record EngineState(
 		 * @return this builder instance
 		 */
 		@Nonnull
-		public Builder walFileReference(@Nullable WalFileReference walFileReference) {
+		public Builder walFileReference(@Nullable LogFileRecordReference walFileReference) {
 			this.walFileReference = walFileReference;
 			return this;
 		}
@@ -303,9 +219,14 @@ public record EngineState(
 		 */
 		@Nonnull
 		public Builder activeCatalogs(@Nonnull String[] activeCatalogs) {
-			this.activeCatalogs = Optional.ofNullable(activeCatalogs)
-			                              .map(catalogs -> Arrays.copyOf(catalogs, catalogs.length))
-			                              .orElse(new String[0]);
+			this.activeCatalogs = Optional
+				.ofNullable(activeCatalogs)
+				.map(catalogs -> {
+					final String[] sortedCopy = Arrays.copyOf(catalogs, catalogs.length);
+					Arrays.sort(sortedCopy);
+					return sortedCopy;
+				})
+				.orElse(new String[0]);
 			return this;
 		}
 
@@ -317,9 +238,14 @@ public record EngineState(
 		 */
 		@Nonnull
 		public Builder inactiveCatalogs(@Nonnull String[] inactiveCatalogs) {
-			this.inactiveCatalogs = Optional.ofNullable(inactiveCatalogs)
-			                                .map(catalogs -> Arrays.copyOf(catalogs, catalogs.length))
-			                                .orElse(new String[0]);
+			this.inactiveCatalogs = Optional
+				.ofNullable(inactiveCatalogs)
+				.map(catalogs -> {
+					final String[] sortedCopy = Arrays.copyOf(catalogs, catalogs.length);
+					Arrays.sort(sortedCopy);
+					return sortedCopy;
+				})
+				.orElse(new String[0]);
 			return this;
 		}
 
@@ -331,9 +257,14 @@ public record EngineState(
 		 */
 		@Nonnull
 		public Builder readOnlyCatalogs(@Nonnull String[] readOnlyCatalogs) {
-			this.readOnlyCatalogs = Optional.ofNullable(readOnlyCatalogs)
-			                                .map(catalogs -> Arrays.copyOf(catalogs, catalogs.length))
-			                                .orElse(new String[0]);
+			this.readOnlyCatalogs = Optional
+				.ofNullable(readOnlyCatalogs)
+				.map(catalogs -> {
+					final String[] sortedCopy = Arrays.copyOf(catalogs, catalogs.length);
+					Arrays.sort(sortedCopy);
+					return sortedCopy;
+				})
+				.orElse(new String[0]);
 			return this;
 		}
 

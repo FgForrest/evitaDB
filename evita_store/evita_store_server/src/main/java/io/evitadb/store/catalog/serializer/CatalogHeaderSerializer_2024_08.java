@@ -32,7 +32,7 @@ import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
 
@@ -59,12 +59,12 @@ public class CatalogHeaderSerializer_2024_08 extends AbstractPersistentStorageHe
 		final int lastEntityCollectionPrimaryKey = input.readVarInt(true);
 		final double activeRecordShare = input.readDouble();
 
-		final WalFileReference walFileReference;
+		final LogFileRecordReference walFileReference;
 		if (input.readBoolean()) {
 			final int walFileIndex = input.readVarInt(true);
 			final long walStartingPosition = input.readVarLong(true);
 			final int walRecordLength = input.readVarInt(true);
-			walFileReference = new WalFileReference(
+			walFileReference = new LogFileRecordReference(
 				newIndex -> CatalogPersistenceService.getWalFileName(catalogName, newIndex),
 				walFileIndex,
 				new FileLocation(walStartingPosition, walRecordLength)

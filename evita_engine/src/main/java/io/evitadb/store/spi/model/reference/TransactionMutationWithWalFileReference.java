@@ -24,9 +24,11 @@
 package io.evitadb.store.spi.model.reference;
 
 
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 
 import javax.annotation.Nonnull;
+import java.util.UUID;
 
 /**
  * A record that associates a transaction mutation with its location in the Write-Ahead Log (WAL) file system.
@@ -40,12 +42,12 @@ import javax.annotation.Nonnull;
  * - `transactionMutation`: The transaction mutation itself, containing information about the transaction
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
- * @see WalFileReference
+ * @see LogFileRecordReference
  * @see io.evitadb.api.requestResponse.transaction.TransactionMutation
- * @see io.evitadb.store.spi.EnginePersistenceService#appendWal(long, io.evitadb.api.requestResponse.mutation.EngineMutation)
+ * @see io.evitadb.store.spi.EnginePersistenceService#appendWal(long, UUID, EngineMutation)
  */
 public record TransactionMutationWithWalFileReference(
-	@Nonnull WalFileReference walFileReference,
+	@Nonnull LogFileRecordReference walFileReference,
 	@Nonnull TransactionMutation transactionMutation
 ) {
 }

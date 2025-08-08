@@ -49,7 +49,7 @@ import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.stream.RandomAccessFileInputStream;
@@ -191,7 +191,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 						indexBuilder, theInput, it.fileLocation()
 					)
 				);
-				final WalFileReference walRef = catalogHeaderRef.get().walFileReference();
+				final LogFileRecordReference walRef = catalogHeaderRef.get().walFileReference();
 				if (walRef == null) {
 					System.out.println(" -> OK, size " + indexRead.getEntries().size());
 				} else {

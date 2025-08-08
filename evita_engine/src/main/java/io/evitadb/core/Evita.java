@@ -36,14 +36,10 @@ import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
-import io.evitadb.api.exception.InvalidMutationException;
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.ReadOnlyException;
-import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
@@ -52,18 +48,16 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.progress.Progress;
-import io.evitadb.api.requestResponse.progress.ProgressRecord;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
@@ -77,32 +71,25 @@ import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
-import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.core.executor.ObservableThreadExecutor;
 import io.evitadb.core.executor.Scheduler;
-import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.system.EvitaStatisticsEvent;
 import io.evitadb.core.metric.event.system.RequestForkJoinPoolStatisticsEvent;
 import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
 import io.evitadb.core.metric.event.system.TransactionForkJoinPoolStatisticsEvent;
-import io.evitadb.core.metric.event.transaction.CatalogGoesLiveEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.task.SessionKiller;
-import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.function.Functions;
+import io.evitadb.core.transaction.engine.EngineTransactionManager;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.spi.EnginePersistenceService;
 import io.evitadb.store.spi.EnginePersistenceServiceFactory;
 import io.evitadb.store.spi.model.EngineState;
-import io.evitadb.store.spi.model.reference.EngineTransactionMutationWithWalFileReference;
-import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ExceptionUtils;
-import io.evitadb.utils.IOUtils;
-import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
 import jdk.jfr.FlightRecorder;
@@ -113,15 +100,22 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Closeable;
-import java.util.*;
-import java.util.Map.Entry;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Optional;
+import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -149,21 +143,6 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 @Slf4j
 public final class Evita implements EvitaContract {
-	/**
-	 * Index of {@link Catalog} that holds data specific to the catalog.
-	 *
-	 * @see Catalog
-	 */
-	private final Map<String, CatalogContract> catalogs;
-	/**
-	 * Index of latent {@link Catalog} that exists in the persistence storage, but is not loaded into memory.
-	 * These catalogs cannot be queried until they are loaded into memory.
-	 */
-	private final Set<String> inactiveCatalogs;
-	/**
-	 * Index of {@link Catalog} that are switched to read-only mode.
-	 */
-	private final Set<String> readOnlyCatalogs;
 	/**
 	 * Data store shared among all instances of {@link SessionRegistry} that holds information about active sessions.
 	 */
@@ -210,15 +189,14 @@ public final class Evita implements EvitaContract {
 	 */
 	private final ObservableThreadExecutor transactionExecutor;
 	/**
-	 * Executor service that wraps "transactionExecutor" and is used for executing asynchronous engine level tasks
-	 * that never timeout.
-	 */
-	private final ObservableExecutorService engineExecutor;
-	/**
 	 * Scheduler service for executing asynchronous service tasks.
 	 */
 	@Getter
 	private final Scheduler serviceExecutor;
+	/**
+	 * Transaction manager that is responsible for managing engine transactions in the evitaDB engine.
+	 */
+	private final EngineTransactionManager engineTransactionManager;
 	/**
 	 * Contains the main evitaDB management service.
 	 */
@@ -228,18 +206,9 @@ public final class Evita implements EvitaContract {
 	 **/
 	private final TracingContext tracingContext;
 	/**
-	 * Persistence service that is used to store and retrieve {@link EngineState} information from the persistence
-	 * storage.
-	 */
-	private final EnginePersistenceService enginePersistenceService;
-	/**
 	 * Reference keeps the current state of the evitaDB engine instance.
 	 */
-	private final AtomicReference<EngineState> engineState = new AtomicReference<>();
-	/**
-	 * Lock that is used to synchronize access to the engine state.
-	 */
-	private final ReentrantLock engineStateLock = new ReentrantLock();
+	private final AtomicReference<ExpandedEngineState> engineState = new AtomicReference<>();
 	/**
 	 * List of futures that are used to load all catalogs in parallel during startup and when all are completed
 	 * the list is cleared.
@@ -249,10 +218,6 @@ public final class Evita implements EvitaContract {
 	 * Flag that is set to TRUE when Evita fully loads all catalogs, that should be active after startup.
 	 */
 	@Getter private final CompletableFuture<Void> fullyInitialized;
-	/**
-	 * Map that keeps track of currently running mutations for each catalog.
-	 */
-	private final Map<String, Progress<?>> currentCatalogMutations = CollectionUtils.createConcurrentHashMap(64);
 	/**
 	 * Flag that is se to TRUE when Evita. is ready to serve application calls.
 	 * Aim of this flag is to refuse any calls after {@link #close()} method has been called.
@@ -312,7 +277,6 @@ public final class Evita implements EvitaContract {
 			// because it uses thread local variables for transaction management
 			false
 		);
-		this.engineExecutor = new SystemObservableExecutorService("engineExecutor", this.transactionExecutor);
 
 		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())
 			.filter(it -> it > 0)
@@ -325,13 +289,21 @@ public final class Evita implements EvitaContract {
 
 		final ServiceLoader<EnginePersistenceServiceFactory> svcLoader = ServiceLoader.load(
 			EnginePersistenceServiceFactory.class);
-		this.enginePersistenceService = svcLoader
+		final EnginePersistenceService enginePersistenceService = svcLoader
 			.findFirst()
 			.map(it -> it.create(configuration.storage(), configuration.transaction(), this.serviceExecutor))
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
-		final EngineState engineState = this.enginePersistenceService.getEngineState();
-		this.engineState.set(engineState);
+		final EngineState engineState = enginePersistenceService.getEngineState();
+		final HashMap<String, CatalogContract> catalogs = CollectionUtils.createHashMap(
+			engineState.activeCatalogs().length + engineState.inactiveCatalogs().length
+		);
+		this.engineState.set(
+			ExpandedEngineState.create(
+				engineState,
+				catalogs
+			)
+		);
 
 		this.changeObserver = new SystemChangeObserver(
 			this,
@@ -340,12 +312,10 @@ public final class Evita implements EvitaContract {
 			this.serviceExecutor
 		);
 
-		this.catalogs = CollectionUtils.createConcurrentHashMap(engineState.activeCatalogs().length);
-		this.inactiveCatalogs = CollectionUtils.createHashSet(engineState.inactiveCatalogs().length);
-		Collections.addAll(this.inactiveCatalogs, engineState.inactiveCatalogs());
-		this.readOnlyCatalogs = CollectionUtils.createHashSet(engineState.readOnlyCatalogs().length);
-		Collections.addAll(this.readOnlyCatalogs, engineState.readOnlyCatalogs());
 		this.management = new EvitaManagement(this);
+		this.engineTransactionManager = new EngineTransactionManager(
+			this, this.changeObserver, this.transactionExecutor, enginePersistenceService
+		);
 
 		// register stubs for all inactive catalogs
 		Arrays.stream(engineState.inactiveCatalogs())
@@ -356,13 +326,24 @@ public final class Evita implements EvitaContract {
 				      CatalogInactiveException::new
 			      )
 		      )
-		      .forEach(it -> this.catalogs.put(it.getName(), it));
+		      .forEach(it -> catalogs.put(it.getName(), it));
 
 		// spawn parallel tasks to load all active catalogs, but don't wait for them to finish
 		//noinspection unchecked
 		this.initialLoadCatalogFutures = new AtomicReference<>(
 			Arrays.stream(engineState.activeCatalogs())
-			      .map(this::loadCatalogInternal)
+			      .map(catalogName -> {
+				      catalogs.put(
+					      catalogName,
+					      new UnusableCatalog(
+						      catalogName,
+						      CatalogState.BEING_ACTIVATED,
+						      this.configuration.storage().storageDirectory().resolve(catalogName),
+						      (cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_ACTIVATED)
+					      )
+				      );
+					  return this.loadCatalogInternal(catalogName);
+			      })
 			      .toArray(ProgressingFuture[]::new)
 		);
 		this.fullyInitialized = CompletableFuture.allOf(
@@ -400,8 +381,6 @@ public final class Evita implements EvitaContract {
 		if (scheduleCatalogLoading) {
 			scheduleInitialCatalogLoading();
 		}
-
-		processNonFinishedWalEntries(engineState);
 	}
 
 	/**
@@ -417,7 +396,7 @@ public final class Evita implements EvitaContract {
 		final ProgressingFuture<Catalog>[] progressingFutures = this.initialLoadCatalogFutures.get();
 		if (progressingFutures != null) {
 			for (ProgressingFuture<Catalog> loadCatalogFuture : progressingFutures) {
-				loadCatalogFuture.execute(this.engineExecutor);
+				loadCatalogFuture.execute(this.engineTransactionManager.getExecutor());
 			}
 		}
 	}
@@ -514,7 +493,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	public Collection<CatalogContract> getCatalogs() {
-		return this.catalogs.values();
+		return this.getEngineState().getCatalogCollection();
 	}
 
 	@Override
@@ -540,13 +519,13 @@ public final class Evita implements EvitaContract {
 	@Override
 	@Nonnull
 	public Set<String> getCatalogNames() {
-		return this.catalogs.keySet();
+		return this.getEngineState().catalogs().keySet();
 	}
 
 	@Nonnull
 	@Override
 	public Optional<CatalogState> getCatalogState(@Nonnull String catalogName) {
-		return ofNullable(this.catalogs.get(catalogName))
+		return this.getEngineState().getCatalog(catalogName)
 			.map(CatalogContract::getCatalogState);
 	}
 
@@ -634,12 +613,8 @@ public final class Evita implements EvitaContract {
 	@Override
 	public Optional<Progress<Void>> deleteCatalogIfExistsWithProgress(@Nonnull String catalogName) {
 		assertActive();
-		if (!this.catalogs.containsKey(catalogName)) {
-			// if catalog does not exist, we don't need to do anything
-			return Optional.empty();
-		} else {
-			return Optional.of(applyMutation(new RemoveCatalogSchemaMutation(catalogName)));
-		}
+		return this.getEngineState().getCatalog(catalogName)
+			.map(__ -> applyMutation(new RemoveCatalogSchemaMutation(catalogName)));
 	}
 
 	@Nonnull
@@ -649,46 +624,10 @@ public final class Evita implements EvitaContract {
 		@Nullable IntConsumer progressObserver
 	) {
 		assertActiveAndWritable();
-		final Progress<T> result;
-		try {
-			if (
-				this.engineStateLock.tryLock(
-					this.configuration.server().transactionTimeoutInMilliseconds(), TimeUnit.MILLISECONDS)
-			) {
-				final EngineState theEngineState = this.engineState.get();
-
-				// verify that we can perform the mutation
-				engineMutation.verifyApplicability(this);
-
-				// first store the mutation into the persistence service
-				final TransactionMutationWithWalFileReference txMutationWithWalFileReference = this.enginePersistenceService.appendWal(
-					theEngineState.version() + 1,
-					engineMutation
-				);
-
-				result = applyMutationInternal(
-					txMutationWithWalFileReference,
-					engineMutation,
-					theEngineState,
-					progressObserver
-				);
-			} else {
-				throw new TransactionTimedOutException(
-					"EvitaDB transaction timed out while waiting for engine state lock! " +
-						"Please increase `evitaDB.server.transactionTimeoutInMilliseconds` setting."
-				);
-			}
-		} catch (InterruptedException e) {
-			// do nothing
-			Thread.currentThread().interrupt();
-			throw new TransactionTimedOutException("Interrupted while waiting for an engine state lock!");
-		} finally {
-			if (this.engineStateLock.isHeldByCurrentThread()) {
-				this.engineStateLock.unlock();
-			}
-		}
-
-		return result;
+		return this.engineTransactionManager.applyMutation(
+			engineMutation,
+			progressObserver
+		);
 	}
 
 	@Override
@@ -742,7 +681,7 @@ public final class Evita implements EvitaContract {
 		if (this.readOnly && flags != null && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
 			throw ReadOnlyException.engineReadOnly();
 		}
-		if (this.readOnlyCatalogs.contains(catalogName)) {
+		if (this.getEngineState().isReadOnly(catalogName)) {
 			throw ReadOnlyException.catalogReadOnly(catalogName);
 		}
 		final SessionTraits traits = new SessionTraits(
@@ -784,7 +723,7 @@ public final class Evita implements EvitaContract {
 		if (this.readOnly && flags != null && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
 			throw ReadOnlyException.engineReadOnly();
 		}
-		if (this.readOnlyCatalogs.contains(catalogName)) {
+		if (this.getEngineState().isReadOnly(catalogName)) {
 			throw ReadOnlyException.catalogReadOnly(catalogName);
 		}
 		final SessionTraits traits = new SessionTraits(
@@ -855,34 +794,12 @@ public final class Evita implements EvitaContract {
 
 	/**
 	 * Adds a catalog to the list of inactive catalogs and updates the engine state accordingly.
-	 * This method locks the engine state to ensure thread-safe modification of the catalogs
-	 * and writes the change to the persistence service.
 	 *
-	 * @param catalogName The name of the catalog to be marked as inactive. Must not be null.
+	 * @param catalogName The name of the catalog that was restored and shoul be registered as inactive.
 	 */
-	public void addInactiveCatalog(@Nonnull String catalogName) {
-		this.engineStateLock.lock();
-		try {
-			// first store the mutation into the persistence service
-			final EngineState theEngineState = this.engineState.get();
-			final TransactionMutationWithWalFileReference txMutationWithWalFileReference = this.enginePersistenceService.appendWal(
-				theEngineState.version() + 1,
-				new RemoveCatalogSchemaMutation(catalogName)
-			);
-
-			this.inactiveCatalogs.add(catalogName);
-			this.catalogs.put(
-				catalogName,
-				new UnusableCatalog(
-					catalogName, CatalogState.INACTIVE,
-					this.configuration.storage().storageDirectory().resolve(catalogName),
-					CatalogInactiveException::new
-				)
-			);
-			updateEngineStateAfterEngineMutation(theEngineState, txMutationWithWalFileReference);
-		} finally {
-			this.engineStateLock.unlock();
-		}
+	public void registerRestoredCatalog(@Nonnull String catalogName) {
+		assertActive();
+		applyMutation(new RestoreCatalogSchemaMutation(catalogName));
 	}
 
 	/**
@@ -897,7 +814,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	public Stream<EngineMutation<?>> getCommittedMutationStream(long version) {
-		return this.enginePersistenceService.getCommittedMutationStream(version);
+		return this.engineTransactionManager.getCommittedMutationStream(version);
 	}
 
 	/**
@@ -913,7 +830,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	public Stream<EngineMutation<?>> getReversedCommittedMutationStream(@Nullable Long version) {
-		return this.enginePersistenceService.getReversedCommittedMutationStream(version);
+		return this.engineTransactionManager.getReversedCommittedMutationStream(version);
 	}
 
 	/**
@@ -945,7 +862,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	public Optional<CatalogContract> getCatalogInstance(@Nonnull String catalog) {
-		return ofNullable(this.catalogs.get(catalog));
+		return this.getEngineState().getCatalog(catalog);
 	}
 
 	/**
@@ -978,8 +895,32 @@ public final class Evita implements EvitaContract {
 	 * @return the current {@link EngineState} of the Evita instance
 	 */
 	@Nonnull
-	public EngineState getEngineState() {
+	public ExpandedEngineState getEngineState() {
 		return this.engineState.get();
+	}
+
+	/**
+	 * Updates the engine state to the provided next state if the transition is valid.
+	 * Validates that the version of the next engine state is one higher than the current engine state's version.
+	 *
+	 * @param engineState the next engine state to set; must have a version that is one higher than the current engine state.
+	 * @throws GenericEvitaInternalError if the version of the provided engine state is not one higher than the current state's version.
+	 */
+	public void setNextEngineState(@Nonnull ExpandedEngineState engineState) {
+		this.engineState.getAndAccumulate(
+			engineState,
+			(current, next) -> {
+				Assert.isPremiseValid(
+					current.version() == next.version() + 1,
+					() -> new GenericEvitaInternalError(
+						"Next engine state must have version that is one higher than current engine state version! " +
+							"Current version: " + current.version() + ", next version: " + next.version(),
+						"Next engine state must have version that is one higher than current engine state version!"
+					)
+				);
+				return next;
+			}
+		);
 	}
 
 	/**
@@ -990,7 +931,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	public Optional<Progress<?>> getEngineMutationProgress(@Nonnull String catalogName) {
-		return ofNullable(this.currentCatalogMutations.get(catalogName));
+		return this.engineTransactionManager.getEngineMutationProgress(catalogName);
 	}
 
 	/**
@@ -1020,27 +961,39 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Creates a new CatalogContract instance using the provided catalog schema and other dependencies.
+	 *
+	 * @param catalogSchema the schema definition for the catalog; must not be null
+	 * @return a new instance of CatalogContract
+	 */
+	@Nonnull
+	public CatalogContract createCatalog(@Nonnull CatalogSchemaContract catalogSchema) {
+		return new Catalog(
+			catalogSchema,
+			this.cacheSupervisor,
+			this.configuration,
+			this.reflectionLookup,
+			this.serviceExecutor,
+			this.management.exportFileService(),
+			this.requestExecutor,
+			this.transactionExecutor,
+			this::replaceCatalogReference,
+			this.tracingContext
+		);
+	}
+
+	/**
 	 * Loads catalog from the designated directory. If the catalog is corrupted, it will be marked as such, but it'll
 	 * still be added to the list of catalogs.
 	 *
 	 * @param catalogName name of the catalog
 	 */
 	@Nonnull
-	ProgressingFuture<Catalog> loadCatalogInternal(@Nonnull String catalogName) {
-		this.catalogs.put(
-			catalogName,
-			new UnusableCatalog(
-				catalogName,
-				CatalogState.BEING_ACTIVATED,
-				this.configuration.storage().storageDirectory().resolve(catalogName),
-				(cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_ACTIVATED)
-			)
-		);
-
+	public ProgressingFuture<Catalog> loadCatalogInternal(@Nonnull String catalogName) {
 		final long start = System.nanoTime();
 		return Catalog.loadCatalog(
 			catalogName,
-			this.readOnlyCatalogs.contains(catalogName),
+			this.getEngineState().isReadOnly(catalogName),
 			this.cacheSupervisor,
 			this.configuration,
 			this.reflectionLookup,
@@ -1053,7 +1006,9 @@ public final class Evita implements EvitaContract {
 				log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
 				catalog.processWriteAheadLog(
 					updatedCatalog -> {
-						this.catalogs.put(catalogName, updatedCatalog);
+						this.engineState.updateAndGet(
+							existingState -> existingState.withCatalog(updatedCatalog)
+						);
 						if (updatedCatalog instanceof Catalog theUpdatedCatalog) {
 							theUpdatedCatalog.notifyCatalogPresentInLiveView();
 						}
@@ -1063,19 +1018,81 @@ public final class Evita implements EvitaContract {
 			},
 			(cn, exception) -> {
 				log.error("Catalog {} is corrupted!", cn, exception);
-				this.catalogs.put(
-					cn,
-					new UnusableCatalog(
-						cn,
-						CatalogState.CORRUPTED,
-						this.configuration.storage().storageDirectory().resolve(cn),
-						(tcn, path) -> new CatalogCorruptedException(tcn, path, exception)
+				this.engineState.updateAndGet(
+					existingState -> existingState.withCatalog(
+						new UnusableCatalog(
+							cn,
+							CatalogState.CORRUPTED,
+							this.configuration.storage().storageDirectory().resolve(cn),
+							(tcn, path) -> new CatalogCorruptedException(tcn, path, exception)
+						)
 					)
 				);
 				this.emitEvitaStatistics();
 			},
 			this.tracingContext
 		);
+	}
+
+	/**
+	 * Retrieves the session registry associated with the specified catalog name.
+	 *
+	 * @param catalogName the name of the catalog for which the session registry is to be retrieved, must not be null
+	 * @return an Optional containing the SessionRegistry associated with the specified catalog name, or an empty Optional if no registry exists for the given catalog name
+	 */
+	@Nonnull
+	public Optional<SessionRegistry> getCatalogSessionRegistry(@Nonnull String catalogName) {
+		return ofNullable(this.catalogSessionRegistries.get(catalogName));
+	}
+
+	/**
+	 * Closes all active sessions associated with the specified catalog name
+	 * and suspends them using the provided suspend operation.
+	 *
+	 * @param catalogName the name of the catalog whose active sessions are to be closed and suspended
+	 * @param suspendOperation the operation to be performed to suspend the sessions
+	 */
+	public void closeAllActiveSessionsAndSuspend(
+		@Nonnull String catalogName,
+		@Nonnull SuspendOperation suspendOperation
+	) {
+		ofNullable(this.catalogSessionRegistries.get(catalogName))
+			.ifPresent(it -> it.closeAllActiveSessionsAndSuspend(suspendOperation));
+	}
+
+	/**
+	 * Registers a session registry for a specific catalog. This ensures that a session
+	 * registry is associated with the provided catalog name. If a session registry
+	 * for the given catalog name already exists, an error is thrown to prevent overwriting.
+	 *
+	 * @param catalogName the name of the catalog to associate with the session registry
+	 * @param sessionRegistry the session registry to register with the catalog
+	 * @throws GenericEvitaInternalError if a session registry for the specified catalog name already exists
+	 */
+	public void registerCatalogSessionRegistry(@Nonnull String catalogName, @Nonnull SessionRegistry sessionRegistry) {
+		this.catalogSessionRegistries.compute(
+			catalogName,
+			(__, existingRegistry) -> {
+				if (existingRegistry != null) {
+					throw new GenericEvitaInternalError(
+						"Catalog session registry for catalog `" + catalogName + "` already exists! " +
+							"Cannot overwrite it with another one!"
+					);
+				} else {
+					// otherwise we register the new one
+					return sessionRegistry;
+				}
+			}
+		);
+	}
+
+	/**
+	 * Removes the catalog session registry associated with the specified catalog name, if it exists.
+	 *
+	 * @param catalogName the name of the catalog whose session registry should be removed, must not be null
+	 */
+	public void removeCatalogSessionRegistryIfPresent(@Nonnull String catalogName) {
+		this.catalogSessionRegistries.remove(catalogName);
 	}
 
 	/**
@@ -1098,916 +1115,16 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Processes non-finished Write-Ahead Log (WAL) entries and applies them to the engine state.
-	 * This method iterates over unprocessed transactions from the WAL file and ensures they are fully executed.
-	 *
-	 * @param engineState the current state of the engine, providing context and reference
-	 *                    for Write-Ahead Log processing.
-	 */
-	private void processNonFinishedWalEntries(@Nonnull EngineState engineState) {
-		// if WAL contains non-processed actions execute them
-		Optional<EngineTransactionMutationWithWalFileReference> nonProcessedTransaction = ofNullable(engineState.walFileReference())
-			.flatMap(this.enginePersistenceService::getNextTransaction);
-		while (nonProcessedTransaction.isPresent()) {
-			final EngineMutation<?> engineMutation = nonProcessedTransaction.get().engineMutation();
-			log.info("Processing engine level WAL file: {}", engineMutation);
-			final Progress<?> progress = applyMutationInternal(
-				new TransactionMutationWithWalFileReference(
-					nonProcessedTransaction.get().walFileReference(),
-					nonProcessedTransaction.get().transactionMutation()
-				),
-				engineMutation,
-				engineState,
-				null
-			);
-			// wait for the progress to complete
-			progress.onCompletion().toCompletableFuture().join();
-			engineState = this.engineState.get();
-			nonProcessedTransaction = ofNullable(engineState.walFileReference())
-				.flatMap(this.enginePersistenceService::getNextTransaction);
-		}
-	}
-
-	/**
-	 * Applies a mutation to the internal engine state, processes the mutation with an observer,
-	 * and performs appropriate operations based on the specific type of engine mutation.
-	 *
-	 * @param txMutationWithWalFileReference a reference to the transaction mutation along with the WAL file reference
-	 * @param engineMutation                 the mutation to be applied to the engine state
-	 * @param currentEngineState             the current state of the engine prior to the mutation
-	 * @param progressObserver               an observer to track the progress of the mutation; can be a no-op if null
-	 * @param <T>                            the type of result returned by the mutation process
-	 * @return a Progress object representing the status and result of the executed mutation
-	 */
-	@Nonnull
-	private <T> Progress<T> applyMutationInternal(
-		@Nonnull TransactionMutationWithWalFileReference txMutationWithWalFileReference,
-		@Nonnull EngineMutation<T> engineMutation,
-		@Nonnull EngineState currentEngineState,
-		@Nullable IntConsumer progressObserver
-	) {
-		final Progress<T> result;
-
-		// notify system observer about the mutation
-		this.changeObserver.processMutation(txMutationWithWalFileReference.transactionMutation());
-		this.changeObserver.processMutation(engineMutation);
-
-		final Runnable onCompletion = () -> updateEngineStateAfterEngineMutation(currentEngineState, txMutationWithWalFileReference);
-		final Runnable onFailure = () -> dropChangesAfterUnsuccessfulEngineMutation(currentEngineState);
-
-		final IntConsumer nullSafeObserver = progressObserver == null ? Functions.noOpIntConsumer() : progressObserver;
-		if (engineMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
-			//noinspection unchecked
-			result = (Progress<T>) createCatalogInternal(
-				createCatalogSchema,
-				nullSafeObserver,
-				onCompletion,
-				onFailure
-			);
-		} else if (engineMutation instanceof ModifyCatalogSchemaNameMutation modifyCatalogSchemaName) {
-			if (modifyCatalogSchemaName.isOverwriteTarget() && this.catalogs.containsKey(
-				modifyCatalogSchemaName.getNewCatalogName())) {
-				//noinspection unchecked
-				result = (Progress<T>) replaceCatalogInternal(
-					modifyCatalogSchemaName,
-					nullSafeObserver,
-					onCompletion,
-					onFailure
-				);
-			} else {
-				//noinspection unchecked
-				result = (Progress<T>) renameCatalogInternal(
-					modifyCatalogSchemaName,
-					nullSafeObserver,
-					onCompletion,
-					onFailure
-				);
-			}
-		} else if (engineMutation instanceof ModifyCatalogSchemaMutation modifyCatalogSchema) {
-			//noinspection unchecked
-			result = (Progress<T>) modifyCatalogSchemaInternal(
-				modifyCatalogSchema,
-				nullSafeObserver,
-				onCompletion,
-				onFailure
-			);
-		} else if (engineMutation instanceof RemoveCatalogSchemaMutation removeCatalogSchema) {
-			//noinspection unchecked
-			result = (Progress<T>) removeCatalogInternal(
-				removeCatalogSchema,
-				nullSafeObserver,
-				onCompletion,
-				onFailure
-			);
-		} else if (engineMutation instanceof MakeCatalogAliveMutation makeCatalogAliveMutation) {
-			//noinspection unchecked
-			result = (Progress<T>) makeCatalogAliveInternal(
-				makeCatalogAliveMutation,
-				nullSafeObserver,
-				onCompletion,
-				onFailure
-			);
-		} else if (engineMutation instanceof SetCatalogStateMutation setCatalogStateMutation) {
-			//noinspection unchecked
-			result = (Progress<T>) setCatalogStateInternal(
-				setCatalogStateMutation,
-				nullSafeObserver,
-				onCompletion,
-				onFailure
-			);
-		} else if (engineMutation instanceof SetCatalogMutabilityMutation setCatalogMutabilityMutation) {
-			//noinspection unchecked
-			result = (Progress<T>) setCatalogMutabilityInternal(
-				setCatalogMutabilityMutation,
-				nullSafeObserver,
-				onCompletion,
-				onFailure
-			);
-		} else if (engineMutation instanceof DuplicateCatalogMutation duplicateCatalogMutation) {
-			//noinspection unchecked
-			result = (Progress<T>) duplicateCatalogInternal(
-				duplicateCatalogMutation,
-				nullSafeObserver,
-				onCompletion,
-				onFailure
-			);
-		} else {
-			throw new EvitaInvalidUsageException(
-				"Unknown engine mutation: `" + engineMutation.getClass() + "`!");
-		}
-
-		return result;
-	}
-
-	/**
-	 * Activates the specified catalog based on its current state. Throws appropriate exceptions
-	 * for inactive or corrupted catalogs or any unknown catalog type.
-	 *
-	 * @param makeCatalogAliveMutation The mutation object containing the catalog name to be activated.
-	 *                                 Must be non-null and must reference a valid catalog.
-	 */
-	@Nonnull
-	private Progress<CommitVersions> makeCatalogAliveInternal(
-		@Nonnull MakeCatalogAliveMutation makeCatalogAliveMutation,
-		@Nonnull IntConsumer progressObserver,
-		@Nonnull Runnable onCompletion,
-		@Nonnull Runnable onFailure
-	) {
-		final String catalogName = makeCatalogAliveMutation.getCatalogName();
-		assertNoCatalogEngineMutationInProgress(catalogName);
-		final CatalogContract catalog = this.catalogs.get(catalogName);
-		if (catalog instanceof Catalog theCatalog) {
-			final CatalogGoesLiveEvent event = new CatalogGoesLiveEvent(catalogName);
-			return new ProgressRecord<>(
-				"Making catalog `" + catalogName + "` alive",
-				progressObserver,
-				new ProgressingFuture<>(
-					1,
-					Collections.singletonList(theCatalog.flush()),
-					(theFuture, __) -> {
-						CommitVersions commitVersions = theCatalog.goLive();
-						theFuture.updateProgress(1);
-						onCompletion.run();
-						log.info("Catalog `{}` is now alive!", catalogName);
-						// emit the event
-						event.finish().commit();
-						this.currentCatalogMutations.remove(catalogName);
-						return commitVersions;
-					},
-					ex -> {
-						onFailure.run();
-						this.currentCatalogMutations.remove(catalogName);
-					}
-				),
-				progress -> this.currentCatalogMutations.put(catalogName, progress),
-				this.engineExecutor
-			);
-		} else if (catalog instanceof UnusableCatalog unusableCatalog) {
-			throw unusableCatalog.getRepresentativeException();
-		} else if (catalog == null) {
-			throw new CatalogNotFoundException(catalogName);
-		} else {
-			throw new EvitaInvalidUsageException("Unknown catalog type: `" + catalog.getClass() + "`!");
-		}
-	}
-
-	/**
-	 * Sets the internal state of the catalog to active or inactive based on the provided mutation.
-	 * This method handles the activation or deactivation of a catalog and notifies the observer about the progress
-	 * while executing the task. It also triggers completion or failure callbacks accordingly.
-	 *
-	 * @param setCatalogStateMutation the mutation containing the details about catalog state changes, such as the catalog name and the desired active state.
-	 * @param progressObserver        the consumer that observes and reports progress updates.
-	 * @param onCompletion            a callback to be invoked when the operation completes successfully.
-	 * @param onFailure               a callback to be invoked when the operation fails.
-	 * @return a {@link Progress} object tracking the completion and progress of the operation.
-	 */
-	@Nonnull
-	private Progress<Void> setCatalogStateInternal(
-		@Nonnull SetCatalogStateMutation setCatalogStateMutation,
-		@Nonnull IntConsumer progressObserver,
-		@Nonnull Runnable onCompletion,
-		@Nonnull Runnable onFailure
-	) {
-		final String catalogName = setCatalogStateMutation.getCatalogName();
-		assertNoCatalogEngineMutationInProgress(catalogName);
-		if (setCatalogStateMutation.isActive()) {
-			return new ProgressRecord<>(
-				"Activating catalog `" + catalogName + "`",
-				progressObserver,
-				new ProgressingFuture<>(
-					0,
-					Collections.singletonList(loadCatalogInternal(catalogName)),
-					(progressingFuture, theCatalog) -> {
-						this.inactiveCatalogs.remove(catalogName);
-						onCompletion.run();
-						this.currentCatalogMutations.remove(catalogName);
-						log.info("Catalog `{}` is now active!", catalogName);
-						return null;
-					},
-					ex -> {
-						onFailure.run();
-						this.currentCatalogMutations.remove(catalogName);
-					}
-				),
-				progress -> this.currentCatalogMutations.put(catalogName, progress),
-				this.engineExecutor
-			);
-		} else {
-			return new ProgressRecord<>(
-				"Deactivating catalog `" + catalogName + "`",
-				progressObserver,
-				new ProgressingFuture<>(
-					0,
-					progressingFuture -> {
-						final CatalogContract theCatalog = this.catalogs.put(
-							catalogName,
-							new UnusableCatalog(
-								catalogName, CatalogState.INACTIVE,
-								this.configuration.storage().storageDirectory().resolve(catalogName),
-								CatalogInactiveException::new
-							)
-						);
-						if (theCatalog != null) {
-							theCatalog.terminate();
-						}
-						this.inactiveCatalogs.add(catalogName);
-						onCompletion.run();
-						this.currentCatalogMutations.remove(catalogName);
-						log.info("Catalog `{}` is now inactive!", catalogName);
-						return null;
-					},
-					ex -> {
-						onFailure.run();
-						this.currentCatalogMutations.remove(catalogName);
-					}
-				),
-				progress -> this.currentCatalogMutations.put(catalogName, progress),
-				this.engineExecutor
-			);
-		}
-	}
-
-	/**
-	 * Modifies the mutability state of a specified catalog. This method processes the
-	 * input mutation to either make the catalog mutable (read-write) or immutable (read-only).
-	 *
-	 * @param setCatalogMutabilityMutation The mutation containing the catalog name
-	 *                                     and desired mutability state.
-	 * @param progressObserver             A callback that accepts the progress in the form of an integer.
-	 * @param onCompletion                 A callback that runs when the operation is completed successfully.
-	 * @param onFailure                    A callback that runs when the operation encounters a failure.
-	 * @return A {@code Progress<Void>} object representing the progress and result of
-	 * the mutability modification operation.
-	 */
-	@Nonnull
-	private Progress<Void> setCatalogMutabilityInternal(
-		@Nonnull SetCatalogMutabilityMutation setCatalogMutabilityMutation,
-		@Nonnull IntConsumer progressObserver,
-		@Nonnull Runnable onCompletion,
-		@Nonnull Runnable onFailure
-	) {
-		final String catalogName = setCatalogMutabilityMutation.getCatalogName();
-		assertNoCatalogEngineMutationInProgress(catalogName);
-		if (setCatalogMutabilityMutation.isMutable()) {
-			if (this.readOnlyCatalogs.contains(catalogName)) {
-				return new ProgressRecord<>(
-					"Setting catalog `" + catalogName + "` to read-write",
-					progressObserver,
-					new ProgressingFuture<>(
-						0,
-						(progressingFuture) -> {
-							final CatalogContract catalogContract = this.catalogs.get(catalogName);
-							if (catalogContract instanceof Catalog theCatalog) {
-								theCatalog.setReadOnly(false);
-							} else {
-								throw ((UnusableCatalog) catalogContract).getRepresentativeException();
-							}
-							this.readOnlyCatalogs.remove(catalogName);
-							onCompletion.run();
-							this.currentCatalogMutations.remove(catalogName);
-							log.info("Catalog `{}` is now read-write!", catalogName);
-							return null;
-						},
-						ex -> {
-							onFailure.run();
-							this.currentCatalogMutations.remove(catalogName);
-						}
-					),
-					progress -> this.currentCatalogMutations.put(catalogName, progress),
-					this.engineExecutor
-				);
-			} else {
-				throw new InvalidMutationException(
-					"Catalog `" + catalogName + "` is already mutable!"
-				);
-			}
-		} else {
-			if (!this.readOnlyCatalogs.contains(catalogName)) {
-				return new ProgressRecord<>(
-					"Setting catalog `" + catalogName + "` to read-only",
-					progressObserver,
-					new ProgressingFuture<>(
-						0,
-						(progressingFuture) -> {
-							final CatalogContract catalogContract = this.catalogs.get(catalogName);
-							if (catalogContract instanceof Catalog theCatalog) {
-								theCatalog.setReadOnly(true);
-							} else {
-								throw ((UnusableCatalog) catalogContract).getRepresentativeException();
-							}
-							this.readOnlyCatalogs.add(catalogName);
-							onCompletion.run();
-							this.currentCatalogMutations.remove(catalogName);
-							log.info("Catalog `{}` is now read-only!", catalogName);
-							return null;
-						},
-						ex -> {
-							onFailure.run();
-							this.currentCatalogMutations.remove(catalogName);
-						}
-					),
-					progress -> this.currentCatalogMutations.put(catalogName, progress),
-					this.engineExecutor
-				);
-			} else {
-				throw new InvalidMutationException(
-					"Catalog `" + catalogName + "` is already read-only!"
-				);
-			}
-		}
-	}
-
-	/**
-	 * Duplicates an existing catalog to create a new catalog with a specified name.
-	 * Tracks the progress of the duplication process and handles completion or failure.
-	 *
-	 * @param duplicateCatalogMutation the mutation object containing details of the source and target catalog names
-	 * @param progressObserver         a callback which accepts progress updates during the duplication process
-	 * @param onCompletion             a callback to be executed upon successful completion of the duplication
-	 * @param onFailure                a callback to be executed if the duplication fails
-	 * @return a Progress instance representing the ongoing duplication task
-	 */
-	@Nonnull
-	private Progress<Void> duplicateCatalogInternal(
-		@Nonnull DuplicateCatalogMutation duplicateCatalogMutation,
-		@Nonnull IntConsumer progressObserver,
-		@Nonnull Runnable onCompletion,
-		@Nonnull Runnable onFailure
-	) {
-		final String catalogName = duplicateCatalogMutation.getCatalogName();
-		final String targetCatalogName = duplicateCatalogMutation.getNewCatalogName();
-		final CatalogContract sourceCatalog = this.catalogs.get(catalogName);
-		assertNoCatalogEngineMutationInProgress(catalogName);
-		return new ProgressRecord<>(
-			"Duplicating catalog `" + catalogName + "` to `" + targetCatalogName + "`",
-			progressObserver,
-			new ProgressingFuture<>(
-				0,
-				Collections.singletonList(sourceCatalog.duplicateTo(targetCatalogName)),
-				(progressingFuture, __) -> {
-					this.inactiveCatalogs.add(targetCatalogName);
-					this.catalogs.put(
-						targetCatalogName,
-						new UnusableCatalog(
-							targetCatalogName,
-							CatalogState.INACTIVE,
-							this.configuration.storage().storageDirectory().resolve(targetCatalogName),
-							CatalogInactiveException::new
-						)
-					);
-					onCompletion.run();
-					this.currentCatalogMutations.remove(catalogName);
-					log.info("Catalog `{}` has been duplicated as catalog `{}`!", catalogName, targetCatalogName);
-					return null;
-				},
-				ex -> {
-					onFailure.run();
-					this.currentCatalogMutations.remove(catalogName);
-				}
-			),
-			progress -> this.currentCatalogMutations.put(catalogName, progress),
-			this.engineExecutor
-		);
-	}
-
-	/*
-		PRIVATE METHODS
-	*/
-
-	/**
-	 * Updates the state of the engine after applying a mutation. This method creates a new engine state
-	 * with an incremented version, updates the persistence layer with the new state, and notifies
-	 * observers about the change.
-	 *
-	 * @param theEngineState                 The current state of the engine to be updated.
-	 * @param txMutationWithWalFileReference The transaction mutation containing the WAL file reference to be
-	 *                                       associated with the update.
-	 */
-	private void updateEngineStateAfterEngineMutation(
-		@Nonnull EngineState theEngineState,
-		@Nonnull TransactionMutationWithWalFileReference txMutationWithWalFileReference
-	) {
-		this.engineStateLock.lock();
-		try {
-			// create new engine state with the incremented version, and store it in the persistence service
-			final EngineState newState = EngineState
-				.builder()
-				.version(theEngineState.version() + 1)
-				.activeCatalogs(
-					this.catalogs.keySet()
-					             .stream()
-					             .filter(it -> !this.inactiveCatalogs.contains(it))
-					             .toArray(String[]::new)
-				)
-				.inactiveCatalogs(this.inactiveCatalogs.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
-				.readOnlyCatalogs(this.readOnlyCatalogs.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
-				.walFileReference(txMutationWithWalFileReference.walFileReference())
-				.build();
-			this.enginePersistenceService.storeEngineState(newState);
-			this.engineState.set(newState);
-			// finally, notify the change observer about the new version
-			this.changeObserver.notifyVersionPresentInLiveView(newState.version());
-		} finally {
-			this.engineStateLock.unlock();
-		}
-	}
-
-	/**
-	 * Drops all changes recorded after an unsuccessful engine mutation attempt to revert the state
-	 * to a stable and consistent version.
-	 *
-	 * @param theEngineState the current state of the engine, including version information, used to
-	 *                       identify and forget mutations made after this version.
-	 */
-	private void dropChangesAfterUnsuccessfulEngineMutation(@Nonnull EngineState theEngineState) {
-		// forget about the mutation in case of error
-		this.changeObserver.forgetMutationsAfter(theEngineState.version());
-	}
-
-	/**
-	 * Asserts that there is no active engine mutation in progress for the specified catalog.
-	 * Throws an exception if a mutation is already in progress for the given catalog.
-	 *
-	 * @param catalogName the name of the catalog to check for active mutations, must not be null
-	 */
-	private void assertNoCatalogEngineMutationInProgress(@Nonnull String catalogName) {
-		Assert.isPremiseValid(
-			this.currentCatalogMutations.get(catalogName) == null,
-			"Catalog `" + catalogName + "` already has active engine mutation in progress!"
-		);
-	}
-
-	/**
-	 * Creates new catalog in the evitaDB.
-	 */
-	@Nonnull
-	private Progress<CommitVersions> createCatalogInternal(
-		@Nonnull CreateCatalogSchemaMutation createCatalogSchema,
-		@Nonnull IntConsumer progressObserver,
-		@Nonnull Runnable onCompletion,
-		@Nonnull Runnable onFailure
-	) {
-		final String catalogName = createCatalogSchema.getCatalogName();
-		this.catalogs.compute(
-			catalogName,
-			(theCatalogName, existingCatalog) -> {
-				if (existingCatalog == null) {
-					return new UnusableCatalog(
-						catalogName,
-						CatalogState.BEING_CREATED,
-						this.configuration.storage().storageDirectory().resolve(catalogName),
-						(cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_CREATED)
-					);
-				} else {
-					throw new CatalogAlreadyPresentException(catalogName, existingCatalog.getName());
-				}
-			}
-		);
-		final ProgressRecord<CommitVersions> progress = new ProgressRecord<>(
-			"Creating catalog `" + catalogName + "`",
-			progressObserver
-		);
-		// there is no slow operation, so we can complete the operation synchronously
-		try {
-			assertNoCatalogEngineMutationInProgress(catalogName);
-			this.currentCatalogMutations.put(catalogName, progress);
-			final CatalogContract theCatalog = this.catalogs.compute(
-				catalogName,
-				(theCatalogName, existingCatalog) -> {
-					Assert.isPremiseValid(
-						existingCatalog != null &&
-							existingCatalog.getCatalogState() == CatalogState.BEING_CREATED &&
-							catalogName.equals(existingCatalog.getName()),
-						"Sanity check failed!" +
-							(existingCatalog == null ?
-								" Existing catalog is null!" :
-								" Existing catalog `" + existingCatalog.getName() + "` is in state " +
-									"`" + existingCatalog.getCatalogState() + "` but expected to be in state `BEING_CREATED`!"
-							)
-
-					);
-					final CatalogSchemaContract catalogSchema = Objects.requireNonNull(createCatalogSchema.mutate(null))
-					                                                   .updatedCatalogSchema();
-					// check the names in all naming conventions are unique in the entity schema
-					this.catalogs
-						.values()
-						.stream()
-						.filter(it -> it != existingCatalog)
-						.flatMap(it -> {
-							final Stream<Entry<NamingConvention, String>> nameStream;
-							if (it instanceof UnusableCatalog) {
-								nameStream = NamingConvention.generate(it.getName())
-								                             .entrySet()
-								                             .stream();
-							} else {
-								nameStream = it.getSchema()
-								               .getNameVariants()
-								               .entrySet()
-								               .stream();
-							}
-							return nameStream
-								.map(name -> new CatalogNameInConvention(
-									it.getName(), name.getKey(),
-									name.getValue()
-								));
-						})
-						.filter(nameVariant -> nameVariant.name()
-						                                  .equals(catalogSchema.getNameVariant(
-							                                  nameVariant.convention())))
-						.map(nameVariant -> new CatalogNamingConventionConflict(
-							nameVariant.catalogName(),
-							nameVariant.convention(),
-							nameVariant.name()
-						))
-						.forEach(conflict -> {
-							throw new CatalogAlreadyPresentException(
-								catalogName, conflict.conflictingCatalogName(),
-								conflict.convention(), conflict.conflictingName()
-							);
-						});
-
-					return new Catalog(
-						catalogSchema,
-						this.cacheSupervisor,
-						this.configuration,
-						this.reflectionLookup,
-						this.serviceExecutor,
-						this.management.exportFileService(),
-						this.requestExecutor,
-						this.transactionExecutor,
-						this::replaceCatalogReference,
-						this.tracingContext
-					);
-				}
-			);
-			onCompletion.run();
-			progress.complete(
-				new CommitVersions(theCatalog.getVersion(), theCatalog.getSchema().version())
-			);
-		} catch (Throwable ex) {
-			onFailure.run();
-			progress.completeExceptionally(ex);
-			log.error("Error while creating catalog `{}`!", catalogName, ex);
-		} finally {
-			this.currentCatalogMutations.remove(catalogName);
-		}
-		return progress;
-	}
-
-	/**
-	 * Renames existing catalog in evitaDB.
-	 */
-	@Nonnull
-	private Progress<CommitVersions> renameCatalogInternal(
-		@Nonnull ModifyCatalogSchemaNameMutation modifyCatalogSchemaName,
-		@Nonnull IntConsumer progressObserver,
-		@Nonnull Runnable onCompletion,
-		@Nonnull Runnable onFailure
-	) {
-		final String currentName = modifyCatalogSchemaName.getCatalogName();
-		final String newName = modifyCatalogSchemaName.getNewCatalogName();
-		isTrue(!this.catalogs.containsKey(newName), () -> new CatalogAlreadyPresentException(newName, newName));
-		final CatalogContract catalogToBeRenamed = getCatalogInstanceOrThrowException(currentName);
-		return doReplaceCatalogInternal(
-			modifyCatalogSchemaName,
-			newName, currentName,
-			catalogToBeRenamed, catalogToBeRenamed,
-			progressObserver, onCompletion, onFailure
-		);
-	}
-
-	/**
-	 * Replaces existing catalog in evitaDB.
-	 */
-	@Nonnull
-	private Progress<CommitVersions> replaceCatalogInternal(
-		@Nonnull ModifyCatalogSchemaNameMutation modifyCatalogSchemaName,
-		@Nonnull IntConsumer progressObserver,
-		@Nonnull Runnable onCompletion,
-		@Nonnull Runnable onFailure
-	) {
-		final String catalogNameToBeReplacedWith = modifyCatalogSchemaName.getCatalogName();
-		final String catalogNameToBeReplaced = modifyCatalogSchemaName.getNewCatalogName();
-		final CatalogContract catalogToBeReplaced = getCatalogInstanceOrThrowException(catalogNameToBeReplaced);
-		final CatalogContract catalogToBeReplacedWith = getCatalogInstanceOrThrowException(catalogNameToBeReplacedWith);
-		return doReplaceCatalogInternal(
-			modifyCatalogSchemaName,
-			catalogNameToBeReplaced, catalogNameToBeReplacedWith,
-			catalogToBeReplaced, catalogToBeReplacedWith,
-			progressObserver, onCompletion, onFailure
-		);
-	}
-
-	/**
-	 * Internal shared implementation of catalog replacement used both from rename and replace existing catalog methods.
-	 */
-	@Nonnull
-	private Progress<CommitVersions> doReplaceCatalogInternal(
-		@Nonnull ModifyCatalogSchemaNameMutation modifyCatalogSchemaName,
-		@Nonnull String catalogNameToBeReplaced,
-		@Nonnull String catalogNameToBeReplacedWith,
-		@Nonnull CatalogContract catalogToBeReplaced,
-		@Nonnull CatalogContract catalogToBeReplacedWith,
-		@Nonnull IntConsumer progressObserver,
-		@Nonnull Runnable onCompletion,
-		@Nonnull Runnable onFailure
-	) {
-		// close all active sessions to the catalog that will replace the original one
-		final Optional<SessionRegistry> prevailingCatalogSessionRegistry = ofNullable(
-			this.catalogSessionRegistries.get(catalogNameToBeReplacedWith)
-		);
-		// this will be always empty if catalogToBeReplaced == catalogToBeReplacedWith
-		Optional<SessionRegistry> removedCatalogSessionRegistry = ofNullable(
-			this.catalogSessionRegistries.get(catalogNameToBeReplaced)
-		);
-
-		prevailingCatalogSessionRegistry
-			.ifPresent(sessionRegistry -> {
-				sessionRegistry.closeAllActiveSessionsAndSuspend(SuspendOperation.POSTPONE);
-				// immediately register the session registry under the new name to start accepting new sessions
-				// session creation will be postponed until the catalog is fully available
-				this.catalogSessionRegistries.put(
-					catalogNameToBeReplaced,
-					sessionRegistry.withDifferentCatalogSupplier(
-						() -> (Catalog) this.catalogs.get(catalogNameToBeReplaced))
-				);
-			});
-
-		final Runnable undoOperations = () -> {
-			onFailure.run();
-
-			// revert session registry swap
-			if (removedCatalogSessionRegistry.isPresent()) {
-				this.catalogSessionRegistries.put(catalogNameToBeReplaced, removedCatalogSessionRegistry.get());
-			} else {
-				this.catalogSessionRegistries.remove(catalogNameToBeReplaced);
-			}
-			// in case of exception return the original catalog to be replaced back
-			if (catalogToBeReplaced.isTerminated()) {
-				final ProgressingFuture<Catalog> future = loadCatalogInternal(catalogNameToBeReplaced);
-				future.execute(this.engineExecutor);
-				future.join();
-			} else {
-				this.catalogs.put(catalogNameToBeReplaced, catalogToBeReplaced);
-			}
-		};
-
-		try {
-			assertNoCatalogEngineMutationInProgress(catalogNameToBeReplaced);
-			assertNoCatalogEngineMutationInProgress(catalogNameToBeReplacedWith);
-
-			// first terminate the catalog that is being replaced (unless it's the very same catalog)
-			if (catalogToBeReplaced != catalogToBeReplacedWith) {
-				removedCatalogSessionRegistry.ifPresent(
-					it -> it.closeAllActiveSessionsAndSuspend(SuspendOperation.REJECT));
-				catalogToBeReplaced.terminate();
-			} else {
-				Assert.isPremiseValid(removedCatalogSessionRegistry.isEmpty(), "Expectation failed!");
-			}
-
-			final CatalogSchemaWithImpactOnEntitySchemas updatedSchemaWrapper = modifyCatalogSchemaName.mutate(
-				catalogToBeReplacedWith.getSchema());
-			Assert.isPremiseValid(
-				updatedSchemaWrapper != null,
-				"Result of modify catalog schema mutation must not be null."
-			);
-
-			return new ProgressRecord<>(
-				catalogToBeReplaced == catalogToBeReplacedWith ?
-					"Renaming catalog `" + catalogNameToBeReplaced + "` to `" + catalogNameToBeReplacedWith + "`" :
-					"Replacing catalog `" + catalogNameToBeReplaced + "` with `" + catalogNameToBeReplacedWith + "`",
-				progressObserver,
-				new ProgressingFuture<>(
-					1,
-					Collections.singleton(
-						catalogToBeReplacedWith
-							.replace(
-								updatedSchemaWrapper.updatedCatalogSchema(),
-								catalogToBeReplaced
-							)
-					),
-					(theFuture, replacedCatalogs) -> {
-						final CatalogContract replacedCatalog = replacedCatalogs.iterator().next();
-						this.catalogs.put(catalogNameToBeReplaced, replacedCatalog);
-						if (!catalogNameToBeReplacedWith.equals(catalogNameToBeReplaced)) {
-							this.catalogs.remove(catalogNameToBeReplacedWith);
-							this.catalogSessionRegistries.remove(catalogNameToBeReplacedWith);
-						}
-
-						onCompletion.run();
-
-						// notify callback that it's now a live snapshot
-						((Catalog) replacedCatalog).notifyCatalogPresentInLiveView();
-
-						// we can resume suspended operations on catalogs
-						prevailingCatalogSessionRegistry.ifPresent(
-							SessionRegistry::resumeOperations);
-						removedCatalogSessionRegistry.ifPresent(SessionRegistry::resumeOperations);
-
-						this.currentCatalogMutations.remove(catalogNameToBeReplaced);
-						this.currentCatalogMutations.remove(catalogNameToBeReplacedWith);
-
-						return new CommitVersions(
-							replacedCatalog.getVersion(),
-							replacedCatalog.getSchema().version()
-						);
-					},
-					ex -> {
-						log.error(
-							"Error while replacing catalog `{}` with `{}`!",
-							catalogNameToBeReplaced, catalogNameToBeReplacedWith, ex
-						);
-
-						undoOperations.run();
-
-						this.currentCatalogMutations.remove(catalogNameToBeReplaced);
-						this.currentCatalogMutations.remove(catalogNameToBeReplacedWith);
-					}
-				),
-				progress -> {
-					this.currentCatalogMutations.put(catalogNameToBeReplaced, progress);
-					this.currentCatalogMutations.put(catalogNameToBeReplacedWith, progress);
-				},
-				this.engineExecutor
-			);
-		} catch (RuntimeException ex) {
-			undoOperations.run();
-			throw ex;
-		}
-	}
-
-	/**
-	 * Modifies the catalog schema by applying the provided schema mutation. This method ensures that
-	 * the modification takes place within an existing session and updates the catalog schema accordingly.
-	 * It also observes progress and reports completion or errors.
-	 *
-	 * @param modifyCatalogSchema the mutation containing details about the changes to be applied
-	 *                            to the catalog schema, including the session ID and schema modifications.
-	 * @param progressObserver    a consumer that observes progress and receives updates as the operation progresses.
-	 * @return a Progress instance containing the result of schema modification, specifically
-	 * the committed versions of the catalog and schema.
-	 * @throws InvalidSchemaMutationException if the operation is attempted outside of an existing session.
-	 */
-	@Nonnull
-	private Progress<CommitVersions> modifyCatalogSchemaInternal(
-		@Nonnull ModifyCatalogSchemaMutation modifyCatalogSchema,
-		@Nonnull IntConsumer progressObserver,
-		@Nonnull Runnable onCompletion,
-		@Nonnull Runnable onFailure
-	) {
-		Assert.isTrue(
-			modifyCatalogSchema.getSessionId() != null,
-			() -> new InvalidSchemaMutationException(
-				"Cannot modify catalog schema outside an existing session! " +
-					"Please use methods available on `EvitaSessionContract` interface."
-			)
-		);
-
-		final String catalogName = modifyCatalogSchema.getCatalogName();
-		final CatalogContract catalogContract = this.catalogs.get(catalogName);
-		//noinspection resource
-		final Transaction theTransaction = Transaction.getTransaction().orElse(null);
-
-		assertNoCatalogEngineMutationInProgress(catalogName);
-		return new ProgressRecord<>(
-			"Modifying catalog schema `" + catalogName + "`",
-			progressObserver,
-			new ProgressingFuture<>(
-				1,
-				theFuture -> Transaction.executeInTransactionIfProvided(
-					theTransaction,
-					() -> {
-						final CatalogSchemaContract newSchema = catalogContract.updateSchema(
-							modifyCatalogSchema.getSessionId(), modifyCatalogSchema.getSchemaMutations());
-						onCompletion.run();
-						this.currentCatalogMutations.remove(catalogName);
-						return new CommitVersions(
-							catalogContract.getVersion(),
-							newSchema.version()
-						);
-					}
-				),
-				ex -> {
-					onFailure.run();
-					this.currentCatalogMutations.remove(catalogName);
-				}
-			),
-			progress -> this.currentCatalogMutations.put(catalogName, progress),
-			this.engineExecutor
-		);
-	}
-
-	/**
-	 * Removes a catalog and all its associated data based on the provided mutation.
-	 * This operation also closes any active sessions associated with the catalog and cleans up its resources.
-	 *
-	 * @param removeCatalogSchema the mutation containing the details of the catalog to be removed
-	 * @param progressObserver    an observer to track the progress of the removal operation
-	 * @return a progress object indicating the completion state of the removal operation
-	 */
-	@Nonnull
-	private Progress<Void> removeCatalogInternal(
-		@Nonnull RemoveCatalogSchemaMutation removeCatalogSchema,
-		@Nonnull IntConsumer progressObserver,
-		@Nonnull Runnable onCompletion,
-		@Nonnull Runnable onFailure
-	) {
-		final String catalogName = removeCatalogSchema.getCatalogName();
-		assertNoCatalogEngineMutationInProgress(catalogName);
-		return new ProgressRecord<>(
-			"Removing catalog `" + catalogName + "`",
-			progressObserver,
-			new ProgressingFuture<>(
-				1,
-				theFuture -> {
-					ofNullable(this.catalogSessionRegistries.get(catalogName))
-						.ifPresent(it -> it.closeAllActiveSessionsAndSuspend(SuspendOperation.REJECT));
-
-					theFuture.updateProgress(1);
-
-					final CatalogContract catalogToRemove = this.catalogs.remove(catalogName);
-					this.catalogSessionRegistries.remove(catalogName);
-					if (catalogToRemove == null) {
-						throw new CatalogNotFoundException(catalogName);
-					} else {
-						catalogToRemove.terminateAndDelete();
-					}
-
-					onCompletion.run();
-					this.currentCatalogMutations.remove(catalogName);
-					return null;
-				},
-				ex -> {
-					onFailure.run();
-					this.currentCatalogMutations.remove(catalogName);
-				}
-			),
-			progress -> this.currentCatalogMutations.put(catalogName, progress),
-			this.engineExecutor
-		);
-	}
-
-	/**
 	 * Replaces current catalog reference with updated one.
 	 */
 	private void replaceCatalogReference(@Nonnull Catalog catalog) {
 		notNull(catalog, "Sanity check.");
-		final String catalogName = catalog.getName();
-		// catalog indexes are ConcurrentHashMap - we can do it safely here
-		this.catalogs.computeIfPresent(
-			catalogName, (cName, currentCatalog) -> {
-				// replace catalog only when reference/pointer differs
-				if (currentCatalog != catalog && currentCatalog.getVersion() < catalog.getVersion()) {
-					return catalog;
-				} else {
-					return currentCatalog;
-				}
-			}
-		);
+
+		// replace catalog reference in the engine state
+		getEngineState().replaceCatalogReference(catalog);
 
 		// discard suspension of the session registry for the catalog, if present
-		discardSuspension(catalogName);
+		discardSuspension(catalog.getName());
 
 		// notify callback that it's now a live snapshot
 		catalog.notifyCatalogPresentInLiveView();
@@ -2049,11 +1166,12 @@ public final class Evita implements EvitaContract {
 				}
 
 				final Catalog catalog = sessionRegistry.getCatalog();
-				if (this.readOnlyCatalogs.contains(catalog.getName())) {
-					throw ReadOnlyException.catalogReadOnly(catalog.getName());
+				final String catalogName = catalog.getName();
+				if (this.getEngineState().isReadOnly(catalogName)) {
+					throw ReadOnlyException.catalogReadOnly(catalogName);
 				}
 				if (catalog.isGoingLive()) {
-					throw new CatalogGoingLiveException(catalog.getName());
+					throw new CatalogGoingLiveException(catalogName);
 				}
 
 				final EvitaSessionTerminationCallback terminationCallback =
@@ -2090,7 +1208,18 @@ public final class Evita implements EvitaContract {
 		final String catalogName = sessionTraits.catalogName();
 		return new SessionRegistry(
 			this.tracingContext,
-			() -> (Catalog) this.catalogs.get(catalogName),
+			() -> this.getEngineState()
+			          .getCatalog(catalogName)
+			          .map(it -> {
+				          if (it instanceof Catalog catalog) {
+					          return catalog;
+				          } else if (it instanceof UnusableCatalog unusableCatalog) {
+					          throw unusableCatalog.getRepresentativeException();
+				          } else {
+					          throw new GenericEvitaInternalError("Could not happen!");
+				          }
+			          })
+			          .orElseThrow(() -> new CatalogNotFoundException(catalogName)),
 			this.sessionRegistryDataStore
 		);
 	}
@@ -2118,11 +1247,18 @@ public final class Evita implements EvitaContract {
 			new Runnable() {
 				@Override
 				public void run() {
-					if (Evita.this.catalogs.get(catalogName) instanceof Catalog monitoredCatalog) {
-						monitoredCatalog.emitObservabilityEvents();
-					} else {
-						FlightRecorder.removePeriodicEvent(this);
-					}
+					Evita.this.getEngineState()
+					          .getCatalog(catalogName)
+					          .ifPresentOrElse(
+						          catalogContract -> {
+							          if (catalogContract instanceof Catalog monitoredCatalog) {
+								          monitoredCatalog.emitObservabilityEvents();
+							          } else {
+								          FlightRecorder.removePeriodicEvent(this);
+							          }
+						          },
+						          () -> log.warn("Catalog {} does not exist, cannot emit statistics!", catalogName)
+					          );
 				}
 			}
 		);
@@ -2182,41 +1318,33 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	private CompletableFuture<Void> closeCatalogs() {
-		return CompletableFuture.allOf(
-			this.catalogs.values()
-			             .stream()
-			             .map(catalog -> CompletableFuture.runAsync(catalog::terminate))
-			             .toArray(CompletableFuture[]::new)
-		).thenAccept(__ -> {
-			// clear map
-			this.catalogs.clear();
-			// release lock
-			IOUtils.closeQuietly(this.enginePersistenceService::close);
-		});
-	}
-
-	/**
-	 * DTO for passing the identified conflict in catalog names for certain naming convention.
-	 */
-	record CatalogNamingConventionConflict(
-		@Nonnull String conflictingCatalogName,
-		@Nonnull NamingConvention convention,
-		@Nonnull String conflictingName
-	) {
-	}
-
-	/**
-	 * Represents a catalog name that follows a specific naming convention.
-	 *
-	 * @param catalogName the original name of the catalog
-	 * @param convention  the identification of the convention
-	 * @param name        the name of the catalog in particular convention
-	 */
-	private record CatalogNameInConvention(
-		@Nonnull String catalogName,
-		@Nonnull NamingConvention convention,
-		@Nonnull String name
-	) {
+		final ExpandedEngineState expandedEngineState = this.engineState.get();
+		final Executor executor = this.engineTransactionManager.getExecutor();
+		final ProgressingFuture<Void> closedFuture = new ProgressingFuture<>(
+			0,
+			// first we need to close all catalogs
+			expandedEngineState
+				.getCatalogCollection()
+				.stream()
+				.map(
+					catalog -> new ProgressingFuture<Void>(
+						0,
+						future -> {
+							catalog.terminate();
+							return null;
+						}
+					)
+				)
+				.toList(),
+			(future, __) -> {
+				// then clear engine state and close transaction manager
+				this.engineState.set(null);
+				this.engineTransactionManager.close();
+				return null;
+			}
+		);
+		closedFuture.execute(executor);
+		return closedFuture;
 	}
 
 	/**

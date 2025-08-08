@@ -566,6 +566,13 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		thirdInstance.close();
 	}
 
+	@DisplayName("Engine log should be truncated automatically when there is content after current state reference.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldTruncateEngineLogAndStartCorrectly(Evita evita) {
+		/* TODO JNO - implement me */
+	}
+
 	@DisplayName("Catalog history should be aggregated correctly.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Tag(LONG_RUNNING_TEST)

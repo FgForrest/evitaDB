@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.progress.Progress;
 
 import javax.annotation.Nonnull;
@@ -47,6 +48,15 @@ public non-sealed interface EngineMutation<T> extends Mutation {
 	 */
 	@Nonnull
 	Class<T> getProgressResultType();
+
+	/**
+	 * Returns a {@link ConflictKey} associated with this mutation that identifies potential conflicts
+	 * in the evitaDB system. The conflict key is used to ensure proper handling of concurrent mutations.
+	 *
+	 * @return the conflict key representing the unique identifier for potential conflicts
+	 */
+	@Nonnull
+	Stream<ConflictKey> getConflictKeys();
 
 	/**
 	 * Transforms mutation to the stream of change system capture item matching the input predicate.

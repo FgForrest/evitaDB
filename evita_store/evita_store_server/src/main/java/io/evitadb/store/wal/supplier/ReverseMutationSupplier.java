@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.wal.AbstractWriteAheadLog;
+import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -180,7 +180,7 @@ public final class ReverseMutationSupplier<T extends Mutation> extends AbstractM
 			examinedTxMutation
 				.map(
 					it -> it.getVersion() < previousCatalogVersion &&
-						this.filePosition + it.getTransactionSpan().recordLength() + AbstractWriteAheadLog.WAL_TAIL_LENGTH < walFileLength)
+						this.filePosition + it.getTransactionSpan().recordLength() + AbstractMutationLog.WAL_TAIL_LENGTH < walFileLength)
 				.orElse(false)
 		) {
 			// move cursor to the next transaction mutation
@@ -190,7 +190,7 @@ public final class ReverseMutationSupplier<T extends Mutation> extends AbstractM
 			// read content length and leading transaction mutation
 			examinedTxMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
 			// if the file is shorter than the expected size of the transaction mutation, we've reached EOF
-			if (walFileLength < this.filePosition + transactionSpan.recordLength() + AbstractWriteAheadLog.WAL_TAIL_LENGTH) {
+			if (walFileLength < this.filePosition + transactionSpan.recordLength() + AbstractMutationLog.WAL_TAIL_LENGTH) {
 				break;
 			}
 		}

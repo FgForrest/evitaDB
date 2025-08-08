@@ -27,6 +27,8 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.utils.Assert;
@@ -39,6 +41,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for removing an existing {@link CatalogSchemaContract} - or more precisely the catalog
@@ -65,6 +68,12 @@ public class RemoveCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	@Override
 	public Class<Void> getProgressResultType() {
 		return Void.class;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> getConflictKeys() {
+		return Stream.of(new CatalogConflictKey(this.catalogName));
 	}
 
 	@Nullable

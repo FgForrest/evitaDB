@@ -79,7 +79,7 @@ import java.util.function.LongSupplier;
  */
 @Slf4j
 @NotThreadSafe
-public class CatalogWriteAheadLog extends AbstractWriteAheadLog<CatalogBoundMutation> {
+public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutation> {
 	/**
 	 * The name of the catalog.
 	 */

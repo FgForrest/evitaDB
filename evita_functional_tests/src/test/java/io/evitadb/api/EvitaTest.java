@@ -55,6 +55,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.Evita;
@@ -1754,9 +1755,10 @@ class EvitaTest implements EvitaTestSupport {
 					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
 					.updateVia(session);
 
-				final EntityAttributeSchemaContract firstAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT)
-				                                                            .getAttribute(ATTRIBUTE_URL)
-				                                                            .orElseThrow();
+				final EntityAttributeSchemaContract firstAttribute = session
+					.getEntitySchemaOrThrowException(Entities.PRODUCT)
+					.getAttribute(ATTRIBUTE_URL)
+					.orElseThrow();
 				assertInstanceOf(GlobalAttributeSchemaContract.class, firstAttribute);
 				assertTrue(firstAttribute.isLocalized());
 				assertEquals(
@@ -1777,9 +1779,10 @@ class EvitaTest implements EvitaTestSupport {
 						ATTRIBUTE_URL).orElseThrow().getGlobalUniquenessType()
 				);
 
-				final EntityAttributeSchemaContract secondAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT)
-				                                                             .getAttribute(ATTRIBUTE_URL)
-				                                                             .orElseThrow();
+				final EntityAttributeSchemaContract secondAttribute = session
+					.getEntitySchemaOrThrowException(Entities.PRODUCT)
+					.getAttribute(ATTRIBUTE_URL)
+					.orElseThrow();
 				assertInstanceOf(GlobalAttributeSchemaContract.class, secondAttribute);
 				assertTrue(secondAttribute.isLocalized());
 				assertEquals(
@@ -4820,6 +4823,117 @@ class EvitaTest implements EvitaTestSupport {
 		this.evita.deleteCatalogIfExists(duplicatedCatalogName);
 	}
 
+	@Test
+	@DisplayName("Should fail concurrent engine mutations on a single catalog")
+	void shouldFailToExecuteTwoEngineLevelMutationsOnSingleCatalogInParallel() {
+		final String catalog = TEST_CATALOG + "_concurrent_engine_single";
+		// create catalog
+		this.evita.defineCatalog(catalog);
+		// prepare schema with references and multiple indexed attributes and insert data
+		this.evita.updateCatalog(
+			catalog,
+			session -> {
+				// define referenced entities
+				session.defineEntitySchema(Entities.BRAND).updateVia(session);
+				session.defineEntitySchema(Entities.CATEGORY).withHierarchy().updateVia(session);
+				// define product schema with references and indexed attributes
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute("code", String.class, whichIs -> whichIs.filterable().sortable())
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable().sortable())
+					.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, it -> it.indexed().faceted())
+					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, it -> it.indexed().faceted())
+					.updateVia(session);
+
+				// seed some referenced entities
+				session.upsertEntity(session.createNewEntity(Entities.BRAND, 1));
+				session.upsertEntity(session.createNewEntity(Entities.BRAND, 2));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2));
+
+				// insert 1,000 entities
+				final int count = 1_000;
+				for (int i = 1; i <= count; i++) {
+					final EntityBuilder builder = session.createNewEntity(Entities.PRODUCT, i)
+						.setAttribute("code", "code-" + i)
+						.setAttribute(ATTRIBUTE_NAME, "name-" + i)
+						.setReference(Entities.BRAND, (i % 2) + 1)
+						.setReference(Entities.CATEGORY, (i % 2) + 1);
+					session.upsertEntity(builder);
+				}
+			}
+		);
+
+		// ensure alive then deactivate
+		assertEquals(CatalogState.WARMING_UP, this.evita.getCatalogState(catalog).orElseThrow());
+		this.evita.deactivateCatalog(catalog);
+		assertEquals(CatalogState.INACTIVE, this.evita.getCatalogState(catalog).orElseThrow());
+
+		this.evita = reinstantiateEvitaWithEnabledAsynchronousExecutors(this.evita);
+
+		// try activating catalog in two threads in parallel
+		try {
+			final CompletableFuture<Void> f1 = this.evita
+				.applyMutation(new SetCatalogStateMutation(catalog, true))
+				.onCompletion()
+				.toCompletableFuture();
+			final CompletableFuture<Void> f2 = this.evita
+				.applyMutation(new SetCatalogStateMutation(catalog, true))
+				.onCompletion()
+				.toCompletableFuture();
+
+			assertThrows(
+				ConflictingEngineMutationException.class,
+				() -> CompletableFuture.allOf(f1, f2).join()
+			);
+		} finally {
+			// clean up
+			this.evita.deleteCatalogIfExists(catalog);
+		}
+	}
+
+	/**
+	 * Reinstantiates the Evita instance with asynchronous executors enabled, based on
+	 * the configuration of the provided Evita instance. The provided Evita instance
+	 * will be closed and a new instance will be created.
+	 *
+	 * @param evita The existing Evita instance to be reinitialized with asynchronous executors enabled.
+	 */
+	@Nonnull
+	private static Evita reinstantiateEvitaWithEnabledAsynchronousExecutors(@Nonnull Evita evita) {
+		final EvitaConfiguration formerConfiguration = evita.getConfiguration();
+		evita.close();
+
+		final ServerOptions formerServerOptions = formerConfiguration.server();
+		return new Evita(
+			new EvitaConfiguration(
+				formerConfiguration.name(),
+				new ServerOptions(
+					formerServerOptions.requestThreadPool(),
+					formerServerOptions.transactionThreadPool(),
+					formerServerOptions.serviceThreadPool(),
+					formerServerOptions.queryTimeoutInMilliseconds(),
+					formerServerOptions.transactionTimeoutInMilliseconds(),
+					formerServerOptions.closeSessionsAfterSecondsOfInactivity(),
+					formerServerOptions.changeDataCapture(),
+					formerServerOptions.trafficRecording(),
+					formerServerOptions.readOnly(),
+					formerServerOptions.quiet(),
+					false
+				),
+				formerConfiguration.storage(),
+				formerConfiguration.transaction(),
+				formerConfiguration.cache()
+			)
+		);
+	}
+
+	@Test
+	void shouldAllowTwoEngineMutationsOnDifferentCatalogsInParallel() {
+		/* TODO JNO - Implement me */
+	}
+
+	@Nonnull
 	private Path getEvitaTestDirectory() {
 		return getTestDirectory().resolve(DIR_EVITA_TEST);
 	}

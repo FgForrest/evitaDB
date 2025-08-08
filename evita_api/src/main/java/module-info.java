@@ -66,6 +66,7 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.schema.dto;
 	exports io.evitadb.api.requestResponse.system;
 	exports io.evitadb.api.requestResponse.mutation;
+	exports io.evitadb.api.requestResponse.mutation.conflict;
 	exports io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
 	exports io.evitadb.api.requestResponse.data.annotation;
 	exports io.evitadb.api.requestResponse.trafficRecording;

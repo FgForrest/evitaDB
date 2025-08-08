@@ -34,7 +34,7 @@ import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,7 +82,7 @@ class CatalogWriteAheadLogTest {
 			return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		}
 	};
-	private final WalFileReference walFileReference = new WalFileReference(
+	private final LogFileRecordReference walFileReference = new LogFileRecordReference(
 		index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
 		0, null
 	);
@@ -230,7 +230,7 @@ class CatalogWriteAheadLogTest {
 
 		// Calculate expected file size after truncation
 		final long expectedSize = originalWalFileLength - lastTxSize
-			- (AbstractWriteAheadLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeBytesDelta)
+			- (AbstractMutationLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeBytesDelta)
 			- txLengthBytes - classIdBytes;
 
 		assertEquals(expectedSize, walFile.length(), "WAL file should be truncated to remove incomplete transaction");
@@ -261,12 +261,12 @@ class CatalogWriteAheadLogTest {
 	@DisplayName("Valid WAL file names should have their index correctly extracted")
 	void shouldExtractIndexFromValidWalFileNames() {
 		// Test various valid WAL file name formats
-		assertEquals(123, AbstractWriteAheadLog.getIndexFromWalFileName("testCatalog_123.wal"),
-			"Should extract index 123 from WAL filename");
-		assertEquals(1, AbstractWriteAheadLog.getIndexFromWalFileName("testCatalog_1.wal"),
-			"Should extract index 1 from WAL filename");
-		assertEquals(456789, AbstractWriteAheadLog.getIndexFromWalFileName("testCatalog_456789.wal"),
-			"Should extract index 456789 from WAL filename");
+		assertEquals(123, AbstractMutationLog.getIndexFromWalFileName("testCatalog_123.wal"),
+		             "Should extract index 123 from WAL filename");
+		assertEquals(1, AbstractMutationLog.getIndexFromWalFileName("testCatalog_1.wal"),
+		             "Should extract index 1 from WAL filename");
+		assertEquals(456789, AbstractMutationLog.getIndexFromWalFileName("testCatalog_456789.wal"),
+		             "Should extract index 456789 from WAL filename");
 	}
 
 	@Test
@@ -275,7 +275,7 @@ class CatalogWriteAheadLogTest {
 		// Test case: completely invalid format
 		GenericEvitaInternalError exception = assertThrows(
 			GenericEvitaInternalError.class,
-			() -> AbstractWriteAheadLog.getIndexFromWalFileName("invalid_name.wal"),
+			() -> AbstractMutationLog.getIndexFromWalFileName("invalid_name.wal"),
 			"Should throw exception for invalid WAL filename format"
 		);
 		assertTrue(exception.getMessage().contains("Invalid WAL file name"),
@@ -284,7 +284,7 @@ class CatalogWriteAheadLogTest {
 		// Test case: missing catalog name and index
 		exception = assertThrows(
 			GenericEvitaInternalError.class,
-			() -> AbstractWriteAheadLog.getIndexFromWalFileName(".wal"),
+			() -> AbstractMutationLog.getIndexFromWalFileName(".wal"),
 			"Should throw exception for WAL filename without catalog and index"
 		);
 		assertTrue(exception.getMessage().contains("Invalid WAL file name"),
@@ -293,7 +293,7 @@ class CatalogWriteAheadLogTest {
 		// Test case: missing index
 		exception = assertThrows(
 			GenericEvitaInternalError.class,
-			() -> AbstractWriteAheadLog.getIndexFromWalFileName("testCatalog_.wal"),
+			() -> AbstractMutationLog.getIndexFromWalFileName("testCatalog_.wal"),
 			"Should throw exception for WAL filename without index"
 		);
 		assertTrue(exception.getMessage().contains("Invalid WAL file name"),

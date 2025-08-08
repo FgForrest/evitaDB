@@ -31,7 +31,6 @@ import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.function.IntFunction;
-import java.util.function.IntFunction;
 
 /**
  * A class representing a reference to a WAL (Write-Ahead Log) file.
@@ -40,7 +39,7 @@ import java.util.function.IntFunction;
  * @param fileIndex           The index of the WAL file incremented each time the WAL file is rotated.
  * @param fileLocation        The location of the last processed transaction of the WAL file.
  */
-public record WalFileReference(
+public record LogFileRecordReference(
 	@Nonnull IntFunction<String> walFileNameProvider,
 	int fileIndex,
 	@Nullable FileLocation fileLocation
@@ -48,21 +47,21 @@ public record WalFileReference(
 
 	@Override
 	@Nonnull
-	public Path toFilePath(@Nonnull Path catalogFolder) {
-		return catalogFolder.resolve(
+	public Path toFilePath(@Nonnull Path storageFolder) {
+		return storageFolder.resolve(
 			this.walFileNameProvider.apply(this.fileIndex)
 		);
 	}
 
 	@Override
 	@Nonnull
-	public WalFileReference incrementAndGet() {
-		return new WalFileReference(this.walFileNameProvider, this.fileIndex + 1, null);
+	public LogFileRecordReference incrementAndGet() {
+		return new LogFileRecordReference(this.walFileNameProvider, this.fileIndex + 1, null);
 	}
 
 	@Override
 	public boolean equals(Object o) {
-		if (!(o instanceof final WalFileReference that)) return false;
+		if (!(o instanceof final LogFileRecordReference that)) return false;
 
 		return this.fileIndex == that.fileIndex && Objects.equals(this.fileLocation, that.fileLocation);
 	}
@@ -77,7 +76,7 @@ public record WalFileReference(
 	@Nonnull
 	@Override
 	public String toString() {
-		return "WalFileReference{" +
+		return "LogFileRecordReference{" +
 			"fileIndex=" + this.fileIndex +
 			", fileLocation=" + this.fileLocation +
 			'}';

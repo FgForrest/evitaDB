@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.FileType;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.Functions;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
@@ -43,27 +44,28 @@ import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.EnginePersistenceService;
 import io.evitadb.store.spi.model.EngineState;
-import io.evitadb.store.spi.model.reference.EngineTransactionMutationWithWalFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
-import io.evitadb.store.spi.model.reference.WalFileReference;
-import io.evitadb.store.wal.EngineWriteAheadLog;
+import io.evitadb.store.wal.EngineMutationLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.FolderLock;
 import io.evitadb.utils.IOUtils;
-import io.evitadb.utils.UUIDUtil;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
@@ -81,6 +83,7 @@ import static io.evitadb.store.offsetIndex.model.StorageRecord.read;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Slf4j
 public class DefaultEnginePersistenceService implements EnginePersistenceService {
 	/**
 	 * Storage configuration options.
@@ -145,7 +148,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	/**
 	 * Write-ahead log for storing mutations before they are committed to the main storage.
 	 */
-	@Nullable private EngineWriteAheadLog writeAheadLog;
+	@Nullable private EngineMutationLog writeAheadLog;
 
 	/**
 	 * Current state of the engine.
@@ -231,10 +234,10 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 * @param transactionOptions the transaction options
 	 * @param scheduler          the executor service
 	 * @param kryoPool           the Kryo pool
-	 * @return a EngineWriteAheadLog object if WAL files are present, otherwise null
+	 * @return a EngineMutationLog object if WAL files are present, otherwise null
 	 */
 	@Nullable
-	static EngineWriteAheadLog createWalIfAnyWalFilePresent(
+	static EngineMutationLog createWalIfAnyWalFilePresent(
 		long version,
 		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull StorageOptions storageOptions,
@@ -248,7 +251,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			.listFiles((dir, name) -> name.endsWith(WAL_FILE_SUFFIX));
 		return walFiles == null || walFiles.length == 0 ?
 			null :
-			new EngineWriteAheadLog(
+			new EngineMutationLog(
 				version, walFileNameProvider, storageFolder, kryoPool,
 				storageOptions, transactionOptions, scheduler
 			);
@@ -329,10 +332,14 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 	@Nonnull
 	@Override
-	public TransactionMutationWithWalFileReference appendWal(long version, @Nonnull EngineMutation mutation) {
+	public TransactionMutationWithWalFileReference appendWal(
+		long version,
+		@Nonnull UUID transactionId,
+		@Nonnull EngineMutation<?> mutation
+	) {
 		// Initialize WAL if it doesn't exist yet
 		if (this.writeAheadLog == null) {
-			this.writeAheadLog = new EngineWriteAheadLog(
+			this.writeAheadLog = new EngineMutationLog(
 				getVersion(),
 				EnginePersistenceService::getWalFileName,
 				this.storageOptions.storageDirectory(),
@@ -375,7 +382,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 			// Create a transaction mutation with the mutation size
 			final TransactionMutation transactionMutation = new TransactionMutation(
-				UUIDUtil.randomUUID(), version, 1, mutationSizeInBytes, OffsetDateTime.now()
+				transactionId, version, 1, mutationSizeInBytes, OffsetDateTime.now()
 			);
 
 			// Append the transaction mutation to the WAL
@@ -431,39 +438,25 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		}
 	}
 
-	@Nonnull
 	@Override
-	public Optional<EngineTransactionMutationWithWalFileReference> getNextTransaction(
-		@Nonnull WalFileReference walFileReference
-	) {
-		if (this.writeAheadLog == null) {
-			// If WAL is not initialized, there are no transactions
-			return Optional.empty();
-		} else {
-			// Get the next transaction from the WAL using the provided file reference
-			return this.writeAheadLog.getFirstNonProcessedTransaction(walFileReference)
-				.map(transactionMutationWithWalFileReference -> {
-					final TransactionMutation transactionMutation = transactionMutationWithWalFileReference.transactionMutation();
-					final List<EngineMutation<?>> engineMutations = this.writeAheadLog
-						.getCommittedMutationStream(transactionMutation.getVersion())
-						.limit(2)
-						.toList();
-					Assert.isPremiseValid(engineMutations.size() == 2, "Expected exactly 2 mutations: transaction mutation and engine mutation!");
-					Assert.isPremiseValid(
-						engineMutations.get(0).equals(transactionMutationWithWalFileReference.transactionMutation()),
-						"First mutation in the stream must be the transaction mutation!"
+	public void truncateWalFile(@Nonnull LogFileRecordReference walFileReference) {
+		if (walFileReference.fileLocation() != null) {
+			final Path filePath = walFileReference.toFilePath(this.storageOptions.storageDirectory());
+			if (filePath.toFile().length() > walFileReference.fileLocation().endPosition()) {
+				try (RandomAccessFile randomAccessFile = new RandomAccessFile(filePath.toFile(), "rw")) {
+					log.info(
+						"Engine log file contains more data than expected, truncating it to {} bytes: {}",
+						walFileReference.fileLocation().endPosition(), filePath
 					);
-					Assert.isPremiseValid(
-						!(engineMutations.get(1) instanceof TransactionMutation),
-						"Second mutation in the stream must be an engine mutation!"
+					randomAccessFile.setLength(walFileReference.fileLocation().endPosition());
+				} catch (IOException ex) {
+					throw new UnexpectedIOException(
+						"Failed to truncate an engine log file: " + filePath,
+						"Failed to truncate en engine log file!",
+						ex
 					);
-					// Create a new transaction mutation with the WAL file reference
-					return new EngineTransactionMutationWithWalFileReference(
-						transactionMutationWithWalFileReference.walFileReference(),
-						transactionMutation,
-						engineMutations.get(1)
-					);
-				});
+				}
+			}
 		}
 	}
 
@@ -546,6 +539,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			// Extract directory names as active catalogs
 			Arrays.stream(directories)
 			      .map(it -> it.getName(it.getNameCount() - 1).toString())
+			      .sorted()
 			      .toArray(String[]::new),
 			ArrayUtils.EMPTY_STRING_ARRAY,  // No inactive catalogs initially
 			ArrayUtils.EMPTY_STRING_ARRAY   // No read-only catalogs initially

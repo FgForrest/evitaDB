@@ -1545,6 +1545,70 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	}
 
 	/**
+	 * Method allows to immediately flush all information held in memory to the persistent storage.
+	 * This method might do nothing particular in transaction ({@link CatalogState#ALIVE}) mode.
+	 * Method stores {@link EntityCollectionHeader} in case there were any changes in the file offset index executed
+	 * in BULK / non-transactional mode.
+	 */
+	@Nonnull
+	public ProgressingFuture<Void> flush() {
+		// if we're going live start with TRUE (force flush), otherwise start with false
+		final boolean changeOccurred = getInternalSchema().version() != this.lastPersistedSchemaVersion;
+		Assert.isPremiseValid(
+			getCatalogState() == CatalogState.WARMING_UP,
+			"Cannot flush catalog in transactional mode. Any changes could occur only in transaction!"
+		);
+
+		final TrappedChanges trappedChanges = this.dataStoreBuffer.popTrappedChanges();
+		return new ProgressingFuture<>(
+			trappedChanges.getTrappedChangesCount(),
+			// first flush all entity collections
+			this.entityCollections
+				.values()
+				.stream()
+				.map(EntityCollection::createFlushFuture)
+				.toList(),
+			// when all entity collections are flushed, we can update the catalog header
+			(progress, collectionOfHeaders) -> {
+				final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(collectionOfHeaders.size());
+				// start with the changeOccurred flag, which is true is schema was changed or if we are going live
+				boolean resolvedChangeOccurred = changeOccurred;
+				for (EntityCollectionHeaderWithCollection collectionOfHeader : collectionOfHeaders) {
+					// collect correct headers for each collection
+					entityHeaders.add(updateIndexIfNecessary(collectionOfHeader));
+					// set it to true if any of the collections changed
+					resolvedChangeOccurred = resolvedChangeOccurred || collectionOfHeader.changeOccurred();
+				}
+				// if any of the collections changed, we need to flush the trapped changes and store the catalog header
+				if (resolvedChangeOccurred) {
+					this.persistenceService.flushTrappedUpdates(
+						0L,
+						trappedChanges,
+						progress::updateProgress
+					);
+
+					final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader(0L);
+					Assert.isPremiseValid(
+						catalogHeader != null && catalogHeader.catalogState() == CatalogState.WARMING_UP,
+						"Catalog header is expected to be present in the storage in WARMING_UP flag!"
+					);
+					this.persistenceService.storeHeader(
+						this.catalogId,
+						getCatalogState(),
+						0L,
+						this.entityTypeSequence.get(),
+						null,
+						entityHeaders,
+						this.dataStoreBuffer
+					);
+					this.lastPersistedSchemaVersion = getInternalSchema().version();
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
 	 * This method writes all changed storage parts into the file offset index of {@link EntityCollection} and then stores
 	 * {@link CatalogHeader} marking the catalog version as committed.
 	 */
@@ -1634,70 +1698,6 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		if (this.persistenceService instanceof CatalogConsumersListener cvbthl) {
 			cvbthl.consumersLeft(lastKnownMinimalActiveVersion);
 		}
-	}
-
-	/**
-	 * Method allows to immediately flush all information held in memory to the persistent storage.
-	 * This method might do nothing particular in transaction ({@link CatalogState#ALIVE}) mode.
-	 * Method stores {@link EntityCollectionHeader} in case there were any changes in the file offset index executed
-	 * in BULK / non-transactional mode.
-	 */
-	@Nonnull
-	ProgressingFuture<Void> flush() {
-		// if we're going live start with TRUE (force flush), otherwise start with false
-		final boolean changeOccurred = getInternalSchema().version() != this.lastPersistedSchemaVersion;
-		Assert.isPremiseValid(
-			getCatalogState() == CatalogState.WARMING_UP,
-			"Cannot flush catalog in transactional mode. Any changes could occur only in transaction!"
-		);
-
-		final TrappedChanges trappedChanges = this.dataStoreBuffer.popTrappedChanges();
-		return new ProgressingFuture<>(
-			trappedChanges.getTrappedChangesCount(),
-			// first flush all entity collections
-			this.entityCollections
-				.values()
-				.stream()
-				.map(EntityCollection::createFlushFuture)
-				.toList(),
-			// when all entity collections are flushed, we can update the catalog header
-			(progress, collectionOfHeaders) -> {
-				final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(collectionOfHeaders.size());
-				// start with the changeOccurred flag, which is true is schema was changed or if we are going live
-				boolean resolvedChangeOccurred = changeOccurred;
-				for (EntityCollectionHeaderWithCollection collectionOfHeader : collectionOfHeaders) {
-					// collect correct headers for each collection
-					entityHeaders.add(updateIndexIfNecessary(collectionOfHeader));
-					// set it to true if any of the collections changed
-					resolvedChangeOccurred = resolvedChangeOccurred || collectionOfHeader.changeOccurred();
-				}
-				// if any of the collections changed, we need to flush the trapped changes and store the catalog header
-				if (resolvedChangeOccurred) {
-					this.persistenceService.flushTrappedUpdates(
-						0L,
-						trappedChanges,
-						progress::updateProgress
-					);
-
-					final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader(0L);
-					Assert.isPremiseValid(
-						catalogHeader != null && catalogHeader.catalogState() == CatalogState.WARMING_UP,
-						"Catalog header is expected to be present in the storage in WARMING_UP flag!"
-					);
-					this.persistenceService.storeHeader(
-						this.catalogId,
-						getCatalogState(),
-						0L,
-						this.entityTypeSequence.get(),
-						null,
-						entityHeaders,
-						this.dataStoreBuffer
-					);
-					this.lastPersistedSchemaVersion = getInternalSchema().version();
-				}
-				return null;
-			}
-		);
 	}
 
 	@Nonnull

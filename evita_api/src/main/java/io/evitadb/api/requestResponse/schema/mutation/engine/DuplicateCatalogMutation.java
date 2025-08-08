@@ -27,7 +27,10 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -37,6 +40,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.stream.Stream;
 
 /**
  * Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
@@ -65,12 +69,19 @@ public class DuplicateCatalogMutation implements TopLevelCatalogSchemaMutation<V
 		this.newCatalogName = newCatalogName;
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
-		// This is an engine-level operation that doesn't modify the schema directly
-		// The actual duplication is handled at the engine level
-		return catalogSchema == null ? null : new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
+	public Class<Void> getProgressResultType() {
+		return Void.class;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> getConflictKeys() {
+		return Stream.of(
+			new CatalogConflictKey(this.catalogName),
+			new CatalogConflictKey(this.newCatalogName)
+		);
 	}
 
 	@Override
@@ -87,12 +98,16 @@ public class DuplicateCatalogMutation implements TopLevelCatalogSchemaMutation<V
 		if (evita.getCatalogNames().contains(this.newCatalogName)) {
 			throw new InvalidMutationException("Catalog `" + this.newCatalogName + "` already exists!");
 		}
+		// check the names in all naming conventions are unique in the entity schema
+		CatalogSchema.checkCatalogNameIsAvailable(evita, this.catalogName);
 	}
 
-	@Nonnull
+	@Nullable
 	@Override
-	public Class<Void> getProgressResultType() {
-		return Void.class;
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
+		// This is an engine-level operation that doesn't modify the schema directly
+		// The actual duplication is handled at the engine level
+		return catalogSchema == null ? null : new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 	}
 
 	@Nonnull

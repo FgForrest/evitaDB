@@ -30,7 +30,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.spi.EnginePersistenceService;
 import io.evitadb.store.spi.model.EngineState;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.utils.Assert;
 
 import java.time.OffsetDateTime;
@@ -57,7 +57,7 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 		kryo.writeObject(output, engineState.introducedAt());
 
 		// Write WAL file reference if it exists
-		final WalFileReference walFileReference = engineState.walFileReference();
+		final LogFileRecordReference walFileReference = engineState.walFileReference();
 		if (walFileReference == null) {
 			// Indicate that there's no WAL file reference
 			output.writeBoolean(false);
@@ -101,13 +101,13 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 		final OffsetDateTime introducedAt = kryo.readObject(input, OffsetDateTime.class);
 
 		// Read WAL file reference if it exists
-		final WalFileReference walFileReference;
+		final LogFileRecordReference walFileReference;
 		if (input.readBoolean()) {
 			// WAL file reference exists, read its details
 			final int fileIndex = input.readVarInt(true);
 			final long startingPosition = input.readVarLong(true);
 			final int recordLength = input.readVarInt(true);
-			walFileReference = new WalFileReference(
+			walFileReference = new LogFileRecordReference(
 				EnginePersistenceService::getWalFileName,
 				fileIndex,
 				new FileLocation(startingPosition, recordLength)

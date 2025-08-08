@@ -47,9 +47,9 @@ import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
-import io.evitadb.store.spi.model.reference.WalFileReference;
-import io.evitadb.store.wal.AbstractWriteAheadLog.FirstAndLastVersionsInWalFile;
+import io.evitadb.store.wal.AbstractMutationLog.FirstAndLastVersionsInWalFile;
 import io.evitadb.store.wal.supplier.MutationSupplier;
 import io.evitadb.store.wal.supplier.TransactionMutationWithLocation;
 import io.evitadb.test.TestConstants;
@@ -114,8 +114,10 @@ public class CatalogWriteAheadLogIntegrationTest {
 		              .build(),
 		Mockito.mock(Scheduler.class)
 	);
-	private final CatalogOffHeapMemoryManager noOffHeapMemoryManager = new CatalogOffHeapMemoryManager(TEST_CATALOG, 0, 0);
-	private final CatalogOffHeapMemoryManager bigOffHeapMemoryManager = new CatalogOffHeapMemoryManager(TEST_CATALOG, 10_000_000, 128);
+	private final CatalogOffHeapMemoryManager noOffHeapMemoryManager = new CatalogOffHeapMemoryManager(
+		TEST_CATALOG, 0, 0);
+	private final CatalogOffHeapMemoryManager bigOffHeapMemoryManager = new CatalogOffHeapMemoryManager(
+		TEST_CATALOG, 10_000_000, 128);
 	private final int[] txSizes = new int[]{2000, 3000, 4000, 5000, 7000, 9000, 1_000};
 	private final MockCatalogVersionConsumer offsetConsumer = new MockCatalogVersionConsumer();
 	private CatalogWriteAheadLog wal;
@@ -171,18 +173,19 @@ public class CatalogWriteAheadLogIntegrationTest {
 		final Map<Long, List<Mutation>> txInMutations = CollectionUtils.createHashMap(transactionSizes.length);
 		for (int i = 0; i < transactionSizes.length; i++) {
 			int txSize = transactionSizes[i];
-			final LinkedList<Mutation> mutations = dataGenerator.generateEntities(
-				                                                    dataGenerator.getSampleProductSchema(
-					                                                    mockSession,
-					                                                    EntitySchemaBuilder::toInstance
-				                                                    ),
-				                                                    (serializable, faker) -> null,
-				                                                    42 + lastWrittenCatalogVersion
-			                                                    )
-			                                                    .limit(txSize)
-			                                                    .map(EntityBuilder::toMutation)
-			                                                    .flatMap(Optional::stream)
-			                                                    .collect(Collectors.toCollection(LinkedList::new));
+			final LinkedList<Mutation> mutations = dataGenerator
+				.generateEntities(
+					dataGenerator.getSampleProductSchema(
+						mockSession,
+						EntitySchemaBuilder::toInstance
+					),
+					(serializable, faker) -> null,
+					42 + lastWrittenCatalogVersion
+				)
+				.limit(txSize)
+				.map(EntityBuilder::toMutation)
+				.flatMap(Optional::stream)
+				.collect(Collectors.toCollection(LinkedList::new));
 
 			final long catalogVersion = Math.max(0, lastWrittenCatalogVersion) + i + 1;
 			for (Mutation mutation : mutations) {
@@ -282,11 +285,13 @@ public class CatalogWriteAheadLogIntegrationTest {
 		);
 
 		assertEquals(3, walFiles.length);
-		final FirstAndLastVersionsInWalFile versionFirstFile = CatalogWriteAheadLog.getFirstAndLastVersionsFromWalFile(walFiles[0]);
+		final FirstAndLastVersionsInWalFile versionFirstFile = CatalogWriteAheadLog.getFirstAndLastVersionsFromWalFile(
+			walFiles[0]);
 		assertEquals(1, versionFirstFile.firstVersion());
 		assertEquals(2, versionFirstFile.lastVersion());
 
-		final FirstAndLastVersionsInWalFile versionsSecondFile = CatalogWriteAheadLog.getFirstAndLastVersionsFromWalFile(walFiles[1]);
+		final FirstAndLastVersionsInWalFile versionsSecondFile = CatalogWriteAheadLog.getFirstAndLastVersionsFromWalFile(
+			walFiles[1]);
 		assertEquals(3, versionsSecondFile.firstVersion());
 		assertEquals(3, versionsSecondFile.lastVersion());
 	}
@@ -309,9 +314,10 @@ public class CatalogWriteAheadLogIntegrationTest {
 		for (int i = 1; i < aFewTransactions.length; i++) {
 			final List<Mutation> mutations = txInMutations.get((long) i);
 			final List<Mutation> nextMutations = txInMutations.get((long) i + 1);
-			final TransactionMutationWithLocation transactionMutation = (TransactionMutationWithLocation) mutations.get(0);
+			final TransactionMutationWithLocation transactionMutation = (TransactionMutationWithLocation) mutations.get(
+				0);
 			final Optional<TransactionMutationWithWalFileReference> txId = this.wal.getFirstNonProcessedTransaction(
-				new WalFileReference(
+				new LogFileRecordReference(
 					index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
 					transactionMutation.getWalFileIndex(),
 					transactionMutation.getTransactionSpan()
@@ -325,7 +331,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 		final List<Mutation> mutations = txInMutations.get((long) aFewTransactions.length);
 		final TransactionMutationWithLocation transactionMutation = (TransactionMutationWithLocation) mutations.get(0);
 		final Optional<TransactionMutationWithWalFileReference> txId = this.wal.getFirstNonProcessedTransaction(
-			new WalFileReference(
+			new LogFileRecordReference(
 				index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
 				transactionMutation.getWalFileIndex(),
 				transactionMutation.getTransactionSpan()
@@ -358,7 +364,10 @@ public class CatalogWriteAheadLogIntegrationTest {
 		Arrays.fill(transactionSizes, justEnoughSize);
 
 		final OffsetDateTime initialTimestamp = OffsetDateTime.now();
-		writeWal(this.bigOffHeapMemoryManager, transactionSizes, initialTimestamp, this.isolatedWalFilePath, this.observableOutputKeeper, this.wal);
+		writeWal(
+			this.bigOffHeapMemoryManager, transactionSizes, initialTimestamp, this.isolatedWalFilePath,
+			this.observableOutputKeeper, this.wal
+		);
 		this.wal.walProcessedUntil(Long.MAX_VALUE);
 		this.wal.removeWalFiles();
 
@@ -428,7 +437,10 @@ public class CatalogWriteAheadLogIntegrationTest {
 	@Nonnull
 	private Map<Long, List<Mutation>> writeWal(
 		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager, int[] transactionSizes) {
-		return writeWal(offHeapMemoryManager, transactionSizes, null, this.isolatedWalFilePath, this.observableOutputKeeper, this.wal);
+		return writeWal(
+			offHeapMemoryManager, transactionSizes, null, this.isolatedWalFilePath, this.observableOutputKeeper,
+			this.wal
+		);
 	}
 
 	/**
@@ -441,7 +453,8 @@ public class CatalogWriteAheadLogIntegrationTest {
 	private void readAndVerifyWal(
 		@Nonnull Map<Long, List<Mutation>> txInMutations, int[] transactionSizes, int startIndex) {
 		long lastCatalogVersion = startIndex;
-		final Iterator<CatalogBoundMutation> mutationIterator = this.wal.getCommittedMutationStream(startIndex + 1).iterator();
+		final Iterator<CatalogBoundMutation> mutationIterator = this.wal.getCommittedMutationStream(startIndex + 1)
+		                                                                .iterator();
 		int txRead = 0;
 		while (mutationIterator.hasNext()) {
 			txRead++;
@@ -477,8 +490,9 @@ public class CatalogWriteAheadLogIntegrationTest {
 	) {
 		long firstCatalogVersion = -1L;
 		long catalogVersion = startIndex + 1;
-		final Iterator<CatalogBoundMutation> mutationIterator = this.wal.getCommittedReversedMutationStream(catalogVersion)
-		                                                    .iterator();
+		final Iterator<CatalogBoundMutation> mutationIterator = this.wal.getCommittedReversedMutationStream(
+			                                                            catalogVersion)
+		                                                                .iterator();
 		int txRead = 0;
 		while (mutationIterator.hasNext()) {
 			txRead++;

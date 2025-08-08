@@ -50,7 +50,7 @@ import io.evitadb.store.service.SharedClassesConfigurer;
 import io.evitadb.store.spi.CatalogStoragePartPersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -424,7 +424,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		int storageProtocolVersion,
 		long catalogVersion,
 		@Nonnull Path catalogStoragePath,
-		@Nullable WalFileReference walFileLocation,
+		@Nullable LogFileRecordReference walFileLocation,
 		@Nonnull Map<String, CollectionFileReference> collectionFileReferenceIndex,
 		@Nonnull UUID catalogId,
 		@Nonnull String catalogName,

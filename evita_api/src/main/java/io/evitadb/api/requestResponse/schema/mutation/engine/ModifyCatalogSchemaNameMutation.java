@@ -28,6 +28,8 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
@@ -44,6 +46,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for renaming an existing {@link CatalogSchemaContract}.
@@ -62,21 +65,36 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 	@Getter @Nonnull private final String newCatalogName;
 	@Getter private final boolean overwriteTarget;
 
+	@Nonnull
+	@Override
+	public Class<CommitVersions> getProgressResultType() {
+		return CommitVersions.class;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> getConflictKeys() {
+		return Stream.of(
+			new CatalogConflictKey(this.catalogName),
+			new CatalogConflictKey(this.newCatalogName)
+		);
+	}
+
 	@Override
 	public void verifyApplicability(@Nonnull EvitaContract evita) throws InvalidMutationException {
 		if (!evita.getCatalogNames().contains(this.catalogName)) {
 			throw new InvalidSchemaMutationException("Catalog `" + this.catalogName + "` doesn't exist!");
 		}
-		if (evita.getCatalogNames().contains(this.newCatalogName) && !this.overwriteTarget) {
-			throw new InvalidSchemaMutationException("Catalog `" + this.newCatalogName + "` already exists! " +
-				"Use `overwriteTarget` flag to overwrite existing catalog.");
+		if (!this.overwriteTarget) {
+			if (evita.getCatalogNames().contains(this.newCatalogName)) {
+				throw new InvalidSchemaMutationException(
+					"Catalog `" + this.newCatalogName + "` already exists! " +
+						"Use `overwriteTarget` flag to overwrite existing catalog."
+				);
+			}
+			// check the names in all naming conventions are unique in the entity schema
+			CatalogSchema.checkCatalogNameIsAvailable(evita, this.catalogName);
 		}
-	}
-
-	@Nonnull
-	@Override
-	public Class<CommitVersions> getProgressResultType() {
-		return CommitVersions.class;
 	}
 
 	@Nullable

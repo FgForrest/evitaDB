@@ -31,6 +31,8 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
@@ -88,6 +90,12 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 	@Override
 	public Class<CommitVersions> getProgressResultType() {
 		return CommitVersions.class;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> getConflictKeys() {
+		return Stream.of(new CatalogConflictKey(this.catalogName));
 	}
 
 	@Nullable

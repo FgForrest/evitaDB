@@ -80,7 +80,7 @@ import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.wal.AbstractWriteAheadLog;
+import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -528,7 +528,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					final int transactionSize = input.readInt();
 					// the 2 bytes are required to record the classId
 					final int offsetDateTimeDelta = 11;
-					assertEquals(walReference.getContentLength() + AbstractWriteAheadLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeDelta + 2, transactionSize);
+					assertEquals(walReference.getContentLength() + AbstractMutationLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeDelta + 2, transactionSize);
 					final Mutation loadedTransactionMutation = (Mutation) StorageRecord.read(input, (stream, length) -> this.kryo.readClassAndObject(stream)).payload();
 					assertEquals(writtenTransactionMutation, loadedTransactionMutation);
 					final Mutation firstMutation = (Mutation) StorageRecord.read(input, (stream, length) -> this.kryo.readClassAndObject(stream)).payload();

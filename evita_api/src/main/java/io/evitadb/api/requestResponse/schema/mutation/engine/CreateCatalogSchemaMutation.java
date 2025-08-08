@@ -28,6 +28,8 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -46,6 +48,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.EnumSet;
+import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for setting up a new {@link CatalogSchemaContract} - or more precisely the catalog instance
@@ -65,20 +68,28 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 		this.catalogName = catalogName;
 	}
 
-	@Override
-	public void verifyApplicability(@Nonnull EvitaContract evita) throws InvalidMutationException {
-		if (evita.getCatalogNames().contains(this.catalogName)) {
-			throw new InvalidSchemaMutationException("Catalog `" + this.catalogName + "` already exists!");
-		}
-	}
-
 	@Nonnull
 	@Override
 	public Class<CommitVersions> getProgressResultType() {
 		return CommitVersions.class;
 	}
 
-	@Nullable
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> getConflictKeys() {
+		return Stream.of(new CatalogConflictKey(this.catalogName));
+	}
+
+	@Override
+	public void verifyApplicability(@Nonnull EvitaContract evita) throws InvalidMutationException {
+		if (evita.getCatalogNames().contains(this.catalogName)) {
+			throw new InvalidSchemaMutationException("Catalog `" + this.catalogName + "` already exists!");
+		}
+		// check the names in all naming conventions are unique in the entity schema
+		CatalogSchema.checkCatalogNameIsAvailable(evita, this.catalogName);
+	}
+
+	@Nonnull
 	@Override
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
 		Assert.isTrue(

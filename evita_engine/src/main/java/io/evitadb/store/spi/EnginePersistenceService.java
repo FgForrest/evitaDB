@@ -27,13 +27,13 @@ package io.evitadb.store.spi;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.store.spi.model.EngineState;
-import io.evitadb.store.spi.model.reference.EngineTransactionMutationWithWalFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
-import io.evitadb.store.spi.model.reference.WalFileReference;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 /**
@@ -92,11 +92,16 @@ public non-sealed interface EnginePersistenceService extends PersistenceService 
 	 * Appends the given transaction mutation to the write-ahead log (WAL) and appends its mutation chain.
 	 *
 	 * @param version  version the transaction mutation is written for
+	 * @param transactionId unique identifier of the transaction that is being written
 	 * @param mutation set of mutations that are part of the transaction mutation
 	 * @return the number of Bytes written
 	 */
 	@Nonnull
-	TransactionMutationWithWalFileReference appendWal(long version, @Nonnull EngineMutation mutation);
+	TransactionMutationWithWalFileReference appendWal(
+		long version,
+		@Nonnull UUID transactionId,
+		@Nonnull EngineMutation<?> mutation
+	);
 
 	/**
 	 * Retrieves the first non-processed transaction in the WAL.
@@ -131,14 +136,12 @@ public non-sealed interface EnginePersistenceService extends PersistenceService 
 	Stream<EngineMutation<?>> getReversedCommittedMutationStream(@Nullable Long version);
 
 	/**
-	 * Retrieves the next transaction mutation associated with the given WAL (Write-Ahead Log) file reference.
+	 * Truncates the log file to the given {@link LogFileRecordReference}. This method synchronizes the log file contents
+	 * to be on par with current engine state.
 	 *
-	 * @param walFileReference the reference to the WAL file from which the next transaction mutation should be retrieved
-	 * @return an {@link Optional} containing the next transaction mutation wrapped in an {@link EngineTransactionMutationWithWalFileReference},
-	 * or an empty {@link Optional} if no further transactions are available
+	 * @param walFileReference the reference to the log file that should be truncated to
 	 */
-	@Nonnull
-	Optional<EngineTransactionMutationWithWalFileReference> getNextTransaction(@Nonnull WalFileReference walFileReference);
+	void truncateWalFile(@Nonnull LogFileRecordReference walFileReference);
 
 	/**
 	 * Retrieves the last engine state version written in the WAL stream.

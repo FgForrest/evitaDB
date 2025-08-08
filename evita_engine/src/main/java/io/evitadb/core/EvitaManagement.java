@@ -251,7 +251,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 				"registerInactiveCatalog",
 				"Registering restored catalog " + catalogName + ".",
 				Void.class,
-				session -> this.evita.addInactiveCatalog(catalogName)
+				session -> this.evita.registerRestoredCatalog(catalogName)
 			)
 		);
 	}
@@ -339,7 +339,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 			}
 		}
 
-		final EngineState engineState = this.evita.getEngineState();
+		final EngineState engineState = this.evita.getEngineState().engineState();
 
 		return new SystemStatus(
 			VersionUtils.readVersion(),

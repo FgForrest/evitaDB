@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -95,6 +96,12 @@ public non-sealed class TransactionMutation implements EngineMutation<Void>, Cat
 	@Override
 	public Class<Void> getProgressResultType() {
 		return Void.class;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> getConflictKeys() {
+		return Stream.empty();
 	}
 
 	@Nonnull

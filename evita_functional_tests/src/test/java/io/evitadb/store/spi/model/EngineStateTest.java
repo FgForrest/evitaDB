@@ -25,7 +25,7 @@ package io.evitadb.store.spi.model;
 
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.spi.CatalogPersistenceService;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -64,7 +64,7 @@ class EngineStateTest {
         // given
         final int storageProtocolVersion = 1;
         final long version = 2L;
-        final WalFileReference walFileReference = new WalFileReference(
+        final LogFileRecordReference walFileReference = new LogFileRecordReference(
             index -> CatalogPersistenceService.getWalFileName("test", index),
             3, new FileLocation(100L, 200)
         );
@@ -89,13 +89,13 @@ class EngineStateTest {
     }
 
     @Test
-    @DisplayName("Should create modified EngineState using withXxx methods")
+    @DisplayName("Should create modified EngineState using builder copy")
     void shouldCreateModifiedEngineStateUsingWithMethods() {
         // given
         final EngineState originalState = EngineState.builder()
                 .storageProtocolVersion(1)
                 .version(2L)
-                .walFileReference(new WalFileReference(
+                .walFileReference(new LogFileRecordReference(
                     index -> CatalogPersistenceService.getWalFileName("test", index),
                     3, new FileLocation(100L, 200))
                 )
@@ -104,15 +104,23 @@ class EngineStateTest {
                 .build();
 
         // when
-        final EngineState modifiedState1 = originalState.withStorageProtocolVersion(10);
-        final EngineState modifiedState2 = originalState.withVersion(20L);
-        final EngineState modifiedState3 = originalState.withWalFileReference(
-            new WalFileReference(
-                index -> CatalogPersistenceService.getWalFileName("modified", index),
-                30, new FileLocation(300L, 400))
-        );
-        final EngineState modifiedState4 = originalState.withActiveCatalogs(new String[]{"modified1"});
-        final EngineState modifiedState5 = originalState.withInactiveCatalogs(new String[]{"modified2", "modified3"});
+        final EngineState modifiedState1 = EngineState.builder(originalState)
+                .storageProtocolVersion(10)
+                .build();
+        final EngineState modifiedState2 = EngineState.builder(originalState)
+                .version(20L)
+                .build();
+        final EngineState modifiedState3 = EngineState.builder(originalState)
+                .walFileReference(new LogFileRecordReference(
+                        index -> CatalogPersistenceService.getWalFileName("modified", index),
+                        30, new FileLocation(300L, 400)))
+                .build();
+        final EngineState modifiedState4 = EngineState.builder(originalState)
+                .activeCatalogs(new String[]{"modified1"})
+                .build();
+        final EngineState modifiedState5 = EngineState.builder(originalState)
+                .inactiveCatalogs(new String[]{"modified2", "modified3"})
+                .build();
 
         // then
         assertEquals(10, modifiedState1.storageProtocolVersion());
@@ -154,7 +162,7 @@ class EngineStateTest {
         final EngineState originalState = EngineState.builder()
                 .storageProtocolVersion(1)
                 .version(2L)
-                .walFileReference(new WalFileReference(
+                .walFileReference(new LogFileRecordReference(
                     index -> CatalogPersistenceService.getWalFileName("test", index),
                     3, new FileLocation(100L, 200))
                 )

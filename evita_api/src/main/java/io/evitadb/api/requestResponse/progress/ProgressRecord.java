@@ -77,6 +77,23 @@ public class ProgressRecord<T> implements Progress<T> {
 	private long lastLoggedTime = System.currentTimeMillis();
 
 	/**
+	 * Creates a completed progress instance for a specific operation with a given result.
+	 * The operation is marked as successfully completed, and the progress percentage
+	 * is set to 100 immediately.
+	 *
+	 * @param <T>           the type of result associated with the completed operation
+	 * @param operationName the name of the operation being completed; must not be null
+	 * @param result        the result of the completed operation; can be null
+	 * @return a completed progress instance representing the operation's completion
+	 */
+	@Nonnull
+	public static <T> Progress<T> completed(@Nonnull String operationName, @Nullable T result) {
+		final ProgressRecord<T> completedRecord = new ProgressRecord<>(operationName, null);
+		completedRecord.complete(result);
+		return completedRecord;
+	}
+
+	/**
 	 * Creates a new instance of ProgressRecord with the specified termination sequence callback.
 	 */
 	public ProgressRecord(
@@ -105,6 +122,7 @@ public class ProgressRecord<T> implements Progress<T> {
 			progressObserver,
 			progressingFuture,
 			Functions.noOpConsumer(),
+			Functions.noOpConsumer(),
 			executor
 		);
 	}
@@ -116,21 +134,24 @@ public class ProgressRecord<T> implements Progress<T> {
 		@Nonnull String operationName,
 		@Nullable IntConsumer progressObserver,
 		@Nonnull ProgressingFuture<T> progressingFuture,
-		@Nonnull Consumer<ProgressRecord<T>> progressConsumer,
+		@Nonnull Consumer<ProgressRecord<T>> onProgressExecution,
+		@Nonnull Consumer<ProgressRecord<T>> onProgressCompletion,
 		@Nonnull Executor executor
 	) {
 		this.operationName = operationName;
 		if (progressObserver != null) {
 			this.progressObservers.add(progressObserver);
 		}
-		this.onCompletion = progressingFuture;
+		this.onCompletion = progressingFuture.whenComplete(
+			(t, throwable) -> onProgressCompletion.accept(this)
+		);
 		this.percentCompleted = new AtomicInteger(0);
 		progressingFuture.setProgressConsumer(
 			(stepsDone, totalSteps) -> this.updatePercentCompleted(
 				(int) (((double) stepsDone / totalSteps) * 100d)
 			)
 		);
-		progressConsumer.accept(this);
+		onProgressExecution.accept(this);
 		progressingFuture.execute(executor);
 	}
 

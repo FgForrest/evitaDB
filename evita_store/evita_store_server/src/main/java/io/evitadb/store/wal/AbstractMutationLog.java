@@ -47,8 +47,8 @@ import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
-import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.wal.supplier.MutationSupplier;
 import io.evitadb.store.wal.supplier.ReverseMutationSupplier;
 import io.evitadb.store.wal.supplier.TransactionLocations;
@@ -98,7 +98,7 @@ import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
- * AbstractWriteAheadLog is a base class that provides shared functionality for implementing Write-Ahead Logging (WAL)
+ * AbstractMutationLog is a base class that provides shared functionality for implementing Write-Ahead Logging (WAL)
  * in the evitaDB system. It contains common logic used by both Catalog and Engine WAL implementations.
  *
  * A Write-Ahead Log is a durability mechanism used in database systems to ensure that transaction data is preserved
@@ -125,13 +125,13 @@ import static java.util.Optional.ofNullable;
  * - Cleaning up obsolete WAL files
  * - Handling WAL file corruption
  *
- * Concrete implementations of this class (CatalogWriteAheadLog and EngineWriteAheadLog) provide specific
+ * Concrete implementations of this class (CatalogWriteAheadLog and EngineMutationLog) provide specific
  * functionality for different parts of the evitaDB system.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @Slf4j
-public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoCloseable {
+public abstract class AbstractMutationLog<T extends Mutation> implements AutoCloseable {
 	/**
 	 * The size of a transaction mutation in the WAL file.
 	 */
@@ -139,7 +139,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 	/**
 	 * The size of a transaction mutation in the WAL file with a reserve for the class id written by Kryo automatically.
 	 */
-	public static final int TRANSACTION_MUTATION_SIZE_WITH_RESERVE = AbstractWriteAheadLog.TRANSACTION_MUTATION_SIZE + 32;
+	public static final int TRANSACTION_MUTATION_SIZE_WITH_RESERVE = AbstractMutationLog.TRANSACTION_MUTATION_SIZE + 32;
 	/**
 	 * At the end of each WAL file there is 3 longs written with start and end catalog version in the WAL:
 	 *
@@ -192,7 +192,8 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 	/**
 	 * The output stream for writing {@link TransactionMutation} to the WAL file.
 	 */
-	protected final ByteArrayOutputStream transactionMutationOutputStream = new ByteArrayOutputStream(AbstractWriteAheadLog.TRANSACTION_MUTATION_SIZE);
+	protected final ByteArrayOutputStream transactionMutationOutputStream = new ByteArrayOutputStream(
+		AbstractMutationLog.TRANSACTION_MUTATION_SIZE);
 	/**
 	 * Number of WAL files to keep.
 	 */
@@ -207,7 +208,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 	 *
 	 * @see ByteBuffer
 	 */
-	private final ByteBuffer contentLengthBuffer = ByteBuffer.allocate(4 + AbstractWriteAheadLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE);
+	private final ByteBuffer contentLengthBuffer = ByteBuffer.allocate(4 + AbstractMutationLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE);
 	/**
 	 * Cache of already scanned WAL files. The locations might not be complete, but they will be always cover the start
 	 * of the particular WAL file, but they may be later appended with new records that are not yet scanned or gradually
@@ -289,7 +290,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 			return new int[]{0, 0};
 		} else {
 			final List<Integer> indexes = Arrays.stream(walFiles)
-			                                    .map(f -> AbstractWriteAheadLog.getIndexFromWalFileName(f.getName()))
+			                                    .map(f -> AbstractMutationLog.getIndexFromWalFileName(f.getName()))
 			                                    .sorted()
 			                                    .toList();
 			for (int i = 1; i < indexes.size(); i++) {
@@ -317,7 +318,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 			final RandomAccessFileInputStream inputStream = new RandomAccessFileInputStream(randomAccessOldWalFile, true);
 			final Input input = new Input(inputStream)
 		) {
-			inputStream.seek(walFile.length() - AbstractWriteAheadLog.WAL_TAIL_LENGTH);
+			inputStream.seek(walFile.length() - AbstractMutationLog.WAL_TAIL_LENGTH);
 			final long firstCatalogVersion = input.readLong();
 			final long lastCatalogVersion = input.readLong();
 			final long storedChecksum = input.readLong();
@@ -428,7 +429,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 
 		if (offset > fileLength) {
 			final Path backupFilePath = walFilePath.getParent().resolve("_damaged_wal.bck");
-			AbstractWriteAheadLog.log.warn("WAL file `{}` was not written completely! Truncating to the last complete transaction (offset `{}`) and backing up the original file to: `{}`!", walFilePath, previousOffset, backupFilePath);
+			AbstractMutationLog.log.warn("WAL file `{}` was not written completely! Truncating to the last complete transaction (offset `{}`) and backing up the original file to: `{}`!", walFilePath, previousOffset, backupFilePath);
 			Files.copy(walFilePath, backupFilePath);
 			lastTxStartPosition = previousOffset - previousTransactionSize - 4;
 			lastTxLength = previousTransactionSize;
@@ -496,7 +497,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 		@Nonnull Path walFilePath,
 		@Nonnull Exception ex
 	) {
-		AbstractWriteAheadLog.log.error("Failed to read the last transaction from WAL file `{}`! The file is probably corrupted! The catalog will be marked as corrupted!", walFilePath, ex);
+		AbstractMutationLog.log.error("Failed to read the last transaction from WAL file `{}`! The file is probably corrupted! The catalog will be marked as corrupted!", walFilePath, ex);
 		if (ex instanceof WriteAheadLogCorruptedException) {
 			// just rethrow
 			throw (WriteAheadLogCorruptedException) ex;
@@ -527,10 +528,10 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 		@Nonnull FileChannel walFileChannel
 	) throws IOException {
 		// Create a buffer for the WAL tail (3 longs: firstCvInFile, lastCvInFile, and CRC32C checksum)
-		ByteBuffer contentLengthBuffer = ByteBuffer.allocate(AbstractWriteAheadLog.WAL_TAIL_LENGTH);
+		ByteBuffer contentLengthBuffer = ByteBuffer.allocate(AbstractMutationLog.WAL_TAIL_LENGTH);
 
-		AbstractWriteAheadLog.writeLongToByteBuffer(contentLengthBuffer, firstCvInFile);
-		AbstractWriteAheadLog.writeLongToByteBuffer(contentLengthBuffer, lastCvInFile);
+		AbstractMutationLog.writeLongToByteBuffer(contentLengthBuffer, firstCvInFile);
+		AbstractMutationLog.writeLongToByteBuffer(contentLengthBuffer, lastCvInFile);
 
 		// Calculate CRC32 checksum from the two longs already in contentLengthBuffer
 		CRC32C crc32c = new CRC32C();
@@ -543,7 +544,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 		contentLengthBuffer.limit(contentLengthBuffer.capacity());
 		contentLengthBuffer.position(position);
 		// Write the checksum as the third long
-		AbstractWriteAheadLog.writeLongToByteBuffer(contentLengthBuffer, crc32c.getValue());
+		AbstractMutationLog.writeLongToByteBuffer(contentLengthBuffer, crc32c.getValue());
 
 		int written = 0;
 		contentLengthBuffer.flip(); // Switch the buffer from writing mode to reading mode
@@ -551,7 +552,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 			written += walFileChannel.write(contentLengthBuffer);
 		}
 		Assert.isPremiseValid(
-			written == AbstractWriteAheadLog.WAL_TAIL_LENGTH,
+			written == AbstractMutationLog.WAL_TAIL_LENGTH,
 			"Failed to write tail to WAL file!"
 		);
 	}
@@ -586,7 +587,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 		byteBuffer.put((byte) (longValue >>> 56));
 	}
 
-	public AbstractWriteAheadLog(
+	public AbstractMutationLog(
 		long version,
 		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path storageFolder,
@@ -695,7 +696,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 	/**
 	 * Constructor for internal use only. It is used to create a new WAL file with the given parameters.
 	 */
-	public AbstractWriteAheadLog(
+	public AbstractMutationLog(
 		long version,
 		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path storageFolder,
@@ -823,7 +824,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 	 */
 	@Nonnull
 	@SuppressWarnings("StringConcatenationMissingWhitespace")
-	public WalFileReference append(
+	public LogFileRecordReference append(
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
 	) {
@@ -879,7 +880,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 			final int contentLength = walReference.getContentLength();
 			final int contentLengthWithTxMutation = contentLength + record.fileLocation().recordLength();
 			this.contentLengthBuffer.clear();
-			AbstractWriteAheadLog.writeIntToByteBuffer(this.contentLengthBuffer, contentLengthWithTxMutation);
+			AbstractMutationLog.writeIntToByteBuffer(this.contentLengthBuffer, contentLengthWithTxMutation);
 
 			// then write the transaction mutation to the memory buffer as the first record of the transaction
 			this.contentLengthBuffer.put(this.transactionMutationOutputStream.toByteArray(), 0, record.fileLocation()
@@ -942,7 +943,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 			            .map(Path::getParent)
 			            .ifPresent(FileUtils::deleteFolderIfEmpty);
 
-			return new WalFileReference(
+			return new LogFileRecordReference(
 				this.walFileNameProvider,
 				theCurrentWalFile.getWalFileIndex(),
 				new FileLocation(currentWalFileSize, writtenLength)
@@ -966,13 +967,13 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 	 * @return The WAL file reference with last processed WAL record position.
 	 */
 	@Nonnull
-	public WalFileReference getWalFileReference(@Nullable TransactionMutation lastProcessedTransaction) {
+	public LogFileRecordReference getWalFileReference(@Nullable TransactionMutation lastProcessedTransaction) {
 		Assert.isPremiseValid(
 			lastProcessedTransaction instanceof TransactionMutationWithLocation,
 			"Invalid last processed transaction!"
 		);
 		final TransactionMutationWithLocation lastProcessedTransactionWithLocation = (TransactionMutationWithLocation) lastProcessedTransaction;
-		return new WalFileReference(
+		return new LogFileRecordReference(
 			this.walFileNameProvider,
 			lastProcessedTransactionWithLocation.getWalFileIndex(),
 			lastProcessedTransactionWithLocation.getTransactionSpan()
@@ -1062,7 +1063,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 	 */
 	@Nonnull
 	public Optional<TransactionMutationWithWalFileReference> getFirstNonProcessedTransaction(
-		@Nullable WalFileReference walReference
+		@Nullable LogFileRecordReference walReference
 	) {
 		final Path walFilePath;
 		final int walFileIndex;
@@ -1092,7 +1093,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 				final TransactionMutation transactionMutation = Objects.requireNonNull((TransactionMutation) storageRecord.payload());
 				return of(
 					new TransactionMutationWithWalFileReference(
-						new WalFileReference(
+						new LogFileRecordReference(
 							this.walFileNameProvider, walFileIndex,
 							new FileLocation(
 								storageRecord.fileLocation().startingPosition(),
@@ -1212,7 +1213,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull StorageOptions storageOptions
 	) {
-		if (AbstractWriteAheadLog.isWalEmptyOrNonExisting(walFilePath)) {
+		if (AbstractMutationLog.isWalEmptyOrNonExisting(walFilePath)) {
 			return new FirstAndLastVersionsInWalFile(-1L, -1L);
 		}
 
@@ -1226,12 +1227,12 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 			walFile.getFD().sync();
 
 			try (
-				final ObservableInput<RandomAccessFileInputStream> input = AbstractWriteAheadLog.createObservableInput(walFile, storageOptions)
+				final ObservableInput<RandomAccessFileInputStream> input = AbstractMutationLog.createObservableInput(walFile, storageOptions)
 			) {
-				final WalFileScanResult scanResult = AbstractWriteAheadLog.scanWalFileForLastCompleteTransaction(input, walFile.length(), walFilePath);
+				final WalFileScanResult scanResult = AbstractMutationLog.scanWalFileForLastCompleteTransaction(input, walFile.length(), walFilePath);
 
 				try {
-					final TransactionPair transactions = AbstractWriteAheadLog.readAndValidateTransactions(
+					final TransactionPair transactions = AbstractMutationLog.readAndValidateTransactions(
 						input, kryo, scanResult.lastTxStartPosition, scanResult.lastTxLength
 					);
 
@@ -1245,7 +1246,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 					);
 
 				} catch (Exception ex) {
-					AbstractWriteAheadLog.handleTransactionReadException(walFilePath, ex);
+					AbstractMutationLog.handleTransactionReadException(walFilePath, ex);
 					// This line is never reached as handleTransactionReadException always throws an exception
 					throw new GenericEvitaInternalError("This code should never be reached");
 				}
@@ -1280,7 +1281,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 		// first read and verify only a tail of the file
 		try {
 			final File walFile = walFilePath.toFile();
-			return AbstractWriteAheadLog.getFirstAndLastVersionsFromWalFile(walFile);
+			return AbstractMutationLog.getFirstAndLastVersionsFromWalFile(walFile);
 		} catch (WriteAheadLogCorruptedException e) {
 			// WAL file is corrupted, we need to truncate it and calculate new tail
 			return truncateWalFileAndCalculateTail(walFilePath, catalogKryoPool, storageOptions);
@@ -1320,7 +1321,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull StorageOptions storageOptions
 	) {
-		if (AbstractWriteAheadLog.isWalEmptyOrNonExisting(walFilePath)) {
+		if (AbstractMutationLog.isWalEmptyOrNonExisting(walFilePath)) {
 			return new FirstAndLastVersionsInWalFile(-1L, -1L);
 		}
 
@@ -1334,12 +1335,12 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 			walFile.getFD().sync();
 
 			try (
-				final ObservableInput<RandomAccessFileInputStream> input = AbstractWriteAheadLog.createObservableInput(walFile, storageOptions)
+				final ObservableInput<RandomAccessFileInputStream> input = AbstractMutationLog.createObservableInput(walFile, storageOptions)
 			) {
-				final WalFileScanResult scanResult = AbstractWriteAheadLog.scanWalFileForLastCompleteTransaction(input, walFile.length(), walFilePath);
+				final WalFileScanResult scanResult = AbstractMutationLog.scanWalFileForLastCompleteTransaction(input, walFile.length(), walFilePath);
 
 				try {
-					final TransactionPair transactions = AbstractWriteAheadLog.readAndValidateTransactions(
+					final TransactionPair transactions = AbstractMutationLog.readAndValidateTransactions(
 						input, kryo, scanResult.lastTxStartPosition(), scanResult.lastTxLength()
 					);
 
@@ -1347,10 +1348,10 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 						truncateWalFile(walFilePath, walFile, scanResult.consistentLength());
 					}
 
-					AbstractWriteAheadLog.log.info("Writing missing tail statistics to file `{}`.", walFilePath);
+					AbstractMutationLog.log.info("Writing missing tail statistics to file `{}`.", walFilePath);
 
 					// write tail to the file using the static version
-					AbstractWriteAheadLog.writeWalTailStatic(
+					AbstractMutationLog.writeWalTailStatic(
 						transactions.firstTransaction().getVersion(),
 						transactions.lastTransaction().getVersion(),
 						walFile.getChannel()
@@ -1362,7 +1363,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 					);
 
 				} catch (Exception ex) {
-					AbstractWriteAheadLog.handleTransactionReadException(walFilePath, ex);
+					AbstractMutationLog.handleTransactionReadException(walFilePath, ex);
 					// This line is never reached as handleTransactionReadException always throws an exception
 					throw new GenericEvitaInternalError("This code should never be reached");
 				}
@@ -1384,7 +1385,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 	 * also re-plans the next cache cut if the cache is not empty.
 	 */
 	protected long cutWalCache() {
-		final long threshold = System.currentTimeMillis() - AbstractWriteAheadLog.CUT_WAL_CACHE_AFTER_INACTIVITY_MS;
+		final long threshold = System.currentTimeMillis() - AbstractMutationLog.CUT_WAL_CACHE_AFTER_INACTIVITY_MS;
 		long oldestNotCutEntryTouchTime = -1L;
 		for (TransactionLocations locations : this.transactionLocationsCache.values()) {
 			// if the entry was not cut already (contains more than single / last read record)
@@ -1466,7 +1467,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 						toRemove.add(pendingRemoval);
 					} catch (IOException ex) {
 						// failed to remove the file, we will try again later and continue with the next one
-						AbstractWriteAheadLog.log.error(ex.getMessage(), ex);
+						AbstractMutationLog.log.error(ex.getMessage(), ex);
 					}
 				} else {
 					break;
@@ -1542,7 +1543,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 					      )
 				      )
 			      )
-			      .mapToInt(it -> AbstractWriteAheadLog.getIndexFromWalFileName(it.getName()))
+			      .mapToInt(it -> AbstractMutationLog.getIndexFromWalFileName(it.getName()))
 			      .filter(it -> it != currentWalFileIndex)
 			      .sorted()
 			      .toArray();
@@ -1551,14 +1552,14 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 		int foundWalIndex = -1;
 		for (int indexToSearch : walIndexesToSearch) {
 			final File oldWalFile = this.storageFolder.resolve(this.walFileNameProvider.apply(indexToSearch)).toFile();
-			if (oldWalFile.length() > AbstractWriteAheadLog.WAL_TAIL_LENGTH) {
+			if (oldWalFile.length() > AbstractMutationLog.WAL_TAIL_LENGTH) {
 				try (
 					final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(oldWalFile, "r");
 					final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
 						new RandomAccessFileInputStream(randomAccessOldWalFile, true)
 					)
 				) {
-					input.seekWithUnknownLength(oldWalFile.length() - AbstractWriteAheadLog.WAL_TAIL_LENGTH);
+					input.seekWithUnknownLength(oldWalFile.length() - AbstractMutationLog.WAL_TAIL_LENGTH);
 					final long firstVersion = input.simpleLongRead();
 					final long lastVersion = input.simpleLongRead();
 
@@ -1650,7 +1651,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 			final Path walFilePath = this.storageFolder.resolve(this.walFileNameProvider.apply(newWalFileIndex));
 
 			// create the WAL file if it does not exist
-			AbstractWriteAheadLog.createWalFile(walFilePath, false);
+			AbstractMutationLog.createWalFile(walFilePath, false);
 			final FileChannel walFileChannel = FileChannel.open(
 				walFilePath,
 				StandardOpenOption.WRITE, StandardOpenOption.APPEND, StandardOpenOption.DSYNC
@@ -1658,9 +1659,9 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 			//noinspection IOResourceOpenedButNotSafelyClosed
 			final ObservableOutput<ByteArrayOutputStream> theOutput = new ObservableOutput<>(
 				this.transactionMutationOutputStream,
-				AbstractWriteAheadLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
-				AbstractWriteAheadLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
-				AbstractWriteAheadLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE
+				AbstractMutationLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
+				AbstractMutationLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE,
+				AbstractMutationLog.TRANSACTION_MUTATION_SIZE_WITH_RESERVE
 			);
 
 			this.currentWalFile.set(
@@ -1682,7 +1683,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 				// first sort the files from oldest to newest according to their index in the file name
 				Arrays.sort(
 					walFiles,
-					Comparator.comparingInt(f -> AbstractWriteAheadLog.getIndexFromWalFileName(f.getName()))
+					Comparator.comparingInt(f -> AbstractMutationLog.getIndexFromWalFileName(f.getName()))
 				);
 
 				// assert that at least one file remains
@@ -1695,13 +1696,13 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 				for (int i = 0; i < walFiles.length - this.walFileCountKept; i++) {
 					final File walFile = walFiles[i];
 					try {
-						final FirstAndLastVersionsInWalFile versionsFromWalFile = AbstractWriteAheadLog.getFirstAndLastVersionsFromWalFile(walFile);
+						final FirstAndLastVersionsInWalFile versionsFromWalFile = AbstractMutationLog.getFirstAndLastVersionsFromWalFile(walFile);
 						final PendingRemoval pendingRemoval = new PendingRemoval(
 							versionsFromWalFile.lastVersion() + 1,
 							() -> {
 								try {
 									if (walFile.delete()) {
-										AbstractWriteAheadLog.log.debug("Deleted WAL file `{}`!", walFile);
+										AbstractMutationLog.log.debug("Deleted WAL file `{}`!", walFile);
 									} else {
 										throw new IOException("Failed to delete WAL file `" + walFile.getAbsolutePath() + "`!");
 									}
@@ -1748,8 +1749,8 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 		@Nonnull FileChannel walFileChannel
 	) throws IOException {
 		this.contentLengthBuffer.clear();
-		AbstractWriteAheadLog.writeLongToByteBuffer(this.contentLengthBuffer, firstCvInFile);
-		AbstractWriteAheadLog.writeLongToByteBuffer(this.contentLengthBuffer, lastCvInFile);
+		AbstractMutationLog.writeLongToByteBuffer(this.contentLengthBuffer, firstCvInFile);
+		AbstractMutationLog.writeLongToByteBuffer(this.contentLengthBuffer, lastCvInFile);
 
 		// Calculate CRC32 checksum from the two longs already in contentLengthBuffer
 		CRC32C crc32c = new CRC32C();
@@ -1762,7 +1763,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 		this.contentLengthBuffer.limit(this.contentLengthBuffer.capacity());
 		this.contentLengthBuffer.position(position);
 		// Write the checksum as the third long
-		AbstractWriteAheadLog.writeLongToByteBuffer(this.contentLengthBuffer, crc32c.getValue());
+		AbstractMutationLog.writeLongToByteBuffer(this.contentLengthBuffer, crc32c.getValue());
 
 		int written = 0;
 		this.contentLengthBuffer.flip(); // Switch the buffer from writing mode to reading mode
@@ -1770,7 +1771,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 			written += walFileChannel.write(this.contentLengthBuffer);
 		}
 		Assert.isPremiseValid(
-			written == AbstractWriteAheadLog.WAL_TAIL_LENGTH,
+			written == AbstractMutationLog.WAL_TAIL_LENGTH,
 			"Failed to write tail to WAL file!"
 		);
 	}
@@ -1792,7 +1793,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 		try (
 			final MutationSupplier<T> mutationSupplier = new MutationSupplier<>(
 				0L, 0L, this.walFileNameProvider, this.storageFolder, this.storageOptions,
-				AbstractWriteAheadLog.getIndexFromWalFileName(walFile.getName()),
+				AbstractMutationLog.getIndexFromWalFileName(walFile.getName()),
 				this.kryoPool, this.transactionLocationsCache, false,
 				() -> emitCacheSizeEvent(this.transactionLocationsCache.size())
 			)
@@ -1900,7 +1901,7 @@ public abstract class AbstractWriteAheadLog<T extends Mutation> implements AutoC
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 
-			AbstractWriteAheadLog.PendingRemoval that = (AbstractWriteAheadLog.PendingRemoval) o;
+			AbstractMutationLog.PendingRemoval that = (AbstractMutationLog.PendingRemoval) o;
 			return this.version == that.version;
 		}
 

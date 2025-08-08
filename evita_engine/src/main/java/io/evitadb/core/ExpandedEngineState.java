@@ -1,0 +1,392 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2025
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.core;
+
+
+import io.evitadb.api.CatalogContract;
+import io.evitadb.store.spi.model.EngineState;
+import io.evitadb.store.spi.model.EngineState.Builder;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+
+/**
+ * ExpandedEngineState represents a fully expanded, runtime view of the engine state.
+ *
+ * It combines two kinds of information:
+ * - the persisted, compact {@link EngineState} snapshot (arrays of catalog names, version, WAL ref), and
+ * - the in-memory {@code catalogs} map that holds actual {@code CatalogContract} instances keyed by name.
+ *
+ * This separation allows the engine to persist a minimal, immutable snapshot while still providing
+ * fast access to live catalog objects when executing operations. Methods that change the engine
+ * topology (adding/removing catalogs or toggling read-only flags) never mutate this record; they
+ * return a new ExpandedEngineState with an updated {@link EngineState} and/or catalogs map.
+ *
+ * Concurrency and mutability notes:
+ * - Instances of this record are intended to be published safely and treated as immutable snapshots.
+ * - The two-argument constructor wraps the provided {@code catalogs} map with
+ *   {@link java.util.Collections#unmodifiableMap(Map)} to prevent accidental writes.
+ * - The helper {@link #replaceCatalogReference(Catalog)} method refreshes pointer to the modified catalog
+ *   instance without changing the engine state or catalogs map structure.
+ *
+ * Invariants and interpretation:
+ * - Presence of a catalog in the {@code catalogs} map implies its name exists in either
+ *   {@link EngineState#activeCatalogs()} or {@link EngineState#inactiveCatalogs()}.
+ * - {@code readOnlyCatalogs} is a quick-access set derived from
+ *   {@link EngineState#readOnlyCatalogs()} to avoid repeated array scans.
+ * - Passing an actual {@link Catalog} instance to {@link #withCatalog(CatalogContract)} marks the
+ *   catalog as active; passing a non-runtime representation keeps it inactive.
+ *
+ * @param engineState      persisted snapshot of engine-level state
+ * @param catalogs         map of catalog instances keyed by their names
+ * @param readOnlyCatalogs names of catalogs considered read-only in this snapshot
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ */
+@Immutable
+public record ExpandedEngineState(
+	@Nonnull EngineState engineState,
+	@Nonnull Map<String, CatalogWrapper> catalogs,
+	@Nonnull Set<String> readOnlyCatalogs
+) {
+
+	/**
+	 * Retrieves a collection of catalog contracts derived from the current state.
+	 * The catalogs are extracted and converted using their respective wrappers.
+	 *
+	 * @return a {@code Collection} of {@code CatalogContract} instances representing the catalogs in the current state
+	 */
+	@Nonnull
+	public Collection<CatalogContract> getCatalogCollection() {
+		return this.catalogs.values().stream()
+			.map(CatalogWrapper::catalog)
+			.toList();
+	}
+
+	/**
+	 * Creates a new expanded view from a persisted {@link EngineState} and a map of catalogs.
+	 *
+	 * The provided {@code catalogs} map is wrapped with an unmodifiable view to guard this snapshot
+	 * against accidental writes. The {@code readOnlyCatalogs} set is derived from the engine state
+	 * to provide O(1) checks for catalog mutability.
+	 *
+	 * Prefer using this constructor when you want to expose a safe, read-only snapshot to other
+	 * components. If you need to perform in-place swaps in the {@code catalogs} map, construct the
+	 * record with the canonical three-argument constructor and supply a mutable map implementation.
+	 *
+	 * @param engineState persisted snapshot of engine-level state
+	 * @param catalogs    catalog instances keyed by name (will be wrapped as unmodifiable)
+	 */
+	public static ExpandedEngineState create(
+		@Nonnull EngineState engineState,
+		@Nonnull Map<String, CatalogContract> catalogs
+	) {
+		return new ExpandedEngineState(
+			engineState,
+			Collections.unmodifiableMap(
+				catalogs.entrySet().stream()
+					.collect(
+						Collectors.toMap(
+							Map.Entry::getKey,
+							entry -> new CatalogWrapper(entry.getValue())
+						)
+					)
+			),
+			Set.copyOf(
+				Arrays.asList(engineState.readOnlyCatalogs())
+			)
+		);
+	}
+
+	/**
+	 * Creates a new expanded view from a persisted {@link EngineState} and a map of catalogs.
+	 *
+	 * The provided {@code catalogs} map is wrapped with an unmodifiable view to guard this snapshot
+	 * against accidental writes. The {@code readOnlyCatalogs} set is derived from the engine state
+	 * to provide O(1) checks for catalog mutability.
+	 *
+	 * Prefer using this constructor when you want to expose a safe, read-only snapshot to other
+	 * components. If you need to perform in-place swaps in the {@code catalogs} map, construct the
+	 * record with the canonical three-argument constructor and supply a mutable map implementation.
+	 *
+	 * @param engineState persisted snapshot of engine-level state
+	 * @param catalogs    catalog instances keyed by name (will be wrapped as unmodifiable)
+	 */
+	private ExpandedEngineState(
+		@Nonnull EngineState engineState,
+		@Nonnull Map<String, CatalogWrapper> catalogs
+	) {
+		this(
+			engineState,
+			Collections.unmodifiableMap(catalogs),
+			Set.copyOf(
+				Arrays.asList(engineState.readOnlyCatalogs())
+			)
+		);
+	}
+
+	/**
+	 * Returns the current version of the engine state.
+	 * @return the current version of the engine state
+	 */
+	public long version() {
+		return this.engineState.version();
+	}
+
+	/**
+	 * Retrieves the current WAL (Write-Ahead Log) file reference from the engine state.
+	 *
+	 * @return a {@code LogFileRecordReference} object representing the current WAL file reference,
+	 *         or {@code null} if no WAL file reference is present in the engine state
+	 */
+	@Nullable
+	public LogFileRecordReference walFileReference() {
+		return this.engineState.walFileReference();
+	}
+
+	/**
+	 * Retrieves the catalog identified by the specified catalog name from the current state.
+	 *
+	 * @param catalogName the name of the catalog to retrieve, must not be null
+	 * @return an {@code Optional} containing the {@code CatalogContract} if a catalog with the specified name exists,
+	 *         or an empty {@code Optional} if no such catalog is found
+	 */
+	@Nonnull
+	public Optional<CatalogContract> getCatalog(@Nonnull String catalogName) {
+		return Optional.ofNullable(this.catalogs.get(catalogName)).map(CatalogWrapper::catalog);
+	}
+
+	/**
+	 * Determines whether the catalog identified by the specified catalog name is in a read-only state.
+	 *
+	 * @param catalogName the name of the catalog to check, must not be null
+	 * @return {@code true} if the catalog is read-only, {@code false} otherwise
+	 */
+	public boolean isReadOnly(@Nonnull String catalogName) {
+		return this.readOnlyCatalogs.contains(catalogName);
+	}
+
+	/**
+	 * Replaces the in-memory reference for the specified catalog by name if the provided
+	 * {@link Catalog} instance has a higher {@link Catalog#getVersion() version} than the
+	 * current reference.
+	 *
+	 * This is a best-effort, in-place optimization intended for scenarios where the underlying
+	 * {@code catalogs} map is a concurrent and mutable implementation. If the map is unmodifiable,
+	 * calling this method will fail; in such cases prefer {@link #withCatalog(CatalogContract)} to
+	 * obtain a new immutable snapshot.
+	 *
+	 * Concurrency: the operation relies on {@link Map#computeIfPresent} which is safe with concurrent
+	 * maps. Only a strictly newer reference replaces the existing one; if the reference is the same or
+	 * older, the current catalog remains unchanged.
+	 *
+	 * @param catalog a newer {@link Catalog} instance to swap in by name
+	 */
+	public void replaceCatalogReference(@Nonnull Catalog catalog) {
+		// catalog indexes are ConcurrentHashMap - we can do it safely here
+		final CatalogWrapper currentCatalogRef = this.catalogs.get(catalog.getName());
+		// replace catalog only when reference/pointer differs
+		final CatalogContract currentCatalog = currentCatalogRef.catalog();
+		if (currentCatalog != catalog && currentCatalog.getVersion() < catalog.getVersion()) {
+			currentCatalogRef.replaceCatalogReference(catalog);
+		}
+	}
+
+	/**
+	 * Returns a new snapshot with the provided catalog present in the catalogs map and the engine
+	 * state's active/inactive arrays updated accordingly.
+	 *
+	 * Rules:
+	 * - If {@code catalog} is an actual {@link Catalog} instance, its name is inserted into
+	 *   {@link EngineState#activeCatalogs()} and removed from {@link EngineState#inactiveCatalogs()}.
+	 * - Otherwise, the name is inserted into {@link EngineState#inactiveCatalogs()} and removed
+	 *   from {@link EngineState#activeCatalogs()}.
+	 *
+	 * The resulting catalogs map is a copy of the current map with the entry updated and is wrapped
+	 * as unmodifiable in the returned record.
+	 *
+	 * @param catalog catalog to include in this snapshot
+	 * @return new ExpandedEngineState reflecting the update
+	 */
+	@Nonnull
+	public ExpandedEngineState withCatalog(@Nonnull CatalogContract catalog) {
+		final HashMap<String, CatalogWrapper> updatedCatalogs = new HashMap<>(this.catalogs);
+		updatedCatalogs.put(catalog.getName(), new CatalogWrapper(catalog));
+
+		final Builder engineStateBuilder = EngineState.builder(this.engineState);
+		if (catalog instanceof Catalog) {
+			engineStateBuilder.activeCatalogs(ArrayUtils.insertRecordIntoOrderedArray(catalog.getName(), this.engineState.activeCatalogs()));
+			engineStateBuilder.inactiveCatalogs(ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.inactiveCatalogs()));
+		} else {
+			engineStateBuilder.activeCatalogs(ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.activeCatalogs()));
+			engineStateBuilder.inactiveCatalogs(ArrayUtils.insertRecordIntoOrderedArray(catalog.getName(), this.engineState.inactiveCatalogs()));
+		}
+		return new ExpandedEngineState(
+			engineStateBuilder.build(),
+			updatedCatalogs
+		);
+	}
+
+	/**
+	 * Returns a new snapshot without the provided catalog.
+	 *
+	 * Effects:
+	 * - Removes the catalog entry from the catalogs map.
+	 * - Removes the catalog name from {@link EngineState#activeCatalogs()},
+	 *   {@link EngineState#inactiveCatalogs()} and {@link EngineState#readOnlyCatalogs()}.
+	 *
+	 * @param catalog catalog to remove, identified by its name
+	 * @return new ExpandedEngineState reflecting the removal
+	 */
+	@Nonnull
+	public ExpandedEngineState withoutCatalog(@Nonnull CatalogContract catalog) {
+		final HashMap<String, CatalogWrapper> updatedCatalogs = new HashMap<>(this.catalogs);
+		updatedCatalogs.remove(catalog.getName());
+
+		final Builder engineStateBuilder = EngineState.builder(this.engineState);
+		engineStateBuilder.activeCatalogs(ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.activeCatalogs()));
+		engineStateBuilder.inactiveCatalogs(ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.inactiveCatalogs()));
+		engineStateBuilder.readOnlyCatalogs(ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.readOnlyCatalogs()));
+		return new ExpandedEngineState(
+			engineStateBuilder.build(),
+			updatedCatalogs
+		);
+	}
+
+	/**
+	 * Returns a new snapshot with the catalog name added to
+	 * {@link EngineState#readOnlyCatalogs()}.
+	 *
+	 * The catalogs map remains unchanged; only the engine-level read-only flag is updated to
+	 * reflect that the catalog should not be mutated.
+	 *
+	 * @param catalog catalog to mark as read-only (identified by name)
+	 * @return new ExpandedEngineState reflecting the change
+	 */
+	@Nonnull
+	public ExpandedEngineState withReadOnlyCatalog(@Nonnull CatalogContract catalog) {
+		final Builder engineStateBuilder = EngineState.builder(this.engineState);
+		engineStateBuilder.readOnlyCatalogs(ArrayUtils.insertRecordIntoOrderedArray(catalog.getName(), this.engineState.readOnlyCatalogs()));
+		return new ExpandedEngineState(
+			engineStateBuilder.build(),
+			this.catalogs
+		);
+	}
+
+	/**
+	 * Returns a new snapshot with the catalog name removed from
+	 * {@link EngineState#readOnlyCatalogs()}.
+	 *
+	 * The catalogs map remains unchanged; only the engine-level read-only flag is updated to
+	 * reflect that the catalog may be mutated.
+	 *
+	 * @param catalog catalog to unmark as read-only (identified by name)
+	 * @return new ExpandedEngineState reflecting the change
+	 */
+	@Nonnull
+	public ExpandedEngineState withoutReadOnlyCatalog(@Nonnull CatalogContract catalog) {
+		final Builder engineStateBuilder = EngineState.builder(this.engineState);
+		engineStateBuilder.readOnlyCatalogs(ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.engineState.readOnlyCatalogs()));
+		return new ExpandedEngineState(
+			engineStateBuilder.build(),
+			this.catalogs
+		);
+	}
+
+	/**
+	 * Returns a new persisted {@link EngineState} derived from the underlying snapshot, but with the
+	 * provided WAL file reference.
+	 *
+	 * This method does not mutate this record. Use it when you need to advance the WAL pointer that
+	 * will be stored together with the next engine snapshot.
+	 *
+	 * @param walFileReference new write-ahead log reference to embed in the returned EngineState
+	 * @return a new {@link EngineState} identical to the current one except for the WAL reference
+	 */
+	@Nonnull
+	public EngineState engineState(@Nonnull LogFileRecordReference walFileReference) {
+		return EngineState.builder(this.engineState)
+				.walFileReference(walFileReference)
+				.build();
+	}
+
+	/**
+	 * A wrapper record for managing and updating an atomic reference to a {@code CatalogContract}.
+	 * Designed to encapsulate safe concurrent operations on catalog references.
+	 */
+	private record CatalogWrapper(
+		@Nonnull AtomicReference<CatalogContract> catalogReference
+	) {
+
+		private CatalogWrapper(@Nonnull CatalogContract catalogReference) {
+			this(new AtomicReference<>(catalogReference));
+		}
+
+		/**
+		 * Retrieves the current {@code CatalogContract} instance from the atomic reference.
+		 *
+		 * @return the current {@code CatalogContract} managed within the atomic reference.
+		 */
+		@Nonnull
+		public CatalogContract catalog() {
+			return this.catalogReference.get();
+		}
+
+		/**
+		 * Replaces the current catalog reference with the provided catalog instance.
+		 * Ensures that the existing catalog reference is an instance of the {@code Catalog} class
+		 * before performing the replacement.
+		 *
+		 * @param catalog the new {@code CatalogContract} instance to replace the existing catalog reference.
+		 *                Must not be null.
+		 */
+		public void replaceCatalogReference(@Nonnull CatalogContract catalog) {
+			this.catalogReference.getAndAccumulate(
+				catalog,
+				(existing, newCatalog) -> {
+					Assert.isPremiseValid(
+						existing instanceof Catalog,
+						"Catalog reference must be an instance of Catalog to replace its state, but was: " + existing.getClass().getName()
+					);
+					return newCatalog;
+				}
+			);
+		}
+
+	}
+
+}

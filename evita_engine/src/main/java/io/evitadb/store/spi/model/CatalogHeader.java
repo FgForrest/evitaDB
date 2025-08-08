@@ -32,7 +32,7 @@ import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.store.spi.model.storageParts.StoragePartKey;
 
 import javax.annotation.Nonnull;
@@ -71,7 +71,7 @@ import static java.util.Optional.ofNullable;
 public record CatalogHeader(
 	int storageProtocolVersion,
 	long version,
-	@Nullable WalFileReference walFileReference,
+	@Nullable LogFileRecordReference walFileReference,
 	@Nonnull Map<String, CollectionFileReference> collectionFileIndex,
 	@Nonnull Map<Integer, Object> compressedKeys,
 	@Nonnull UUID catalogId,

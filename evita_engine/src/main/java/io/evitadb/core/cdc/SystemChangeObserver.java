@@ -71,7 +71,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Slf4j
 public class SystemChangeObserver
-	implements ChangeObserverContract<ChangeSystemCaptureRequest, ChangeSystemCapture, EngineMutation> {
+	implements ChangeObserverContract<ChangeSystemCaptureRequest, ChangeSystemCapture, EngineMutation<?>> {
 
 	/**
 	 * Single shared publisher to process engine mutations and notify all subscribers. There is always only one instance
@@ -120,7 +120,7 @@ public class SystemChangeObserver
 	}
 
 	@Override
-	public void processMutation(@Nonnull EngineMutation mutation) {
+	public void processMutation(@Nonnull EngineMutation<?> mutation) {
 		assertActive();
 		this.sharedPublisher.processMutation(mutation);
 	}
@@ -155,18 +155,6 @@ public class SystemChangeObserver
 	public void notifyVersionPresentInLiveView(long engineVersion) {
 		assertActive();
 		this.sharedPublisher.notifyVersionPresentInLiveView(engineVersion);
-	}
-
-	/**
-	 * Discards all mutations that have been captured after the specified engine version from the memory of all
-	 * {@link ChangeSystemCaptureSharedPublisher}s. This frees up memory. Lagging subscribers will read those
-	 * mutations from the WAL until they catch up with the live view.
-	 *
-	 * @param engineVersion the engine version that marks version before which all mutations should be forgotten
-	 */
-	public void forgetMutationsAfter(long engineVersion) {
-		assertActive();
-		this.sharedPublisher.forgetMutationsAfter(engineVersion);
 	}
 
 	@Override

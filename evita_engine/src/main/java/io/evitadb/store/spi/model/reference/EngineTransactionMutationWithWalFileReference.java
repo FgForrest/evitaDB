@@ -44,13 +44,13 @@ import javax.annotation.Nonnull;
  * - `engineMutation`: The corresponding engine mutation that implements the actual changes
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
- * @see WalFileReference
+ * @see LogFileRecordReference
  * @see io.evitadb.api.requestResponse.transaction.TransactionMutation
  * @see io.evitadb.api.requestResponse.mutation.EngineMutation
  * @see io.evitadb.store.spi.EnginePersistenceService#appendWal(long, io.evitadb.api.requestResponse.mutation.EngineMutation)
  */
 public record EngineTransactionMutationWithWalFileReference(
-	@Nonnull WalFileReference walFileReference,
+	@Nonnull LogFileRecordReference walFileReference,
 	@Nonnull TransactionMutation transactionMutation,
 	@Nonnull EngineMutation<?> engineMutation
 ) {
