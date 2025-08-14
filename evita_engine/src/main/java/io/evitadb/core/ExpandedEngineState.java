@@ -419,10 +419,19 @@ public record ExpandedEngineState(
 		 */
 		@Nonnull
 		public Builder withoutCatalog(@Nonnull CatalogContract catalog) {
-			this.catalogs.remove(catalog.getName());
-			this.activeCatalogs = ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.activeCatalogs);
-			this.inactiveCatalogs = ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.inactiveCatalogs);
-			this.readOnlyCatalogs = ArrayUtils.removeRecordFromOrderedArray(catalog.getName(), this.readOnlyCatalogs);
+			final String catalogName = catalog.getName();
+			return withoutCatalog(catalogName);
+		}
+
+		/**
+		 * Stages removal of the provided catalog from the snapshot including all arrays.
+		 */
+		@Nonnull
+		public Builder withoutCatalog(@Nonnull String catalogName) {
+			this.catalogs.remove(catalogName);
+			this.activeCatalogs = ArrayUtils.removeRecordFromOrderedArray(catalogName, this.activeCatalogs);
+			this.inactiveCatalogs = ArrayUtils.removeRecordFromOrderedArray(catalogName, this.inactiveCatalogs);
+			this.readOnlyCatalogs = ArrayUtils.removeRecordFromOrderedArray(catalogName, this.readOnlyCatalogs);
 			return this;
 		}
 

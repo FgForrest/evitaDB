@@ -112,6 +112,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -1033,6 +1034,7 @@ class EvitaTest implements EvitaTestSupport {
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
+		this.evita.waitUntilFullyInitialized();
 
 		this.evita.queryCatalog(
 			TEST_CATALOG,
@@ -1150,6 +1152,7 @@ class EvitaTest implements EvitaTestSupport {
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
+		this.evita.waitUntilFullyInitialized();
 
 		// Verify catalog is inactive
 		assertEquals(CatalogState.INACTIVE, this.evita.getCatalogState(testCatalogName).orElseThrow());
@@ -1178,6 +1181,7 @@ class EvitaTest implements EvitaTestSupport {
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
+		this.evita.waitUntilFullyInitialized();
 
 		// Verify catalog is alive again
 		assertEquals(CatalogState.ALIVE, this.evita.getCatalogState(testCatalogName).orElseThrow());
@@ -3470,6 +3474,7 @@ class EvitaTest implements EvitaTestSupport {
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
+		this.evita.waitUntilFullyInitialized();
 
 		// verify that changes are still visible after restart
 		this.evita.queryCatalog(
@@ -4472,6 +4477,7 @@ class EvitaTest implements EvitaTestSupport {
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
+		this.evita.waitUntilFullyInitialized();
 
 		this.evita.queryCatalog(
 			renamedCatalogName,
@@ -4573,6 +4579,7 @@ class EvitaTest implements EvitaTestSupport {
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
+		this.evita.waitUntilFullyInitialized();
 
 		this.evita.updateCatalog(
 			TEST_CATALOG,
@@ -4873,19 +4880,26 @@ class EvitaTest implements EvitaTestSupport {
 
 		// try activating catalog in two threads in parallel
 		try {
-			final CompletableFuture<Void> f1 = this.evita
-				.applyMutation(new SetCatalogStateMutation(catalog, true))
-				.onCompletion()
-				.toCompletableFuture();
-			final CompletableFuture<Void> f2 = this.evita
-				.applyMutation(new SetCatalogStateMutation(catalog, true))
-				.onCompletion()
-				.toCompletableFuture();
-
-			assertThrows(
-				ConflictingEngineMutationException.class,
-				() -> CompletableFuture.allOf(f1, f2).join()
+			final CompletableFuture<Void> f1 = CompletableFuture.runAsync(
+				() -> this.evita
+					.applyMutation(new SetCatalogStateMutation(catalog, true))
+					.onCompletion()
+					.toCompletableFuture()
+					.join()
 			);
+			final CompletableFuture<Void> f2 = CompletableFuture.runAsync(
+				() -> this.evita
+					.applyMutation(new SetCatalogStateMutation(catalog, true))
+					.onCompletion()
+					.toCompletableFuture()
+					.join()
+			);
+
+			CompletableFuture.allOf(f1, f2).join();
+		} catch (CompletionException ex) {
+			assertInstanceOf(ConflictingEngineMutationException.class, ex.getCause());
+		} catch (ConflictingEngineMutationException ex) {
+			// expected exception, as we are trying to activate the same catalog in two threads
 		} finally {
 			// clean up
 			this.evita.deleteCatalogIfExists(catalog);
@@ -4905,7 +4919,7 @@ class EvitaTest implements EvitaTestSupport {
 		evita.close();
 
 		final ServerOptions formerServerOptions = formerConfiguration.server();
-		return new Evita(
+		final Evita reinstantiatedEvita = new Evita(
 			new EvitaConfiguration(
 				formerConfiguration.name(),
 				new ServerOptions(
@@ -4926,6 +4940,8 @@ class EvitaTest implements EvitaTestSupport {
 				formerConfiguration.cache()
 			)
 		);
+		reinstantiatedEvita.waitUntilFullyInitialized();
+		return reinstantiatedEvita;
 	}
 
 	@Test

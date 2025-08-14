@@ -294,27 +294,11 @@ public final class Evita implements EvitaContract {
 			.map(it -> it.create(configuration.storage(), configuration.transaction(), this.serviceExecutor))
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
+		this.management = new EvitaManagement(this);
+
 		final EngineState engineState = enginePersistenceService.getEngineState();
 		final HashMap<String, CatalogContract> catalogs = CollectionUtils.createHashMap(
 			engineState.activeCatalogs().length + engineState.inactiveCatalogs().length
-		);
-		this.engineState.set(
-			ExpandedEngineState.create(
-				engineState,
-				catalogs
-			)
-		);
-
-		this.changeObserver = new SystemChangeObserver(
-			this,
-			this.configuration.server().changeDataCapture(),
-			this.requestExecutor,
-			this.serviceExecutor
-		);
-
-		this.management = new EvitaManagement(this);
-		this.engineTransactionManager = new EngineTransactionManager(
-			this, this.changeObserver, this.transactionExecutor, enginePersistenceService
 		);
 
 		// register stubs for all inactive catalogs
@@ -342,10 +326,33 @@ public final class Evita implements EvitaContract {
 						      (cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_ACTIVATED)
 					      )
 				      );
-					  return this.loadCatalogInternal(catalogName);
+					  return this.loadCatalogInternal(
+						  catalogName,
+						  ArrayUtils.computeInsertPositionOfObjInOrderedArray(catalogName, engineState.readOnlyCatalogs())
+						            .alreadyPresent()
+					  );
 			      })
 			      .toArray(ProgressingFuture[]::new)
 		);
+		// now init state with catalog stubs
+		this.engineState.set(
+			ExpandedEngineState.create(
+				engineState,
+				catalogs
+			)
+		);
+
+		this.changeObserver = new SystemChangeObserver(
+			this,
+			this.configuration.server().changeDataCapture(),
+			this.requestExecutor,
+			this.serviceExecutor
+		);
+
+		this.engineTransactionManager = new EngineTransactionManager(
+			this, this.changeObserver, this.transactionExecutor, enginePersistenceService
+		);
+
 		this.fullyInitialized = CompletableFuture.allOf(
 			this.initialLoadCatalogFutures.get()
 		).whenComplete(
@@ -793,13 +800,26 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Blocks the current thread until the associated initialization process is fully completed.
+	 * This method waits for the internal process associated with the `fullyInitialized` object
+	 * to complete its execution. It ensures that the calling thread does not proceed
+	 * until the initialization process is finalized.
+	 */
+	public void waitUntilFullyInitialized() {
+		this.fullyInitialized.join();
+	}
+
+	/**
 	 * Adds a catalog to the list of inactive catalogs and updates the engine state accordingly.
 	 *
 	 * @param catalogName The name of the catalog that was restored and shoul be registered as inactive.
 	 */
 	public void registerRestoredCatalog(@Nonnull String catalogName) {
 		assertActive();
-		applyMutation(new RestoreCatalogSchemaMutation(catalogName));
+		applyMutation(new RestoreCatalogSchemaMutation(catalogName))
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
 	}
 
 	/**
@@ -989,11 +1009,11 @@ public final class Evita implements EvitaContract {
 	 * @param catalogName name of the catalog
 	 */
 	@Nonnull
-	public ProgressingFuture<Catalog> loadCatalogInternal(@Nonnull String catalogName) {
+	public ProgressingFuture<Catalog> loadCatalogInternal(@Nonnull String catalogName, boolean readOnly) {
 		final long start = System.nanoTime();
 		return Catalog.loadCatalog(
 			catalogName,
-			this.getEngineState().isReadOnly(catalogName),
+			readOnly,
 			this.cacheSupervisor,
 			this.configuration,
 			this.reflectionLookup,
@@ -1084,6 +1104,19 @@ public final class Evita implements EvitaContract {
 				}
 			}
 		);
+	}
+
+	/**
+	 * Registers a session registry for a specific catalog replacing any potentially existing registry under particular
+	 * catalog name. This ensures that a session registry is associated with the provided catalog name.
+	 *
+	 * @param catalogName     the name of the catalog to associate with the session registry
+	 * @param sessionRegistry the session registry to register with the catalog
+	 * @return previously registered session registry for the catalog, or null if there was no previous registry
+	 */
+	@Nullable
+	public SessionRegistry registerWithReplaceCatalogSessionRegistry(@Nonnull String catalogName, @Nonnull SessionRegistry sessionRegistry) {
+		return this.catalogSessionRegistries.put(catalogName, sessionRegistry);
 	}
 
 	/**

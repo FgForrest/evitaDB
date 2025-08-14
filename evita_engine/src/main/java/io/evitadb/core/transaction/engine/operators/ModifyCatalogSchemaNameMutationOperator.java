@@ -117,16 +117,7 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 		Optional<SessionRegistry> removedCatalogSessionRegistry = evita.getCatalogSessionRegistry(catalogNameToBeReplaced);
 
 		prevailingCatalogSessionRegistry
-			.ifPresent(sessionRegistry -> {
-				sessionRegistry.closeAllActiveSessionsAndSuspend(SuspendOperation.POSTPONE);
-				// immediately register the session registry under the new name to start accepting new sessions
-				// session creation will be postponed until the catalog is fully available
-				evita.registerCatalogSessionRegistry(
-					catalogNameToBeReplaced,
-					sessionRegistry.withDifferentCatalogSupplier(
-						() -> (Catalog) evita.getCatalogInstanceOrThrowException(catalogNameToBeReplaced))
-				);
-			});
+			.ifPresent(sessionRegistry -> sessionRegistry.closeAllActiveSessionsAndSuspend(SuspendOperation.POSTPONE));
 
 		final Runnable undoOperations = () -> {
 			// revert session registry swap
@@ -141,8 +132,8 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 			final boolean replaceOperation = catalogToBeReplaced != catalogToBeReplacedWith;
 			// first terminate the catalog that is being replaced (unless it's the very same catalog)
 			if (replaceOperation) {
-				removedCatalogSessionRegistry.ifPresent(
-					it -> it.closeAllActiveSessionsAndSuspend(SuspendOperation.REJECT));
+				removedCatalogSessionRegistry
+					.ifPresent(it -> it.closeAllActiveSessionsAndSuspend(SuspendOperation.REJECT));
 			} else {
 				Assert.isPremiseValid(removedCatalogSessionRegistry.isEmpty(), "Expectation failed!");
 			}
@@ -169,11 +160,11 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 						new AbstractEngineStateUpdater(transactionId, mutation) {
 							@Override
 							public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
-								final Builder stateAfterAddingRenamedCatalog = ExpandedEngineState.builder(expandedEngineState)
-								                                           .withCatalog(replacedCatalog);
-								if (!catalogNameToBeReplacedWith.equals(catalogNameToBeReplaced)) {
-									evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplacedWith);
-									stateAfterAddingRenamedCatalog.withoutCatalog(catalogToBeReplacedWith);
+								final Builder stateAfterAddingRenamedCatalog = ExpandedEngineState
+									.builder(expandedEngineState)
+									.withCatalog(replacedCatalog);
+								if (!catalogNameToBeReplaced.equals(catalogNameToBeReplacedWith)) {
+									stateAfterAddingRenamedCatalog.withoutCatalog(catalogNameToBeReplacedWith);
 								}
 								return stateAfterAddingRenamedCatalog.build();
 							}
@@ -183,9 +174,27 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 					// notify callback that it's now a live snapshot
 					((Catalog) replacedCatalog).notifyCatalogPresentInLiveView();
 
-					// we can resume suspended operations on catalogs
-					prevailingCatalogSessionRegistry.ifPresent(SessionRegistry::resumeOperations);
-					removedCatalogSessionRegistry.ifPresent(SessionRegistry::resumeOperations);
+					if (replaceOperation) {
+						// we can resume suspended operations on catalogs
+						prevailingCatalogSessionRegistry.ifPresent(
+							sessionRegistry -> {
+								evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplacedWith);
+								final SessionRegistry previous = evita.registerWithReplaceCatalogSessionRegistry(
+									catalogNameToBeReplaced,
+									sessionRegistry.withDifferentCatalogSupplier(
+										() -> (Catalog) evita.getCatalogInstanceOrThrowException(
+											catalogNameToBeReplaced))
+								);
+								Assert.isPremiseValid(
+									previous == null || previous == removedCatalogSessionRegistry.get(),
+									"Unexpected instance of the session registry was replaced!"
+								);
+								sessionRegistry.resumeOperations();
+							}
+						);
+					} else {
+						removedCatalogSessionRegistry.ifPresent(SessionRegistry::resumeOperations);
+					}
 
 					// terminate the catalog that was replaced
 					if (replaceOperation) {

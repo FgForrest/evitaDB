@@ -228,9 +228,9 @@ public class EngineTransactionManager implements Closeable {
 				this.engineStateLock.lock();
 				try {
 					// verify that we can perform the mutation
-					engineMutation.verifyApplicability(this.evita);
-					// verify that we can perform the mutation
 					verifyEngineMutationIsNotInConflictWithOthers(engineMutation);
+					// verify that we can perform the mutation
+					engineMutation.verifyApplicability(this.evita);
 					// append the mutation to the WAL
 					engineMutation.getConflictKeys().forEach(key -> this.processedEngineMutations.put(key, transactionId));
 				} finally {
@@ -449,7 +449,7 @@ public class EngineTransactionManager implements Closeable {
 			this.lastStoredEngineStateVersion++;
 			this.evita.setNextEngineState(nextEngineState);
 			// finally, notify the change observer about the new version
-			this.changeObserver.notifyVersionPresentInLiveView(nextEngineState.version());
+			this.changeObserver.notifyVersionPresentInLiveView(nextStateVersion);
 		} finally {
 			this.engineStateLock.unlock();
 		}

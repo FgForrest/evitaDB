@@ -77,22 +77,23 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 		final String catalogName = mutation.getCatalogName();
 		final CatalogState transitionState = mutation.isActive() ?
 			CatalogState.BEING_ACTIVATED : CatalogState.BEING_DEACTIVATED;
+		final CatalogContract theCatalog = evita.getCatalogInstanceOrThrowException(catalogName);
+		final boolean readOnly = evita.getEngineState().isReadOnly(catalogName);
 
 		transitionEngineStateUpdater.accept(
 			new AbstractEngineStateUpdater(transactionId, mutation) {
 				@Override
 				public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
-					return ExpandedEngineState.builder(expandedEngineState)
-					                          .withCatalog(
-						                          new UnusableCatalog(
-							                          catalogName,
-							                          transitionState,
-							                          SetCatalogStateMutationOperator.this.storageDirectory.resolve(
-								                          catalogName),
-							                          (cn, path) -> new CatalogTransitioningException(
-								                          cn, path, transitionState)
-						                          )
-					                          ).build();
+					return ExpandedEngineState
+						.builder(expandedEngineState)
+						.withCatalog(
+							new UnusableCatalog(
+								catalogName,
+								transitionState,
+								SetCatalogStateMutationOperator.this.storageDirectory.resolve(catalogName),
+								(cn, path) -> new CatalogTransitioningException(cn, path, transitionState)
+							)
+						).build();
 				}
 			}
 		);
@@ -100,15 +101,15 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 		if (mutation.isActive()) {
 			return new ProgressingFuture<>(
 				0,
-				Collections.singletonList(evita.loadCatalogInternal(catalogName)),
-				(progressingFuture, theCatalog) -> {
+				Collections.singletonList(evita.loadCatalogInternal(catalogName, readOnly)),
+				(progressingFuture, loadedCatalog) -> {
 					completionEngineStateUpdater.accept(
 						new AbstractEngineStateUpdater(transactionId, mutation) {
 							@Override
 							public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
 								return ExpandedEngineState
 									.builder(expandedEngineState)
-									.withCatalog(theCatalog.iterator().next())
+									.withCatalog(loadedCatalog.iterator().next())
 									.build();
 							}
 						}
@@ -117,7 +118,6 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 				}
 			);
 		} else {
-			final CatalogContract theCatalog = evita.getCatalogInstanceOrThrowException(catalogName);
 			return new ProgressingFuture<>(
 				0,
 				progressingFuture -> {
@@ -132,8 +132,7 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 									.withCatalog(
 										new UnusableCatalog(
 											catalogName, CatalogState.INACTIVE,
-											SetCatalogStateMutationOperator.this.storageDirectory.resolve(
-												catalogName),
+											SetCatalogStateMutationOperator.this.storageDirectory.resolve(catalogName),
 											CatalogInactiveException::new
 										)
 									)
