@@ -1027,7 +1027,7 @@ public final class Evita implements EvitaContract {
 				catalog.processWriteAheadLog(
 					updatedCatalog -> {
 						this.engineState.updateAndGet(
-							existingState -> existingState.withCatalog(updatedCatalog)
+							existingState -> existingState.withUpdatedCatalogInstance(updatedCatalog)
 						);
 						if (updatedCatalog instanceof Catalog theUpdatedCatalog) {
 							theUpdatedCatalog.notifyCatalogPresentInLiveView();
@@ -1039,7 +1039,7 @@ public final class Evita implements EvitaContract {
 			(cn, exception) -> {
 				log.error("Catalog {} is corrupted!", cn, exception);
 				this.engineState.updateAndGet(
-					existingState -> existingState.withCatalog(
+					existingState -> existingState.withUpdatedCatalogInstance(
 						new UnusableCatalog(
 							cn,
 							CatalogState.CORRUPTED,
@@ -1201,7 +1201,7 @@ public final class Evita implements EvitaContract {
 				final Catalog catalog = sessionRegistry.getCatalog();
 				final String catalogName = catalog.getName();
 				if (this.getEngineState().isReadOnly(catalogName)) {
-					throw ReadOnlyException.catalogReadOnly(catalogName);
+					isTrue(!sessionTraits.isReadWrite() || sessionTraits.isDryRun(), () -> ReadOnlyException.catalogReadOnly(catalogName));
 				}
 				if (catalog.isGoingLive()) {
 					throw new CatalogGoingLiveException(catalogName);

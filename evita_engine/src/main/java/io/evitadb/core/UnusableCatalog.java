@@ -27,7 +27,6 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
-import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.CollectionNotFoundException;
@@ -249,7 +248,7 @@ public final class UnusableCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public CommitVersions goLive() {
+	public CatalogContract goLive() {
 		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 

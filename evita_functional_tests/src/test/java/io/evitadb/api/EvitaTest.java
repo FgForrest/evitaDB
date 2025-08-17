@@ -1343,7 +1343,7 @@ class EvitaTest implements EvitaTestSupport {
 		// (immutable catalogs don't allow any session creation)
 		assertThrows(
 			ReadOnlyException.class,
-			() -> this.evita.queryCatalog(
+			() -> this.evita.updateCatalog(
 				testCatalogName,
 				session -> {
 					session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent());
@@ -4744,6 +4744,133 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Helper to define multiple catalogs.
+	 *
+	 * @param catalogs catalog names to define
+	 */
+	private void defineCatalogs(@Nonnull String... catalogs) {
+		for (final String catalog : catalogs) {
+			this.evita.defineCatalog(catalog);
+		}
+	}
+
+	/**
+	 * Prepares catalog with BRAND, CATEGORY (hierarchy) and PRODUCT schema, seeds refs
+	 * and inserts the requested number of products.
+	 *
+	 * PRODUCT has attributes `code` and `name` (both filterable + sortable) and references to BRAND and CATEGORY
+	 * (both indexed + faceted).
+	 *
+	 * @param catalog the catalog name
+	 * @param count   number of products to insert
+	 */
+	private void prepareCatalogWithProductSchemaAndData(@Nonnull String catalog, int count) {
+		this.evita.updateCatalog(
+			catalog,
+			session -> {
+				// define referenced entities
+				session.defineEntitySchema(Entities.BRAND).updateVia(session);
+				session.defineEntitySchema(Entities.CATEGORY).withHierarchy().updateVia(session);
+				// define product schema with references and indexed attributes
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute("code", String.class, whichIs -> whichIs.filterable().sortable())
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable().sortable())
+					.withReferenceToEntity(
+						Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, it -> it.indexed().faceted()
+					)
+					.withReferenceToEntity(
+						Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, it -> it.indexed().faceted()
+					)
+					.updateVia(session);
+
+				// seed referenced entities
+				session.upsertEntity(session.createNewEntity(Entities.BRAND, 1));
+				session.upsertEntity(session.createNewEntity(Entities.BRAND, 2));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2));
+
+				// insert entities
+				final int cnt = count;
+				for (int i = 1; i <= cnt; i++) {
+					final EntityBuilder builder = session.createNewEntity(Entities.PRODUCT, i)
+						.setAttribute("code", "code-" + i)
+						.setAttribute(ATTRIBUTE_NAME, "name-" + i)
+						.setReference(Entities.BRAND, (i % 2) + 1)
+						.setReference(Entities.CATEGORY, (i % 2) + 1);
+					session.upsertEntity(builder);
+				}
+			}
+		);
+	}
+
+	/**
+	 * Asserts catalogs are WARMING_UP then deactivates them and asserts INACTIVE.
+	 *
+	 * @param catalogs catalog names
+	 */
+	private void assertWarmingUpThenDeactivate(@Nonnull String... catalogs) {
+		for (final String catalog : catalogs) {
+			assertEquals(CatalogState.WARMING_UP, this.evita.getCatalogState(catalog).orElseThrow());
+			this.evita.deactivateCatalog(catalog);
+			assertEquals(CatalogState.INACTIVE, this.evita.getCatalogState(catalog).orElseThrow());
+		}
+	}
+
+	/**
+	 * Activates the same catalog in two parallel tasks and expects a conflict.
+	 *
+	 * @param catalog catalog name
+	 */
+	private void activateCatalogTwiceInParallelExpectingConflict(@Nonnull String catalog) {
+		try {
+			final CompletableFuture<Void> f1 = CompletableFuture.runAsync(
+				() -> this.evita
+					.applyMutation(new SetCatalogStateMutation(catalog, true))
+					.onCompletion()
+					.toCompletableFuture()
+					.join()
+			);
+			final CompletableFuture<Void> f2 = CompletableFuture.runAsync(
+				() -> this.evita
+					.applyMutation(new SetCatalogStateMutation(catalog, true))
+					.onCompletion()
+					.toCompletableFuture()
+					.join()
+			);
+
+			CompletableFuture.allOf(f1, f2).join();
+		} catch (CompletionException ex) {
+			assertInstanceOf(ConflictingEngineMutationException.class, ex.getCause());
+		} catch (ConflictingEngineMutationException ex) {
+			// expected exception, as we are trying to activate the same catalog in two threads
+		}
+	}
+
+	/**
+	 * Activates provided catalogs in parallel and asserts they end up in active state.
+	 *
+	 * @param catalogs catalogs to activate
+	 */
+	private void activateCatalogsInParallelAndAssertActive(@Nonnull String... catalogs) {
+		final CompletableFuture<?>[] futures = new CompletableFuture<?>[catalogs.length];
+		for (int i = 0; i < catalogs.length; i++) {
+			final String catalog = catalogs[i];
+			futures[i] = CompletableFuture.runAsync(
+				() -> this.evita
+					.applyMutation(new SetCatalogStateMutation(catalog, true))
+					.onCompletion()
+					.toCompletableFuture()
+					.join()
+			);
+		}
+		CompletableFuture.allOf(futures).join();
+		for (final String catalog : catalogs) {
+			assertEquals(CatalogState.WARMING_UP, this.evita.getCatalogState(catalog).orElseThrow());
+		}
+	}
+
+	/**
 	 * Tests the functionality of duplicating an active catalog.
 	 *
 	 * This test verifies that:
@@ -4834,75 +4961,46 @@ class EvitaTest implements EvitaTestSupport {
 	@DisplayName("Should fail concurrent engine mutations on a single catalog")
 	void shouldFailToExecuteTwoEngineLevelMutationsOnSingleCatalogInParallel() {
 		final String catalog = TEST_CATALOG + "_concurrent_engine_single";
-		// create catalog
-		this.evita.defineCatalog(catalog);
-		// prepare schema with references and multiple indexed attributes and insert data
-		this.evita.updateCatalog(
-			catalog,
-			session -> {
-				// define referenced entities
-				session.defineEntitySchema(Entities.BRAND).updateVia(session);
-				session.defineEntitySchema(Entities.CATEGORY).withHierarchy().updateVia(session);
-				// define product schema with references and indexed attributes
-				session.defineEntitySchema(Entities.PRODUCT)
-					.withoutGeneratedPrimaryKey()
-					.withAttribute("code", String.class, whichIs -> whichIs.filterable().sortable())
-					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable().sortable())
-					.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, it -> it.indexed().faceted())
-					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, it -> it.indexed().faceted())
-					.updateVia(session);
-
-				// seed some referenced entities
-				session.upsertEntity(session.createNewEntity(Entities.BRAND, 1));
-				session.upsertEntity(session.createNewEntity(Entities.BRAND, 2));
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2));
-
-				// insert 1,000 entities
-				final int count = 1_000;
-				for (int i = 1; i <= count; i++) {
-					final EntityBuilder builder = session.createNewEntity(Entities.PRODUCT, i)
-						.setAttribute("code", "code-" + i)
-						.setAttribute(ATTRIBUTE_NAME, "name-" + i)
-						.setReference(Entities.BRAND, (i % 2) + 1)
-						.setReference(Entities.CATEGORY, (i % 2) + 1);
-					session.upsertEntity(builder);
-				}
-			}
-		);
-
+		// create and prepare catalog with data
+		defineCatalogs(catalog);
+		prepareCatalogWithProductSchemaAndData(catalog, 1_000);
 		// ensure alive then deactivate
-		assertEquals(CatalogState.WARMING_UP, this.evita.getCatalogState(catalog).orElseThrow());
-		this.evita.deactivateCatalog(catalog);
-		assertEquals(CatalogState.INACTIVE, this.evita.getCatalogState(catalog).orElseThrow());
-
+		assertWarmingUpThenDeactivate(catalog);
+		// reinstantiate with async executors
 		this.evita = reinstantiateEvitaWithEnabledAsynchronousExecutors(this.evita);
-
-		// try activating catalog in two threads in parallel
 		try {
-			final CompletableFuture<Void> f1 = CompletableFuture.runAsync(
-				() -> this.evita
-					.applyMutation(new SetCatalogStateMutation(catalog, true))
-					.onCompletion()
-					.toCompletableFuture()
-					.join()
-			);
-			final CompletableFuture<Void> f2 = CompletableFuture.runAsync(
-				() -> this.evita
-					.applyMutation(new SetCatalogStateMutation(catalog, true))
-					.onCompletion()
-					.toCompletableFuture()
-					.join()
-			);
-
-			CompletableFuture.allOf(f1, f2).join();
-		} catch (CompletionException ex) {
-			assertInstanceOf(ConflictingEngineMutationException.class, ex.getCause());
-		} catch (ConflictingEngineMutationException ex) {
-			// expected exception, as we are trying to activate the same catalog in two threads
+			// activate twice in parallel and expect conflict
+			activateCatalogTwiceInParallelExpectingConflict(catalog);
 		} finally {
 			// clean up
 			this.evita.deleteCatalogIfExists(catalog);
+		}
+	}
+
+	@Test
+	@DisplayName("Should allow concurrent engine mutations on different catalogs")
+	void shouldAllowTwoEngineMutationsOnDifferentCatalogsInParallel() {
+		final String catalog1 = TEST_CATALOG + "_concurrent_engine_multi1";
+		final String catalog2 = TEST_CATALOG + "_concurrent_engine_multi2";
+
+		// create catalogs and prepare data
+		defineCatalogs(catalog1, catalog2);
+		prepareCatalogWithProductSchemaAndData(catalog1, 500);
+		prepareCatalogWithProductSchemaAndData(catalog2, 500);
+
+		// ensure both are alive (warming up) then deactivate them
+		assertWarmingUpThenDeactivate(catalog1, catalog2);
+
+		// reinstantiate with async executors
+		this.evita = reinstantiateEvitaWithEnabledAsynchronousExecutors(this.evita);
+
+		try {
+			// activate both catalogs in parallel - should not conflict
+			activateCatalogsInParallelAndAssertActive(catalog1, catalog2);
+		} finally {
+			// clean up
+			this.evita.deleteCatalogIfExists(catalog1);
+			this.evita.deleteCatalogIfExists(catalog2);
 		}
 	}
 
@@ -4942,11 +5040,6 @@ class EvitaTest implements EvitaTestSupport {
 		);
 		reinstantiatedEvita.waitUntilFullyInitialized();
 		return reinstantiatedEvita;
-	}
-
-	@Test
-	void shouldAllowTwoEngineMutationsOnDifferentCatalogsInParallel() {
-		/* TODO JNO - Implement me */
 	}
 
 	@Nonnull

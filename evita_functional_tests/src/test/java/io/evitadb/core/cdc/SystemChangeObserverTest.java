@@ -103,7 +103,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 		@Nonnull Set<String> expectedOperations
 	) {
 		for (ChangeSystemCapture capture : subscriber.getItems()) {
-			EngineMutation mutation = capture.body();
+			EngineMutation<?> mutation = capture.body();
 			if (mutation instanceof CreateCatalogSchemaMutation ccsm) {
 				expectedOperations.remove("create_" + ccsm.getCatalogName());
 			} else if (mutation instanceof ModifyCatalogSchemaMutation mcsm) {
@@ -256,8 +256,8 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 
 		// Use try-with-resources to ensure the publisher is properly closed after the test
 		try (
-			final ChangeCapturePublisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(
-				newMutationsRequest)
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(newMutationsRequest)
 		) {
 			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
 

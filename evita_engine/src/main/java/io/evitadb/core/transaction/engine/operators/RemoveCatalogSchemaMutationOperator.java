@@ -71,9 +71,10 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 		transitionEngineStateUpdater.accept(
 			new AbstractEngineStateUpdater(transactionId, mutation) {
 				@Override
-				public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
+				public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
 					return ExpandedEngineState
 						.builder(expandedEngineState)
+						.withVersion(version)
 						.withCatalog(
 							new UnusableCatalog(
 								catalogName,
@@ -99,9 +100,10 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 				completionEngineStateUpdater.accept(
 					new AbstractEngineStateUpdater(transactionId, mutation) {
 						@Override
-						public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
+						public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
 							return ExpandedEngineState
 								.builder(expandedEngineState)
+								.withVersion(version)
 								.withoutCatalog(catalogToRemove)
 								.build();
 						}

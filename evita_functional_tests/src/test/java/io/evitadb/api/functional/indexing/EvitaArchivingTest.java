@@ -295,6 +295,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
+		this.evita.waitUntilFullyInitialized();
 
 		// check product entity is in indexes
 		checkProductCanBeLookedUpByIndexes();
@@ -432,6 +433,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
+		this.evita.waitUntilFullyInitialized();
 
 		// check product entity is in indexes
 		checkProductCanBeLookedUpByIndexes();
@@ -601,6 +603,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
+		this.evita.waitUntilFullyInitialized();
 
 		// check product entity is in indexes
 		checkProductCanBeLookedUpByIndexes();
@@ -2211,6 +2214,7 @@ public class EvitaArchivingTest implements EvitaTestSupport {
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
+		this.evita.waitUntilFullyInitialized();
 
 		// try to find entities by the conflicting unique key
 		assertArrayEquals(

@@ -80,6 +80,7 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 		this.evita = new Evita(
 			getEvitaConfiguration(true)
 		);
+		this.evita.waitUntilFullyInitialized();
 	}
 
 	@AfterEach

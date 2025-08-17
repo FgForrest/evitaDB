@@ -29,7 +29,6 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
-import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
@@ -1072,11 +1071,11 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Nonnull
 	@Override
-	public CommitVersions goLive() {
+	public Catalog goLive() {
 		try {
 			Assert.isTrue(
 				this.goingLive.compareAndSet(false, true),
-				"Concurrent call of `goLive` method is not supported!"
+				"Concurrent call of the `goLive` method is not supported!"
 			);
 
 			Assert.isTrue(this.state == CatalogState.WARMING_UP, "Catalog has already alive state!");
@@ -1100,10 +1099,8 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			);
 
 			this.transactionManager.advanceVersion(newCatalog.getVersion());
-			this.newCatalogVersionConsumer.accept(newCatalog);
-
 			log.info("Catalog `{}` is now alive!", newCatalog.getName());
-			return new CommitVersions(newCatalog.getVersion(), newCatalog.getSchema().version());
+			return newCatalog;
 
 		} finally {
 			this.goingLive.set(false);

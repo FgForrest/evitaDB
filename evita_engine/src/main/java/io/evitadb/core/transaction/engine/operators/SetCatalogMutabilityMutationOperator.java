@@ -75,10 +75,11 @@ public class SetCatalogMutabilityMutationOperator
 						completionEngineStateUpdater.accept(
 							new AbstractEngineStateUpdater(transactionId, mutation) {
 								@Override
-								public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
+								public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
 									theCatalog.setReadOnly(false);
 									return ExpandedEngineState
 										.builder(expandedEngineState)
+										.withVersion(version)
 										.withoutReadOnlyCatalog(theCatalog)
 										.build();
 								}
@@ -99,10 +100,11 @@ public class SetCatalogMutabilityMutationOperator
 						completionEngineStateUpdater.accept(
 							new AbstractEngineStateUpdater(transactionId, mutation) {
 								@Override
-								public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
+								public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
 									theCatalog.setReadOnly(true);
 									return ExpandedEngineState
 										.builder(expandedEngineState)
+										.withVersion(version)
 										.withReadOnlyCatalog(theCatalog)
 										.build();
 								}

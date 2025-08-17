@@ -25,18 +25,24 @@ package io.evitadb.core.transaction.engine.operators;
 
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress.CommitVersions;
+import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
+import io.evitadb.core.ExpandedEngineState;
 import io.evitadb.core.UnusableCatalog;
 import io.evitadb.core.metric.event.transaction.CatalogGoesLiveEvent;
+import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -47,7 +53,9 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@RequiredArgsConstructor
 public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<CommitVersions, MakeCatalogAliveMutation> {
+	private final Path storageDirectory;
 
 	@Nonnull
 	@Override
@@ -67,16 +75,53 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 
 		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
 		if (catalog instanceof Catalog theCatalog) {
+			final Path catalogFolder = this.storageDirectory.resolve(catalogName);
+			transitionEngineStateUpdater.accept(
+				new AbstractEngineStateUpdater(transactionId, mutation) {
+					@Override
+					public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
+						return ExpandedEngineState
+							.builder(expandedEngineState)
+							.withVersion(version)
+							.withCatalog(
+								new UnusableCatalog(
+									catalogName, CatalogState.GOING_ALIVE,
+									catalogFolder,
+									(cn, path) -> new CatalogGoingLiveException(cn)
+								)
+							)
+							.build();
+					}
+				}
+			);
+
 			final CatalogGoesLiveEvent event = new CatalogGoesLiveEvent(catalogName);
 			return new ProgressingFuture<>(
 				1,
 				Collections.singletonList(theCatalog.flush()),
 				(theFuture, __) -> {
-					CommitVersions commitVersions = theCatalog.goLive();
+					final Catalog newCatalog = theCatalog.goLive();
 					theFuture.updateProgress(1);
 					// emit the event
 					event.finish().commit();
-					return commitVersions;
+
+					completionEngineStateUpdater.accept(
+						new AbstractEngineStateUpdater(transactionId, mutation) {
+							@Override
+							public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
+								return ExpandedEngineState
+									.builder(expandedEngineState)
+									.withVersion(version)
+									.withCatalog(newCatalog)
+									.build();
+							}
+						}
+					);
+
+					newCatalog.notifyCatalogPresentInLiveView();
+					evita.discardSuspension(newCatalog.getName());
+
+					return new CommitVersions(newCatalog.getVersion(), newCatalog.getSchema().version());
 				}
 			);
 		} else if (catalog instanceof UnusableCatalog unusableCatalog) {

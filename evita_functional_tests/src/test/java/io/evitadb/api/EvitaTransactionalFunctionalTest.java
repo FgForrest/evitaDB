@@ -34,6 +34,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.query.QueryConstraints;
@@ -543,6 +544,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		// start evita again and wait for the WAL to be processed
 		final Evita secondInstance = new Evita(cfg);
+		secondInstance.waitUntilFullyInitialized();
 
 		// verify the documents in the evitaDB catalog
 		final long catalogVersion = verifyCatalogContents(secondInstance, generatedEntities, 4L);
@@ -558,6 +560,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		// start evitaDB again and wait for the WAL to be processed
 		final Evita thirdInstance = new Evita(cfg);
+		thirdInstance.waitUntilFullyInitialized();
 
 		// verify the documents in the evitaDB catalog
 		final long nextCatalogVersion = verifyCatalogContents(thirdInstance, additionalGeneratedEntities, 6L);
@@ -570,7 +573,65 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
 	void shouldTruncateEngineLogAndStartCorrectly(Evita evita) {
-		/* TODO JNO - implement me */
+		// ensure there is at least one engine mutation recorded in WAL and EngineState references it
+		final EvitaConfiguration cfg = evita.getConfiguration();
+		// perform a simple engine-level mutation: make catalog immutable (writes to engine WAL)
+		evita.makeCatalogImmutableWithProgress(TEST_CATALOG).onCompletion().toCompletableFuture().join();
+		// close evita so files are released
+		evita.close();
+
+		// locate engine WAL file in engine storage root directory
+		final Path storageDir = cfg.storage().storageDirectory();
+		final Optional<Path> walFileOpt;
+		try (final Stream<Path> fileListing = Files.list(storageDir);) {
+			walFileOpt = fileListing
+				.filter(p -> p.getFileName().toString().endsWith(".wal"))
+				.findFirst();
+		} catch (IOException e) {
+			throw new RuntimeException("Failed to list files in storage directory: " + storageDir, e);
+		}
+		assertTrue(walFileOpt.isPresent(), "Engine WAL file should exist after engine mutation");
+		final Path walFile = walFileOpt.get();
+
+		try {
+			final long originalSize = Files.size(walFile);
+			// append gibberish bytes to the end of the WAL file
+			final byte[] gibberish = new byte[]{(byte)0xDE, (byte)0xAD, (byte)0xBE, (byte)0xEF, 0x01, 0x02, 0x03};
+			Files.write(walFile, gibberish, java.nio.file.StandardOpenOption.APPEND);
+			final long corruptedSize = Files.size(walFile);
+			assertTrue(corruptedSize > originalSize, "WAL file size should increase after appending gibberish");
+
+			// start evita again - it should truncate the WAL file to the recorded end position and start correctly
+			final Evita restarted = new Evita(cfg);
+			restarted.waitUntilFullyInitialized();
+
+			// verify engine is operational by performing a simple read from the catalog
+			restarted.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.getAllEntityTypes().contains(Entities.PRODUCT));
+				}
+			);
+
+			// verify catalog is immutable (last successful mutation was to make catalog immutable)
+			assertThrows(
+				ReadOnlyException.class,
+				() -> restarted.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						fail("Catalog should be immutable, but update was allowed!");
+					}
+				)
+			);
+
+			// verify the WAL file has been truncated back to the original size
+			final long truncatedSize = Files.size(walFile);
+			assertEquals(originalSize, truncatedSize, "WAL should be truncated back to original size");
+
+			restarted.close();
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	@DisplayName("Catalog history should be aggregated correctly.")
@@ -1083,6 +1144,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.cache(originalConfiguration.cache())
 				.build()
 		);
+		evita.waitUntilFullyInitialized();
 
 		// insert enough data to rotate WAL more than twice
 		for (int i = 0; i < 10; i++) {

@@ -159,9 +159,10 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 					completionEngineStateUpdater.accept(
 						new AbstractEngineStateUpdater(transactionId, mutation) {
 							@Override
-							public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
+							public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
 								final Builder stateAfterAddingRenamedCatalog = ExpandedEngineState
 									.builder(expandedEngineState)
+									.withVersion(version)
 									.withCatalog(replacedCatalog);
 								if (!catalogNameToBeReplaced.equals(catalogNameToBeReplacedWith)) {
 									stateAfterAddingRenamedCatalog.withoutCatalog(catalogNameToBeReplacedWith);

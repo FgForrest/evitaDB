@@ -186,7 +186,7 @@ public class EngineTransactionManager implements Closeable {
 		// register all engine mutation operators that are used to process specific types of mutations
 		this.engineMutationOperators.put(CreateCatalogSchemaMutation.class, new CreateCatalogMutationOperator(storageDirectory));
 		this.engineMutationOperators.put(DuplicateCatalogMutation.class, new DuplicateCatalogMutationOperator(storageDirectory));
-		this.engineMutationOperators.put(MakeCatalogAliveMutation.class, new MakeCatalogAliveMutationOperator());
+		this.engineMutationOperators.put(MakeCatalogAliveMutation.class, new MakeCatalogAliveMutationOperator(storageDirectory));
 		this.engineMutationOperators.put(ModifyCatalogSchemaNameMutation.class, new ModifyCatalogSchemaNameMutationOperator());
 		this.engineMutationOperators.put(ModifyCatalogSchemaMutation.class, new ModifyCatalogSchemaMutationOperator());
 		this.engineMutationOperators.put(RemoveCatalogSchemaMutation.class, new RemoveCatalogSchemaMutationOperator(storageDirectory));
@@ -408,7 +408,7 @@ public class EngineTransactionManager implements Closeable {
 		try {
 			this.evita.setNextEngineState(
 				engineStateUpdater.apply(
-					this.evita.getEngineState()
+					this.lastStoredEngineStateVersion + 1, this.evita.getEngineState()
 				)
 			);
 		} finally {
@@ -440,7 +440,7 @@ public class EngineTransactionManager implements Closeable {
 			this.changeObserver.processMutation(engineMutation);
 
 			// create new engine state with the incremented version, and store it in the persistence service
-			final ExpandedEngineState nextEngineState = engineStateUpdater.apply(this.evita.getEngineState());
+			final ExpandedEngineState nextEngineState = engineStateUpdater.apply(nextStateVersion, this.evita.getEngineState());
 			final EngineState theEngineState = nextEngineState.engineState(
 				txMutationWithWalFileReference.walFileReference(),
 				nextStateVersion

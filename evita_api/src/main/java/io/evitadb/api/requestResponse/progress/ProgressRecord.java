@@ -105,7 +105,7 @@ public class ProgressRecord<T> implements Progress<T> {
 			this.progressObservers.add(progressObserver);
 		}
 		this.onCompletion = new CompletableFuture<>();
-		this.percentCompleted = new AtomicInteger(0);
+		this.percentCompleted = new AtomicInteger(-1);
 	}
 
 	/**
@@ -145,7 +145,7 @@ public class ProgressRecord<T> implements Progress<T> {
 		this.onCompletion = progressingFuture.whenComplete(
 			(t, throwable) -> onProgressCompletion.accept(this)
 		);
-		this.percentCompleted = new AtomicInteger(0);
+		this.percentCompleted = new AtomicInteger(-1);
 		progressingFuture.setProgressConsumer(
 			(stepsDone, totalSteps) -> this.updatePercentCompleted(
 				(int) (((double) stepsDone / totalSteps) * 100d)
@@ -157,7 +157,7 @@ public class ProgressRecord<T> implements Progress<T> {
 
 	@Override
 	public int percentCompleted() {
-		return this.percentCompleted.get();
+		return Math.max(0, this.percentCompleted.get());
 	}
 
 	@Override

@@ -412,26 +412,50 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		@Nonnull Path walFilePath
 	) throws IOException {
 		int transactionSize = 0;
-		int previousTransactionSize;
-		long previousOffset;
+		int previousTransactionSize = 0;
+		long previousOffset = 0;
 		long offset = 0;
-		do {
-			input.skip(transactionSize);
-			previousTransactionSize = transactionSize;
-			previousOffset = offset;
-			transactionSize = input.simpleIntRead();
-			offset += 4 + transactionSize;
-		} while (offset < fileLength);
+		Exception readException = null;
+		try {
+			do {
+				input.skip(transactionSize);
+				previousTransactionSize = transactionSize;
+				previousOffset = offset;
+				transactionSize = input.simpleIntRead();
+				final int debugTxSize = transactionSize;
+				Assert.isPremiseValid(
+					transactionSize > 0,
+					() -> new WriteAheadLogCorruptedException(
+						"Transaction size must be greater than zero, but is " + debugTxSize + "!",
+						"Transaction size must be greater than zero!"
+					)
+				);
+				offset += 4 + transactionSize;
+			} while (offset < fileLength);
+		} catch (Exception ex) {
+			readException = ex;
+		}
 
 		final long lastTxStartPosition;
 		final int lastTxLength;
 		final long consistentLength;
 
-		if (offset > fileLength) {
+		if (offset > fileLength || readException != null) {
 			final Path backupFilePath = walFilePath.getParent().resolve("_damaged_wal.bck");
-			AbstractMutationLog.log.warn("WAL file `{}` was not written completely! Truncating to the last complete transaction (offset `{}`) and backing up the original file to: `{}`!", walFilePath, previousOffset, backupFilePath);
+			if (readException == null) {
+				AbstractMutationLog.log.warn(
+					"WAL file `{}` was not written completely! Truncating to the last complete transaction (offset `{}`) and backing up the original file to: `{}`!",
+					walFilePath, previousOffset, backupFilePath
+				);
+			} else {
+				AbstractMutationLog.log.warn(
+					"WAL file `{}` is damaged (cause: `{}`)! Truncating to the last complete transaction (offset `{}`) and backing up the original file to: `{}`!",
+					walFilePath, readException.getMessage(), previousOffset, backupFilePath,
+					readException
+				);
+			}
 			Files.copy(walFilePath, backupFilePath);
-			lastTxStartPosition = previousOffset - previousTransactionSize - 4;
+			lastTxStartPosition = Math.max(0, previousOffset - previousTransactionSize - 4);
 			lastTxLength = previousTransactionSize;
 			consistentLength = previousOffset;
 		} else {

@@ -31,7 +31,9 @@ import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.core.ExpandedEngineState;
 import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
 import io.evitadb.utils.Assert;
 
@@ -83,6 +85,18 @@ public class ModifyCatalogSchemaMutationOperator implements EngineMutationOperat
 				() -> {
 					final CatalogSchemaContract newSchema = catalogContract.updateSchema(
 						mutation.getSessionId(), mutation.getSchemaMutations()
+					);
+					completionEngineStateUpdater.accept(
+						new AbstractEngineStateUpdater(transactionId, mutation) {
+							@Override
+							public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
+								// no actual change of the engine state
+								return ExpandedEngineState
+									.builder(expandedEngineState)
+									.withVersion(version)
+									.build();
+							}
+						}
 					);
 					return new CommitVersions(
 						catalogContract.getVersion(),

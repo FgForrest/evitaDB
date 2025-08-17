@@ -23,7 +23,6 @@
 
 package io.evitadb.api;
 
-import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.exception.CatalogNotAliveException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
@@ -282,7 +281,7 @@ public interface CatalogContract {
 	 * @see CatalogState
 	 */
 	@Nonnull
-	CommitVersions goLive();
+	CatalogContract goLive();
 
 	/**
 	 * Creates new publisher that emits {@link ChangeCatalogCapture}s that match the request. Change catalog capture

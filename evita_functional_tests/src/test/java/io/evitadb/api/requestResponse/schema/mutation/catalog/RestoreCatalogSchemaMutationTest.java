@@ -23,14 +23,11 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
@@ -42,15 +39,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 public class RestoreCatalogSchemaMutationTest {
 
 	@Test
-	@DisplayName("Should mutate catalog schema when restoring catalog")
-	void shouldMutateCatalogSchemaWhenRestoringCatalog() {
+	@DisplayName("Should return null result when restoring catalog schema")
+	void shouldReturnNullResultWhenRestoringCatalogSchema() {
 		final RestoreCatalogSchemaMutation mutation = new RestoreCatalogSchemaMutation("restoredCatalog");
 		final CatalogSchemaWithImpactOnEntitySchemas result = mutation.mutate(null);
-		final CatalogSchemaContract newCatalogSchema = result.updatedCatalogSchema();
-		assertNull(result.entitySchemaMutations());
-		assertNotNull(newCatalogSchema);
-		assertEquals(1, newCatalogSchema.version());
-		assertEquals("restoredCatalog", newCatalogSchema.getName());
+		assertNull(result);
 	}
 
 }

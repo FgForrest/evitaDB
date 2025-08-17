@@ -26,10 +26,10 @@ package io.evitadb.core.transaction.engine;
 
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.core.ExpandedEngineState;
+import io.evitadb.function.LongObjectFunction;
 
 import javax.annotation.Nonnull;
 import java.util.UUID;
-import java.util.function.UnaryOperator;
 
 /**
  * Functional interface used by {@link io.evitadb.core.transaction.engine.EngineTransactionManager}
@@ -62,7 +62,7 @@ import java.util.function.UnaryOperator;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public interface EngineStateUpdater extends UnaryOperator<ExpandedEngineState> {
+public interface EngineStateUpdater extends LongObjectFunction<ExpandedEngineState, ExpandedEngineState> {
 
 	/**
 	 * Returns unique identifier of the engine transaction this updater belongs to.

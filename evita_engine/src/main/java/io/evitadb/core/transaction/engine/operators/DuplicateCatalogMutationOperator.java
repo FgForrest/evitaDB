@@ -78,9 +78,10 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 				completionEngineStateUpdater.accept(
 					new AbstractEngineStateUpdater(transactionId, mutation) {
 						@Override
-						public ExpandedEngineState apply(ExpandedEngineState expandedEngineState) {
+						public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
 							return ExpandedEngineState
 								.builder(expandedEngineState)
+								.withVersion(version)
 								.withCatalog(
 									new UnusableCatalog(
 										targetCatalogName,
