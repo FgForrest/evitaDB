@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -143,6 +143,8 @@ public class Accumulator {
 			this.children.add(childNode);
 		}
 		this.queriedEntitiesFormula = null;
+		// we can init hasQueriedEntity if registered children have queried entities
+		this.hasQueriedEntity = this.hasQueriedEntity || childNode.hasQueriedEntity;
 	}
 
 	/**
@@ -150,7 +152,7 @@ public class Accumulator {
 	 */
 	@Nonnull
 	public List<Formula> getOmittedQueuedEntities() {
-		return ofNullable(omittedQueuedEntities).orElse(Collections.emptyList());
+		return ofNullable(this.omittedQueuedEntities).orElse(Collections.emptyList());
 	}
 
 	/**
@@ -158,11 +160,11 @@ public class Accumulator {
 	 */
 	@Nonnull
 	public LevelInfo toLevelInfo(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
-		Assert.isPremiseValid(entity != null, "Entity reference was not initialized for this accumulator!");
+		Assert.isPremiseValid(this.entity != null, "Entity reference was not initialized for this accumulator!");
 		// sort by their order in hierarchy
 		return new LevelInfo(
-			entity,
-			requested,
+			this.entity,
+			this.requested,
 			statisticsTypes.contains(StatisticsType.QUERIED_ENTITY_COUNT) ? getQueriedEntitiesFormula().compute().size() : null,
 			statisticsTypes.contains(StatisticsType.CHILDREN_COUNT) ? getChildrenCount() : null,
 			getChildrenAsLevelInfo(statisticsTypes)
@@ -174,7 +176,7 @@ public class Accumulator {
 	 */
 	@Nonnull
 	public List<LevelInfo> getChildrenAsLevelInfo(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
-		return children.stream()
+		return this.children.stream()
 			.map(it -> it.toLevelInfo(statisticsTypes))
 			.toList();
 	}
@@ -184,19 +186,19 @@ public class Accumulator {
 	 * entity count (the number of queried entities that belong to nodes that are not part of the requested output).
 	 */
 	public Formula getQueriedEntitiesFormula() {
-		if (queriedEntitiesFormula == null) {
-			queriedEntitiesFormula = FormulaFactory.or(
+		if (this.queriedEntitiesFormula == null) {
+			this.queriedEntitiesFormula = FormulaFactory.or(
 				Stream.of(
-						Stream.of(directlyQueriedEntitiesFormulaProducer.get()),
-						children.stream().map(Accumulator::getQueriedEntitiesFormula),
-						ofNullable(omittedQueuedEntities).stream().flatMap(Collection::stream)
+						Stream.of(this.directlyQueriedEntitiesFormulaProducer.get()),
+						this.children.stream().map(Accumulator::getQueriedEntitiesFormula),
+						ofNullable(this.omittedQueuedEntities).stream().flatMap(Collection::stream)
 					)
 					.flatMap(Function.identity())
 					.toArray(Formula[]::new)
 			);
-			queriedEntitiesFormula.initialize(executionContext);
+			this.queriedEntitiesFormula.initialize(this.executionContext);
 		}
-		return queriedEntitiesFormula;
+		return this.queriedEntitiesFormula;
 	}
 
 	/**
@@ -204,17 +206,17 @@ public class Accumulator {
 	 * entity count (the number of queried entities that belong to nodes that are not part of the requested output).
 	 */
 	public Formula getDirectlyQueriedEntitiesFormula() {
-		if (directlyQueriedEntitiesFormula == null) {
-			directlyQueriedEntitiesFormula = FormulaFactory.or(
+		if (this.directlyQueriedEntitiesFormula == null) {
+			this.directlyQueriedEntitiesFormula = FormulaFactory.or(
 				Stream.concat(
-						Stream.of(directlyQueriedEntitiesFormulaProducer.get()),
-						ofNullable(omittedQueuedEntities).stream().flatMap(Collection::stream)
+						Stream.of(this.directlyQueriedEntitiesFormulaProducer.get()),
+						ofNullable(this.omittedQueuedEntities).stream().flatMap(Collection::stream)
 					)
 					.toArray(Formula[]::new)
 			);
-			directlyQueriedEntitiesFormula.initialize(executionContext);
+			this.directlyQueriedEntitiesFormula.initialize(this.executionContext);
 		}
-		return directlyQueriedEntitiesFormula;
+		return this.directlyQueriedEntitiesFormula;
 	}
 
 	/**
@@ -222,14 +224,14 @@ public class Accumulator {
 	 * the {@link #children} and the count of omitted children that were not requested in the output.
 	 */
 	public int getChildrenCount() {
-		return omittedChildren + children.size();
+		return this.omittedChildren + this.children.size();
 	}
 
 	/**
 	 * Registers a node that matches the requirement conditions but is not requested in output.
 	 */
 	public void registerOmittedChild() {
-		omittedChildren++;
+		this.omittedChildren++;
 	}
 
 	/**
@@ -237,12 +239,12 @@ public class Accumulator {
 	 * requested in the output.
 	 */
 	public void registerOmittedCardinality(@Nonnull Formula queriedEntities) {
-		if (omittedQueuedEntities == null) {
-			omittedQueuedEntities = new LinkedList<>();
+		if (this.omittedQueuedEntities == null) {
+			this.omittedQueuedEntities = new LinkedList<>();
 		}
-		omittedQueuedEntities.add(queriedEntities);
-		queriedEntities.initialize(executionContext);
-		queriedEntitiesFormula = null;
+		this.omittedQueuedEntities.add(queriedEntities);
+		queriedEntities.initialize(this.executionContext);
+		this.queriedEntitiesFormula = null;
 	}
 
 	/**
@@ -252,11 +254,11 @@ public class Accumulator {
 	 */
 	public void executeOmissionBlock(@Nonnull Runnable runnable) {
 		try {
-			Assert.isPremiseValid(!omissionBlock, "Already in omission block!");
-			omissionBlock = true;
+			Assert.isPremiseValid(!this.omissionBlock, "Already in omission block!");
+			this.omissionBlock = true;
 			runnable.run();
 		} finally {
-			omissionBlock = false;
+			this.omissionBlock = false;
 		}
 	}
 
@@ -266,30 +268,34 @@ public class Accumulator {
 	 * computing the entire tree.
 	 */
 	public boolean hasQueriedEntity() {
-		if (!hasQueriedEntity) {
+		if (!this.hasQueriedEntity) {
 			if (!getDirectlyQueriedEntitiesFormula().compute().isEmpty()) {
-				hasQueriedEntity = true;
+				this.hasQueriedEntity = true;
 			}
-			for (Accumulator child : children) {
-				if (child.hasQueriedEntity()) {
-					hasQueriedEntity = true;
+			if (!this.hasQueriedEntity) {
+				for (Accumulator child : this.children) {
+					if (child.hasQueriedEntity()) {
+						this.hasQueriedEntity = true;
+						break;
+					}
 				}
 			}
-			if (omittedQueuedEntities != null) {
-				for (Formula omittedQueuedEntity : omittedQueuedEntities) {
+			if (!this.hasQueriedEntity && this.omittedQueuedEntities != null) {
+				for (Formula omittedQueuedEntity : this.omittedQueuedEntities) {
 					if (!omittedQueuedEntity.compute().isEmpty()) {
-						hasQueriedEntity = true;
+						this.hasQueriedEntity = true;
+						break;
 					}
 				}
 			}
 		}
-		return hasQueriedEntity;
+		return this.hasQueriedEntity;
 	}
 
 	/**
 	 * Returns true if there is currently omission block active.
 	 */
 	public boolean isInOmissionBlock() {
-		return omissionBlock;
+		return this.omissionBlock;
 	}
 }
