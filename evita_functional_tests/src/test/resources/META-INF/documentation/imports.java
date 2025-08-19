@@ -170,3 +170,4 @@ import static io.evitadb.api.query.require.FacetRelationType.*;
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.*;
 import static io.evitadb.api.query.order.TraversalMode.*;
 import static io.evitadb.dataType.Scope.*;
+import static io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType.*;

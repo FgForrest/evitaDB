@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,7 +35,6 @@ import static io.grpc.MethodDescriptor.generateFullMethodName;
  * be fetched by specifying a complex queries.
  * </pre>
  */
-
 @io.grpc.stub.annotations.GrpcGenerated
 public final class EvitaSessionServiceGrpc {
 
@@ -2069,8 +2068,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns the current (the one on which the used session operates) catalog schema.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse getCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaResponse getCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogSchemaRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetCatalogSchemaMethod(), getCallOptions(), request);
     }
 
@@ -2079,8 +2078,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns the current state of the catalog.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse getCatalogState(com.google.protobuf.Empty request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcCatalogStateResponse getCatalogState(com.google.protobuf.Empty request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetCatalogStateMethod(), getCallOptions(), request);
     }
 
@@ -2089,8 +2088,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns the version of the catalog at a specific moment in time.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtResponse getCatalogVersionAt(io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtResponse getCatalogVersionAt(io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetCatalogVersionAtMethod(), getCallOptions(), request);
     }
 
@@ -2099,8 +2098,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns requested page of past mutations in reversed order that match the request criteria.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse getMutationsHistoryPage(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse getMutationsHistoryPage(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetMutationsHistoryPageMethod(), getCallOptions(), request);
     }
 
@@ -2121,8 +2120,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns the schema of a specific entity type.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse getEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaResponse getEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetEntitySchemaMethod(), getCallOptions(), request);
     }
 
@@ -2131,8 +2130,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns the list of all entity types.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityTypesResponse getAllEntityTypes(com.google.protobuf.Empty request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityTypesResponse getAllEntityTypes(com.google.protobuf.Empty request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetAllEntityTypesMethod(), getCallOptions(), request);
     }
 
@@ -2141,8 +2140,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that changes the state of the catalog to ALIVE and closes the session.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse goLiveAndClose(com.google.protobuf.Empty request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse goLiveAndClose(com.google.protobuf.Empty request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGoLiveAndCloseMethod(), getCallOptions(), request);
     }
 
@@ -2164,8 +2163,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure used to backup an existing catalog.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse backupCatalog(io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogResponse backupCatalog(io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getBackupCatalogMethod(), getCallOptions(), request);
     }
 
@@ -2174,8 +2173,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure used to backup an existing catalog.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse fullBackupCatalog(com.google.protobuf.Empty request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse fullBackupCatalog(com.google.protobuf.Empty request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getFullBackupCatalogMethod(), getCallOptions(), request);
     }
 
@@ -2184,8 +2183,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that closes the session.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCloseResponse close(io.evitadb.externalApi.grpc.generated.GrpcCloseRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcCloseResponse close(io.evitadb.externalApi.grpc.generated.GrpcCloseRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getCloseMethod(), getCallOptions(), request);
     }
 
@@ -2206,8 +2205,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that executes passed parametrised query and returns zero or one entity.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse queryOne(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse queryOne(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getQueryOneMethod(), getCallOptions(), request);
     }
 
@@ -2216,8 +2215,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that executes passed parametrised query and returns a list of entities.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse queryList(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse queryList(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getQueryListMethod(), getCallOptions(), request);
     }
 
@@ -2226,8 +2225,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that executes passed parametrised query and returns a data chunk with computed extra results.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcQueryResponse query(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryResponse query(io.evitadb.externalApi.grpc.generated.GrpcQueryRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getQueryMethod(), getCallOptions(), request);
     }
 
@@ -2237,8 +2236,8 @@ public final class EvitaSessionServiceGrpc {
      * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse queryOneUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryOneResponse queryOneUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getQueryOneUnsafeMethod(), getCallOptions(), request);
     }
 
@@ -2248,8 +2247,8 @@ public final class EvitaSessionServiceGrpc {
      * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse queryListUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryListResponse queryListUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getQueryListUnsafeMethod(), getCallOptions(), request);
     }
 
@@ -2259,8 +2258,8 @@ public final class EvitaSessionServiceGrpc {
      * Do not use in your applications! This method is unsafe and should be used only for internal purposes.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcQueryResponse queryUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryResponse queryUnsafe(io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getQueryUnsafeMethod(), getCallOptions(), request);
     }
 
@@ -2269,8 +2268,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that find entity by passed entity type and primary key and return it by specified richness by passed parametrised require query part.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityResponse getEntity(io.evitadb.externalApi.grpc.generated.GrpcEntityRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityResponse getEntity(io.evitadb.externalApi.grpc.generated.GrpcEntityRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetEntityMethod(), getCallOptions(), request);
     }
 
@@ -2279,8 +2278,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that updates the catalog schema and return its updated version.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse updateCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaResponse updateCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getUpdateCatalogSchemaMethod(), getCallOptions(), request);
     }
 
@@ -2289,8 +2288,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that updates the catalog schema and returns it.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchCatalogSchemaResponse updateAndFetchCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchCatalogSchemaResponse updateAndFetchCatalogSchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateCatalogSchemaRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getUpdateAndFetchCatalogSchemaMethod(), getCallOptions(), request);
     }
 
@@ -2299,8 +2298,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that defines the schema of a new entity type and return it.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaResponse defineEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaResponse defineEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcDefineEntitySchemaRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getDefineEntitySchemaMethod(), getCallOptions(), request);
     }
 
@@ -2309,8 +2308,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that updates the schema of an existing entity type and return its updated version.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaResponse updateEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaResponse updateEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getUpdateEntitySchemaMethod(), getCallOptions(), request);
     }
 
@@ -2319,8 +2318,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that updates the schema of an existing entity type and returns it.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchEntitySchemaResponse updateAndFetchEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchEntitySchemaResponse updateAndFetchEntitySchema(io.evitadb.externalApi.grpc.generated.GrpcUpdateEntitySchemaRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getUpdateAndFetchEntitySchemaMethod(), getCallOptions(), request);
     }
 
@@ -2329,8 +2328,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that deletes an entity collection.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionResponse deleteCollection(io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionResponse deleteCollection(io.evitadb.externalApi.grpc.generated.GrpcDeleteCollectionRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getDeleteCollectionMethod(), getCallOptions(), request);
     }
 
@@ -2339,8 +2338,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that renames an entity collection.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionResponse renameCollection(io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionResponse renameCollection(io.evitadb.externalApi.grpc.generated.GrpcRenameCollectionRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getRenameCollectionMethod(), getCallOptions(), request);
     }
 
@@ -2349,8 +2348,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that replaces an entity collection.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionResponse replaceCollection(io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionResponse replaceCollection(io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getReplaceCollectionMethod(), getCallOptions(), request);
     }
 
@@ -2359,8 +2358,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that returns the size of an entity collection.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeResponse getEntityCollectionSize(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeResponse getEntityCollectionSize(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionSizeRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetEntityCollectionSizeMethod(), getCallOptions(), request);
     }
 
@@ -2369,8 +2368,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that upserts (inserts/updates) an entity and returns it with required richness.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityResponse upsertEntity(io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityResponse upsertEntity(io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getUpsertEntityMethod(), getCallOptions(), request);
     }
 
@@ -2379,8 +2378,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that deletes an entity and returns it with required richness.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityResponse deleteEntity(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityResponse deleteEntity(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getDeleteEntityMethod(), getCallOptions(), request);
     }
 
@@ -2389,8 +2388,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that deletes an entity and its hierarchy and returns the root entity with required richness.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse deleteEntityAndItsHierarchy(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse deleteEntityAndItsHierarchy(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getDeleteEntityAndItsHierarchyMethod(), getCallOptions(), request);
     }
 
@@ -2399,8 +2398,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that deletes all entities that match the sent query and returns their bodies.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse deleteEntities(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesResponse deleteEntities(io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getDeleteEntitiesMethod(), getCallOptions(), request);
     }
 
@@ -2409,8 +2408,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that archives an entity and returns it with required richness.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse archiveEntity(io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityResponse archiveEntity(io.evitadb.externalApi.grpc.generated.GrpcArchiveEntityRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getArchiveEntityMethod(), getCallOptions(), request);
     }
 
@@ -2419,8 +2418,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that restores an entity and returns it with required richness.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse restoreEntity(io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse restoreEntity(io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getRestoreEntityMethod(), getCallOptions(), request);
     }
 
@@ -2429,8 +2428,8 @@ public final class EvitaSessionServiceGrpc {
      * Procedure that opens a transaction.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse getTransactionId(com.google.protobuf.Empty request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse getTransactionId(com.google.protobuf.Empty request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetTransactionIdMethod(), getCallOptions(), request);
     }
   }

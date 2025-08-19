@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import static io.grpc.MethodDescriptor.generateFullMethodName;
 
 /**
  */
-
 @io.grpc.stub.annotations.GrpcGenerated
 public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
@@ -527,8 +526,8 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
      * traffic records within the session are ordered from the oldest to the newest.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse getTrafficRecordingHistoryList(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse getTrafficRecordingHistoryList(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetTrafficRecordingHistoryListMethod(), getCallOptions(), request);
     }
 
@@ -539,8 +538,8 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
      * traffic records within the session are ordered from the newest to the oldest.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse getTrafficRecordingHistoryListReversed(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListResponse getTrafficRecordingHistoryListReversed(io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetTrafficRecordingHistoryListReversedMethod(), getCallOptions(), request);
     }
 
@@ -563,8 +562,8 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
      * Procedure returns a list of top unique labels names ordered by cardinality of their values present in the traffic recording.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse getTrafficRecordingLabelsNamesOrderedByCardinality(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse getTrafficRecordingLabelsNamesOrderedByCardinality(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetTrafficRecordingLabelsNamesOrderedByCardinalityMethod(), getCallOptions(), request);
     }
 
@@ -573,8 +572,8 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
      * Procedure returns a list of top unique label values ordered by cardinality of their values present in the traffic recording.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse getTrafficRecordingLabelValuesOrderedByCardinality(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesResponse getTrafficRecordingLabelValuesOrderedByCardinality(io.evitadb.externalApi.grpc.generated.GetTrafficRecordingValuesNamesRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetTrafficRecordingLabelValuesOrderedByCardinalityMethod(), getCallOptions(), request);
     }
 
@@ -583,8 +582,8 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
      * Procedure that starts the traffic recording for the given criteria and settings
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse startTrafficRecording(io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse startTrafficRecording(io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getStartTrafficRecordingMethod(), getCallOptions(), request);
     }
 
@@ -593,8 +592,8 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
      * Procedure that stops the traffic recording
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse stopTrafficRecording(io.evitadb.externalApi.grpc.generated.GrpcStopTrafficRecordingRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse stopTrafficRecording(io.evitadb.externalApi.grpc.generated.GrpcStopTrafficRecordingRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getStopTrafficRecordingMethod(), getCallOptions(), request);
     }
   }
