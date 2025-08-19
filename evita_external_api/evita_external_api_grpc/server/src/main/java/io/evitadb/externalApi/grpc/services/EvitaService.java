@@ -1166,7 +1166,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	 */
 	private static class ApplyMutationProgressConsumer implements IntConsumer {
 		private final StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver;
-		private int percentDone;
+		private int percentDone = -1;
 		private long lastUpdate;
 
 		public ApplyMutationProgressConsumer(StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {

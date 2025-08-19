@@ -74,7 +74,7 @@ public class ProgressRecord<T> implements Progress<T> {
 	 * Timestamp of the last logged progress update.
 	 * This is used to avoid flooding the logs with too frequent updates.
 	 */
-	private long lastLoggedTime = System.currentTimeMillis();
+	private long lastLoggedTime;
 
 	/**
 	 * Creates a completed progress instance for a specific operation with a given result.
@@ -151,6 +151,7 @@ public class ProgressRecord<T> implements Progress<T> {
 				(int) (((double) stepsDone / totalSteps) * 100d)
 			)
 		);
+		updatePercentCompleted(0);
 		onProgressExecution.accept(this);
 		progressingFuture.execute(executor);
 	}
@@ -188,7 +189,7 @@ public class ProgressRecord<T> implements Progress<T> {
 		}
 		final int previousValue = this.percentCompleted.getAndSet(percentage);
 		if (previousValue != percentage) {
-			if (this.lastLoggedTime + 1000 < System.currentTimeMillis()) {
+			if (percentage == 100 || this.lastLoggedTime + 1000 < System.currentTimeMillis()) {
 				// Log the progress update every second to avoid flooding the logs
 				log.info("{} is at {}%", this.operationName, percentage);
 				this.lastLoggedTime = System.currentTimeMillis();
@@ -202,8 +203,8 @@ public class ProgressRecord<T> implements Progress<T> {
 	 */
 	public void complete(@Nullable T result) {
 		if (!this.onCompletion.isDone()) {
-			updatePercentCompleted(100);
 			log.info("{} has been successfully completed.", this.operationName);
+			updatePercentCompleted(100);
 			this.onCompletion.complete(result);
 		}
 	}
