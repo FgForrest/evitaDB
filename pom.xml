@@ -143,6 +143,7 @@
 		<prometheus.version>1.4.1</prometheus.version>
 		<byteBuddy.version>1.17.7</byteBuddy.version>
 		<graphql.version>22.3</graphql.version>
+		<okhttp.version>5.1.0</okhttp.version>
 	</properties>
 
 	<modules>
@@ -184,8 +185,8 @@
 			</dependency>
 			<dependency>
 				<groupId>com.squareup.okhttp3</groupId>
-				<artifactId>okhttp</artifactId>
-				<version>5.1.0</version>
+				<artifactId>okhttp-jvm</artifactId>
+				<version>${okhttp.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.maven.plugins</groupId>
