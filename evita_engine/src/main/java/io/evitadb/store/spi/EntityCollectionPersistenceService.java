@@ -209,7 +209,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 * @return the last assigned price id from the global index
 	 * @deprecated connected with old storage format, will be removed in the future
 	 */
-	@Deprecated
+	@Deprecated(since = "2024.11", forRemoval = true)
 	@Nonnull
 	OptionalInt fetchLastAssignedInternalPriceIdFromGlobalIndex(long catalogVersion, int entityIndexId);
 

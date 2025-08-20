@@ -83,7 +83,7 @@ public record CatalogBootstrap(
 	 * @return last meaningful position
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated
+	@Deprecated(since = "2025.1", forRemoval = true)
 	public static long getOldLastMeaningfulPosition(long fileLength) {
 		// removes non-divisible remainder as it might be incomplete record and returns last meaningful position
 		final int oldSize = BOOTSTRAP_RECORD_SIZE - 4;
@@ -107,7 +107,7 @@ public record CatalogBootstrap(
 	 * @return The position of the record in the file.
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated
+	@Deprecated(since = "2025.1", forRemoval = true)
 	public static long getOldPositionForRecord(int index) {
 		return (long) index * (BOOTSTRAP_RECORD_SIZE - 4);
 	}
@@ -129,7 +129,7 @@ public record CatalogBootstrap(
 	 * @return The number of records in the file.
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated
+	@Deprecated(since = "2025.1", forRemoval = true)
 	public static int getOldRecordCount(long fileLength) {
 		return Math.toIntExact(fileLength / (BOOTSTRAP_RECORD_SIZE - 4));
 	}

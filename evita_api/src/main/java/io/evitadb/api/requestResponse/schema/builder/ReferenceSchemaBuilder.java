@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
@@ -99,29 +100,33 @@ public final class ReferenceSchemaBuilder
 			ReferenceSchema._internalBuild(
 				name, entityType, referencedEntityTypeManaged, cardinality,
 				null, false,
-				Scope.NO_SCOPE, Scope.NO_SCOPE
+				ScopedReferenceIndexType.EMPTY, Scope.NO_SCOPE
 			) :
 			existingSchema;
 		if (createNew) {
 			this.mutations.add(
 				new CreateReferenceSchemaMutation(
-					baseSchema.getName(),
-					baseSchema.getDescription(),
-					baseSchema.getDeprecationNotice(),
+					this.baseSchema.getName(),
+					this.baseSchema.getDescription(),
+					this.baseSchema.getDeprecationNotice(),
 					cardinality,
 					entityType,
 					referencedEntityTypeManaged,
-					baseSchema.getReferencedGroupType(),
-					baseSchema.isReferencedGroupTypeManaged(),
-					Arrays.stream(Scope.values()).filter(baseSchema::isIndexedInScope).toArray(Scope[]::new),
-					Arrays.stream(Scope.values()).filter(baseSchema::isFacetedInScope).toArray(Scope[]::new)
+					this.baseSchema.getReferencedGroupType(),
+					this.baseSchema.isReferencedGroupTypeManaged(),
+					this.baseSchema.getReferenceIndexTypeInScopes()
+						.entrySet()
+						.stream()
+						.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+						.toArray(ScopedReferenceIndexType[]::new),
+					Arrays.stream(Scope.values()).filter(this.baseSchema::isFacetedInScope).toArray(Scope[]::new)
 				)
 			);
 		} else {
 			if (referencedEntityTypeManaged != existingSchema.isReferencedEntityTypeManaged() || !entityType.equals(existingSchema.getReferencedEntityType())) {
 				this.mutations.add(
 					new ModifyReferenceSchemaRelatedEntityMutation(
-						baseSchema.getName(),
+						this.baseSchema.getName(),
 						entityType,
 						referencedEntityTypeManaged
 					)
@@ -130,7 +135,7 @@ public final class ReferenceSchemaBuilder
 			if (cardinality != existingSchema.getCardinality()) {
 				this.mutations.add(
 					new ModifyReferenceSchemaCardinalityMutation(
-						baseSchema.getName(),
+						this.baseSchema.getName(),
 						cardinality
 					)
 				);
@@ -247,10 +252,12 @@ public final class ReferenceSchemaBuilder
 				this.catalogSchema, this.entitySchema, this.mutations,
 				new SetReferenceSchemaIndexedMutation(
 					getName(),
-					Arrays.stream(Scope.values())
-						.filter(this::isIndexedInScope)
-						.filter(it -> !excludedScopes.contains(it))
-						.toArray(Scope[]::new)
+					this.getReferenceIndexTypeInScopes()
+						.entrySet()
+						.stream()
+						.filter(it -> !excludedScopes.contains(it.getKey()))
+						.map(it -> new ScopedReferenceIndexType(it.getKey(), it.getValue()))
+						.toArray(ScopedReferenceIndexType[]::new)
 				)
 			)
 		);
@@ -309,6 +316,40 @@ public final class ReferenceSchemaBuilder
 		return this;
 	}
 
+	@Nonnull
+	@Override
+	public ReferenceSchemaBuilder indexedForFilteringInScope(@Nonnull Scope... inScope) {
+		final ScopedReferenceIndexType[] scopedIndexTypes = Arrays.stream(inScope)
+			.map(scope -> new ScopedReferenceIndexType(scope, ReferenceIndexType.FOR_FILTERING))
+			.toArray(ScopedReferenceIndexType[]::new);
+
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaIndexedMutation(getName(), scopedIndexTypes)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceSchemaBuilder indexedForFilteringAndPartitioningInScope(@Nonnull Scope... inScope) {
+		final ScopedReferenceIndexType[] scopedIndexTypes = Arrays.stream(inScope)
+			.map(scope -> new ScopedReferenceIndexType(scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING))
+			.toArray(ScopedReferenceIndexType[]::new);
+
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaIndexedMutation(getName(), scopedIndexTypes)
+			)
+		);
+		return this;
+	}
+
 	@Override
 	@Nonnull
 	public ReferenceSchemaBuilder withAttribute(@Nonnull String attributeName, @Nonnull Class<? extends Serializable> ofType) {
@@ -333,9 +374,9 @@ public final class ReferenceSchemaBuilder
 								", cannot change this type to: " + ofType + "!"
 						)
 					);
-					return new AttributeSchemaBuilder(entitySchema, it);
+					return new AttributeSchemaBuilder(this.entitySchema, it);
 				})
-				.orElseGet(() -> new AttributeSchemaBuilder(entitySchema, attributeName, ofType));
+				.orElseGet(() -> new AttributeSchemaBuilder(this.entitySchema, attributeName, ofType));
 
 		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
 		final AttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
@@ -403,8 +444,8 @@ public final class ReferenceSchemaBuilder
 	) {
 		final Optional<SortableAttributeCompoundSchemaContract> existingCompound = getSortableAttributeCompound(name);
 		final SortableAttributeCompoundSchemaBuilder builder = new SortableAttributeCompoundSchemaBuilder(
-			catalogSchema,
-			entitySchema,
+			this.catalogSchema,
+			this.entitySchema,
 			this,
 			this.baseSchema.getSortableAttributeCompound(name).orElse(null),
 			name,
@@ -529,9 +570,9 @@ public final class ReferenceSchemaBuilder
 
 			if (this.lastMutationReflectedInSchema < this.mutations.size()) {
 				// apply the mutations not reflected in the schema
-				for (int i = lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
+				for (int i = this.lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
 					final LocalEntitySchemaMutation mutation = this.mutations.get(i);
-					currentSchema = ((ReferenceSchemaMutation) mutation).mutate(entitySchema, currentSchema, ReferenceSchemaMutator.ConsistencyChecks.SKIP);
+					currentSchema = ((ReferenceSchemaMutation) mutation).mutate(this.entitySchema, currentSchema, ReferenceSchemaMutator.ConsistencyChecks.SKIP);
 					if (currentSchema == null) {
 						throw new GenericEvitaInternalError("Reference unexpectedly removed from inside!");
 					}

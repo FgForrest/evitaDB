@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
@@ -51,6 +52,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -66,7 +68,7 @@ import static java.util.Optional.ofNullable;
 @Immutable
 @ThreadSafe
 public final class ReflectedReferenceSchema extends ReferenceSchema implements ReflectedReferenceSchemaContract {
-	@Serial private static final long serialVersionUID = -9183685599546687429L;
+	@Serial private static final long serialVersionUID = 4085419144686064539L;
 
 	/**
 	 * Contains name of the original reference of the {@link #getReferencedEntityType()} this reference reflects.
@@ -160,7 +162,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nonnull String entityType,
 		@Nonnull String reflectedReferenceName,
 		@Nullable Cardinality cardinality,
-		@Nullable Scope[] indexedInScopes,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
 		@Nullable Scope[] facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
@@ -169,10 +171,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 		// we cannot validate here that all faceted scopes are also indexed, in case indexed scopes are inherited
-		final EnumSet<Scope> indexedScopes = indexedInScopes == null ? null : ArrayUtils.toEnumSet(Scope.class, indexedInScopes);
+		final Map<Scope, ReferenceIndexType> indexedScopesMap = indexedInScopes == null ? null : ReferenceSchema.toReferenceIndexEnumMap(indexedInScopes);
 		final EnumSet<Scope> facetedScopes = facetedInScopes == null ? null : ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
 		if (indexedInScopes != null && facetedInScopes != null) {
-			validateScopeSettings(facetedScopes, indexedScopes);
+			validateScopeSettings(facetedScopes, indexedScopesMap);
 		}
 
 		return new ReflectedReferenceSchema(
@@ -180,7 +182,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			description, deprecationNotice, cardinality,
 			entityType,
 			reflectedReferenceName,
-			indexedScopes,
+			indexedScopesMap,
 			facetedScopes,
 			attributes,
 			sortableAttributeCompounds,
@@ -205,7 +207,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nonnull String entityType,
 		@Nonnull String reflectedReferenceName,
 		@Nullable Cardinality cardinality,
-		@Nullable EnumSet<Scope> indexedInScopes,
+		@Nullable Map<Scope, ReferenceIndexType> indexedInScopes,
 		@Nullable EnumSet<Scope> facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
@@ -252,7 +254,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		boolean referencedGroupManaged,
 		@Nonnull String reflectedReferenceName,
 		@Nullable Cardinality cardinality,
-		@Nullable Scope[] indexedInScopes,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
 		@Nullable Scope[] facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
@@ -268,10 +270,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
 
 		// we cannot validate here that all faceted scopes are also indexed, in case indexed scopes are inherited
-		final EnumSet<Scope> indexedScopes = ArrayUtils.toEnumSet(Scope.class, indexedInScopes);
+		final Map<Scope, ReferenceIndexType> indexedScopesMap = ReferenceSchema.toReferenceIndexEnumMap(indexedInScopes);
 		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
 		if (!indexedInherited && !facetedInherited) {
-			validateScopeSettings(facetedScopes, indexedScopes);
+			validateScopeSettings(facetedScopes, indexedScopesMap);
 		}
 
 		return new ReflectedReferenceSchema(
@@ -280,7 +282,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			entityType, entityTypeVariants,
 			referencedGroupType, groupTypeVariants, referencedGroupManaged,
 			reflectedReferenceName,
-			indexedScopes,
+			indexedScopesMap,
 			facetedScopes,
 			attributes,
 			sortableAttributeCompounds,
@@ -340,7 +342,10 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * @return a new map with the intersected attributes
 	 */
 	@Nonnull
-	private static <V> Map<String, V> intersect(@Nonnull Map<String, V> unionAttributes, @Nonnull Predicate<String> isOriginalPredicate) {
+	private static <V> Map<String, V> intersect(
+		@Nonnull Map<String, V> unionAttributes,
+		@Nonnull Predicate<String> isOriginalPredicate
+	) {
 		return unionAttributes
 			.entrySet()
 			.stream()
@@ -392,7 +397,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable Cardinality cardinality,
 		@Nonnull String referencedEntityType,
 		@Nonnull String reflectedReferenceName,
-		@Nullable Set<Scope> indexedInScopes,
+		@Nullable Map<Scope, ReferenceIndexType> indexedInScopes,
 		@Nullable Set<Scope> facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
@@ -415,9 +420,22 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					.map(
 						rr -> Arrays.stream(Scope.values())
 							.filter(rr::isIndexedInScope)
-							.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class)))
+							.collect(
+								Collectors.toMap(
+									Function.identity(),
+									rr::getReferenceIndexType,
+									(existing, replacement) -> {
+										throw new GenericEvitaInternalError("Unexpected duplicate key!");
+									},
+									() -> new EnumMap<>(Scope.class)
+								)
+							)
 					)
-					.orElseGet(() -> EnumSet.of(Scope.DEFAULT_SCOPE))
+					.orElseGet(() -> {
+						final EnumMap<Scope, ReferenceIndexType> defaultMap = new EnumMap<>(Scope.class);
+						defaultMap.put(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING);
+						return defaultMap;
+					})
 				: indexedInScopes,
 			facetedInScopes == null ?
 				ofNullable(reflectedReference)
@@ -505,7 +523,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable Map<NamingConvention, String> groupTypeVariants,
 		boolean referencedGroupManaged,
 		@Nonnull String reflectedReferenceName,
-		@Nullable Set<Scope> indexedInScopes,
+		@Nullable Map<Scope, ReferenceIndexType> indexedInScopes,
 		@Nullable Set<Scope> facetedInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds,
@@ -529,7 +547,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			referencedGroupType,
 			groupTypeVariants == null ? Map.of() : groupTypeVariants,
 			referencedGroupManaged,
-			indexedInScopes == null ? EnumSet.noneOf(Scope.class) : indexedInScopes,
+			indexedInScopes == null ? new EnumMap<>(Scope.class) : indexedInScopes,
 			facetedInScopes == null ? EnumSet.noneOf(Scope.class) : facetedInScopes,
 			attributes,
 			sortableAttributeCompounds
@@ -728,15 +746,18 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 						"Reflected reference schema `" + getName() + "` is not properly initialized!")
 				);
 			} else {
-				for (Scope scope : this.indexedInScopes) {
-					if (!theReflectedReference.isIndexedInScope(scope)) {
-						referenceErrors = Stream.concat(
-							referenceErrors,
-							Stream.of(
-								"Referenced entity type `" + referencedEntityType + "` " +
-									"is not indexed in scope `" + scope + "` " +
-									"which is used for reflected reference `" + this.getName() + "` in `" + entitySchema.getName() + "`!")
-						);
+				for (Entry<Scope, ReferenceIndexType> entry : this.indexedInScopes.entrySet()) {
+					final Scope scope = entry.getKey();
+					if (entry.getValue() != ReferenceIndexType.NONE) {
+						if (!theReflectedReference.isIndexedInScope(scope)) {
+							referenceErrors = Stream.concat(
+								referenceErrors,
+								Stream.of(
+									"Referenced entity type `" + referencedEntityType + "` " +
+										"is not indexed in scope `" + scope + "` " +
+										"which is used for reflected reference `" + this.getName() + "` in `" + entitySchema.getName() + "`!")
+							);
+						}
 					}
 				}
 			}
@@ -841,8 +862,8 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					this.getSortableAttributeCompounds(),
 					sortableAttributeCompoundName -> this.reflectedReference.getSortableAttributeCompound(sortableAttributeCompoundName).isPresent()
 				),
-			attributesInheritanceBehavior,
-			attributeInheritanceFilter,
+			this.attributesInheritanceBehavior,
+			this.attributeInheritanceFilter,
 			this.reflectedReference
 		);
 	}
@@ -1148,7 +1169,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	 * @return copy of the schema with applied changes
 	 */
 	@Nonnull
-	public ReflectedReferenceSchemaContract withIndexed(@Nullable Scope[] indexedInScopes) {
+	public ReflectedReferenceSchemaContract withIndexed(@Nullable ScopedReferenceIndexType[] indexedInScopes) {
 		return new ReflectedReferenceSchema(
 			this.name,
 			this.nameVariants,
@@ -1161,7 +1182,19 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 			this.groupTypeNameVariants,
 			this.referencedGroupTypeManaged,
 			this.reflectedReferenceName,
-			indexedInScopes == null ? null : ArrayUtils.toEnumSet(Scope.class, indexedInScopes),
+			indexedInScopes == null ?
+				null :
+				Arrays.stream(indexedInScopes)
+					.collect(
+						Collectors.toMap(
+							ScopedReferenceIndexType::scope,
+							ScopedReferenceIndexType::indexType,
+							(existing, replacement) -> {
+								throw new GenericEvitaInternalError("Unexpected duplicate key!");
+							},
+							() -> new EnumMap<>(Scope.class)
+						)
+					),
 			this.facetedInScopes,
 			this.reflectedReference == null ?
 				// when reflected reference is not present, only attributes unique for reflected ones are present
@@ -1425,10 +1458,15 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 					"` must be indexed in order to propagate changes to reflected reference `" + getName() + "`!"
 			)
 		);
-		final Set<Scope> indexedScopes = this.indexedInherited ?
+		final Map<Scope, ReferenceIndexType> indexedScopes = this.indexedInherited ?
 			Arrays.stream(Scope.values())
 				.filter(originalReference::isIndexedInScope)
-				.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class))) :
+				.collect(Collectors.toMap(
+					scope -> scope,
+					scope -> ReferenceIndexType.FOR_FILTERING,
+					(existing, replacement) -> existing,
+					() -> new EnumMap<>(Scope.class)
+				)) :
 			this.indexedInScopes;
 		final Set<Scope> facetedScopes = this.facetedInherited ?
 			Arrays.stream(Scope.values())

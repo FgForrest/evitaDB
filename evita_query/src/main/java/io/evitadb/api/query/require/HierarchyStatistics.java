@@ -33,6 +33,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -117,7 +118,6 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		);
 	}
 
-	@Creator
 	public HierarchyStatistics(
 		@Nonnull StatisticsBase statisticsBase,
 		@Nonnull StatisticsType... statisticsType
@@ -136,6 +136,20 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		Assert.isTrue(
 			statisticsBase != null,
 			"StatisticsBase is mandatory argument, yet it was not provided!"
+		);
+	}
+
+	/**
+	 * Internal factory method (mainly for external APIs) which applies default for missing arguments
+	 */
+	@Creator
+	private static HierarchyStatistics createWithDefaults(
+		@Nullable StatisticsBase statisticsBase,
+		@Nonnull StatisticsType... statisticsType
+	) {
+		return new HierarchyStatistics(
+			statisticsBase != null ? statisticsBase : StatisticsBase.WITHOUT_USER_FILTER,
+			statisticsType
 		);
 	}
 

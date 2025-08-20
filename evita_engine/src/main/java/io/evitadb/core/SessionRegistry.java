@@ -53,6 +53,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -65,7 +66,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -440,21 +440,6 @@ final class SessionRegistry {
 	}
 
 	/**
-	 * Enum contains different levels of suspension operations for the SessionRegistry.
-	 */
-	public enum SuspendOperation {
-		/**
-		 * All incoming operations are temporarily suspended due to internal operations with the catalog - such
-		 * as rename or replace.
-		 */
-		POSTPONE,
-		/**
-		 * All incoming operations should be immediately rejected because the catalog is being terminated.
-		 */
-		REJECT
-	}
-
-	/**
 	 * Internal interface for finalizing the session proxy.
 	 */
 	private interface EvitaProxyFinalization {
@@ -513,7 +498,22 @@ final class SessionRegistry {
 					if (i > 0) {
 						sb.append("|");
 					}
-					sb.append(method.getParameters()[i].getName()).append("=").append(arg);
+					sb.append(method.getParameters()[i].getName())
+						.append("=");
+					if (arg == null) {
+						sb.append("null");
+					} else if (arg.getClass().isArray()) {
+						sb.append("[");
+						for (int j = 0; j < Array.getLength(arg); j++) {
+							if (j > 0) {
+								sb.append(", ");
+							}
+							sb.append(Array.get(arg, j));
+						}
+						sb.append("]");
+					} else {
+						sb.append(arg);
+					}
 				}
 			}
 			return sb.toString();
@@ -989,45 +989,6 @@ final class SessionRegistry {
 			} catch (InterruptedException | ExecutionException e) {
 				throw SessionBusyException.INSTANCE;
 			}
-		}
-
-	}
-
-	/**
-	 * This record encapsulates information related to a suspension operation
-	 * within the SessionRegistry.
-	 *
-	 * The suspension operation holds data regarding:
-	 * - The time at which the suspension occurred.
-	 * - A set of sessions (identified by their unique IDs) that were
-	 *   forcefully terminated as part of the suspension process.
-	 */
-	public static class SuspensionInformation {
-		@Nonnull @Getter private final OffsetDateTime suspensionDateTime;
-		@Nonnull private final Set<UUID> forcefullyClosedSessions;
-
-		public SuspensionInformation(int expectedCount) {
-			this.suspensionDateTime = OffsetDateTime.now();
-			this.forcefullyClosedSessions = CollectionUtils.createHashSet(expectedCount);
-		}
-
-		/**
-		 * Registers a session ID as forcefully closed during the suspension operation.
-		 * @param sessionId the unique identifier of the session that was forcefully closed.
-		 */
-		void addForcefullyClosedSession(@Nonnull UUID sessionId) {
-			this.forcefullyClosedSessions.add(sessionId);
-		}
-
-		/**
-		 * Checks whether the specified session ID is present in the set of forcefully closed sessions.
-		 *
-		 * @param sessionId the unique identifier of the session to check. Must not be null.
-		 * @return {@code true} if the session ID is present in the set of forcefully closed sessions;
-		 *         {@code false} otherwise.
-		 */
-		public boolean contains(@Nonnull UUID sessionId) {
-			return this.forcefullyClosedSessions.contains(sessionId);
 		}
 
 	}

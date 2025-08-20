@@ -31,9 +31,9 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.ContextMissingException;
-import io.evitadb.api.mock.CategoryInterface;
-import io.evitadb.api.mock.ProductInterface;
-import io.evitadb.api.mock.TestEntity;
+import io.evitadb.api.proxy.mock.CategoryInterface;
+import io.evitadb.api.proxy.mock.ProductInterface;
+import io.evitadb.api.proxy.mock.TestEntity;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -293,7 +293,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 									)
 									.withReferenceToEntity(
 										Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-										whichIs -> whichIs.indexed()
+										whichIs -> whichIs.indexedForFilteringAndPartitioning()
 											.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.class)
 									);
 								session.updateEntitySchema(builder);

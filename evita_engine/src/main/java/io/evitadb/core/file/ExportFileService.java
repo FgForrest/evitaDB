@@ -192,11 +192,11 @@ public class ExportFileService implements Closeable {
 	 * @return paginated list of files to fetch
 	 */
 	@Nonnull
-	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nullable String origin) {
-		final List<FileForFetch> filteredFiles = origin == null ?
+	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nonnull Set<String> origin) {
+		final List<FileForFetch> filteredFiles = origin.isEmpty() ?
 			this.files :
 			this.files.stream()
-				.filter(it -> it.origin() != null && Arrays.asList(it.origin()).contains(origin))
+				.filter(it -> it.origin() != null && Arrays.stream(it.origin()).anyMatch(origin::contains))
 				.toList();
 		final List<FileForFetch> filePage = filteredFiles
 			.stream()

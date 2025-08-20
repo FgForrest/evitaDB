@@ -53,6 +53,7 @@ import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.PortManager;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.annotation.IsolateDataSetBySuffix;
 import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.GraphQLSchemaTester;
@@ -151,16 +152,20 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 	/**
 	 * Indexes all methods annotated with {@link DataSet} annotation into the `dataSets` index.
 	 */
-	private static void indexTestClass(@Nonnull Map<String, DataSetInfo> dataSets, @Nonnull Class<?> testClass) {
+	private static void indexTestClass(@Nonnull Map<String, DataSetInfo> dataSets, @Nonnull Class<?> testClass, @Nullable IsolateDataSetBySuffix isolateDataSetBySuffix) {
+		final IsolateDataSetBySuffix isolateDataSetBySuffixToUse = isolateDataSetBySuffix == null ?
+			testClass.getAnnotation(IsolateDataSetBySuffix.class) :
+			isolateDataSetBySuffix;
 		final Map<String, DataSetInfo> dataSetsInThisClass = new HashMap<>(8);
 		for (Method declaredMethod : testClass.getDeclaredMethods()) {
 			ofNullable(declaredMethod.getAnnotation(DataSet.class))
 				.ifPresent(it -> {
 					declaredMethod.setAccessible(true);
+					final String dataSetName = it.value() + (isolateDataSetBySuffixToUse != null ? "_" + isolateDataSetBySuffixToUse.value() : "");
 					dataSetsInThisClass.computeIfAbsent(
-						it.value(),
+						dataSetName,
 						dsName -> new DataSetInfo(
-							it.value(),
+							dataSetName,
 							it.catalogName(),
 							new CatalogInitMethod(declaredMethod, it.expectedCatalogState()),
 							new LinkedList<>(),
@@ -182,7 +187,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		}
 
 		if (!Object.class.equals(testClass.getSuperclass())) {
-			indexTestClass(dataSetsInThisClass, testClass.getSuperclass());
+			indexTestClass(dataSetsInThisClass, testClass.getSuperclass(), isolateDataSetBySuffixToUse);
 		}
 
 		// propagate only those datasets from this class that were not already defined in other classes
@@ -511,7 +516,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		// index data set bootstrap methods
 		final Map<String, DataSetInfo> dataSets = getDataSetIndex(context);
 		final Class<?> testClass = context.getRequiredTestClass();
-		indexTestClass(dataSets, testClass);
+		indexTestClass(dataSets, testClass, null);
 	}
 
 	@Override
@@ -555,6 +560,9 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 
 	@Override
 	public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
+		final IsolateDataSetBySuffix isolateDataSetBySuffix = extensionContext.getTestClass()
+			.map(it -> it.getAnnotation(IsolateDataSetBySuffix.class))
+			.orElse(null);
 		final BiFunction<ParameterContext, ExtensionContext, Optional<DataSetInfo>> dataSetInfoProvider = (pc, ec) -> {
 			final UseDataSet methodUseDataSet = ofNullable(extensionContext.getRequiredTestMethod().getAnnotation(UseDataSet.class))
 				.orElseGet(() -> getAnnotationOnSuperMethod(extensionContext, UseDataSet.class));
@@ -569,7 +577,11 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 				return Optional.empty();
 			} else {
 				final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(extensionContext);
-				return Optional.of(getInitializedDataSetInfo(useDataSet, dataSetIndex, parameterContext, extensionContext));
+				return Optional.of(
+					getInitializedDataSetInfo(
+						useDataSet, isolateDataSetBySuffix, dataSetIndex, parameterContext, extensionContext
+					)
+				);
 			}
 		};
 
@@ -594,6 +606,9 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 	@Nullable
 	@Override
 	public Object resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
+		final IsolateDataSetBySuffix isolateDataSetBySuffix = extensionContext.getTestClass()
+			.map(it -> it.getAnnotation(IsolateDataSetBySuffix.class))
+			.orElse(null);
 		// when Evita implementation is required
 		final UseDataSet methodUseDataSet = ofNullable(extensionContext.getRequiredTestMethod().getAnnotation(UseDataSet.class))
 			.orElseGet(() -> getAnnotationOnSuperMethod(extensionContext, UseDataSet.class));
@@ -607,7 +622,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			"UseDataSet annotation can be specified on parameter OR method level, but not both!"
 		);
 		final UseDataSet useDataSet = ofNullable(methodUseDataSet).orElse(parameterUseDataSet);
-		final DataSetInfo dataSetInfo = getInitializedDataSetInfo(useDataSet, dataSetIndex, parameterContext, extensionContext);
+		final DataSetInfo dataSetInfo = getInitializedDataSetInfo(useDataSet, isolateDataSetBySuffix, dataSetIndex, parameterContext, extensionContext);
 
 		// prefer the data created by the test itself
 		final DataCarrier dataCarrier = dataSetInfo.dataCarrier();
@@ -740,6 +755,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 	@Nonnull
 	public DataSetInfo getInitializedDataSetInfo(
 		@Nullable UseDataSet useDataSet,
+		@Nullable IsolateDataSetBySuffix isolateDataSetBySuffix,
 		@Nonnull Map<String, DataSetInfo> dataSetIndex,
 		@Nonnull ParameterContext parameterContext,
 		@Nonnull ExtensionContext extensionContext
@@ -795,7 +811,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 				return alreadyExistingAnonymousInstance;
 			}
 		} else {
-			final String dataSetToUse = useDataSet.value();
+			final String dataSetToUse = isolateDataSetBySuffix == null ? useDataSet.value() : useDataSet.value() + "_" + isolateDataSetBySuffix.value();
 			final DataSetInfo dataSetInfo = dataSetIndex.get(dataSetToUse);
 			if (dataSetInfo == null) {
 				throw new ParameterResolutionException("Requested data set " + dataSetToUse + " has no initialization method within the class (Method with @DataSet annotation)!");

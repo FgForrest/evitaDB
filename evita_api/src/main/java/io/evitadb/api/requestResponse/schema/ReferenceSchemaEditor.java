@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -181,6 +181,87 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 */
 	@Nonnull
 	T nonFaceted(@Nonnull Scope... inScope);
+
+	/**
+	 * Makes evitaDB create and maintain searchable index for this reference with
+	 * {@link io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType#FOR_FILTERING} type allowing to filter by
+	 * {@link ReferenceHaving} filtering constraints. This is the minimal indexing level that allows filtering by
+	 * reference existence and reference attributes.
+	 *
+	 * Use this type when you need basic reference filtering capabilities but want to minimize memory and disk usage.
+	 * This is suitable for references that are not frequently used in complex queries or when storage optimization
+	 * is more important than query performance.
+	 *
+	 * This method makes reference indexed for filtering only in the default (e.g. {@link Scope#LIVE}) scope, archived
+	 * entities will not be indexed by this reference unless explicitly set via {@link #indexedForFilteringInScope(Scope...)}.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T indexedForFiltering() {
+		return indexedForFilteringInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Makes evitaDB create and maintain searchable index for this reference with
+	 * {@link io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType#FOR_FILTERING} type allowing to filter by
+	 * {@link ReferenceHaving} filtering constraints. This is the minimal indexing level that allows filtering by
+	 * reference existence and reference attributes.
+	 *
+	 * Use this type when you need basic reference filtering capabilities but want to minimize memory and disk usage.
+	 * This is suitable for references that are not frequently used in complex queries or when storage optimization
+	 * is more important than query performance.
+	 *
+	 * @param inScope one or more scopes where the reference should be indexed for filtering
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T indexedForFilteringInScope(@Nonnull Scope... inScope);
+
+	/**
+	 * Makes evitaDB create and maintain searchable index for this reference with
+	 * {@link io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} type.
+	 * This creates basic index for {@link ReferenceHaving} constraint interpretation, and also partitioning
+	 * indexes for the main entity type, which may greatly speed up the query execution when the reference is part
+	 * of the query filtering.
+	 *
+	 * This advanced indexing creates additional data structures that allow for more efficient query execution
+	 * by partitioning the data based on the reference relationships. This can significantly improve performance
+	 * for complex queries that involve reference filtering, especially when dealing with large datasets.
+	 *
+	 * Use this type when reference filtering is frequently used in queries and query performance is critical.
+	 * Be aware that this option requires more memory and disk space compared to {@link #indexedForFiltering()}.
+	 *
+	 * This method makes reference indexed for filtering and partitioning only in the default (e.g. {@link Scope#LIVE})
+	 * scope, archived entities will not be indexed by this reference unless explicitly set via
+	 * {@link #indexedForFilteringAndPartitioningInScope(Scope...)}.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T indexedForFilteringAndPartitioning() {
+		return indexedForFilteringAndPartitioningInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Makes evitaDB create and maintain searchable index for this reference with
+	 * {@link io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} type.
+	 * This creates basic index for {@link ReferenceHaving} constraint interpretation, and also partitioning
+	 * indexes for the main entity type, which may greatly speed up the query execution when the reference is part
+	 * of the query filtering.
+	 *
+	 * This advanced indexing creates additional data structures that allow for more efficient query execution
+	 * by partitioning the data based on the reference relationships. This can significantly improve performance
+	 * for complex queries that involve reference filtering, especially when dealing with large datasets.
+	 *
+	 * Use this type when reference filtering is frequently used in queries and query performance is critical.
+	 * Be aware that this option requires more memory and disk space compared to {@link #indexedForFiltering()}.
+	 *
+	 * @param inScope one or more scopes where the reference should be indexed for filtering and partitioning
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T indexedForFilteringAndPartitioningInScope(@Nonnull Scope... inScope);
 
 	/**
 	 * Interface that simply combines {@link ReferenceSchemaEditor} and {@link ReferenceSchemaContract} entity contracts

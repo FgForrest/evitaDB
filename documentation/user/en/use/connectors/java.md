@@ -30,13 +30,13 @@ In order to use a Java remote client you need only to add following dependency t
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_java_driver</artifactId>
-    <version>2025.4.1</version>
+    <version>2025.5.1</version>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_java_driver:2025.4.1'
+implementation 'io.evitadb:evita_java_driver:2025.5.1'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -106,15 +106,21 @@ on the client side:
         <p>**Default: `true`**</p>
         <p>When set to `true`, the client automatically downloads the root certificate of the server CA from
         the `system` endpoint. When set to `false`, the client expects the root certificate to be provided manually
-        via the `rootCaCertificatePath` property.</p>
+        via the `serverCertificatePath` property.</p>
     </dd>
     <dt>trustCertificate</dt>
     <dd>
         <p>**Default: `false`**</p>
-        <p>When set to `true`, the certificate obtained from the `system` endpoint or manually through `certificatePath`
+        <p>When set to `true`, the certificate obtained from the `system` endpoint or manually through `serverCertificatePath`
         is automatically added to the local trust store. If set to `false` and an untrusted (self-signed) certificate is
         provided, it will not be trusted by the client and the connection to the server will fail. Using `true` for this
         setting in production is generally not recommended.</p>
+    </dd>
+    <dt>tlsEnabled</dt>
+    <dd>
+        <p>**Default: `true`**</p>
+        <p>When set to `true`, the client will use TLS encryption for communication with the server. When set to `false`,
+        the client will use HTTP/2 without TLS encryption. Corresponding setting must be set on the server side.</p>
     </dd>
     <dt>mtlsEnabled</dt>
     <dd>
@@ -123,29 +129,35 @@ on the client side:
         identify itself using a public/private key pair that is known and trusted by the server in order to establish
         a connection. See [TLS Configuration and Principles](../../operate/tls.md).</p>
     </dd>
-    <dt>certificateFolderPath</dt>
+    <dt>serverCertificatePath</dt>
     <dd>
-        <p>**Default: `evita-client-certificates`**</p>
-        <p>It represents a path to a folder where the server certificate authority certificate is stored.</p>
-    </dd>
-    <dt>rootCaCertificatePath</dt>
-    <dd>
-        <p>Relative path from `certificateFolderPath` to the root certificate of the server. If the `useGeneratedCertificate`
+        <p>**Default: `null`**</p>
+        <p>A relative path to the server certificate. Has to be provided when `useGeneratedCertificate` and `trustCertificate`
+        flag is disabled and server is using non-trusted certificate (for example self-signed one). If the `useGeneratedCertificate`
         flag is off, it is necessary to set a path to the manually provided certificate, otherwise the verification
         process will fail and the connection will not be established.</p>
     </dd>
+    <dt>certificateFolderPath</dt>
+    <dd>
+        <p>**Default: `evita-client-certificates`**</p>
+        <p>A relative path to the folder where the client certificate and private key will be located,
+        or if already not present there, downloaded. In the latter, the default path in the temp folder will be used.</p>
+    </dd>
     <dt>certificateFileName</dt>
     <dd>
+        <p>**Default: `null`**</p>
         <p>The relative path from `certificateFolderPath` to the client certificate. Must be configured if mTLS is
         enabled and `useGeneratedCertificate` is set to `false`.</p>
     </dd>
     <dt>certificateKeyFileName</dt>
     <dd>
+        <p>**Default: `null`**</p>
         <p>The relative path from `certificateFolderPath` to the client private key. Must be configured if mTLS is
         enabled and `useGeneratedCertificate` is set to `false`.</p>
     </dd>
     <dt>certificateKeyPassword</dt>
     <dd>
+        <p>**Default: `null`**</p>
         <p>The password for the client's private key (if one is set). Must be configured if mTLS is enabled and
         `useGeneratedCertificate` is set to `false`.</p>
     </dd>
@@ -165,29 +177,35 @@ on the client side:
     <dt>timeout</dt>
     <dd>
         <p>**Default: `5`**</p>
-        <p>Number of `timeout` the client should wait for server response before throwing an exception</p>
+        <p>Number of `timeoutUnit` time units the client should wait for server response before throwing an exception
+        or closing connection forcefully.</p>
     </dd>
     <dt>timeoutUnit</dt>
     <dd>
         <p>**Default: `TimeUnit.SECONDS`**</p>
-        <p>It specifies the time unit for `timeout` property.</p>
-    </dd>
-    <dt>trackedTaskLimit</dt>
-    <dd> 
-        <p>**Default: `100`**</p>
-        <p>Number of asynchronous server tasks that can be actively tracked by the client. If the limit is reached, 
-         the client will stop tracking the oldest tasks.</p>
+        <p>Time unit for `timeout` property.</p>
     </dd>
     <dt>openTelemetryInstance</dt>
     <dd>
         <p>**Default: `null`**</p>
         <p>OpenTelemetry instance that should be used for tracing. If set to `null`, no tracing will be performed.</p>
     </dd>
+    <dt>retry</dt>
+    <dd>
+        <p>**Default: `false`**</p>
+        <p>Whether the client will retry the call in case of timeout or other network related problems.</p>
+    </dd>
+    <dt>trackedTaskLimit</dt>
+    <dd> 
+        <p>**Default: `100`**</p>
+        <p>The maximum number of server tasks that can be tracked by the client. If the limit is reached, 
+         the client will stop tracking the oldest tasks.</p>
+    </dd>
 </dl>
 
 <Note type="warning">
 If `mTLS` is enabled on the server side and `useGeneratedCertificate` is set to `false`, you must provide your
-manually generated certificate in settings `certificatePath` and `certificateKeyPath`, otherwise the verification
+manually generated certificate in settings `certificateFileName` and `certificateKeyFileName`, otherwise the verification
 process will fail and the connection will not be established.
 </Note>
 

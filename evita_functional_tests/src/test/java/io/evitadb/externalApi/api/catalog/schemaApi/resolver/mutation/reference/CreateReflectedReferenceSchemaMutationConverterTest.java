@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,17 +25,19 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReflectedReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.test.builder.ListBuilder.list;
@@ -66,7 +68,7 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 			Cardinality.ZERO_OR_MORE,
 			"tag",
 			"tags",
-			new Scope[] { Scope.LIVE },
+			new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) },
 			new Scope[] { Scope.LIVE },
 			AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
 			new String[] { "order" }
@@ -80,8 +82,14 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.CARDINALITY.name(), Cardinality.ZERO_OR_MORE)
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME.name(), "tags")
-				.e(CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
-					.i(Scope.LIVE))
+				.e(
+					CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
+					list().i(
+						map()
+							.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
+					)
+				)
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES.name(), list()
 					.i(Scope.LIVE))
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT)
@@ -99,8 +107,14 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.CARDINALITY.name(), "ZERO_OR_MORE")
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME.name(), "tags")
-				.e(CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(), list()
-					.i(Scope.LIVE.name()))
+				.e(
+					CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
+					list().i(
+						map()
+							.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
+					)
+				)
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES.name(), list()
 					.i(Scope.LIVE.name()))
 				.e(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT.name())

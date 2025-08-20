@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -90,7 +91,7 @@ public interface Product extends SealedInstance<Product, ProductEditor>, Seriali
 	@PriceForSale
 	PriceContract getSellingPrice();
 
-	@Reference(indexed = true, managed = false, groupEntityManaged = false)
+	@Reference(indexed = ReferenceIndexType.FOR_FILTERING, managed = false, groupEntityManaged = false)
 	Brand getMarketingBrand();
 
 	@Reference(managed = false, groupEntityManaged = false)

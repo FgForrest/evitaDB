@@ -62,7 +62,7 @@ public class GuiHandler implements HttpService {
 	private static final String EVITALAB_READONLY_PARAM_NAME = "evitalab-readonly";
 	private static final String EVITALAB_PRECONFIGURED_CONNECTIONS_PARAM_NAME = "evitalab-pconnections";
 
-	private static final Pattern ASSETS_PATTERN = Pattern.compile("/assets/([a-zA-Z0-9\\-]+/)*[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
+	private static final Pattern ASSETS_PATTERN = Pattern.compile("/assets/([a-zA-Z0-9\\-_]+/)*[a-zA-Z0-9\\-_]+\\.[a-z0-9]+");
 	private static final Pattern ROOT_ASSETS_PATTERN = Pattern.compile("(/logo)?/[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
 
 	@Nonnull private final LabOptions labConfig;

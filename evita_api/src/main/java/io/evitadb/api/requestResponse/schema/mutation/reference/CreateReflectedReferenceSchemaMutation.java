@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -74,14 +74,14 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
-	@Serial private static final long serialVersionUID = -2419676866574635677L;
+	@Serial private static final long serialVersionUID = -3833868605223655352L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nullable private final Cardinality cardinality;
 	@Getter @Nonnull private final String referencedEntityType;
 	@Getter @Nonnull private final String reflectedReferenceName;
-	@Getter @Nullable private final Scope[] indexedInScopes;
+	@Getter @Nullable private final ScopedReferenceIndexType[] indexedInScopes;
 	@Getter @Nullable private final Scope[] facetedInScopes;
 	@Getter @Nonnull private final AttributeInheritanceBehavior attributesInheritanceBehavior;
 	@Getter @Nullable private final String[] attributeInheritanceFilter;
@@ -126,7 +126,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		@Nullable Cardinality cardinality,
 		@Nonnull String referencedEntityType,
 		@Nonnull String reflectedReferenceName,
-		@Nullable Scope[] indexedInScopes,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
 		@Nullable Scope[] facetedInScopes,
 		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter
@@ -244,7 +244,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		final ReferenceSchemaContract referenceToInsert = referencedReferenceSchema
 			.map(newReferenceSchema::withReferencedSchema)
 			.orElse(newReferenceSchema);
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
+		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {
 			return EntitySchema._internalBuild(
 				entitySchema.version() + 1,
@@ -281,7 +281,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		} else {
 			// ups, there is conflict in associated data settings
 			throw new InvalidSchemaMutationException(
-				"The reference `" + name + "` already exists in entity `" + entitySchema.getName() + "` schema and" +
+				"The reference `" + this.name + "` already exists in entity `" + entitySchema.getName() + "` schema and" +
 					" has different definition. To alter existing reference schema you need to use different mutations."
 			);
 		}

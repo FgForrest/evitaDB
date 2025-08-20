@@ -209,7 +209,7 @@ public class BootstrapWriteOnlyFileHandle implements WriteOnlyHandle {
 
 	@Override
 	public String toString() {
-		return "write handle: " + this.targetFile;
+		return "bootstrap write handle: " + this.targetFile;
 	}
 
 }

@@ -35,9 +35,9 @@ import io.evitadb.api.GoLiveProgress;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.file.FileForFetch;
-import io.evitadb.api.mock.CategoryInterface;
-import io.evitadb.api.mock.ProductInterface;
-import io.evitadb.api.mock.TestEntity;
+import io.evitadb.api.proxy.mock.CategoryInterface;
+import io.evitadb.api.proxy.mock.ProductInterface;
+import io.evitadb.api.proxy.mock.TestEntity;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
@@ -318,7 +318,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 									)
 									.withReferenceToEntity(
 										Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
-										whichIs -> whichIs.indexed()
+										whichIs -> whichIs.indexedForFilteringAndPartitioning()
 											.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.class)
 									);
 								session.updateEntitySchema(builder);
@@ -695,7 +695,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 							.deprecated("Already deprecated.")
 							.withAttribute("categoryPriority", Long.class, that -> that.sortable())
 							.withAttribute("note", String.class)
-							.indexed()
+							.indexedForFilteringAndPartitioning()
 							.faceted()
 					)
 			)
@@ -864,11 +864,11 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 						.withPrice()
 						.withReferenceToEntity(
 							"brand", "Brand", Cardinality.EXACTLY_ONE,
-							thatIs -> thatIs.indexed()
+							thatIs -> thatIs.indexedForFilteringAndPartitioning()
 						)
 						.withReferenceToEntity(
 							"categories", "Category", Cardinality.ZERO_OR_MORE,
-							thatIs -> thatIs.indexed()
+							thatIs -> thatIs.indexedForFilteringAndPartitioning()
 						)
 				)
 				// and now push all the definitions (mutations) to the server
@@ -2021,7 +2021,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		taskStatuses.getData().forEach(task -> assertNotNull(management.getTaskStatus(task.taskId())));
 
 		// list exported files
-		final PaginatedList<FileForFetch> exportedFiles = management.listFilesToFetch(1, numberOfTasks, null);
+		final PaginatedList<FileForFetch> exportedFiles = management.listFilesToFetch(1, numberOfTasks, Set.of());
 		// some task might have finished even if cancelled (if they were cancelled in terminal phase)
 		assertTrue(exportedFiles.getTotalRecordCount() >= backupTasks.size() - cancelled);
 		exportedFiles.getData().forEach(file -> assertTrue(file.totalSizeInBytes() > 0));
@@ -2052,7 +2052,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 			});
 
 		// list them again and there should be none of them
-		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(1, numberOfTasks, null);
+		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(1, numberOfTasks, Set.of());
 		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 

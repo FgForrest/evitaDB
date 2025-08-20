@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
@@ -44,7 +45,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopeSet;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopedReferenceIndexTypeArray;
 import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopeSet;
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.writeScopedReferenceIndexTypeArray;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferenceSchema} from/to binary format.
@@ -75,7 +78,7 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 			output.writeBoolean(false);
 		} else {
 			output.writeBoolean(true);
-			writeScopeSet(kryo, output, referenceSchema.getIndexedInScopes());
+			writeScopedReferenceIndexTypeArray(kryo, output, referenceSchema.getReferenceIndexTypeInScopes());
 		}
 		if (referenceSchema.isFacetedInherited()) {
 			output.writeBoolean(false);
@@ -126,7 +129,7 @@ public class ReflectedReferenceSchemaSerializer extends Serializer<ReflectedRefe
 		final String reflectedReferenceName = input.readString();
 		final Cardinality cardinality = kryo.readObjectOrNull(input, Cardinality.class);
 
-		final EnumSet<Scope> indexedInScopes = input.readBoolean() ? readScopeSet(kryo, input) : null;
+		final Map<Scope, ReferenceIndexType> indexedInScopes = input.readBoolean() ? readScopedReferenceIndexTypeArray(kryo, input) : null;
 		final EnumSet<Scope> facetedInScopes = input.readBoolean() ? readScopeSet(kryo, input) : null;
 
 		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributes = kryo.readObject(input, Map.class);

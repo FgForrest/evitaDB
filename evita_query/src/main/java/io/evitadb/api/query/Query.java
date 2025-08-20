@@ -198,7 +198,7 @@ public class Query implements Serializable, PrettyPrintable {
 	 * is here only to maintain backward compatibility
 	 */
 	@SuppressWarnings("rawtypes")
-	@Deprecated
+	@Deprecated(since = "2024.11", forRemoval = true)
 	@Nonnull
 	public Query normalizeQuery(
 		@Nullable UnaryOperator<Constraint> filterConstraintTranslator,

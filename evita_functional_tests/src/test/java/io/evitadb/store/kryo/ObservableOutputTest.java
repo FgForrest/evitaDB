@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,143 +23,131 @@
 
 package io.evitadb.store.kryo;
 
-import com.esotericsoftware.kryo.KryoException;
-import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.store.model.FileLocation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Random;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * This test verifies {@link ObservableOutput} implementation.
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * Tests for {@link ObservableOutput} focusing on written-bytes accounting and compression savings.
  */
-class ObservableOutputTest extends AbstractObservableInputOutputTest {
+@DisplayName("ObservableOutput written bytes and compression accounting")
+public class ObservableOutputTest {
+	private static final int DEFAULT_BUFFER = ObservableOutput.DEFAULT_FLUSH_SIZE << 2;
 
-	@DisplayName("Exception should be thrown when single record is larger than the buffer size.")
 	@Test
-	void shouldFailToWriteRecordWhenThereIsNoRoom() {
-		final int bufferSize = RECORD_SIZE;
-		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
-		final ObservableOutput<?> output = new ObservableOutput<>(baos, bufferSize, bufferSize, 0).computeCRC32();
+	@DisplayName("shouldReportExactWrittenBytesWithoutCompression")
+	void shouldReportExactWrittenBytesWithoutCompression() {
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		final ObservableOutput<ByteArrayOutputStream> out =
+			new ObservableOutput<>(baos, DEFAULT_BUFFER, 0L).computeCRC32();
 
-		final ByteArrayOutputStream controlBaos = new ByteArrayOutputStream(bufferSize);
-		final Output controlOutput = new Output(controlBaos, bufferSize);
-
-		assertThrows(KryoException.class, () -> writeRandomRecord(output, controlOutput, 32));
-	}
-
-	@DisplayName("Exception should be thrown when first record is ok but second is larger than the buffer size.")
-	@Test
-	void shouldFailToWriteSecondLargerRecordWhenThereIsNoRoom() {
-		final int bufferSize = RECORD_SIZE;
-		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
-		final ObservableOutput<?> output = new ObservableOutput<>(baos, bufferSize, bufferSize, 0).computeCRC32();
-
-		final ByteArrayOutputStream controlBaos = new ByteArrayOutputStream(bufferSize);
-		final Output controlOutput = new Output(controlBaos, bufferSize);
-
-		// this should be ok
-		writeRandomRecord(output, controlOutput, PAYLOAD_SIZE);
-		assertThrows(KryoException.class, () -> writeRandomRecord(output, controlOutput, PAYLOAD_SIZE + 1));
-	}
-
-	@DisplayName("Write single record with all buffer sizes aligned to record size.")
-	@Test
-	void shouldWriteSingleRecord() {
-		final int bufferSize = RECORD_SIZE;
-		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
-		final ObservableOutput<?> output = new ObservableOutput<>(baos, bufferSize, bufferSize, 0).computeCRC32();
-
-		final ByteArrayOutputStream controlBaos = new ByteArrayOutputStream(bufferSize);
-		final Output controlOutput = new Output(controlBaos, bufferSize);
-
-		writeRandomRecord(output, controlOutput, PAYLOAD_SIZE);
-
-		assertArrayEquals(controlOutput.toBytes(), output.toBytes());
-		assertArrayEquals(controlBaos.toByteArray(), baos.toByteArray());
-		assertEquals(bufferSize, output.total());
-		assertEquals(0, output.position());
-	}
-
-	@DisplayName("Write multiple records - all aligned to exact correct buffer size.")
-	@Test
-	void shouldWriteMultipleRecords() {
-		final int count = 16;
-		final int flushSize = RECORD_SIZE;
-		final int bufferSize = flushSize * count;
-
-		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
-		final ObservableOutput<?> output = new ObservableOutput<>(baos, flushSize, bufferSize, 0).computeCRC32();
-
-		final ByteArrayOutputStream controlBaos = new ByteArrayOutputStream(bufferSize);
-		final Output controlOutput = new Output(controlBaos, bufferSize);
-
-		for(int i = 0; i < count; i++) {
-			writeRandomRecord(output, controlOutput, PAYLOAD_SIZE);
+		// write multiple records without compression
+		for (int i = 0; i < 50; i++) {
+			final byte[] payload = ("record-" + i).repeat(10).getBytes(StandardCharsets.UTF_8);
+			writeRecord(out, payload, false);
+			assertEquals(baos.size(), out.getWrittenBytesSinceReset(),
+				"Written bytes must equal stream size without compression");
 		}
-
-		// our output stream was regularly flushed
-		assertArrayEquals(new byte[0], output.toBytes());
-		assertArrayEquals(controlBaos.toByteArray(), baos.toByteArray());
-		assertEquals(bufferSize, output.total());
-		assertEquals(0, output.position());
 	}
 
-	@DisplayName("Write multiple records - with buffer for 1.3 size of record.")
 	@Test
-	void shouldWriteMultipleRecordsWithDifferentFlushBufferSize() {
-		final int count = 2;
-		final int flushSize = 32;
-		final int bufferSize = RECORD_SIZE * count;
+	@DisplayName("shouldReportExactWrittenBytesWithCompression")
+	void shouldReportExactWrittenBytesWithCompression() {
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		final ObservableOutput<ByteArrayOutputStream> out =
+			new ObservableOutput<>(baos, DEFAULT_BUFFER, 0L).computeCRC32().compress();
 
-		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
-		final ObservableOutput<?> output = new ObservableOutput<>(baos, flushSize, (int) (flushSize * 1.3), 0).computeCRC32();
-
-		final ByteArrayOutputStream controlBaos = new ByteArrayOutputStream(bufferSize);
-		final Output controlOutput = new Output(controlBaos, bufferSize);
-
-		for(int i = 0; i < count; i++) {
-			writeRandomRecord(output, controlOutput, PAYLOAD_SIZE);
+		// write alternating compressible and incompressible payloads
+		final Random rnd = new Random(42);
+		for (int i = 0; i < 200; i++) {
+			final boolean compressible = (i % 2 == 0);
+			final byte[] payload;
+			if (compressible) {
+				payload = new byte[300 + (i % 50)];
+				// highly compressible: filled with the same byte
+				Arrays.fill(payload, (byte) 'A');
+			} else {
+				payload = new byte[300 + (i % 50)];
+				rnd.nextBytes(payload);
+			}
+			writeRecord(out, payload, false);
+			assertEquals(baos.size(), out.getWrittenBytesSinceReset(),
+				"Written bytes must equal stream size with compression");
 		}
-
-		output.flush();
-		// our output stream was regularly flushed
-		assertArrayEquals(new byte[0], output.toBytes());
-		assertArrayEquals(controlBaos.toByteArray(), baos.toByteArray());
-		assertEquals(bufferSize, output.total());
-		assertEquals(0, output.position());
 	}
 
-	@DisplayName("Write multiple records - with buffer not big enough for two records having second record fit to entire buffer size.")
 	@Test
-	void shouldWriteMultipleRecordsWithDifferentFlushBufferSizeTriggeringByteArrayAllocation() {
-		final int flushSize = RECORD_SIZE - 2;
-		final int bufferSize = RECORD_SIZE + 128;
+	@DisplayName("shouldMaintainCorrectFileLocationOffsetsWithCompression")
+	void shouldMaintainCorrectFileLocationOffsetsWithCompression() {
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		final ObservableOutput<ByteArrayOutputStream> out =
+			new ObservableOutput<>(baos, DEFAULT_BUFFER, 0L).computeCRC32().compress();
 
-		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
-		final ByteArrayOutputStream controlBaos = new ByteArrayOutputStream(bufferSize);
-
-		try (
-			final ObservableOutput<?> output = new ObservableOutput<>(baos, flushSize, 128, 0).computeCRC32();
-			final Output controlOutput = new Output(controlBaos, bufferSize);
-		) {
-
-			writeRandomRecord(output, controlOutput, PAYLOAD_SIZE);
-			writeRandomRecord(output, controlOutput, 128 - OVERHEAD_SIZE);
-
-			// our output stream was regularly flushed
-			assertArrayEquals(new byte[0], output.toBytes());
-			assertEquals(bufferSize, output.total());
-			assertEquals(0, output.position());
+		for (int i = 0; i < 100; i++) {
+			final byte[] payload = ("X").repeat(1024).getBytes(StandardCharsets.UTF_8);
+			final long expectedStart = baos.size();
+			final FileLocation fl = writeRecord(out, payload, false);
+			assertEquals(expectedStart, fl.startingPosition(),
+				"FileLocation.start must equal stream size before writing the record");
 		}
-
-		assertArrayEquals(controlBaos.toByteArray(), baos.toByteArray());
 	}
 
+	@Test
+	@DisplayName("shouldMatchWrittenBytesUnderRandomPayloadsAndCompression")
+	void shouldMatchWrittenBytesUnderRandomPayloadsAndCompression() {
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		final ObservableOutput<ByteArrayOutputStream> out =
+			new ObservableOutput<>(baos, DEFAULT_BUFFER, 0L).computeCRC32().compress();
+
+		final Random rnd = new Random(123);
+		for (int i = 0; i < 1000; i++) {
+			final int size = rnd.nextInt(1, 800);
+			final boolean compressible = rnd.nextBoolean();
+			final boolean suppressCompressionThisRecord = rnd.nextBoolean();
+			final byte[] payload = new byte[size];
+			if (compressible) {
+				Arrays.fill(payload, (byte) 'Z');
+			} else {
+				rnd.nextBytes(payload);
+			}
+			writeRecord(out, payload, suppressCompressionThisRecord);
+			assertEquals(baos.size(), out.getWrittenBytesSinceReset(),
+				"Fuzzy: written bytes must equal stream size after each record");
+		}
+	}
+
+	/**
+	 * Writes one logical record with ObservableOutput protocol.
+	 *
+	 * - markStart()
+	 * - write placeholders (record length INT + control byte)
+	 * - markPayloadStart()
+	 * - write payload
+	 * - markEnd(controlByte) or markEndSuppressingCompression(controlByte)
+	 */
+	private static FileLocation writeRecord(
+		final ObservableOutput<ByteArrayOutputStream> out,
+		final byte[] payload,
+		final boolean suppressCompression
+	) {
+		out.markStart();
+		out.markRecordLengthPosition();
+		out.writeInt(0);
+		out.writeByte((byte) 0);
+		out.markPayloadStart();
+		out.writeBytes(payload, 0, payload.length);
+		final byte control = 0;
+		if (suppressCompression) {
+			return out.markEndSuppressingCompression(control);
+		} else {
+			return out.markEnd(control);
+		}
+	}
 }

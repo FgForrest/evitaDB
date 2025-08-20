@@ -246,7 +246,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 
 	@Override
 	public String toString() {
-		return "write handle: " + targetFile;
+		return "off-heap write handle " + (this.fileOutput == null ? "to off-heap" : "to file: " + this.targetFile);
 	}
 
 	/**

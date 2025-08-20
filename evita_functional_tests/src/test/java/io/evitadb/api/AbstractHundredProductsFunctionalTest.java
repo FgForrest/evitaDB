@@ -136,7 +136,7 @@ public class AbstractHundredProductsFunctionalTest {
 						builder -> {
 							builder.withReferenceToEntity(
 								Entities.STORE, Entities.STORE, Cardinality.EXACTLY_ONE,
-								thatIs -> thatIs.indexed().withGroupTypeRelatedToEntity(Entities.CATEGORY)
+								thatIs -> thatIs.indexedForFilteringAndPartitioning().withGroupTypeRelatedToEntity(Entities.CATEGORY)
 							).updateVia(session);
 							return builder.toInstance();
 						}
@@ -187,14 +187,14 @@ public class AbstractHundredProductsFunctionalTest {
 									Entities.CATEGORY,
 									Cardinality.ZERO_OR_MORE,
 									whichIs ->
-										whichIs.indexed()
+										whichIs.indexedForFilteringAndPartitioning()
 											.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.sortable().nullable())
 											.withAttribute(ATTRIBUTE_CATEGORY_LABEL, String.class, thatIs -> thatIs.localized())
 											.withAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)
 								)
 								.withReferenceToEntity(
 									Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE,
-									whichIs -> whichIs.indexed().faceted()
+									whichIs -> whichIs.indexedForFilteringAndPartitioning().faceted()
 										.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
 										.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.sortable().filterable())
 								)
@@ -203,8 +203,8 @@ public class AbstractHundredProductsFunctionalTest {
 									Entities.BRAND,
 									Entities.BRAND,
 									Cardinality.ZERO_OR_ONE,
-									whichIs -> whichIs.
-										indexed()
+									whichIs -> whichIs
+										.indexedForFilteringAndPartitioning()
 										.faceted()
 										.withGroupTypeRelatedToEntity(Entities.STORE)
 								)

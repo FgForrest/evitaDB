@@ -10,7 +10,6 @@ on:
 permissions:
   contents: read       # Required for actions/checkout to access the repository code
   id-token: write      # May be required for accessing resources with OIDC authentication
-  secrets: read        # Required to access the secrets (e.g., DIGITALOCEAN_ACCESS_TOKEN, GRAFANA_* secrets, PERFORMANCE_GIST_TOKEN)
 
 env:
   KUBECONFIG: ${{ github.workspace }}/evita_performance_tests/src/do_k8s_automation/deploy/kube.cfg

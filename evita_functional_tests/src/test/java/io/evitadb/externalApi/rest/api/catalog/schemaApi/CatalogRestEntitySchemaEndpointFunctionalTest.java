@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -668,7 +668,12 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 								"referencedEntityType": "tag",
 								"referencedEntityTypeManaged": false,
 								"referencedGroupTypeManaged": false,
-								"indexedInScopes": ["LIVE"],
+								"indexedInScopes": [
+									{
+										"scope": "LIVE",
+										"indexType": "FOR_FILTERING"
+									}
+								],
 								"facetedInScopes": ["LIVE"]
 							}
 						}
@@ -722,7 +727,10 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 							.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), null)
 							.e(NameVariantsDescriptor.KEBAB_CASE.name(), null))
 						.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
-						.e(ReferenceSchemaDescriptor.INDEXED.name(), list().i(Scope.LIVE.name()))
+						.e(
+							ReferenceSchemaDescriptor.INDEXED.name(),
+							createReferenceIndexTypeDto(getEntitySchemaFromTestData(evita, ENTITY_EMPTY).getReference("mySpecialTags").orElseThrow())
+						)
 						.e(ReferenceSchemaDescriptor.FACETED.name(), list().i(Scope.LIVE.name()))
 						.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), map())
 						.e(ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), map())

@@ -33,7 +33,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>2025.5-SNAPSHOT</version>
+		<version>2025.6-SNAPSHOT</version>
 		<relativePath>../../../pom.xml</relativePath>
 	</parent>
 
@@ -42,7 +42,7 @@
 			<dependency>
 				<groupId>io.opentelemetry</groupId>
 				<artifactId>opentelemetry-bom</artifactId>
-				<version>1.51.0</version>
+				<version>1.53.0</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>

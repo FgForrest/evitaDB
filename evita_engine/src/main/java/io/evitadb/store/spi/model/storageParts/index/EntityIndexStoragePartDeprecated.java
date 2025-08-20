@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ import java.util.Set;
  * @deprecated This class is deprecated and will be removed in the future. Use {@link EntityIndexStoragePart} instead.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Deprecated
+@Deprecated(since = "2024.11", forRemoval = true)
 public class EntityIndexStoragePartDeprecated extends EntityIndexStoragePart {
 	@Serial private static final long serialVersionUID = 3455486364434181265L;
 
@@ -67,7 +67,11 @@ public class EntityIndexStoragePartDeprecated extends EntityIndexStoragePart {
 		@Nonnull CardinalityIndex primaryKeyCardinality,
 		@Nonnull Integer internalPriceIdSequence
 	) {
-		super(primaryKey, version, entityIndexKey, entityIds, entityIdsByLanguage, attributeIndexes, priceIndexes, hierarchyIndex, facetIndexes, primaryKeyCardinality);
+		super(
+			primaryKey, version, entityIndexKey,
+			entityIds, entityIdsByLanguage, attributeIndexes, priceIndexes, hierarchyIndex, facetIndexes,
+			primaryKeyCardinality
+		);
 		this.internalPriceIdSequence = internalPriceIdSequence;
 	}
 

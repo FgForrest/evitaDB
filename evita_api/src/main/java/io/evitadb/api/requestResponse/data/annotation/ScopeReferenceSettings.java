@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.annotation;
 
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;
@@ -47,13 +48,13 @@ public @interface ScopeReferenceSettings {
 
 	/**
 	 * Enables filtering / sorting by attributes of reference of this name.
-	 * Propagates to {@link ReferenceSchemaContract#isIndexed()}.
+	 * Propagates to {@link ReferenceSchemaContract#getReferenceIndexType(Scope)}.
 	 */
-	boolean indexed() default false;
+	ReferenceIndexType indexed() default ReferenceIndexType.NONE;
 
 	/**
 	 * Enables facet computation for reference of this name.
-	 * Propagates to {@link ReferenceSchemaContract#isFaceted()}.
+	 * Propagates to {@link ReferenceSchemaContract#isFacetedInScope(Scope)}.
 	 */
 	boolean faceted() default false;
 

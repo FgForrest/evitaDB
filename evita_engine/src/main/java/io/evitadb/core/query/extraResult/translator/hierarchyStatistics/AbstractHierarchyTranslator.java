@@ -157,13 +157,13 @@ public abstract class AbstractHierarchyTranslator {
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor
 	) {
 		try {
-			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + targetEntitySchema.getName() + "`: " +
+			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + targetEntitySchema.getName() + "` on index `" + entityIndex + "`: " +
 				Arrays.stream(filterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
 			queryContext.pushStep(
 				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
 				stepDescriptionSupplier
 			);
-			// crete a visitor
+			// create a visitor
 			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
 				queryContext,
 				Collections.emptyList(),

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ package io.evitadb.api.requestResponse.data.annotation;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;
@@ -102,10 +103,18 @@ public @interface ReflectedReference {
 	InheritableBoolean allowEmpty() default InheritableBoolean.INHERITED;
 
 	/**
+	 * Enables filtering / sorting by attributes of reference of this name.
+	 * Propagates to {@link ReferenceSchemaContract#getReferenceIndexType(Scope)}.
+	 * Doesn't accept the {@link ReferenceIndexType#NONE} value, because otherwise it wouldn't be able to maintain
+	 * the bi-directional relation.
+	 */
+	ReferenceIndexType indexed() default ReferenceIndexType.FOR_FILTERING;
+
+	/**
 	 * Enables facet computation for reference of this name.
 	 * Propagates to {@link ReflectedReferenceSchemaContract#isFaceted()}.
 	 */
-	InheritableBoolean faceted() default InheritableBoolean.INHERITED;
+	InheritableBoolean faceted() default InheritableBoolean.FALSE;
 
 	/**
 	 * Returns the inheritance behavior for attributes in the reflected schema.

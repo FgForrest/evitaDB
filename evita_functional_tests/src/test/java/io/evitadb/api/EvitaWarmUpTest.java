@@ -157,7 +157,7 @@ class EvitaWarmUpTest implements EvitaTestSupport {
 								Entities.CATEGORY,
 								Entities.CATEGORY,
 								Cardinality.EXACTLY_ONE,
-								whichIs -> whichIs.indexed()
+								whichIs -> whichIs.indexedForFilteringAndPartitioning()
 									.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.class, AttributeSchemaEditor::sortable)
 									.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, thatIs -> thatIs.nullable().sortable())
 									.withAttribute(ATTRIBUTE_INCEPTION_YEAR, String.class, thatIs -> thatIs.nullable().sortable())

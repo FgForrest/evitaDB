@@ -335,7 +335,8 @@ public class OffsetIndexSerializationService {
 			catalogVersion,
 			nonFlushedValues,
 			FileLocation.EMPTY,
-			offsetIndex.getStorageOptions()
+			offsetIndex.getStorageOptions(),
+			"Snapshot copy."
 		);
 	}
 
@@ -348,8 +349,11 @@ public class OffsetIndexSerializationService {
 		long catalogVersion,
 		@Nonnull Collection<VersionedValue> nonFlushedEntries,
 		@Nonnull FileLocation lastFileOffsetIndexLocation,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull StorageOptions storageOptions,
+		/* TODO JNO - remove when debugging finished */
+		@Nonnull String debugInfo
 	) {
+		final StringBuilder debugInfoBuilder = new StringBuilder(debugInfo);
 		final Iterator<VersionedValue> entries = nonFlushedEntries.iterator();
 
 		// start with full buffer
@@ -357,7 +361,12 @@ public class OffsetIndexSerializationService {
 		// this holds file location pointer to the last stored OffsetIndex fragment and is used to allow single direction pointing
 		final AtomicReference<FileLocation> lastStorageRecordLocation = new AtomicReference<>(lastFileOffsetIndexLocation);
 		final ExpectedCounts fileOffsetIndexRecordCount = computeExpectedRecordCount(storageOptions, nonFlushedEntries.size());
-		if (fileOffsetIndexRecordCount.fragments == 0 && lastFileOffsetIndexLocation == FileLocation.EMPTY) {
+
+		debugInfoBuilder.append(" - fragments: ").append(fileOffsetIndexRecordCount.fragments())
+			.append(", max records in fragment: ").append(fileOffsetIndexRecordCount.recordsInFragment())
+			.append(", total records: ").append(nonFlushedEntries.size());
+
+		if (fileOffsetIndexRecordCount.fragments() == 0 && lastFileOffsetIndexLocation == FileLocation.EMPTY) {
 			// no previous offset index fragment and no new entries - serialize empty record at least
 			lastStorageRecordLocation.set(
 				new StorageRecord<>(
@@ -428,7 +437,8 @@ public class OffsetIndexSerializationService {
 		Assert.isPremiseValid(fileLocation != null, "No file location was stored!");
 		return new FileLocationAndWrittenBytes(
 			fileLocation,
-			output.getWrittenBytesSinceReset()
+			output.getWrittenBytesSinceReset(),
+			debugInfoBuilder.toString()
 		);
 	}
 
@@ -571,7 +581,9 @@ public class OffsetIndexSerializationService {
 	 */
 	public record FileLocationAndWrittenBytes(
 		@Nonnull FileLocation fileLocation,
-		long writtenBytes
+		long writtenBytes,
+		/* TODO JNO - remove when debugging finished */
+		@Nonnull String debugInfo
 	) {
 	}
 

@@ -28,8 +28,11 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.SchemaClassInvalidException;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.model.*;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.ComplexDataObject;
@@ -177,6 +180,334 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		assertEquals(indexed, referenceSchema.isIndexed(), "Attribute `" + name + "` is expected to be " + (indexed ? "" : "not") + " indexed, but it " + (indexed ? "is not" : "is") + ".");
 	}
 
+	@SafeVarargs
+	private static <T> void assertSetEquals(Set<T> actualValues, T... expectedValues) {
+		assertEquals(expectedValues.length, actualValues.size());
+		for (T expectedValue : expectedValues) {
+			assertTrue(actualValues.contains(expectedValue), "Expected value not found: " + expectedValue);
+		}
+	}
+
+	private static void assertReflectedReference(
+		@Nonnull ReflectedReferenceSchemaContract referenceSchema,
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecation,
+		@Nonnull Cardinality cardinality,
+		@Nonnull String entityType,
+		boolean referencedGroupTypeManaged,
+		@Nonnull String groupEntityType,
+		boolean faceted,
+		boolean indexed
+	) {
+		assertEquals(name, referenceSchema.getName());
+		if (description == null) {
+			assertNull(referenceSchema.getDescription());
+		} else {
+			assertEquals(description, referenceSchema.getDescription());
+		}
+		if (deprecation == null) {
+			assertNull(referenceSchema.getDeprecationNotice());
+		} else {
+			assertEquals(deprecation, referenceSchema.getDeprecationNotice());
+		}
+		assertEquals(cardinality, referenceSchema.getCardinality());
+		assertEquals(entityType, referenceSchema.getReferencedEntityType());
+		assertEquals(groupEntityType, referenceSchema.getReferencedGroupType());
+		assertEquals(referencedGroupTypeManaged, referenceSchema.isReferencedGroupTypeManaged());
+		assertEquals(faceted, referenceSchema.isFaceted(), "Attribute `" + name + "` is expected to be " + (faceted ? "" : "not") + " faceted, but it " + (faceted ? "is not" : "is") + ".");
+		assertEquals(indexed, referenceSchema.isIndexed(), "Attribute `" + name + "` is expected to be " + (indexed ? "" : "not") + " indexed, but it " + (indexed ? "is not" : "is") + ".");
+	}
+
+	private static void assertEvolutionMode(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull EvolutionMode... expectedEvolutionModes
+	) {
+		final Set<EvolutionMode> evolutionMode = entitySchema.getEvolutionMode();
+		assertEquals(expectedEvolutionModes.length, evolutionMode.size());
+		for (EvolutionMode expectedEvolutionMode : expectedEvolutionModes) {
+			assertTrue(evolutionMode.contains(expectedEvolutionMode));
+		}
+	}
+
+	private static void assertSortableAttributeCompound(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull String compoundName,
+		@Nullable String description,
+		@Nullable String deprecation,
+		@Nonnull Scope[] indexedScopes,
+		@Nonnull AttributeElement[] attributeElements
+	) {
+		final SortableAttributeCompoundSchemaContract compound = entitySchema.getSortableAttributeCompound(compoundName)
+			.orElseThrow();
+
+		if (description == null) {
+			assertNull(compound.getDescription());
+		} else {
+			assertEquals(description, compound.getDescription());
+		}
+		if (deprecation == null) {
+			assertNull(compound.getDeprecationNotice());
+		} else {
+			assertEquals(deprecation, compound.getDeprecationNotice());
+		}
+
+		for (Scope scope : Scope.values()) {
+			boolean shouldBeIndexed = false;
+			for (Scope indexedScope : indexedScopes) {
+				if (scope == indexedScope) {
+					shouldBeIndexed = true;
+					break;
+				}
+			}
+			assertEquals(shouldBeIndexed, compound.isIndexedInScope(scope),
+				"Compound `" + compoundName + "` is expected to be " + (shouldBeIndexed ? "" : "not") +
+					" indexed in scope " + scope + ", but it " + (shouldBeIndexed ? "is not" : "is") + ".");
+		}
+
+		assertEquals(attributeElements.length, compound.getAttributeElements().size());
+		for (int i = 0; i < attributeElements.length; i++) {
+			final AttributeElement expectedElement = attributeElements[i];
+			final AttributeElement actualElement = compound.getAttributeElements().get(i);
+
+			assertEquals(expectedElement.attributeName(), actualElement.attributeName());
+			assertEquals(expectedElement.direction(), actualElement.direction());
+			assertEquals(expectedElement.behaviour(), actualElement.behaviour());
+		}
+	}
+
+	private static void assertSortableAttributeCompound(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String compoundName,
+		@Nullable String description,
+		@Nullable String deprecation,
+		@Nonnull Scope[] indexedScopes,
+		@Nonnull AttributeElement[] attributeElements
+	) {
+		final SortableAttributeCompoundSchemaContract compound = referenceSchema.getSortableAttributeCompound(compoundName)
+			.orElseThrow();
+
+		if (description == null) {
+			assertNull(compound.getDescription());
+		} else {
+			assertEquals(description, compound.getDescription());
+		}
+		if (deprecation == null) {
+			assertNull(compound.getDeprecationNotice());
+		} else {
+			assertEquals(deprecation, compound.getDeprecationNotice());
+		}
+
+		for (Scope scope : Scope.values()) {
+			boolean shouldBeIndexed = false;
+			for (Scope indexedScope : indexedScopes) {
+				if (scope == indexedScope) {
+					shouldBeIndexed = true;
+					break;
+				}
+			}
+			assertEquals(shouldBeIndexed, compound.isIndexedInScope(scope),
+				"Compound `" + compoundName + "` is expected to be " + (shouldBeIndexed ? "" : "not") +
+					" indexed in scope " + scope + ", but it " + (shouldBeIndexed ? "is not" : "is") + ".");
+		}
+
+		assertEquals(attributeElements.length, compound.getAttributeElements().size());
+		for (int i = 0; i < attributeElements.length; i++) {
+			final AttributeElement expectedElement = attributeElements[i];
+			final AttributeElement actualElement = compound.getAttributeElements().get(i);
+
+			assertEquals(expectedElement.attributeName(), actualElement.attributeName());
+			assertEquals(expectedElement.direction(), actualElement.direction());
+			assertEquals(expectedElement.behaviour(), actualElement.behaviour());
+		}
+	}
+
+	private static void assertReferenceWithScopeSettings(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecation,
+		@Nonnull Cardinality cardinality,
+		boolean referencedEntityTypeManaged,
+		@Nonnull String entityType,
+		boolean referencedGroupTypeManaged,
+		@Nonnull String groupEntityType,
+		@Nonnull Map<Scope, Boolean> facetedInScopes,
+		@Nonnull Map<Scope, ReferenceIndexType> indexedInScopes
+	) {
+		assertEquals(name, referenceSchema.getName());
+		if (description == null) {
+			assertNull(referenceSchema.getDescription());
+		} else {
+			assertEquals(description, referenceSchema.getDescription());
+		}
+		if (deprecation == null) {
+			assertNull(referenceSchema.getDeprecationNotice());
+		} else {
+			assertEquals(deprecation, referenceSchema.getDeprecationNotice());
+		}
+		assertEquals(cardinality, referenceSchema.getCardinality());
+		assertEquals(entityType, referenceSchema.getReferencedEntityType());
+		assertEquals(referencedEntityTypeManaged, referenceSchema.isReferencedEntityTypeManaged());
+		assertEquals(groupEntityType, referenceSchema.getReferencedGroupType());
+		assertEquals(referencedGroupTypeManaged, referenceSchema.isReferencedGroupTypeManaged());
+
+		// Check scope-specific faceted settings
+		for (Map.Entry<Scope, Boolean> entry : facetedInScopes.entrySet()) {
+			assertEquals(
+				entry.getValue(),
+				referenceSchema.isFacetedInScope(entry.getKey()),
+				"Reference `" + name + "` is expected to be " + (entry.getValue() ? "" : "not") +
+					" faceted in scope " + entry.getKey() + ", but it " + (entry.getValue() ? "is not" : "is") + "."
+			);
+		}
+
+		// Check scope-specific indexed settings
+		for (Map.Entry<Scope, ReferenceIndexType> entry : indexedInScopes.entrySet()) {
+			assertEquals(
+				entry.getValue(),
+				referenceSchema.getReferenceIndexType(entry.getKey()),
+				"Reference `" + name + "` is expected to have index type " + entry.getValue() +
+					" in scope " + entry.getKey() + ", but has " + referenceSchema.getReferenceIndexType(entry.getKey()) + "."
+			);
+		}
+	}
+
+	private static void assertReflectedReferenceWithScopeSettings(
+		@Nonnull ReflectedReferenceSchemaContract referenceSchema,
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecation,
+		@Nonnull Cardinality cardinality,
+		@Nonnull String entityType,
+		boolean referencedGroupTypeManaged,
+		@Nonnull String groupEntityType,
+		@Nonnull Map<Scope, Boolean> facetedInScopes,
+		@Nonnull Map<Scope, ReferenceIndexType> indexedInScopes
+	) {
+		assertEquals(name, referenceSchema.getName());
+		if (description == null) {
+			assertNull(referenceSchema.getDescription());
+		} else {
+			assertEquals(description, referenceSchema.getDescription());
+		}
+		if (deprecation == null) {
+			assertNull(referenceSchema.getDeprecationNotice());
+		} else {
+			assertEquals(deprecation, referenceSchema.getDeprecationNotice());
+		}
+		assertEquals(cardinality, referenceSchema.getCardinality());
+		assertEquals(entityType, referenceSchema.getReferencedEntityType());
+		assertEquals(groupEntityType, referenceSchema.getReferencedGroupType());
+		assertEquals(referencedGroupTypeManaged, referenceSchema.isReferencedGroupTypeManaged());
+
+		// Check scope-specific faceted settings
+		for (Map.Entry<Scope, Boolean> entry : facetedInScopes.entrySet()) {
+			assertEquals(
+				entry.getValue(),
+				referenceSchema.isFacetedInScope(entry.getKey()),
+				"Reflected reference `" + name + "` is expected to be " + (entry.getValue() ? "" : "not") +
+					" faceted in scope " + entry.getKey() + ", but it " + (entry.getValue() ? "is not" : "is") + "."
+			);
+		}
+
+		// Check scope-specific indexed settings
+		for (Map.Entry<Scope, ReferenceIndexType> entry : indexedInScopes.entrySet()) {
+			assertEquals(
+				entry.getValue(),
+				referenceSchema.getReferenceIndexType(entry.getKey()),
+				"Reflected reference `" + name + "` is expected to have index type " + entry.getValue() +
+					" in scope " + entry.getKey() + ", but has " + referenceSchema.getReferenceIndexType(entry.getKey()) + "."
+			);
+		}
+	}
+
+	private static void assertAttributeWithScopeSettings(
+		@Nonnull AttributeSchemaProvider<?> attributeSchemaProvider,
+		@Nonnull String attributeName,
+		@Nullable String description,
+		@Nullable String deprecation,
+		@Nonnull Class<?> expectedType,
+		boolean global,
+		@Nonnull Map<Scope, GlobalAttributeUniquenessType> globallyUniqueInScopes,
+		@Nonnull Map<Scope, AttributeUniquenessType> uniqueInScopes,
+		@Nonnull Map<Scope, Boolean> filterableInScopes,
+		@Nonnull Map<Scope, Boolean> sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative
+	) {
+		final AttributeSchemaContract attributeSchema = attributeSchemaProvider
+			.getAttribute(attributeName)
+			.orElseThrow();
+
+		if (description == null) {
+			assertNull(attributeSchema.getDescription());
+		} else {
+			assertEquals(description, attributeSchema.getDescription());
+		}
+		if (deprecation == null) {
+			assertNull(attributeSchema.getDeprecationNotice());
+		} else {
+			assertEquals(deprecation, attributeSchema.getDeprecationNotice());
+		}
+		assertEquals(expectedType, attributeSchema.getType());
+		if (global) {
+			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
+		}
+		assertEquals(localized, attributeSchema.isLocalized(), "Attribute `" + attributeName + "` is expected to be " + (localized ? "" : "not") + "localized, but it " + (localized ? "is not" : "is") + ".");
+		assertEquals(nullable, attributeSchema.isNullable(), "Attribute `" + attributeName + "` is expected to be " + (nullable ? "" : "not") + " nullable, but it " + (nullable ? "is not" : "is") + ".");
+		if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
+			assertEquals(
+				representative,
+				entityAttributeSchema.isRepresentative(),
+				"Attribute `" + attributeName + "` is expected to be " + (representative ? "" : "not") + " representative, but it " + (representative ? "is not" : "is") + "."
+			);
+		}
+
+		// Check scope-specific globally unique settings
+		for (Map.Entry<Scope, GlobalAttributeUniquenessType> entry : globallyUniqueInScopes.entrySet()) {
+			if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
+				assertEquals(
+					entry.getValue(),
+					globalAttributeSchema.getGlobalUniquenessType(entry.getKey()),
+					"Global attribute `" + attributeName + "` is expected to have global uniqueness type " + entry.getValue() +
+						" in scope " + entry.getKey() + ", but has " + globalAttributeSchema.getGlobalUniquenessType(entry.getKey()) + "."
+				);
+			}
+		}
+
+		// Check scope-specific unique settings
+		for (Map.Entry<Scope, AttributeUniquenessType> entry : uniqueInScopes.entrySet()) {
+			assertEquals(
+				entry.getValue(),
+				attributeSchema.getUniquenessType(entry.getKey()),
+				"Attribute `" + attributeName + "` is expected to have uniqueness type " + entry.getValue() +
+					" in scope " + entry.getKey() + ", but has " + attributeSchema.getUniquenessType(entry.getKey()) + "."
+			);
+		}
+
+		// Check scope-specific filterable settings
+		for (Map.Entry<Scope, Boolean> entry : filterableInScopes.entrySet()) {
+			assertEquals(
+				entry.getValue(),
+				attributeSchema.isFilterableInScope(entry.getKey()),
+				"Attribute `" + attributeName + "` is expected to be " + (entry.getValue() ? "" : "not") +
+					" filterable in scope " + entry.getKey() + ", but it " + (entry.getValue() ? "is not" : "is") + "."
+			);
+		}
+
+		// Check scope-specific sortable settings
+		for (Map.Entry<Scope, Boolean> entry : sortableInScopes.entrySet()) {
+			assertEquals(
+				entry.getValue(),
+				attributeSchema.isSortableInScope(entry.getKey()),
+				"Attribute `" + attributeName + "` is expected to be " + (entry.getValue() ? "" : "not") +
+					" sortable in scope " + entry.getKey() + ", but it " + (entry.getValue() ? "is not" : "is") + "."
+			);
+		}
+	}
+
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(DIR_CLASS_SCHEMA_ANALYZER_TEST);
@@ -312,8 +643,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"compoundA",
 					"Compound A description",
 					null,
-					new Scope[] { Scope.LIVE },
-					new AttributeElement[] {
+					new Scope[]{Scope.LIVE},
+					new AttributeElement[]{
 						new AttributeElement(ATTRIBUTE_DCODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
 						new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 					}
@@ -324,8 +655,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"compoundB",
 					"Compound B description",
 					"Not used anymore",
-					new Scope[] {},
-					new AttributeElement[] {
+					new Scope[]{},
+					new AttributeElement[]{
 						new AttributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 						new AttributeElement(ATTRIBUTE_QUANTITY, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
 					}
@@ -338,8 +669,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"compoundC",
 					"Compound C description",
 					null,
-					new Scope[] { Scope.LIVE },
-					new AttributeElement[] {
+					new Scope[]{Scope.LIVE},
+					new AttributeElement[]{
 						new AttributeElement("market", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
 						new AttributeElement("inceptionYear", OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 					}
@@ -458,8 +789,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"compoundA",
 					"Compound A description",
 					null,
-					new Scope[] { Scope.LIVE },
-					new AttributeElement[] {
+					new Scope[]{Scope.LIVE},
+					new AttributeElement[]{
 						new AttributeElement(ATTRIBUTE_DCODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
 						new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 					}
@@ -470,8 +801,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"compoundB",
 					"Compound B description",
 					"Not used anymore",
-					new Scope[] {},
-					new AttributeElement[] {
+					new Scope[]{},
+					new AttributeElement[]{
 						new AttributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 						new AttributeElement(ATTRIBUTE_QUANTITY, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
 					}
@@ -484,8 +815,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"compoundC",
 					"Compound C description",
 					null,
-					new Scope[] { Scope.LIVE },
-					new AttributeElement[] {
+					new Scope[]{Scope.LIVE},
+					new AttributeElement[]{
 						new AttributeElement("market", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
 						new AttributeElement("inceptionYear", OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 					}
@@ -600,8 +931,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"compoundA",
 					"Compound A description",
 					null,
-					new Scope[] { Scope.LIVE },
-					new AttributeElement[] {
+					new Scope[]{Scope.LIVE},
+					new AttributeElement[]{
 						new AttributeElement(ATTRIBUTE_DCODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
 						new AttributeElement(ATTRIBUTE_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 					}
@@ -612,8 +943,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"compoundB",
 					"Compound B description",
 					"Not used anymore",
-					new Scope[] {},
-					new AttributeElement[] {
+					new Scope[]{},
+					new AttributeElement[]{
 						new AttributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 						new AttributeElement(ATTRIBUTE_QUANTITY, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
 					}
@@ -626,8 +957,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					"compoundC",
 					"Compound C description",
 					null,
-					new Scope[] { Scope.LIVE },
-					new AttributeElement[] {
+					new Scope[]{Scope.LIVE},
+					new AttributeElement[]{
 						new AttributeElement("market", OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
 						new AttributeElement("inceptionYear", OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 					}
@@ -1316,147 +1647,535 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			});
 	}
 
+	@DisplayName("Verify that ScopeReferenceSettings work correctly with getter-based entities")
+	@Test
+	void shouldSetupNewSchemaWithScopeReferenceSettingsForGetters() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeReferenceSettings.class);
 
-	@SafeVarargs
-	private static <T> void assertSetEquals(Set<T> actualValues, T... expectedValues) {
-		assertEquals(expectedValues.length, actualValues.size());
-		for (T expectedValue : expectedValues) {
-			assertTrue(actualValues.contains(expectedValue), "Expected value not found: " + expectedValue);
-		}
+				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
+				final SealedEntitySchema entitySchema = session.getEntitySchema("GetterBasedEntityWithScopeReferenceSettings").orElseThrow();
+
+				assertNotNull(catalogSchema);
+				assertNotNull(entitySchema);
+
+				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
+				assertNotNull(references);
+				assertEquals(3, references.size());
+
+				// Test marketingBrand - indexed and faceted in LIVE scope only
+				final ReferenceSchemaContract marketingBrand = references.get("marketingBrand");
+				assertNotNull(marketingBrand);
+				assertReferenceWithScopeSettings(
+					marketingBrand,
+					"marketingBrand",
+					null, null,
+					Cardinality.ZERO_OR_ONE,
+					false, "brand",
+					false, "brandGroup",
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					Map.of(
+						Scope.LIVE, ReferenceIndexType.FOR_FILTERING,
+						Scope.ARCHIVED, ReferenceIndexType.NONE
+					)
+				);
+
+				// Test supplierBrands - different settings for different scopes
+				final ReferenceSchemaContract supplierBrands = references.get("supplierBrands");
+				assertNotNull(supplierBrands);
+
+				assertReferenceWithScopeSettings(
+					supplierBrands,
+					"supplierBrands",
+					null, null,
+					Cardinality.ZERO_OR_MORE,
+					false, "brand",
+					false, "brandGroup",
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					Map.of(
+						Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+						Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING
+					)
+				);
+
+				// Test defaultBrand - should use defaults (LIVE scope only)
+				final ReferenceSchemaContract defaultBrand = references.get("defaultBrand");
+				assertNotNull(defaultBrand);
+				assertReference(
+					defaultBrand,
+					"defaultBrand",
+					null, null,
+					Cardinality.ZERO_OR_ONE,
+					false, "brand",
+					false, "brandGroup",
+					true, true
+				);
+			});
 	}
 
-	private static void assertReflectedReference(
-		@Nonnull ReflectedReferenceSchemaContract referenceSchema,
-		@Nonnull String name,
-		@Nullable String description,
-		@Nullable String deprecation,
-		@Nonnull Cardinality cardinality,
-		@Nonnull String entityType,
-		boolean referencedGroupTypeManaged,
-		@Nonnull String groupEntityType,
-		boolean faceted,
-		boolean indexed
-	) {
-		assertEquals(name, referenceSchema.getName());
-		if (description == null) {
-			assertNull(referenceSchema.getDescription());
-		} else {
-			assertEquals(description, referenceSchema.getDescription());
-		}
-		if (deprecation == null) {
-			assertNull(referenceSchema.getDeprecationNotice());
-		} else {
-			assertEquals(deprecation, referenceSchema.getDeprecationNotice());
-		}
-		assertEquals(cardinality, referenceSchema.getCardinality());
-		assertEquals(entityType, referenceSchema.getReferencedEntityType());
-		assertEquals(groupEntityType, referenceSchema.getReferencedGroupType());
-		assertEquals(referencedGroupTypeManaged, referenceSchema.isReferencedGroupTypeManaged());
-		assertEquals(faceted, referenceSchema.isFaceted(), "Attribute `" + name + "` is expected to be " + (faceted ? "" : "not") + " faceted, but it " + (faceted ? "is not" : "is") + ".");
-		assertEquals(indexed, referenceSchema.isIndexed(), "Attribute `" + name + "` is expected to be " + (indexed ? "" : "not") + " indexed, but it " + (indexed ? "is not" : "is") + ".");
+	@DisplayName("Verify that ScopeReferenceSettings work correctly with field-based entities")
+	@Test
+	void shouldSetupNewSchemaWithScopeReferenceSettingsForFields() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithScopeReferenceSettings.class);
+
+				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
+				final SealedEntitySchema entitySchema = session.getEntitySchema("FieldBasedEntityWithScopeReferenceSettings").orElseThrow();
+
+				assertNotNull(catalogSchema);
+				assertNotNull(entitySchema);
+
+				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
+				assertNotNull(references);
+				assertEquals(3, references.size());
+
+				// Test marketingBrand - indexed and faceted in LIVE scope only
+				final ReferenceSchemaContract marketingBrand = references.get("marketingBrand");
+				assertNotNull(marketingBrand);
+				assertReferenceWithScopeSettings(
+					marketingBrand,
+					"marketingBrand",
+					null, null,
+					Cardinality.ZERO_OR_ONE,
+					false, "brand",
+					false, "brandGroup",
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					Map.of(
+						Scope.LIVE, ReferenceIndexType.FOR_FILTERING,
+						Scope.ARCHIVED, ReferenceIndexType.NONE
+					)
+				);
+
+				// Test supplierBrands - different settings for different scopes
+				final ReferenceSchemaContract supplierBrands = references.get("supplierBrands");
+				assertNotNull(supplierBrands);
+				assertReferenceWithScopeSettings(
+					supplierBrands,
+					"supplierBrands",
+					null, null,
+					Cardinality.ZERO_OR_MORE,
+					false, "brand",
+					false, "brandGroup",
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					Map.of(
+						Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+						Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING
+					)
+				);
+
+				// Test defaultBrand - should use defaults (LIVE scope only)
+				final ReferenceSchemaContract defaultBrand = references.get("defaultBrand");
+				assertNotNull(defaultBrand);
+				assertReference(
+					defaultBrand,
+					"defaultBrand",
+					null, null,
+					Cardinality.ZERO_OR_ONE,
+					false, "brand",
+					false, "brandGroup",
+					true, true
+				);
+			});
 	}
 
-	private static void assertEvolutionMode(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull EvolutionMode... expectedEvolutionModes
-	) {
-		final Set<EvolutionMode> evolutionMode = entitySchema.getEvolutionMode();
-		assertEquals(expectedEvolutionModes.length, evolutionMode.size());
-		for (EvolutionMode expectedEvolutionMode : expectedEvolutionModes) {
-			assertTrue(evolutionMode.contains(expectedEvolutionMode));
-		}
+	@DisplayName("Verify that ScopeReferenceSettings work correctly with record-based entities")
+	@Test
+	void shouldSetupNewSchemaWithScopeReferenceSettingsForRecords() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithScopeReferenceSettings.class);
+
+				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
+				final SealedEntitySchema entitySchema = session.getEntitySchema("RecordBasedEntityWithScopeReferenceSettings").orElseThrow();
+
+				assertNotNull(catalogSchema);
+				assertNotNull(entitySchema);
+
+				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
+				assertNotNull(references);
+				assertEquals(3, references.size());
+
+				// Test marketingBrand - indexed and faceted in LIVE scope only
+				final ReferenceSchemaContract marketingBrand = references.get("marketingBrand");
+				assertNotNull(marketingBrand);
+				assertReferenceWithScopeSettings(
+					marketingBrand,
+					"marketingBrand",
+					null, null,
+					Cardinality.ZERO_OR_ONE,
+					false, "brand",
+					false, "brandGroup",
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					Map.of(
+						Scope.LIVE, ReferenceIndexType.FOR_FILTERING,
+						Scope.ARCHIVED, ReferenceIndexType.NONE
+					)
+				);
+
+				// Test supplierBrands - different settings for different scopes
+				final ReferenceSchemaContract supplierBrands = references.get("supplierBrands");
+				assertNotNull(supplierBrands);
+				assertReferenceWithScopeSettings(
+					supplierBrands,
+					"supplierBrands",
+					null, null,
+					Cardinality.ZERO_OR_MORE,
+					false, "brand",
+					false, "brandGroup",
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					Map.of(
+						Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+						Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING
+					)
+				);
+
+				// Test defaultBrand - should use defaults (LIVE scope only)
+				final ReferenceSchemaContract defaultBrand = references.get("defaultBrand");
+				assertNotNull(defaultBrand);
+				assertReference(
+					defaultBrand,
+					"defaultBrand",
+					null, null,
+					Cardinality.ZERO_OR_ONE,
+					false, "brand",
+					false, "brandGroup",
+					true, true
+				);
+			});
 	}
 
-	private static void assertSortableAttributeCompound(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull String compoundName,
-		@Nullable String description,
-		@Nullable String deprecation,
-		@Nonnull Scope[] indexedScopes,
-		@Nonnull AttributeElement[] attributeElements
-	) {
-		final SortableAttributeCompoundSchemaContract compound = entitySchema.getSortableAttributeCompound(compoundName)
-			.orElseThrow();
+	@DisplayName("Verify that ScopeReferenceSettings work correctly with reflected references")
+	@Test
+	void shouldSetupNewSchemaWithScopeReferenceSettingsForReflectedReferences() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeReflectedReference.Brand.class);
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeReflectedReference.BrandGroup.class);
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeReflectedReference.class);
 
-		if (description == null) {
-			assertNull(compound.getDescription());
-		} else {
-			assertEquals(description, compound.getDescription());
-		}
-		if (deprecation == null) {
-			assertNull(compound.getDeprecationNotice());
-		} else {
-			assertEquals(deprecation, compound.getDeprecationNotice());
-		}
+				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
+				final SealedEntitySchema entitySchema = session.getEntitySchema("GetterBasedEntityWithScopeReflectedReference").orElseThrow();
 
-		for (Scope scope : Scope.values()) {
-			boolean shouldBeIndexed = false;
-			for (Scope indexedScope : indexedScopes) {
-				if (scope == indexedScope) {
-					shouldBeIndexed = true;
-					break;
-				}
-			}
-			assertEquals(shouldBeIndexed, compound.isIndexedInScope(scope),
-				"Compound `" + compoundName + "` is expected to be " + (shouldBeIndexed ? "" : "not") +
-				" indexed in scope " + scope + ", but it " + (shouldBeIndexed ? "is not" : "is") + ".");
-		}
+				assertNotNull(catalogSchema);
+				assertNotNull(entitySchema);
 
-		assertEquals(attributeElements.length, compound.getAttributeElements().size());
-		for (int i = 0; i < attributeElements.length; i++) {
-			final AttributeElement expectedElement = attributeElements[i];
-			final AttributeElement actualElement = compound.getAttributeElements().get(i);
+				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
+				assertNotNull(references);
+				assertEquals(1, references.size());
 
-			assertEquals(expectedElement.attributeName(), actualElement.attributeName());
-			assertEquals(expectedElement.direction(), actualElement.direction());
-			assertEquals(expectedElement.behaviour(), actualElement.behaviour());
-		}
+				// Test marketingBrand - reflected reference with scope-specific settings
+				final ReferenceSchemaContract marketingBrand = references.get("marketingBrand");
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, marketingBrand);
+				final ReflectedReferenceSchemaContract reflectedReference = (ReflectedReferenceSchemaContract) marketingBrand;
+				assertNotNull(reflectedReference);
+				assertReflectedReferenceWithScopeSettings(
+					reflectedReference,
+					"marketingBrand",
+					null, null,
+					Cardinality.ZERO_OR_ONE,
+					"Brand",
+					true, "BrandGroup",
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					Map.of(
+						Scope.LIVE, ReferenceIndexType.FOR_FILTERING,
+						Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING
+					)
+				);
+
+				final Map<String, AttributeSchemaContract> attributes = reflectedReference.getAttributes();
+				assertEquals(2, attributes.size());
+				assertTrue(attributes.containsKey("brandNote"));
+				assertTrue(attributes.containsKey("order"));
+			});
 	}
 
-	private static void assertSortableAttributeCompound(
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull String compoundName,
-		@Nullable String description,
-		@Nullable String deprecation,
-		@Nonnull Scope[] indexedScopes,
-		@Nonnull AttributeElement[] attributeElements
-	) {
-		final SortableAttributeCompoundSchemaContract compound = referenceSchema.getSortableAttributeCompound(compoundName)
-			.orElseThrow();
+	@DisplayName("Debug simple ScopeAttributeSettings")
+	@Test
+	void shouldSetupSimpleScopeAttributeSettings() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(SimpleEntityWithScopeAttributeSettings.class);
 
-		if (description == null) {
-			assertNull(compound.getDescription());
-		} else {
-			assertEquals(description, compound.getDescription());
-		}
-		if (deprecation == null) {
-			assertNull(compound.getDeprecationNotice());
-		} else {
-			assertEquals(deprecation, compound.getDeprecationNotice());
-		}
+				final SealedEntitySchema entitySchema = session.getEntitySchema("SimpleEntityWithScopeAttributeSettings").orElseThrow();
+				assertNotNull(entitySchema);
 
-		for (Scope scope : Scope.values()) {
-			boolean shouldBeIndexed = false;
-			for (Scope indexedScope : indexedScopes) {
-				if (scope == indexedScope) {
-					shouldBeIndexed = true;
-					break;
-				}
-			}
-			assertEquals(shouldBeIndexed, compound.isIndexedInScope(scope),
-				"Compound `" + compoundName + "` is expected to be " + (shouldBeIndexed ? "" : "not") +
-				" indexed in scope " + scope + ", but it " + (shouldBeIndexed ? "is not" : "is") + ".");
-		}
+				// Test name attribute - should be filterable in LIVE scope
+				final AttributeSchemaContract nameAttribute = entitySchema.getAttribute("name").orElseThrow();
+				assertTrue(nameAttribute.isFilterableInScope(Scope.LIVE));
+				assertFalse(nameAttribute.isFilterableInScope(Scope.ARCHIVED));
+			});
+	}
 
-		assertEquals(attributeElements.length, compound.getAttributeElements().size());
-		for (int i = 0; i < attributeElements.length; i++) {
-			final AttributeElement expectedElement = attributeElements[i];
-			final AttributeElement actualElement = compound.getAttributeElements().get(i);
+	@DisplayName("Debug minimal ScopeAttributeSettings with two attributes")
+	@Test
+	void shouldSetupMinimalScopeAttributeSettings() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(MinimalEntityWithScopeAttributeSettings.class);
 
-			assertEquals(expectedElement.attributeName(), actualElement.attributeName());
-			assertEquals(expectedElement.direction(), actualElement.direction());
-			assertEquals(expectedElement.behaviour(), actualElement.behaviour());
-		}
+				final SealedEntitySchema entitySchema = session.getEntitySchema("MinimalEntityWithScopeAttributeSettings").orElseThrow();
+				assertNotNull(entitySchema);
+
+				// Test code attribute - regular attribute, should use defaults (not filterable)
+				final AttributeSchemaContract codeAttribute = entitySchema.getAttribute("code").orElseThrow();
+				assertFalse(codeAttribute.isFilterableInScope(Scope.LIVE));
+				assertFalse(codeAttribute.isFilterableInScope(Scope.ARCHIVED));
+
+				// Test name attribute - should be filterable and sortable in LIVE scope
+				final AttributeSchemaContract nameAttribute = entitySchema.getAttribute("name").orElseThrow();
+				assertTrue(nameAttribute.isFilterableInScope(Scope.LIVE));
+				assertTrue(nameAttribute.isSortableInScope(Scope.LIVE));
+				assertFalse(nameAttribute.isFilterableInScope(Scope.ARCHIVED));
+				assertFalse(nameAttribute.isSortableInScope(Scope.ARCHIVED));
+			});
+	}
+
+	@DisplayName("Verify that ScopeAttributeSettings work correctly with getter-based entities")
+	@Test
+	void shouldSetupNewSchemaWithScopeAttributeSettingsForGetters() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeAttributeSettings.class);
+
+				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
+				final SealedEntitySchema entitySchema = session.getEntitySchema("GetterBasedEntityWithScopeAttributeSettings").orElseThrow();
+
+				assertNotNull(catalogSchema);
+				assertNotNull(entitySchema);
+
+				// Test marketingName - filterable and sortable in LIVE scope only
+				assertAttributeWithScopeSettings(
+					entitySchema,
+					"marketingName",
+					null, null,
+					String.class,
+					false,
+					Map.of(),
+					Map.of(
+						Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE,
+						Scope.ARCHIVED, AttributeUniquenessType.NOT_UNIQUE
+					),
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					false, false, false
+				);
+
+				// Test productCode - different settings for different scopes
+				assertAttributeWithScopeSettings(
+					entitySchema,
+					"productCode",
+					null, null,
+					String.class,
+					false,
+					Map.of(),
+					Map.of(
+						Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE,
+						Scope.ARCHIVED, AttributeUniquenessType.NOT_UNIQUE
+					),
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, true
+					),
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					false, false, false
+				);
+
+				// Test defaultAttribute - should use defaults (LIVE scope only)
+				assertAttribute(
+					entitySchema,
+					"defaultAttribute",
+					null, null,
+					String.class,
+					false, false, false,
+					true, true,
+					false, false, false
+				);
+			});
+	}
+
+	@DisplayName("Verify that ScopeAttributeSettings work correctly with field-based entities")
+	@Test
+	void shouldSetupNewSchemaWithScopeAttributeSettingsForFields() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithScopeAttributeSettings.class);
+
+				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
+				final SealedEntitySchema entitySchema = session.getEntitySchema("FieldBasedEntityWithScopeAttributeSettings").orElseThrow();
+
+				assertNotNull(catalogSchema);
+				assertNotNull(entitySchema);
+
+				// Test marketingName - filterable and sortable in LIVE scope only
+				assertAttributeWithScopeSettings(
+					entitySchema,
+					"marketingName",
+					null, null,
+					String.class,
+					false,
+					Map.of(),
+					Map.of(
+						Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE,
+						Scope.ARCHIVED, AttributeUniquenessType.NOT_UNIQUE
+					),
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					false, false, false
+				);
+
+				// Test productCode - different settings for different scopes
+				assertAttributeWithScopeSettings(
+					entitySchema,
+					"productCode",
+					null, null,
+					String.class,
+					false,
+					Map.of(),
+					Map.of(
+						Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE,
+						Scope.ARCHIVED, AttributeUniquenessType.NOT_UNIQUE
+					),
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, true
+					),
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					false, false, false
+				);
+
+				// Test defaultAttribute - should use defaults (LIVE scope only)
+				assertAttribute(
+					entitySchema,
+					"defaultAttribute",
+					null, null,
+					String.class,
+					false, false, false,
+					true, true,
+					false, false, false
+				);
+			});
+	}
+
+	@DisplayName("Verify that ScopeAttributeSettings work correctly with record-based entities")
+	@Test
+	void shouldSetupNewSchemaWithScopeAttributeSettingsForRecords() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithScopeAttributeSettings.class);
+
+				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
+				final SealedEntitySchema entitySchema = session.getEntitySchema("RecordBasedEntityWithScopeAttributeSettings").orElseThrow();
+
+				assertNotNull(catalogSchema);
+				assertNotNull(entitySchema);
+
+				// Test marketingName - filterable and sortable in LIVE scope only
+				assertAttributeWithScopeSettings(
+					entitySchema,
+					"marketingName",
+					null, null,
+					String.class,
+					false,
+					Map.of(),
+					Map.of(
+						Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE,
+						Scope.ARCHIVED, AttributeUniquenessType.NOT_UNIQUE
+					),
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					false, false, false
+				);
+
+				// Test productCode - different settings for different scopes
+				assertAttributeWithScopeSettings(
+					entitySchema,
+					"productCode",
+					null, null,
+					String.class,
+					false,
+					Map.of(),
+					Map.of(
+						Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE,
+						Scope.ARCHIVED, AttributeUniquenessType.NOT_UNIQUE
+					),
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, true
+					),
+					Map.of(
+						Scope.LIVE, true,
+						Scope.ARCHIVED, false
+					),
+					false, false, false
+				);
+
+				// Test defaultAttribute - should use defaults (LIVE scope only)
+				assertAttribute(
+					entitySchema,
+					"defaultAttribute",
+					null, null,
+					String.class,
+					false, false, false,
+					true, true,
+					false, false, false
+				);
+			});
 	}
 
 }

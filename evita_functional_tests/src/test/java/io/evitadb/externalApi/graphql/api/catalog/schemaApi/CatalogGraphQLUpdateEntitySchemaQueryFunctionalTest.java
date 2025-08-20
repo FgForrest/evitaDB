@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,18 +27,11 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.SortableAttributeCompoundSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.SortableAttributeCompoundsSchemaProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -754,7 +747,12 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 									referencedEntityType: "tag"
 									referencedEntityTypeManaged: false
 									referencedGroupTypeManaged: false
-									indexedInScopes: [LIVE]
+									indexedInScopes: [
+										{
+											scope: LIVE
+											indexType: FOR_FILTERING
+										}
+									]
 									facetedInScopes: [LIVE]
 								}
 							}
@@ -796,7 +794,10 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 								referencedEntityTypeManaged
 								referencedGroupType
 								referencedGroupTypeManaged
-								indexed
+								indexed {
+									scope
+									indexType
+								}
 								faceted
 							}
 						}
@@ -823,7 +824,14 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 								.e(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), false)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), null)
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
-								.e(ReferenceSchemaDescriptor.INDEXED.name(), list().i(Scope.LIVE.name()))
+								.e(
+									ReferenceSchemaDescriptor.INDEXED.name(),
+									list().i(
+										map()
+											.e(ScopedReferenceIndexTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+											.e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING.name())
+									)
+								)
 								.e(ReferenceSchemaDescriptor.FACETED.name(), list().i(Scope.LIVE.name()))
 								.build())
 							.build())

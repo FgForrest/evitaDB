@@ -366,7 +366,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @deprecated use {@link #getEntitySchemaOrThrowException(String)}
 	 */
 	@Nonnull
-	@Deprecated
+	@Deprecated(since = "2024.8", forRemoval = true)
 	default SealedEntitySchema getEntitySchemaOrThrow(@Nonnull String entityType)
 		throws CollectionNotFoundException {
 		return getEntitySchemaOrThrowException(entityType);
@@ -385,7 +385,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 * @deprecated use {@link #getEntitySchemaOrThrowException(Class)}
 	 */
-	@Deprecated
+	@Deprecated(since = "2024.8", forRemoval = true)
 	@Nonnull
 	default SealedEntitySchema getEntitySchemaOrThrow(@Nonnull Class<?> modelClass)
 		throws CollectionNotFoundException, EntityClassInvalidException {

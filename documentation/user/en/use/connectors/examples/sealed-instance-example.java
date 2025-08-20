@@ -44,7 +44,7 @@ public interface Product extends SealedInstance<Product, ProductEditor>, Seriali
 	@PriceForSale
 	PriceContract getSellingPrice();
 
-	@Reference(indexed = true, managed = false, groupEntityManaged = false)
+	@Reference(indexed = FOR_FILTERING, managed = false, groupEntityManaged = false)
 	Brand getMarketingBrand();
 
 	@Reference(managed = false, groupEntityManaged = false)

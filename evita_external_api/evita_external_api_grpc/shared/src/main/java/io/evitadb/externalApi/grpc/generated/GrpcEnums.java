@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ public final class GrpcEnums {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_fieldAccessorTable;
 
@@ -189,8 +189,11 @@ public final class GrpcEnums {
       "acetGroupRelationLevel\022\"\n\036WITH_DIFFERENT" +
       "_FACETS_IN_GROUP\020\000\022\031\n\025WITH_DIFFERENT_GRO" +
       "UPS\020\001*7\n\021GrpcTraversalMode\022\017\n\013DEPTH_FIRS" +
-      "T\020\000\022\021\n\rBREADTH_FIRST\020\001B\014P\001\252\002\007EvitaDBb\006pr" +
-      "oto3"
+      "T\020\000\022\021\n\rBREADTH_FIRST\020\001*\230\001\n\026GrpcReference" +
+      "IndexType\022\035\n\031REFERENCE_INDEX_TYPE_NONE\020\000" +
+      "\022&\n\"REFERENCE_INDEX_TYPE_FOR_FILTERING\020\001" +
+      "\0227\n3REFERENCE_INDEX_TYPE_FOR_FILTERING_A" +
+      "ND_PARTITIONING\020\002B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

@@ -47,6 +47,7 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingContent;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -1330,6 +1331,38 @@ public class EvitaEnumConverter {
 			case WAIT_FOR_CONFLICT_RESOLUTION -> GrpcTransactionPhase.CONFLICTS_RESOLVED;
 			case WAIT_FOR_WAL_PERSISTENCE -> GrpcTransactionPhase.WAL_PERSISTED;
 			case WAIT_FOR_CHANGES_VISIBLE -> GrpcTransactionPhase.CHANGES_VISIBLE;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcReferenceIndexType} to a {@link ReferenceIndexType}.
+	 *
+	 * @param grpcReferenceIndexType the gRPC reference index type to convert.
+	 * @return the corresponding reference index type.
+	 * @throws GenericEvitaInternalError if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static ReferenceIndexType toReferenceIndexType(@Nonnull GrpcReferenceIndexType grpcReferenceIndexType) {
+		return switch (grpcReferenceIndexType) {
+			case REFERENCE_INDEX_TYPE_NONE -> ReferenceIndexType.NONE;
+			case REFERENCE_INDEX_TYPE_FOR_FILTERING -> ReferenceIndexType.FOR_FILTERING;
+			case REFERENCE_INDEX_TYPE_FOR_FILTERING_AND_PARTITIONING -> ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING;
+			case UNRECOGNIZED -> throw new GenericEvitaInternalError("Unrecognized gRPC reference index type: " + grpcReferenceIndexType);
+		};
+	}
+
+	/**
+	 * Converts a {@link ReferenceIndexType} to a {@link GrpcReferenceIndexType}.
+	 *
+	 * @param referenceIndexType the reference index type to convert.
+	 * @return the corresponding gRPC reference index type.
+	 */
+	@Nonnull
+	public static GrpcReferenceIndexType toGrpcReferenceIndexType(@Nonnull ReferenceIndexType referenceIndexType) {
+		return switch (referenceIndexType) {
+			case NONE -> GrpcReferenceIndexType.REFERENCE_INDEX_TYPE_NONE;
+			case FOR_FILTERING -> GrpcReferenceIndexType.REFERENCE_INDEX_TYPE_FOR_FILTERING;
+			case FOR_FILTERING_AND_PARTITIONING -> GrpcReferenceIndexType.REFERENCE_INDEX_TYPE_FOR_FILTERING_AND_PARTITIONING;
 		};
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilde
 import io.evitadb.api.requestResponse.schema.builder.GlobalAttributeSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -1054,25 +1055,34 @@ public class ClassSchemaAnalyzer {
 
 			final ScopeReferenceSettings[] scopedDefinition = reference.scope();
 			if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
-				if (reference.indexed()) {
-					editor.indexed();
+				if (reference.indexed() == ReferenceIndexType.FOR_FILTERING) {
+					editor.indexedForFiltering();
+				} else if (reference.indexed() == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
+					editor.indexedForFilteringAndPartitioning();
+				} else {
+					editor.nonIndexed();
 				}
 				if (reference.faceted()) {
 					editor.faceted();
 				}
 			} else {
 				Assert.isTrue(
-					!reference.indexed(),
+					reference.indexed() == ReferenceIndexType.NONE,
 					"When `scope` is defined in `@Reference` annotation, " +
 						"the value of `indexed` property is not taken into an account " +
 						"(and thus it doesn't make sense to set it to true)!"
 				);
-				editor.indexedInScope(
-					Arrays.stream(scopedDefinition)
-						.filter(ScopeReferenceSettings::indexed)
-						.map(ScopeReferenceSettings::scope)
-						.toArray(Scope[]::new)
-				);
+
+				for (ScopeReferenceSettings scopeReferenceSettings : scopedDefinition) {
+					if (scopeReferenceSettings.indexed() == ReferenceIndexType.FOR_FILTERING) {
+						editor.indexedForFilteringInScope(scopeReferenceSettings.scope());
+					} else if (scopeReferenceSettings.indexed() == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
+						editor.indexedForFilteringAndPartitioningInScope(scopeReferenceSettings.scope());
+					} else {
+						editor.nonIndexed(scopeReferenceSettings.scope());
+					}
+				}
+
 				Assert.isTrue(
 					!reference.faceted(),
 					"When `scope` is defined in `@Reference` annotation, " +
@@ -1148,8 +1158,8 @@ public class ClassSchemaAnalyzer {
 
 		Assert.isTrue(
 			!targetEntity.entityType().isBlank(),
-			"Target entity type needs to be specified either by `@ReflectedReference` entity attribute or by `@ReferencedEntity` " +
-				" and `@Entity` annotation on target class!"
+			"Target entity of reference `" + referenceName + "` type needs to be specified either by " +
+				"`@ReflectedReference` entity attribute or by `@ReferencedEntity` and `@Entity` annotation on target class!"
 		);
 
 		final Map<String, String> relationAttributes = new HashMap<>(32);
@@ -1171,23 +1181,35 @@ public class ClassSchemaAnalyzer {
 
 			final ScopeReferenceSettings[] scopedDefinition = reference.scope();
 			if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
+				if (reference.indexed() == ReferenceIndexType.FOR_FILTERING) {
+					editor.indexedForFiltering();
+				} else if (reference.indexed() == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
+					editor.indexedForFilteringAndPartitioning();
+				} else {
+					editor.nonIndexed();
+				}
 				if (reference.faceted() == InheritableBoolean.TRUE) {
 					editor.faceted();
 				} else if (reference.faceted() == InheritableBoolean.FALSE) {
 					editor.nonFaceted();
 				}
 			} else {
-				editor.indexedInScope(
-					Arrays.stream(scopedDefinition)
-						.filter(ScopeReferenceSettings::indexed)
-						.map(ScopeReferenceSettings::scope)
-						.toArray(Scope[]::new)
-				);
+
+				for (ScopeReferenceSettings scopeReferenceSettings : scopedDefinition) {
+					if (scopeReferenceSettings.indexed() == ReferenceIndexType.FOR_FILTERING) {
+						editor.indexedForFilteringInScope(scopeReferenceSettings.scope());
+					} else if (scopeReferenceSettings.indexed() == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
+						editor.indexedForFilteringAndPartitioningInScope(scopeReferenceSettings.scope());
+					} else {
+						editor.nonIndexed(scopeReferenceSettings.scope());
+					}
+				}
+
 				Assert.isTrue(
-					reference.faceted() == InheritableBoolean.INHERITED,
+					reference.faceted() == InheritableBoolean.FALSE,
 					"When `scope` is defined in `@Reference` annotation, " +
-						"the value of `faceted` property is not taken into an account " +
-						"(and thus it doesn't make sense to set it to true)!"
+						"the value of `faceted` property of reflected reference `" + reference + "` is not taken " +
+						"into an account (and thus it doesn't make sense to set it to true)!"
 				);
 				editor.facetedInScope(
 					Arrays.stream(scopedDefinition)

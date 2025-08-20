@@ -24,9 +24,15 @@
 package io.evitadb.index;
 
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogRelatedDataStructure;
 import io.evitadb.core.buffer.TrappedChanges;
@@ -36,6 +42,9 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -44,11 +53,14 @@ import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.price.PriceIndexContract;
+import io.evitadb.index.price.PriceIndexReadContract;
 import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -67,6 +79,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Reduced entity index is a "helper" index that maintains primarily bitmaps of primary keys that are connected to
@@ -163,7 +176,7 @@ public class ReducedEntityIndex extends EntityIndex
 	 * This part of index collects information about prices of the entities. It provides data that are necessary for
 	 * constructing {@link Formula} tree for the constraints related to the prices.
 	 */
-	@Delegate(types = PriceIndexContract.class)
+	@Delegate(types = PriceIndexReadContract.class)
 	@Getter private final PriceRefIndex priceIndex;
 
 	/**
@@ -302,6 +315,24 @@ public class ReducedEntityIndex extends EntityIndex
 	}
 
 	@Override
+	protected StoragePart createStoragePart(
+		boolean hierarchyIndexEmpty,
+		@Nonnull Set<AttributeIndexStorageKey> attributeIndexStorageKeys,
+		@Nonnull Set<PriceIndexKey> priceIndexKeys,
+		@Nonnull Set<String> facetIndexReferencedEntities
+	) {
+		return new EntityIndexStoragePart(
+			this.primaryKey, this.version, this.indexKey,
+			this.entityIds, this.entityIdsByLanguage,
+			attributeIndexStorageKeys,
+			priceIndexKeys,
+			!hierarchyIndexEmpty,
+			facetIndexReferencedEntities,
+			null
+		);
+	}
+
+	@Override
 	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
 		super.getModifiedStorageParts(trappedChanges);
 		this.priceIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
@@ -317,6 +348,189 @@ public class ReducedEntityIndex extends EntityIndex
 	public void resetDirty() {
 		super.resetDirty();
 		this.priceIndex.resetDirty();
+	}
+
+	@Override
+	public void removeSortAttributeCompound(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId
+	) {
+		assertPartitioningIndex(referenceSchema);
+		super.removeSortAttributeCompound(referenceSchema, compoundSchemaContract, locale, value, recordId);
+	}
+
+	@Override
+	public void insertSortAttributeCompound(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		@Nonnull Function<String, Class<?>> attributeTypeProvider,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId
+	) {
+		assertPartitioningIndex(referenceSchema);
+		super.insertSortAttributeCompound(referenceSchema, compoundSchemaContract, attributeTypeProvider, locale, value, recordId);
+	}
+
+	@Override
+	public void removeSortAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		assertPartitioningIndex(referenceSchema);
+		super.removeSortAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+	}
+
+	@Override
+	public void insertSortAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		assertPartitioningIndex(referenceSchema);
+		super.insertSortAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+	}
+
+	@Override
+	public void removeDeltaFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId
+	) {
+		assertPartitioningIndex(referenceSchema);
+		super.removeDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+	}
+
+	@Override
+	public void addDeltaFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId
+	) {
+		assertPartitioningIndex(referenceSchema);
+		super.addDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+	}
+
+	@Override
+	public void removeFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		assertPartitioningIndex(referenceSchema);
+		super.removeFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+	}
+
+	@Override
+	public void insertFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		assertPartitioningIndex(referenceSchema);
+		super.insertFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+	}
+
+	@Override
+	public void removeUniqueAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		assertPartitioningIndex(referenceSchema);
+		super.removeUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
+	}
+
+	@Override
+	public void insertUniqueAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		assertPartitioningIndex(referenceSchema);
+		super.insertUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
+	}
+
+	@Override
+	public void addNode(int entityPrimaryKey, Integer parentPrimaryKey) {
+		throw new GenericEvitaInternalError(
+			"ReducedEntityIndex is not expected to maintain hierarchical nodes!"
+		);
+	}
+
+	@Override
+	public Integer removeNode(int entityPrimaryKey) {
+		throw new GenericEvitaInternalError(
+			"ReducedEntityIndex is not expected to maintain hierarchical nodes!"
+		);
+	}
+
+	@Override
+	public int addPrice(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		int entityPrimaryKey,
+		int internalPriceId,
+		@Nonnull PriceKey priceKey,
+		@Nonnull PriceInnerRecordHandling innerRecordHandling,
+		@Nullable Integer innerRecordId,
+		@Nullable DateTimeRange validity,
+		int priceWithoutTax,
+		int priceWithTax
+	) {
+		assertPartitioningIndex(referenceSchema);
+		return this.priceIndex.addPrice(
+			referenceSchema, entityPrimaryKey, internalPriceId, priceKey, innerRecordHandling, innerRecordId, validity,
+			priceWithoutTax, priceWithTax
+		);
+	}
+
+	@Override
+	public void priceRemove(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		int entityPrimaryKey,
+		int internalPriceId,
+		@Nonnull PriceKey priceKey,
+		@Nonnull PriceInnerRecordHandling innerRecordHandling,
+		@Nullable Integer innerRecordId,
+		@Nullable DateTimeRange validity,
+		int priceWithoutTax,
+		int priceWithTax
+	) {
+		assertPartitioningIndex(referenceSchema);
+		this.priceIndex.priceRemove(
+			referenceSchema, entityPrimaryKey, internalPriceId, priceKey, innerRecordHandling, innerRecordId, validity,
+			priceWithoutTax, priceWithTax
+		);
 	}
 
 	@Nonnull
@@ -345,6 +559,31 @@ public class ReducedEntityIndex extends EntityIndex
 	@Override
 	public String toString() {
 		return "ReducedEntityIndex (" + StringUtils.uncapitalize(getIndexKey().toString()) + ")";
+	}
+
+	@Override
+	protected boolean isRequireLocaleRemoval() {
+		// reduced indexes may not have all the entity locales indexed, because they may have contain only reference attributes
+		// when index type is set to FOR_FILTERING, so we cannot guarantee removing locale for particular entity primary key
+		return false;
+	}
+
+	/**
+	 * Ensures that the current index can be used for filtering and partitioning operations.
+	 * This method validates if the `indexType` of the current instance is set to
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}. If the validation fails,
+	 * an {@link IllegalArgumentException} is thrown with a descriptive error message.
+	 *
+	 * Throws an exception if this operation is invoked on indexes of a type other than
+	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
+	 *
+	 * @throws IllegalArgumentException if the `indexType` is not {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
+	 */
+	private void assertPartitioningIndex(@Nullable ReferenceSchemaContract referenceSchema) {
+		Assert.isPremiseValid(
+			referenceSchema == null || referenceSchema.getReferenceIndexType(this.indexKey.scope()) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			() -> "This operation is allowed only for indexes that are used for filtering and partitioning! Current index type is: " + Objects.requireNonNull(referenceSchema).getReferenceIndexType(this.indexKey.scope())
+		);
 	}
 
 	/**

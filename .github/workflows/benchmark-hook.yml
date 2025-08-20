@@ -10,7 +10,6 @@ on:
 permissions:
   contents: read   # Required for actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 to clone the repository
   id-token: write  # Required for authentication in certain actions (e.g., digitalocean/action-doctl@v2)
-  secrets: read    # Required to access the DIGITALOCEAN_ACCESS_TOKEN secret
 
 env:
   KUBECONFIG: ${{ github.workspace }}/evita_performance_tests/src/do_k8s_automation/deploy/kube.cfg

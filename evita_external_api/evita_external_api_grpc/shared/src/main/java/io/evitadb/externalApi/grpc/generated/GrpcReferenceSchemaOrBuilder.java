@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -403,7 +403,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
       getNameVariantList();
   /**
    * <pre>
@@ -428,7 +428,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getNameVariantOrBuilderList();
   /**
    * <pre>
@@ -447,7 +447,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
       getEntityTypeNameVariantList();
   /**
    * <pre>
@@ -472,7 +472,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getEntityTypeNameVariantOrBuilderList();
   /**
    * <pre>
@@ -491,7 +491,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
       getGroupTypeNameVariantList();
   /**
    * <pre>
@@ -516,7 +516,7 @@ public interface GrpcReferenceSchemaOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
       getGroupTypeNameVariantOrBuilderList();
   /**
    * <pre>
@@ -704,12 +704,14 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
    * fetched.
+   * deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+   * @deprecated
    * @return A list containing the indexedInScopes.
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList();
+  @java.lang.Deprecated java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList();
   /**
    * <pre>
    * Contains `true` if the index for this reference should be created and maintained allowing to filter by
@@ -719,12 +721,14 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
    * fetched.
+   * deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+   * @deprecated
    * @return The count of indexedInScopes.
    */
-  int getIndexedInScopesCount();
+  @java.lang.Deprecated int getIndexedInScopesCount();
   /**
    * <pre>
    * Contains `true` if the index for this reference should be created and maintained allowing to filter by
@@ -734,13 +738,15 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
    * fetched.
+   * deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+   * @deprecated
    * @param index The index of the element to return.
    * @return The indexedInScopes at the given index.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index);
+  @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcEntityScope getIndexedInScopes(int index);
   /**
    * <pre>
    * Contains `true` if the index for this reference should be created and maintained allowing to filter by
@@ -750,12 +756,14 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
    * fetched.
+   * deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+   * @deprecated
    * @return A list containing the enum numeric values on the wire for indexedInScopes.
    */
-  java.util.List<java.lang.Integer>
+  @java.lang.Deprecated java.util.List<java.lang.Integer>
   getIndexedInScopesValueList();
   /**
    * <pre>
@@ -766,13 +774,15 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
    * fetched.
+   * deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 26 [deprecated = true];</code>
+   * @deprecated
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of indexedInScopes at the given index.
    */
-  int getIndexedInScopesValue(int index);
+  @java.lang.Deprecated int getIndexedInScopesValue(int index);
 
   /**
    * <pre>
@@ -847,4 +857,53 @@ public interface GrpcReferenceSchemaOrBuilder extends
    * @return The enum numeric value on the wire of facetedInScopes at the given index.
    */
   int getFacetedInScopesValue(int index);
+
+  /**
+   * <pre>
+   * Scoped reference index types that define both the scope and the type of index for the reference.
+   * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType>
+      getScopedIndexTypesList();
+  /**
+   * <pre>
+   * Scoped reference index types that define both the scope and the type of index for the reference.
+   * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType getScopedIndexTypes(int index);
+  /**
+   * <pre>
+   * Scoped reference index types that define both the scope and the type of index for the reference.
+   * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+   */
+  int getScopedIndexTypesCount();
+  /**
+   * <pre>
+   * Scoped reference index types that define both the scope and the type of index for the reference.
+   * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder>
+      getScopedIndexTypesOrBuilderList();
+  /**
+   * <pre>
+   * Scoped reference index types that define both the scope and the type of index for the reference.
+   * This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder getScopedIndexTypesOrBuilder(
+      int index);
 }

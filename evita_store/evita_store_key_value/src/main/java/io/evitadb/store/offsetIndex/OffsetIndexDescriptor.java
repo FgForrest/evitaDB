@@ -30,6 +30,7 @@ import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.model.PersistentStorageDescriptor;
+import io.evitadb.store.offsetIndex.OffsetIndexSerializationService.FileLocationAndWrittenBytes;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -143,14 +144,19 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 	}
 
 	public OffsetIndexDescriptor(
-		@Nonnull FileLocation fileLocation,
+		@Nonnull FileLocationAndWrittenBytes fileLocationAndWrittenBytes,
 		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor,
 		double activeRecordShare,
 		long fileSize
 	) {
+		final FileLocation fileLocation = fileLocationAndWrittenBytes.fileLocation();
 		Assert.isPremiseValid(
 			fileLocation.endPosition() <= fileSize,
-			"File location end position must be less than or equal to file size: " + fileLocation.endPosition() + " <= " + fileSize + "!"
+			() -> {
+				return "File location end position must be less than or equal to file size: " + fileLocation.endPosition() + " <= " + fileSize + "! " +
+					"Current file location: " + fileLocation + ", written bytes: " + fileLocationAndWrittenBytes.writtenBytes() + ". " +
+					"Debug info: " + fileLocationAndWrittenBytes.debugInfo();
+			}
 		);
 		this.version = fileOffsetIndexDescriptor.version() + 1;
 		this.fileLocation = fileLocation;

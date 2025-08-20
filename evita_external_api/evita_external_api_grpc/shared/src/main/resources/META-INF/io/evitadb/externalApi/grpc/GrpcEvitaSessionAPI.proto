@@ -571,7 +571,7 @@ service EvitaSessionService {
   rpc GoLiveAndClose(google.protobuf.Empty) returns (GrpcGoLiveAndCloseResponse);
   // Procedure that changes the state of the catalog to ALIVE and closes the session opening a stream that listens
   // to updates of go live procedure.
-  rpc GoLiveAndCloseWithProgress(google.protobuf.Empty) returns (GrpcGoLiveAndCloseWithProgressResponse);
+  rpc GoLiveAndCloseWithProgress(google.protobuf.Empty) returns (stream GrpcGoLiveAndCloseWithProgressResponse);
   // Procedure used to backup an existing catalog.
   rpc BackupCatalog(GrpcBackupCatalogRequest) returns (GrpcBackupCatalogResponse);
   // Procedure used to backup an existing catalog.

@@ -126,8 +126,8 @@ public class QueryPlanner {
 
 			// create filtering formula and pick the formula with the least estimated costs
 			// this should be pretty fast - no computation is done yet
-			List<QueryPlanBuilder> queryPlanBuilders = createFilterFormula(
-				context, indexSelectionResult
+			final List<QueryPlanBuilder> queryPlanBuilders = createFilterFormula(
+				context, indexSelectionResult.targetIndexes()
 			);
 
 			// verify there is at least one plan
@@ -192,7 +192,7 @@ public class QueryPlanner {
 			// create filtering formula and pick the formula with the least estimated costs
 			// this should be pretty fast - no computation is done yet
 			final List<QueryPlanBuilder> queryPlanBuilders = createFilterFormula(
-				context, indexSelectionResult
+				context, indexSelectionResult.targetIndexes()
 			);
 
 			// verify there is at least one plan
@@ -248,39 +248,41 @@ public class QueryPlanner {
 	@Nonnull
 	private static <T extends Index<?>> List<QueryPlanBuilder> createFilterFormula(
 		@Nonnull QueryPlanningContext queryContext,
-		@Nonnull IndexSelectionResult<T> indexSelectionResult
+		@Nonnull List<TargetIndexes<T>> targetIndexes
 	) {
 		final LinkedList<QueryPlanBuilder> result = new LinkedList<>();
 		queryContext.pushStep(QueryPhase.PLANNING_FILTER);
 		try {
-			for (TargetIndexes<T> targetIndex : indexSelectionResult.targetIndexes()) {
+			for (TargetIndexes<T> targetIndex : targetIndexes) {
 				queryContext.pushStep(QueryPhase.PLANNING_FILTER_ALTERNATIVE);
-				Formula adeptFormula = null;
-				try {
-					final FilterByVisitor filterByVisitor = new FilterByVisitor(
-						queryContext,
-						indexSelectionResult.targetIndexes(),
-						targetIndex
-					);
+				if (targetIndex.isEligibleForSeparateQueryPlan()) {
+					Formula adeptFormula = null;
+					try {
+						final FilterByVisitor filterByVisitor = new FilterByVisitor(
+							queryContext, targetIndexes, targetIndex
+						);
 
-					final PrefetchFormulaVisitor prefetchFormulaVisitor = new PrefetchFormulaVisitor(queryContext, targetIndex);
-					ofNullable(queryContext.getFilterBy()).ifPresent(filterByVisitor::visit);
-					adeptFormula = queryContext.analyse(filterByVisitor.getFormula(prefetchFormulaVisitor));
+						final PrefetchFormulaVisitor prefetchFormulaVisitor = new PrefetchFormulaVisitor(queryContext, targetIndex);
+						ofNullable(queryContext.getFilterBy()).ifPresent(filterByVisitor::visit);
+						adeptFormula = queryContext.analyse(filterByVisitor.getFormula(prefetchFormulaVisitor));
 
-					final QueryPlanBuilder queryPlanBuilder = new QueryPlanBuilder(
-						queryContext, adeptFormula, filterByVisitor, targetIndex, prefetchFormulaVisitor
-					);
-					if (result.isEmpty() || adeptFormula.getEstimatedCost() < result.get(0).getEstimatedCost()) {
-						result.addFirst(queryPlanBuilder);
-					} else {
-						result.addLast(queryPlanBuilder);
+						final QueryPlanBuilder queryPlanBuilder = new QueryPlanBuilder(
+							queryContext, adeptFormula, filterByVisitor, targetIndex, prefetchFormulaVisitor
+						);
+						if (result.isEmpty() || adeptFormula.getEstimatedCost() < result.get(0).getEstimatedCost()) {
+							result.addFirst(queryPlanBuilder);
+						} else {
+							result.addLast(queryPlanBuilder);
+						}
+					} finally {
+						if (adeptFormula == null) {
+							queryContext.popStep(targetIndex.toString());
+						} else {
+							queryContext.popStep(targetIndex.toStringWithCosts(adeptFormula.getEstimatedCost()));
+						}
 					}
-				} finally {
-					if (adeptFormula == null) {
-						queryContext.popStep();
-					} else {
-						queryContext.popStep(targetIndex.toStringWithCosts(adeptFormula.getEstimatedCost()));
-					}
+				} else {
+					queryContext.popStep(targetIndex.toString());
 				}
 			}
 

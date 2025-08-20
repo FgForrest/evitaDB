@@ -104,7 +104,7 @@ public record EvitaClientConfiguration(
 	 * @return The path to the server certificate.
 	 * @deprecated Use {@link #serverCertificatePath()} instead.
 	 */
-	@Deprecated
+	@Deprecated(since = "2024.11", forRemoval = true)
 	@Nullable
 	public Path rootCaCertificatePath() {
 		return this.serverCertificatePath;
@@ -134,7 +134,7 @@ public record EvitaClientConfiguration(
 		private ReflectionCachingBehaviour reflectionCachingBehaviour = ReflectionCachingBehaviour.CACHE;
 		@Nullable
 		private Object openTelemetryInstance = null;
-		private boolean retry = true;
+		private boolean retry = false;
 		private int trackedTaskLimit = 100;
 
 		Builder() {
@@ -187,7 +187,7 @@ public record EvitaClientConfiguration(
 		 *
 		 * @deprecated Use {@link #serverCertificatePath(Path)} instead.
 		 */
-		@Deprecated
+		@Deprecated(since = "2024.11", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder rootCaCertificatePath(@Nonnull Path rootCaCertificatePath) {
 			this.serverCertificatePath = rootCaCertificatePath;
@@ -217,7 +217,7 @@ public record EvitaClientConfiguration(
 		 *
 		 * @deprecated Use {@link #timeout(long, TimeUnit)} instead.
 		 */
-		@Deprecated
+		@Deprecated(since = "2024.11", forRemoval = true)
 		@Nonnull
 		public EvitaClientConfiguration.Builder timeoutUnit(long timeout, @Nonnull TimeUnit unit) {
 			return timeout(timeout, unit);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.index.mutation.index;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
@@ -56,6 +57,7 @@ public interface PriceIndexMutator {
 	 */
 	static void priceUpsert(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull PriceKey priceKey,
 		@Nullable Integer innerRecordId,
@@ -70,7 +72,7 @@ public interface PriceIndexMutator {
 		final PriceWithInternalIds formerPrice = existingPriceSupplier.getPriceByKey(priceKey);
 		final PriceInnerRecordHandling innerRecordHandling = existingPriceSupplier.getPriceInnerRecordHandling();
 		priceUpsert(
-			executor, entityIndex, priceKey, innerRecordId, validity,
+			executor, referenceSchema, entityIndex, priceKey, innerRecordId, validity,
 			priceWithoutTax, priceWithTax,
 			indexed,
 			formerPrice, innerRecordHandling,
@@ -85,6 +87,7 @@ public interface PriceIndexMutator {
 	 */
 	static void priceUpsert(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull PriceKey priceKey,
 		@Nullable Integer innerRecordId,
@@ -110,6 +113,7 @@ public interface PriceIndexMutator {
 				final int formerPriceWithoutTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithoutTax(), indexedPricePlaces);
 				final int formerPriceWithTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithTax(), indexedPricePlaces);
 				entityIndex.priceRemove(
+					referenceSchema,
 					entityPrimaryKey,
 					formerInternalPriceId,
 					priceKey, innerRecordHandling, formerInnerRecordId,
@@ -120,6 +124,7 @@ public interface PriceIndexMutator {
 				if (undoActionConsumer != null) {
 					undoActionConsumer.accept(
 						() -> entityIndex.addPrice(
+							referenceSchema,
 							entityPrimaryKey,
 							formerInternalPriceId,
 							priceKey, innerRecordHandling, formerInnerRecordId,
@@ -136,6 +141,7 @@ public interface PriceIndexMutator {
 				final int priceWithoutTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithoutTax, indexedPricePlaces);
 				final int priceWithTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithTax, indexedPricePlaces);
 				final int priceId = entityIndex.addPrice(
+					referenceSchema,
 					entityPrimaryKey,
 					internalPriceId,
 					priceKey, innerRecordHandling, innerRecordId,
@@ -146,6 +152,7 @@ public interface PriceIndexMutator {
 				if (undoActionConsumer != null) {
 					undoActionConsumer.accept(
 						() -> entityIndex.priceRemove(
+							referenceSchema,
 							entityPrimaryKey,
 							priceId,
 							priceKey, innerRecordHandling, innerRecordId,
@@ -164,6 +171,7 @@ public interface PriceIndexMutator {
 	 */
 	static void priceRemove(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull PriceKey priceKey,
 		@Nonnull ExistingPriceSupplier existingPriceSupplier,
@@ -172,7 +180,7 @@ public interface PriceIndexMutator {
 		final PriceWithInternalIds formerPrice = existingPriceSupplier.getPriceByKey(priceKey);
 		final PriceInnerRecordHandling innerRecordHandling = existingPriceSupplier.getPriceInnerRecordHandling();
 
-		priceRemove(executor, entityIndex, priceKey, formerPrice, innerRecordHandling, undoActionConsumer);
+		priceRemove(executor, referenceSchema, entityIndex, priceKey, formerPrice, innerRecordHandling, undoActionConsumer);
 	}
 
 	/**
@@ -180,6 +188,7 @@ public interface PriceIndexMutator {
 	 */
 	static void priceRemove(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull PriceKey priceKey,
 		@Nullable PriceWithInternalIds formerPrice,
@@ -202,6 +211,7 @@ public interface PriceIndexMutator {
 					final int priceWithoutTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithoutTax(), indexedPricePlaces);
 					final int priceWithTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithTax(), indexedPricePlaces);
 					entityIndex.priceRemove(
+						referenceSchema,
 						entityPrimaryKey,
 						internalPriceId,
 						priceKey,
@@ -214,6 +224,7 @@ public interface PriceIndexMutator {
 					if (undoActionConsumer != null) {
 						undoActionConsumer.accept(
 							() -> entityIndex.addPrice(
+								referenceSchema,
 								entityPrimaryKey,
 								internalPriceId,
 								priceKey,

@@ -32,6 +32,7 @@ import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.PrematureEndOfFileException;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -59,6 +60,7 @@ import static io.evitadb.utils.BitUtils.setBit;
  *                         this record.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Slf4j
 public record StorageRecord<T>(
 	long generationId,
 	boolean closesGeneration,
@@ -115,30 +117,42 @@ public record StorageRecord<T>(
 		@Nonnull ObservableInput<?> input,
 		@Nonnull Function<FileLocation, Class<T>> typeResolver
 	) {
-		final long startPosition = input.markStart();
-		final int recordLength = input.readInt();
-		final byte control = input.readByte();
+		long startPosition = -1L;
+		int recordLength = -1;
+		try {
+			startPosition = input.markStart();
+			recordLength = input.readInt();
+			final byte control = input.readByte();
 
-		final FileLocation location = new FileLocation(startPosition, recordLength);
-		final Class<T> payloadType = typeResolver.apply(location);
+			final FileLocation location = new FileLocation(startPosition, recordLength);
+			final Class<T> payloadType = typeResolver.apply(location);
 
-		if (payloadType == null) {
-			// record is obsolete - it cannot be mapped to any know type
-			input.skip(recordLength);
-			final boolean closesGeneration = isBitSet(control, GENERATION_CLOSING_BIT);
-			return new StorageRecord<>(
-				-1L, closesGeneration, null, location
+			if (payloadType == null) {
+				// record is obsolete - it cannot be mapped to any know type
+				input.skip(recordLength);
+				final boolean closesGeneration = isBitSet(control, GENERATION_CLOSING_BIT);
+				return new StorageRecord<>(
+					-1L, closesGeneration, null, location
+				);
+			}
+
+			final Supplier<T> payloadReader = () -> kryo.readObject(input, payloadType);
+			return doReadStorageRecord(
+				input,
+				location,
+				control,
+				null,
+				payloadReader
 			);
+		} catch (RuntimeException ex) {
+			// reset input stream to avoid partially initialized state
+			input.reset();
+			if (startPosition != -1L && recordLength != -1) {
+				// if we know the location, we can verify it
+				checkUnderlyingInputStreamLength(input, new FileLocation(startPosition, recordLength), ex);
+			}
+			throw ex;
 		}
-
-		final Supplier<T> payloadReader = () -> kryo.readObject(input, payloadType);
-		return doReadStorageRecord(
-			input,
-			location,
-			control,
-			null,
-			payloadReader
-		);
 	}
 
 	/**
@@ -151,19 +165,63 @@ public record StorageRecord<T>(
 		@Nonnull FileLocation location,
 		@Nonnull TriFunction<ObservableInput<?>, Integer, Byte, T> reader
 	) {
-		input.seek(location);
-		input.markStart();
-		final int recordLength = input.readInt();
-		byte control = input.readByte();
+		try {
+			input.seek(location);
+			input.markStart();
+			final int recordLength = input.readInt();
+			byte control = input.readByte();
 
-		final Supplier<T> payloadReader = () -> reader.apply(input, recordLength, control);
-		return doReadStorageRecord(
-			input,
-			new FileLocation(location.startingPosition(), recordLength),
-			control,
-			fileLocation -> verifyExpectedLength(location, fileLocation),
-			payloadReader
-		);
+			final Supplier<T> payloadReader = () -> reader.apply(input, recordLength, control);
+			return doReadStorageRecord(
+				input,
+				new FileLocation(location.startingPosition(), recordLength),
+				control,
+				fileLocation -> verifyExpectedLength(location, fileLocation),
+				payloadReader
+			);
+		} catch (RuntimeException ex) {
+			// reset input stream to avoid partially initialized state
+			input.reset();
+			checkUnderlyingInputStreamLength(input, location, ex);
+			throw ex;
+		}
+	}
+
+	/**
+	 * Checks if the length of the underlying input stream is sufficient for the specified file location range.
+	 * Logs an error and suppresses a {@link PrematureEndOfFileException} to the provided exception if the file
+	 * size is not sufficient. Logs any exceptions encountered while retrieving the input stream length.
+	 *
+	 * @param input the observable input stream to be checked, must not be null
+	 * @param location the file location containing the start position, end position, and record length, must not be null
+	 * @param ex the runtime exception to which suppressed exceptions may be added, must not be null
+	 */
+	private static void checkUnderlyingInputStreamLength(
+		@Nonnull ObservableInput<?> input,
+		@Nonnull FileLocation location,
+		@Nonnull RuntimeException ex
+	) {
+		try {
+			final long maxLength = input.getLength();
+			if (location.endPosition() > maxLength) {
+				log.error("Attempt to read record at position {} with length {}B, but the file size is only {}B. " +
+					"This may indicate a corrupted file or an attempt to read beyond the end of the file.",
+					location.startingPosition(),
+					location.recordLength(),
+					maxLength
+				);
+				ex.addSuppressed(
+					new PrematureEndOfFileException(
+						maxLength,
+						location.startingPosition(),
+						location.endPosition()
+					)
+				);
+			}
+		} catch (Exception nested) {
+			// just log
+			log.error("Error getting length of input stream: {}", nested.getMessage(), nested);
+		}
 	}
 
 	/**
@@ -172,7 +230,7 @@ public record StorageRecord<T>(
 	 *
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated
+	@Deprecated(since = "2025.1", forRemoval = true)
 	@Nonnull
 	public static <T> StorageRecord<T> readOldFormat(
 		@Nonnull ObservableInput<?> input,
@@ -203,22 +261,34 @@ public record StorageRecord<T>(
 	 */
 	@Nonnull
 	public static RawRecord readRaw(@Nonnull ObservableInput<?> input) {
-		final long startingPosition = input.markStart();
-		final int recordLength = input.readInt();
-		final byte originalControl = input.readByte();
-		final long generationId = input.readLong();
-		// if the data is compressed we need to override the control byte and read it uncompressed
-		byte control = setBit(originalControl, COMPRESSION_BIT, false);
-		input.markPayloadStart(recordLength, control);
-		final byte[] payload = input.readBytes(recordLength - CRC_NOT_COVERED_PART);
-		input.markEnd(originalControl);
+		long startingPosition = -1L;
+		int recordLength = -1;
+		try {
+			startingPosition = input.markStart();
+			recordLength = input.readInt();
+			final byte originalControl = input.readByte();
+			final long generationId = input.readLong();
+			// if the data is compressed we need to override the control byte and read it uncompressed
+			byte control = setBit(originalControl, COMPRESSION_BIT, false);
+			input.markPayloadStart(recordLength, control);
+			final byte[] payload = input.readBytes(recordLength - CRC_NOT_COVERED_PART);
+			input.markEnd(originalControl);
 
-		return new RawRecord(
-			new FileLocation(startingPosition, recordLength),
-			originalControl,
-			generationId,
-			payload
-		);
+			return new RawRecord(
+				new FileLocation(startingPosition, recordLength),
+				originalControl,
+				generationId,
+				payload
+			);
+		} catch (RuntimeException ex) {
+			// reset input stream to avoid partially initialized state
+			input.reset();
+			if (startingPosition != -1L && recordLength != -1) {
+				// if we know the location, we can verify it
+				checkUnderlyingInputStreamLength(input, new FileLocation(startingPosition, recordLength), ex);
+			}
+			throw ex;
+		}
 	}
 
 	/**
@@ -230,28 +300,40 @@ public record StorageRecord<T>(
 	 *
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated
+	@Deprecated(since = "2025.1", forRemoval = true)
 	@Nonnull
 	public static RawRecord readOldRaw(
 		@Nonnull ObservableInput<?> input
 	) {
-		final long startPosition = input.markStart();
-		final int recordLength = input.readInt();
-		final byte originalControl = input.readByte();
+		long startPosition = -1L;
+		int recordLength = -1;
+		try {
+			startPosition = input.markStart();
+			recordLength = input.readInt();
+			final byte originalControl = input.readByte();
 
-		// if the data is compressed we need to override the control byte and read it uncompressed
-		byte control = setBit(originalControl, COMPRESSION_BIT, false);
-		input.markPayloadStart(recordLength, control);
-		final long generationId = input.readLong();
-		final byte[] payload = input.readBytes(recordLength - CRC_NOT_COVERED_PART);
-		input.markEnd(originalControl);
+			// if the data is compressed we need to override the control byte and read it uncompressed
+			byte control = setBit(originalControl, COMPRESSION_BIT, false);
+			input.markPayloadStart(recordLength, control);
+			final long generationId = input.readLong();
+			final byte[] payload = input.readBytes(recordLength - CRC_NOT_COVERED_PART);
+			input.markEnd(originalControl);
 
-		return new RawRecord(
-			new FileLocation(startPosition, recordLength),
-			originalControl,
-			generationId,
-			payload
-		);
+			return new RawRecord(
+				new FileLocation(startPosition, recordLength),
+				originalControl,
+				generationId,
+				payload
+			);
+		} catch (RuntimeException ex) {
+			// reset input stream to avoid partially initialized state
+			input.reset();
+			if (startPosition != -1L && recordLength != -1) {
+				// if we know the location, we can verify it
+				checkUnderlyingInputStreamLength(input, new FileLocation(startPosition, recordLength), ex);
+			}
+			throw ex;
+		}
 	}
 
 	/**
@@ -266,33 +348,47 @@ public record StorageRecord<T>(
 	 *
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated
+	@Deprecated(since = "2025.3", forRemoval = true)
 	@Nonnull
 	public static RawRecord readOldRaw(
 		@Nonnull ObservableInput<?> input,
 		long fileSize
 	) throws PrematureEndOfFileException {
-		final long startPosition = input.markStart();
-		final int recordLength = input.readInt();
-		Assert.isPremiseValid(
-			startPosition + recordLength <= fileSize,
-			() -> new PrematureEndOfFileException(fileSize, startPosition, recordLength)
-		);
-		final byte originalControl = input.readByte();
+		long startPosition = -1L;
+		int recordLength = -1;
+		try {
+			startPosition = input.markStart();
+			recordLength = input.readInt();
+			final long theStartPosition = startPosition;
+			final int theRecordLength = recordLength;
+			Assert.isPremiseValid(
+				startPosition + recordLength <= fileSize,
+				() -> new PrematureEndOfFileException(fileSize, theStartPosition, theRecordLength)
+			);
+			final byte originalControl = input.readByte();
 
-		// if the data is compressed we need to override the control byte and read it uncompressed
-		byte control = setBit(originalControl, COMPRESSION_BIT, false);
-		input.markPayloadStart(recordLength, control);
-		final long generationId = input.readLong();
-		final byte[] payload = input.readBytes(recordLength - CRC_NOT_COVERED_PART);
-		input.markEnd(originalControl);
+			// if the data is compressed we need to override the control byte and read it uncompressed
+			byte control = setBit(originalControl, COMPRESSION_BIT, false);
+			input.markPayloadStart(recordLength, control);
+			final long generationId = input.readLong();
+			final byte[] payload = input.readBytes(recordLength - CRC_NOT_COVERED_PART);
+			input.markEnd(originalControl);
 
-		return new RawRecord(
-			new FileLocation(startPosition, recordLength),
-			originalControl,
-			generationId,
-			payload
-		);
+			return new RawRecord(
+				new FileLocation(startPosition, recordLength),
+				originalControl,
+				generationId,
+				payload
+			);
+		} catch (RuntimeException ex) {
+			// reset input stream to avoid partially initialized state
+			input.reset();
+			if (startPosition != -1L && recordLength != -1) {
+				// if we know the location, we can verify it
+				checkUnderlyingInputStreamLength(input, new FileLocation(startPosition, recordLength), ex);
+			}
+			throw ex;
+		}
 	}
 
 	/**
@@ -304,17 +400,31 @@ public record StorageRecord<T>(
 		@Nonnull ObservableInput<?> input,
 		@Nonnull BiFunction<ObservableInput<?>, Integer, T> reader
 	) {
-		input.markStart();
-		final int recordLength = input.readInt();
-		byte control = input.readByte();
+		long startPosition = -1L;
+		int recordLength = -1;
+		try {
+			input.markStart();
+			startPosition = input.position();
+			recordLength = input.readInt();
+			byte control = input.readByte();
 
-		return doReadStorageRecord(
-			input,
-			new FileLocation(input.position(), recordLength),
-			control,
-			null,
-			() -> reader.apply(input, recordLength)
-		);
+			final int theRecordLength = recordLength;
+			return doReadStorageRecord(
+				input,
+				new FileLocation(startPosition, recordLength),
+				control,
+				null,
+				() -> reader.apply(input, theRecordLength)
+			);
+		} catch (RuntimeException ex) {
+			// reset input stream to avoid partially initialized state
+			input.reset();
+			if (startPosition != -1L && recordLength != -1) {
+				// if we know the location, we can verify it
+				checkUnderlyingInputStreamLength(input, new FileLocation(startPosition, recordLength), ex);
+			}
+			throw ex;
+		}
 	}
 
 	/**
@@ -329,16 +439,27 @@ public record StorageRecord<T>(
 		@Nonnull ObservableInput<?> input,
 		long startPosition
 	) {
-		input.seek(new FileLocation(startPosition, 4));
-		input.markStart();
-		final int recordLength = input.readInt();
-		input.reset();
-		return new FileLocation(startPosition, recordLength);
+		int recordLength = -1;
+		try {
+			input.seek(new FileLocation(startPosition, 4));
+			input.markStart();
+			recordLength = input.readInt();
+			input.reset();
+			return new FileLocation(startPosition, recordLength);
+		} catch (RuntimeException ex) {
+			// reset input stream to avoid partially initialized state
+			input.reset();
+			if (recordLength != -1) {
+				// if we know the location, we can verify it
+				checkUnderlyingInputStreamLength(input, new FileLocation(startPosition, recordLength), ex);
+			}
+			throw ex;
+		}
 	}
 
 	/**
 	 * Method allows to write raw data to the output stream. The method is used for writing data that were read using
-	 * {@link #readRaw(ObservableInput, FileLocation)} method.
+	 * {@link #readRaw(ObservableInput)} method.
 	 */
 	@Nonnull
 	public static FileLocation writeRaw(
@@ -347,24 +468,30 @@ public record StorageRecord<T>(
 		long generationId,
 		@Nonnull byte[] rawData
 	) {
-		output.markStart();
-		output.markRecordLengthPosition();
-		output.writeInt(0);
-		output.writeByte(0);
-		output.writeLong(generationId);
-		output.markPayloadStart();
-		output.writeBytes(rawData);
-		final FileLocation resultLocation = output.markEndSuppressingCompression(control);
-		//noinspection StringConcatenationMissingWhitespace
-		Assert.isPremiseValid(
-			rawData.length + CRC_NOT_COVERED_PART == resultLocation.recordLength(),
-			() -> new CorruptedRecordException(
-				"Record length differs (" + resultLocation.recordLength() + "B, " +
-					"expected " + (rawData.length + CRC_NOT_COVERED_PART) + "B) - it's probably corrupted!",
-				resultLocation.recordLength(), rawData.length + CRC_NOT_COVERED_PART
-			)
-		);
-		return resultLocation;
+		try {
+			output.markStart();
+			output.markRecordLengthPosition();
+			output.writeInt(0);
+			output.writeByte(0);
+			output.writeLong(generationId);
+			output.markPayloadStart();
+			output.writeBytes(rawData);
+			final FileLocation resultLocation = output.markEndSuppressingCompression(control);
+			//noinspection StringConcatenationMissingWhitespace
+			Assert.isPremiseValid(
+				rawData.length + CRC_NOT_COVERED_PART == resultLocation.recordLength(),
+				() -> new CorruptedRecordException(
+					"Record length differs (" + resultLocation.recordLength() + "B, " +
+						"expected " + (rawData.length + CRC_NOT_COVERED_PART) + "B) - it's probably corrupted!",
+					resultLocation.recordLength(), rawData.length + CRC_NOT_COVERED_PART
+				)
+			);
+			return resultLocation;
+		} catch (Exception ex) {
+			// reset output stream to avoid partially initialized state
+			output.reset();
+			throw ex;
+		}
 	}
 
 	/**
@@ -457,7 +584,7 @@ public record StorageRecord<T>(
 	 * @return The storage record read from the input stream.
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
 	 */
-	@Deprecated
+	@Deprecated(since = "2025.1", forRemoval = true)
 	@Nonnull
 	private static <T> StorageRecord<T> doReadOldStorageRecord(
 		@Nonnull ObservableInput<?> input,
@@ -579,21 +706,27 @@ public record StorageRecord<T>(
 		@Nonnull Kryo kryo,
 		@Nonnull T payload
 	) {
-		final AtomicReference<FileLocationPointer> recordLocations = new AtomicReference<>(FileLocationPointer.INITIAL);
-		return output.doWithOnBufferOverflowHandler(
-			new OnBufferOverflowHandler<>(recordLocations, output, generationId),
-			() -> {
-				// write storage record header
-				writeHeader(output, generationId);
-				// finally, write payload
-				kryo.writeObject(output, payload);
-				// compute crc32 and fill in record length
-				final byte controlByte = setBit((byte) 0, GENERATION_CLOSING_BIT, closesGeneration);
-				final FileLocation completeRecordLocation = output.markEnd(controlByte);
-				// return file length that possibly spans multiple records
-				return recordLocations.get().computeOverallFileLocation(completeRecordLocation);
-			}
-		);
+		try {
+			final AtomicReference<FileLocationPointer> recordLocations = new AtomicReference<>(FileLocationPointer.INITIAL);
+			return output.doWithOnBufferOverflowHandler(
+				new OnBufferOverflowHandler<>(recordLocations, output, generationId),
+				() -> {
+					// write storage record header
+					writeHeader(output, generationId);
+					// finally, write payload
+					kryo.writeObject(output, payload);
+					// compute crc32 and fill in record length
+					final byte controlByte = setBit((byte) 0, GENERATION_CLOSING_BIT, closesGeneration);
+					final FileLocation completeRecordLocation = output.markEnd(controlByte);
+					// return file length that possibly spans multiple records
+					return recordLocations.get().computeOverallFileLocation(completeRecordLocation);
+				}
+			);
+		} catch (Exception ex) {
+			// reset output stream to avoid partially initialized state
+			output.reset();
+			throw ex;
+		}
 	}
 
 	/**
@@ -657,10 +790,10 @@ public record StorageRecord<T>(
 
 	@Override
 	public int hashCode() {
-		int result = (int) (generationId ^ (generationId >>> 32));
-		result = 31 * result + (closesGeneration ? 1 : 0);
-		result = 31 * result + (payload != null ? payload.hashCode() : 0);
-		result = 31 * result + fileLocation.hashCode();
+		int result = Long.hashCode(this.generationId);
+		result = 31 * result + (this.closesGeneration ? 1 : 0);
+		result = 31 * result + (this.payload != null ? this.payload.hashCode() : 0);
+		result = 31 * result + this.fileLocation.hashCode();
 		return result;
 	}
 
@@ -826,7 +959,7 @@ public record StorageRecord<T>(
 			final byte controlByte = setBit((byte) 0, CONTINUATION_BIT, true);
 			final FileLocation incompleteRecordLocation = filledOutput.markEnd(controlByte);
 			// register file location of the continuous record
-			this.recordLocations.set(new FileLocationPointer(recordLocations.get(), incompleteRecordLocation));
+			this.recordLocations.set(new FileLocationPointer(this.recordLocations.get(), incompleteRecordLocation));
 			// write storage record header for another record
 			writeHeader(this.output, this.generationId);
 		}

@@ -461,3 +461,11 @@ message GrpcScopedGlobalAttributeUniquenessType {
   // type of uniqueness
   GrpcGlobalAttributeUniquenessType uniquenessType = 2;
 }
+
+// Message representing a scoped reference index type that combines scope and index type.
+message GrpcScopedReferenceIndexType {
+  // The scope in which the reference index type is applied.
+  GrpcEntityScope scope = 1;
+  // The type of index that should be created and maintained for the reference.
+  GrpcReferenceIndexType indexType = 2;
+}

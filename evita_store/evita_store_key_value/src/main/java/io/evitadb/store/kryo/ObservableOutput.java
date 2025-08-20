@@ -85,8 +85,10 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	/**
 	 * Accumulated count of bytes that have been saved by compress.
 	 * This number is crucial for correct file location calculation when multiple records are written to the output.
+	 *
+	 * Note: must be long to prevent integer overflow that would otherwise yield invalid written-bytes accounting.
 	 */
-	private int savedBytesByCompressionSinceReset;
+	private long savedBytesByCompressionSinceReset;
 	/**
 	 * Contains floating position in the buffer that marks bytes already written to the output stream (disk). I.e. every
 	 * byte before this position were already written out.
@@ -296,14 +298,30 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 			super.writeLong(crc);
 			// store current position
 			final int savedPosition = this.position;
-			final int length = this.position - this.startPosition - savedBytesByCompression;
+			final int length = Math.subtractExact(this.position - this.startPosition, savedBytesByCompression);
+			Assert.isPremiseValid(
+				length >= 0,
+				"Record length must be non-negative! Got: " + length + ", because " +
+					"savedBytesByCompression is: " + savedBytesByCompression + ", " +
+					"payloadLength is: " + payloadLength + ", alteredControlByte is: " + alteredControlByte + "!"
+			);
+
 			// seek backwards to the place of record length and write it
 			writeIntWithoutTouchingPosition(this.recordLengthPosition, length);
 			writeByteWithoutTouchingPosition(this.recordLengthPosition + 4, alteredControlByte);
 			// restore position to the EOF
 			super.position = savedPosition;
 			// compute file coordinates before resetting positions
-			final long supposedRecordStartPosition = this.total + (this.startPosition - this.lastConsumedPosition) - this.savedBytesByCompressionSinceReset;
+			final long supposedRecordStartPosition = Math.subtractExact(
+				Math.addExact(this.total, this.startPosition - this.lastConsumedPosition),
+				this.savedBytesByCompressionSinceReset
+			);
+			Assert.isPremiseValid(
+				supposedRecordStartPosition >= 0,
+				"Record start position must be non-negative! Got: " + supposedRecordStartPosition + ", because " +
+					"savedBytesByCompressionSinceReset is: " + this.savedBytesByCompressionSinceReset + ", " +
+					"total is: " + this.total + ", startPosition is: " + this.startPosition + ", lastConsumedPosition is: " + this.lastConsumedPosition + "!"
+			);
 
 			// write the record to the output stream
 			IOUtils.executeSafely(
@@ -354,7 +372,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		// write payload to the output stream
 		if (theSavedBytesByCompression > 0) {
 			this.outputStream.write(this.deflateBuffer, 0, thePayloadLength - theSavedBytesByCompression);
-			this.savedBytesByCompressionSinceReset += theSavedBytesByCompression;
+			this.savedBytesByCompressionSinceReset = Math.addExact(this.savedBytesByCompressionSinceReset, theSavedBytesByCompression);
 		} else {
 			this.outputStream.write(this.buffer, this.payloadStartPosition, thePayloadLength);
 		}
@@ -413,7 +431,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 */
 	@Override
 	public long total() {
-		return this.total + position();
+		return Math.addExact(this.total, position());
 	}
 
 	/**
@@ -424,7 +442,14 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * @return the number of bytes written since the last reset as a long value.
 	 */
 	public long getWrittenBytesSinceReset() {
-		return this.total + position() - this.savedBytesByCompressionSinceReset;
+		final long writtenBytes = Math.subtractExact(Math.addExact(this.total, position()), this.savedBytesByCompressionSinceReset);
+		Assert.isPremiseValid(
+			writtenBytes >= 0,
+			"Written bytes must be non-negative! Got: " + writtenBytes + ", because " +
+				"savedBytesByCompressionSinceReset is: " + this.savedBytesByCompressionSinceReset + ", " +
+				"total is: " + this.total + ", position is: " + position() + "!"
+		);
+		return writtenBytes;
 	}
 
 	@Override

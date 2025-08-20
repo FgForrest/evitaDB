@@ -8,6 +8,7 @@ on:
     paths:                         # but react only to changes in code or pipeline definition
       - evita*/**/*.java
       - evita*/**/pom.xml
+      - pom.xml
       - evita_external_api/evita_external_api_lab/src/main/resources/META-INF/lab/gui/dist/**
       - jacoco/**/pom.xml
       - docker/**

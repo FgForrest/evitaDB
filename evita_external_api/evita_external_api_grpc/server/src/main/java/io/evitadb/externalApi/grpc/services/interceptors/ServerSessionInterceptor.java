@@ -95,8 +95,10 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 
 		// might be already closed, same behaviour as server session
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaSessionService/Close");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaSessionService/CloseWithProgress");
 		// might be already closed, same behaviour as server session
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaSessionService/GoLiveAndClose");
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaSessionService/GoLiveAndCloseWithProgress");
 	}
 
 	/**

@@ -58,6 +58,7 @@ import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
@@ -293,7 +294,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 
 	@Nonnull
 	@Override
-	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nullable String origin) {
+	public PaginatedList<FileForFetch> listFilesToFetch(int page, int pageSize, @Nonnull Set<String> origin) {
 		this.evita.assertActive();
 		return this.exportFileService.listFilesToFetch(page, pageSize, origin);
 	}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ public class EntityIndexStoragePart implements StoragePart {
 	 */
 	@Getter private final int version;
 	/**
-	 * Type of the index.
+	 * Unique business key that identifies the entity index.
 	 */
 	@Getter private final EntityIndexKey entityIndexKey;
 	/**
@@ -108,12 +108,12 @@ public class EntityIndexStoragePart implements StoragePart {
 	@Nullable
 	@Override
 	public Long getStoragePartPK() {
-		return (long) primaryKey;
+		return (long) this.primaryKey;
 	}
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		return primaryKey;
+		return this.primaryKey;
 	}
 
 }

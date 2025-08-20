@@ -36,6 +36,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.mutation.index.ReferenceIndexMutator;
 import io.evitadb.index.mutation.index.dataAccess.EntityStoragePartExistingDataFactory;
@@ -88,7 +89,7 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	@Test
 	void shouldInsertNewReference() {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
-		final EntityIndex referenceIndex = new GlobalEntityIndex(2, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey));
+		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(2, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey));
 		referenceInsert(
 			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, null,
 			getEntityAttributeValueSupplierFactory(ENTITY_NAME, 1), DO_NOTHING_CONSUMER
@@ -100,7 +101,7 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	@Test
 	void shouldIndexAttributes() {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
-		final EntityIndex referenceIndex = new GlobalEntityIndex(2, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey));
+		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(2, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey));
 		final ExistingDataSupplierFactory entityAttributeValueSupplierFactory = getEntityAttributeValueSupplierFactory(ENTITY_NAME, 1);
 
 		referenceInsert(

@@ -357,7 +357,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * false otherwise.
 	 */
 	public boolean hasEntityGlobalIndex() {
-		return this.indexes.keySet().stream().anyMatch(it -> it instanceof EntityIndexKey);
+		return this.indexes.keySet().stream().anyMatch(EntityIndexKey.class::isInstance);
 	}
 
 	/**

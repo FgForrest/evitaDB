@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ import static io.grpc.MethodDescriptor.generateFullMethodName;
  * a way to create sessions and catalogs, and to update the catalog.
  * </pre>
  */
-
 @io.grpc.stub.annotations.GrpcGenerated
 public final class EvitaServiceGrpc {
 
@@ -845,8 +844,8 @@ public final class EvitaServiceGrpc {
      * Procedure used to check readiness of the API
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcReadyResponse isReady(com.google.protobuf.Empty request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcReadyResponse isReady(com.google.protobuf.Empty request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getIsReadyMethod(), getCallOptions(), request);
     }
 
@@ -855,8 +854,8 @@ public final class EvitaServiceGrpc {
      * Procedure used to create read only sessions.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getCreateReadOnlySessionMethod(), getCallOptions(), request);
     }
 
@@ -865,8 +864,8 @@ public final class EvitaServiceGrpc {
      * Procedure used to create read write sessions.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getCreateReadWriteSessionMethod(), getCallOptions(), request);
     }
 
@@ -875,8 +874,8 @@ public final class EvitaServiceGrpc {
      * Procedure used to create read-only session which will return data in binary format. Part of the Private API.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createBinaryReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createBinaryReadOnlySession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getCreateBinaryReadOnlySessionMethod(), getCallOptions(), request);
     }
 
@@ -885,8 +884,8 @@ public final class EvitaServiceGrpc {
      * Procedure used to create read-write session which will return data in binary format. Part of the Private API.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createBinaryReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse createBinaryReadWriteSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getCreateBinaryReadWriteSessionMethod(), getCallOptions(), request);
     }
 
@@ -895,8 +894,8 @@ public final class EvitaServiceGrpc {
      * Procedure used to terminate existing session.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse terminateSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse terminateSession(io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getTerminateSessionMethod(), getCallOptions(), request);
     }
 
@@ -905,8 +904,8 @@ public final class EvitaServiceGrpc {
      * Procedure used to get names of all existing catalogs.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse getCatalogNames(com.google.protobuf.Empty request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse getCatalogNames(com.google.protobuf.Empty request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetCatalogNamesMethod(), getCallOptions(), request);
     }
 
@@ -915,8 +914,8 @@ public final class EvitaServiceGrpc {
      * Procedure used to get state of the catalog by its name.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse getCatalogState(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse getCatalogState(io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetCatalogStateMethod(), getCallOptions(), request);
     }
 
@@ -925,8 +924,8 @@ public final class EvitaServiceGrpc {
      * Procedure used to define a new catalog.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogResponse defineCatalog(io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogResponse defineCatalog(io.evitadb.externalApi.grpc.generated.GrpcDefineCatalogRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getDefineCatalogMethod(), getCallOptions(), request);
     }
 
@@ -935,8 +934,8 @@ public final class EvitaServiceGrpc {
      * Procedure used to delete an existing catalog.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsResponse deleteCatalogIfExists(io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsResponse deleteCatalogIfExists(io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getDeleteCatalogIfExistsMethod(), getCallOptions(), request);
     }
 
@@ -945,8 +944,8 @@ public final class EvitaServiceGrpc {
      * Procedure used to update the catalog with a set of mutations.
      * </pre>
      */
-    public com.google.protobuf.Empty update(io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public com.google.protobuf.Empty update(io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getUpdateMethod(), getCallOptions(), request);
     }
 
@@ -955,8 +954,8 @@ public final class EvitaServiceGrpc {
      * Procedure used to rename an existing catalog.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse renameCatalog(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogResponse renameCatalog(io.evitadb.externalApi.grpc.generated.GrpcRenameCatalogRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getRenameCatalogMethod(), getCallOptions(), request);
     }
 
@@ -965,8 +964,8 @@ public final class EvitaServiceGrpc {
      * Procedure used to replace an existing catalog.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request) {
-      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+    public io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogResponse replaceCatalog(io.evitadb.externalApi.grpc.generated.GrpcReplaceCatalogRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getReplaceCatalogMethod(), getCallOptions(), request);
     }
   }

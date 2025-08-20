@@ -27,6 +27,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Response for CloseGrpcCloseWithProgress request that commits or rollbacks the changes in the session.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse}
  */
 public final class GrpcCloseWithProgressResponse extends
@@ -357,6 +361,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Response for CloseGrpcCloseWithProgress request that commits or rollbacks the changes in the session.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCloseWithProgressResponse}
    */
   public static final class Builder extends
