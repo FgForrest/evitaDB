@@ -72,7 +72,9 @@ jobs:
         path: 'evita_server/target/evita-server.jar'
 
     - name: Upload coverage to Codecov    # upload code coverage from Jacoco to codecov
-      uses: codecov/codecov-action@13ce06bfc6bbe3ecf90edbbf1bc32fe5978ca1d3 # v5.3.1
+      uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
 
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
     - name: Update dependency graph
