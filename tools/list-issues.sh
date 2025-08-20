@@ -34,9 +34,7 @@ fi
 REPO="FgForrest/evitaDB"
 
 # Fetch milestone number
-MILESTONE_NUMBER=$(gh api -H "Accept: application/vnd.github+json" \
-  "/repos/$REPO/milestones" | \
-  jq ".[] | select(.title == \"$MILESTONE\") | .number")
+MILESTONE_NUMBER=$(gh api --paginate -H "Accept: application/vnd.github+json" "/repos/$REPO/milestones?state=all&per_page=100" | jq ".[] | select(.title == \"$MILESTONE\") | .number" | head -n 1)
 
 if [ -z "$MILESTONE_NUMBER" ]; then
   echo "Milestone '$MILESTONE' not found in repository '$REPO'."
