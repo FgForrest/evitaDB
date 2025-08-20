@@ -30,13 +30,13 @@ In order to use a Java remote client you need only to add following dependency t
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_java_driver</artifactId>
-    <version>2025.5.1</version>
+    <version>2025.6.0</version>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_java_driver:2025.5.1'
+implementation 'io.evitadb:evita_java_driver:2025.6.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
